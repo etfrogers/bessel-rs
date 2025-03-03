@@ -1,11 +1,16 @@
-use std::f64::consts::FRAC_2_PI;
+#![allow(non_snake_case)]
+use std::f64::{self, consts::FRAC_2_PI};
 
 use super::{
-    BesselError, Scaling,
+    BesselError, CONEI, CONER, Scaling, ZEROI, ZEROR, gamma_ln,
     machine::{d1mach, i1mach},
 };
 use crate::amos::BesselError::*;
-use num::complex::{Complex64, ComplexFloat};
+use num::{
+    One, Zero,
+    complex::{Complex64, ComplexFloat},
+};
+use thiserror::Error;
 
 /*
 fn ZBESH(ZR, ZI, FNU, KODE, M, N, CYR, CYI, NZ, IERR)
@@ -23,7 +28,7 @@ fn ZBESH(ZR, ZI, FNU, KODE, M, N, CYR, CYI, NZ, IERR)
 //         ON KODE=1, ZBESH COMPUTES AN N MEMBER SEQUENCE OF COMPLEX
 //         HANKEL (BESSEL) FUNCTIONS CY(J)=H(M,FNU+J-1,Z) FOR KINDS M=1
 //         OR 2, REAL, NONNEGATIVE ORDERS FNU+J-1, J=1,...,N, AND COMPLEX
-//         Z != CMPLX(0.0,0.0) IN THE CUT PLANE -PI < ARG(Z).LE.PI.
+//         Z != CMPLX(0.0,0.0) IN THE CUT PLANE -PI < ARG(Z) <= PI.
 //         ON KODE=2, ZBESH RETURNS THE SCALED HANKEL FUNCTIONS
 //
 //         CY(I)=EXP(-MM*Z*I)*H(M,FNU+J-1,Z)       MM=3-2*M,   I**2=-1.
@@ -34,7 +39,7 @@ fn ZBESH(ZR, ZI, FNU, KODE, M, N, CYR, CYI, NZ, IERR)
 //
 //         INPUT      ZR,ZI,FNU ARE DOUBLE PRECISION
 //           ZR,ZI  - Z=CMPLX(ZR,ZI), Z != CMPLX(0.0,0.0),
-//                    -PT < ARG(Z).LE.PI
+//                    -PT < ARG(Z) <= PI
 //           FNU    - ORDER OF INITIAL H FUNCTION, FNU >= 0.0
 //           KODE   - A PARAMETER TO INDICATE THE SCALING OPTION
 //                    KODE= 1  RETURNS
@@ -109,7 +114,7 @@ fn ZBESH(ZR, ZI, FNU, KODE, M, N, CYR, CYI, NZ, IERR)
 //         LARGE, LOSSES OF SIGNIFICANCE BY ARGUMENT REDUCTION OCCUR.
 //         CONSEQUENTLY, if EITHER ONE EXCEEDS U1=SQRT(0.5/UR), THEN
 //         LOSSES EXCEEDING HALF PRECISION ARE LIKELY AND AN ERROR FLAG
-//         IERR=3 IS TRIGGERED WHERE UR=DMAX1(d1mach(4),1.0D-18) IS
+//         IERR=3 IS TRIGGERED WHERE UR=DMAX1(d1mach(4),1.0e-18) IS
 //         DOUBLE PRECISION UNIT ROUNDOFF LIMITED TO 18 DIGITS PRECISION.
 //         if EITHER IS LARGER THAN U2=0.5/UR, THEN ALL SIGNIFICANCE IS
 //         LOST AND IERR=4. IN ORDER TO USE THE INT FUNCTION, ARGUMENTS
@@ -126,7 +131,7 @@ fn ZBESH(ZR, ZI, FNU, KODE, M, N, CYR, CYI, NZ, IERR)
 //
 //         THE APPROXIMATE RELATIVE ERROR IN THE MAGNITUDE OF A COMPLEX
 //         BESSEL FUNCTION CAN BE EXPRESSED BY P*10**S WHERE P=MAX(UNIT
-//         ROUNDOFF,1.0D-18) IS THE NOMINAL PRECISION AND 10**S REPRE-
+//         ROUNDOFF,1.0e-18) IS THE NOMINAL PRECISION AND 10**S REPRE-
 //         SENTS THE INCREASE IN ERROR DUE TO ARGUMENT REDUCTION IN THE
 //         ELEMENTARY FUNCTIONS. HERE, S=MAX(1,ABS(LOG10(CABS(Z))),
 //         ABS(LOG10(FNU))) APPROXIMATELY (I.E. S=MAX(1,ABS(EXPONENT OF
@@ -199,7 +204,7 @@ fn ZBESH(ZR, ZI, FNU, KODE, M, N, CYR, CYI, NZ, IERR)
 //     DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).
 //     FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU
 //-----------------------------------------------------------------------
-      TOL = DMAX1(d1mach(4),1.0D-18)
+      TOL = DMAX1(d1mach(4),1.0e-18)
       K1 = i1mach(15)
       K2 = i1mach(16)
       R1M5 = d1mach(5)
@@ -235,7 +240,7 @@ fn ZBESH(ZR, ZI, FNU, KODE, M, N, CYR, CYI, NZ, IERR)
       UFL = d1mach(1)*1.0D+3
       if (AZ < UFL) GO TO 230
       if (FNU > FNUL) GO TO 90
-      if (FN.LE.1.0) GO TO 70
+      if (FN <= 1.0) GO TO 70
       if (FN > 2.0) GO TO 60
       if (AZ > TOL) GO TO 70
       ARG = 0.5*AZ
@@ -373,7 +378,7 @@ fn ZBESI(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, IERR)
 //         ON KODE=1, ZBESI COMPUTES AN N MEMBER SEQUENCE OF COMPLEX
 //         BESSEL FUNCTIONS CY(J)=I(FNU+J-1,Z) FOR REAL, NONNEGATIVE
 //         ORDERS FNU+J-1, J=1,...,N AND COMPLEX Z IN THE CUT PLANE
-//         -PI < ARG(Z).LE.PI. ON KODE=2, ZBESI RETURNS THE SCALED
+//         -PI < ARG(Z) <= PI. ON KODE=2, ZBESI RETURNS THE SCALED
 //         FUNCTIONS
 //
 //         CY(J)=EXP(-ABS(X))*I(FNU+J-1,Z)   J = 1,...,N , X=REAL(Z)
@@ -384,7 +389,7 @@ fn ZBESI(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, IERR)
 //         (REF. 1).
 //
 //         INPUT      ZR,ZI,FNU ARE DOUBLE PRECISION
-//           ZR,ZI  - Z=CMPLX(ZR,ZI),  -PI < ARG(Z).LE.PI
+//           ZR,ZI  - Z=CMPLX(ZR,ZI),  -PI < ARG(Z) <= PI
 //           FNU    - ORDER OF INITIAL I FUNCTION, FNU >= 0.0
 //           KODE   - A PARAMETER TO INDICATE THE SCALING OPTION
 //                    KODE= 1  RETURNS
@@ -454,7 +459,7 @@ fn ZBESI(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, IERR)
 //         LARGE, LOSSES OF SIGNIFICANCE BY ARGUMENT REDUCTION OCCUR.
 //         CONSEQUENTLY, if EITHER ONE EXCEEDS U1=SQRT(0.5/UR), THEN
 //         LOSSES EXCEEDING HALF PRECISION ARE LIKELY AND AN ERROR FLAG
-//         IERR=3 IS TRIGGERED WHERE UR=DMAX1(d1mach(4),1.0D-18) IS
+//         IERR=3 IS TRIGGERED WHERE UR=DMAX1(d1mach(4),1.0e-18) IS
 //         DOUBLE PRECISION UNIT ROUNDOFF LIMITED TO 18 DIGITS PRECISION.
 //         if EITHER IS LARGER THAN U2=0.5/UR, THEN ALL SIGNIFICANCE IS
 //         LOST AND IERR=4. IN ORDER TO USE THE INT FUNCTION, ARGUMENTS
@@ -538,7 +543,7 @@ fn ZBESI(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, IERR)
 //     DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).
 //     FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU.
 //-----------------------------------------------------------------------
-      TOL = DMAX1(d1mach(4),1.0D-18)
+      TOL = DMAX1(d1mach(4),1.0e-18)
       K1 = i1mach(15)
       K2 = i1mach(16)
       R1M5 = d1mach(5)
@@ -634,8 +639,8 @@ fn ZBESJ(
     z: Complex64, //ZR, ZI,
     order: f64,   //FNU,
     KODE: Scaling,
-    N: u16,
-) -> Result<f64, BesselError> {
+    N: usize,
+) -> Result<(Vec<Complex64>, usize), BesselError> {
     // ouputs: CYR, CYI, NZ, IERR)
     // ***BEGIN PROLOGUE  ZBESJ
     // ***DATE WRITTEN   830501   (YYMMDD)
@@ -651,7 +656,7 @@ fn ZBESJ(
     //         ON KODE=1, ZBESJ COMPUTES AN N MEMBER  SEQUENCE OF COMPLEX
     //         BESSEL FUNCTIONS CY(I)=J(FNU+I-1,Z) FOR REAL, NONNEGATIVE
     //         ORDERS FNU+I-1, I=1,...,N AND COMPLEX Z IN THE CUT PLANE
-    //         -PI < ARG(Z).LE.PI. ON KODE=2, ZBESJ RETURNS THE SCALED
+    //         -PI < ARG(Z) <= PI. ON KODE=2, ZBESJ RETURNS THE SCALED
     //         FUNCTIONS
     //
     //         CY(I)=EXP(-ABS(Y))*J(FNU+I-1,Z)   I = 1,...,N , Y=AIMAG(Z)
@@ -662,7 +667,7 @@ fn ZBESJ(
     //         (REF. 1).
     //
     //         INPUT      ZR,ZI,FNU ARE DOUBLE PRECISION
-    //           ZR,ZI  - Z=CMPLX(ZR,ZI),  -PI < ARG(Z).LE.PI
+    //           ZR,ZI  - Z=CMPLX(ZR,ZI),  -PI < ARG(Z) <= PI
     //           FNU    - ORDER OF INITIAL J FUNCTION, FNU >= 0.0
     //           KODE   - A PARAMETER TO INDICATE THE SCALING OPTION
     //                    KODE= 1  RETURNS
@@ -726,7 +731,7 @@ fn ZBESJ(
     //         LARGE, LOSSES OF SIGNIFICANCE BY ARGUMENT REDUCTION OCCUR.
     //         CONSEQUENTLY, if EITHER ONE EXCEEDS U1=SQRT(0.5/UR), THEN
     //         LOSSES EXCEEDING HALF PRECISION ARE LIKELY AND AN ERROR FLAG
-    //         IERR=3 IS TRIGGERED WHERE UR=DMAX1(d1mach(4),1.0D-18) IS
+    //         IERR=3 IS TRIGGERED WHERE UR=DMAX1(d1mach(4),1.0e-18) IS
     //         DOUBLE PRECISION UNIT ROUNDOFF LIMITED TO 18 DIGITS PRECISION.
     //         if EITHER IS LARGER THAN U2=0.5/UR, THEN ALL SIGNIFICANCE IS
     //         LOST AND IERR=4. IN ORDER TO USE THE INT FUNCTION, ARGUMENTS
@@ -794,13 +799,13 @@ fn ZBESJ(
     //
     // ***FIRST EXECUTABLE STATEMENT  ZBESJ
     // IERR = 0
-    let significance_loss = false;
+    let mut significance_loss = false;
     let NZ = 0;
-    let err = None;
+    let mut err = None;
     if order == 0.0_f64 {
         err = Some("order cannot be zero")
     };
-    if (N < 1) {
+    if N < 1 {
         err = Some("N must be >= 1")
     };
     if let Some(details) = err {
@@ -843,7 +848,7 @@ fn ZBESJ(
     let az = z.abs(); //ZABS(ZR, ZI);
     let FN = order + ((N - 1) as f64);
     AA = 0.5 / TOL;
-    let bb = (i1mach(9) as f64) * 0.5;
+    let mut bb = (i1mach(9) as f64) * 0.5;
     AA = AA.min(bb);
     if az > AA {
         return Err(LossOfSignificance);
@@ -859,13 +864,13 @@ fn ZBESJ(
     //     CALCULATE CSGN=EXP(FNU*FRAC_2_PI*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
     //     WHEN FNU IS LARGE
     //-----------------------------------------------------------------------
-    let CII = 1.0;
+    let mut CII = 1.0;
     let INU = order as i64;
     let INUH = INU / 2;
     let IR = INU - 2 * INUH;
     let ARG = (order - ((INU - IR) as f64)) * FRAC_2_PI;
-    let CSGNR = ARG.cos();
-    let CSGNI = ARG.sin();
+    let mut CSGNR = ARG.cos();
+    let mut CSGNI = ARG.sin();
     if (INUH % 2) != 0 {
         CSGNR = -CSGNR;
         CSGNI = -CSGNI;
@@ -873,31 +878,39 @@ fn ZBESJ(
     //-----------------------------------------------------------------------
     //     ZN IS IN THE RIGHT HALF PLANE
     //-----------------------------------------------------------------------
-    let ZNR = z.im;
-    let ZNI = -z.re;
+    let mut ZNR = z.im;
+    let mut ZNI = -z.re;
     if !(z.im >= 0.0) {
         ZNR = -ZNR;
         ZNI = -ZNI;
         CSGNI = -CSGNI;
         CII = -CII;
     }
-    ZBINU(
-        ZNR, ZNI, FNU, KODE, N, CYR, CYI, NZ, RL, FNUL, TOL, ELIM, ALIM,
-    );
-    if NZ < 0 {
-        if NZ == (-2) {
-            return Err(DidNotConverge);
-        } else {
-            return Err(Overflow);
-        };
-    }
+    let (mut cy, NZ) = ZBINU(
+        Complex64::new(ZNR, ZNI),
+        order,
+        KODE,
+        N,
+        /*CYR, CYI, NZ,*/ RL,
+        FNUL,
+        TOL,
+        ELIM,
+        ALIM,
+    )?;
+    //     if NZ < 0 {
+    //         if NZ == (-2) {
+    //             return Err(DidNotConverge);
+    //         } else {
+    //             return Err(Overflow);
+    //         };
+    //     }
     let NL = N - NZ;
     if NL == 0 {
         return Ok((cy, NZ));
     }
     let RTOL = 1.0 / TOL;
     let ASCLE = d1mach(1) * RTOL * 1.0e3;
-    for i in 1..NL {
+    for i in 1..=NL {
         //       STR = CYR(I)*CSGNR - CYI(I)*CSGNI
         //       CYI(I) = CYR(I)*CSGNI + CYI(I)*CSGNR
         //       CYR(I) = STR
@@ -952,7 +965,7 @@ fn ZBESK(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, IERR)
 //         ON KODE=1, ZBESK COMPUTES AN N MEMBER SEQUENCE OF COMPLEX
 //         BESSEL FUNCTIONS CY(J)=K(FNU+J-1,Z) FOR REAL, NONNEGATIVE
 //         ORDERS FNU+J-1, J=1,...,N AND COMPLEX Z != CMPLX(0.0,0.0)
-//         IN THE CUT PLANE -PI < ARG(Z).LE.PI. ON KODE=2, ZBESK
+//         IN THE CUT PLANE -PI < ARG(Z) <= PI. ON KODE=2, ZBESK
 //         RETURNS THE SCALED K FUNCTIONS,
 //
 //         CY(J)=EXP(Z)*K(FNU+J-1,Z) , J=1,...,N,
@@ -964,7 +977,7 @@ fn ZBESK(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, IERR)
 //
 //         INPUT      ZR,ZI,FNU ARE DOUBLE PRECISION
 //           ZR,ZI  - Z=CMPLX(ZR,ZI), Z != CMPLX(0.0,0.0),
-//                    -PI < ARG(Z).LE.PI
+//                    -PI < ARG(Z) <= PI
 //           FNU    - ORDER OF INITIAL K FUNCTION, FNU >= 0.0
 //           N      - NUMBER OF MEMBERS OF THE SEQUENCE, N >= 1
 //           KODE   - A PARAMETER TO INDICATE THE SCALING OPTION
@@ -1031,7 +1044,7 @@ fn ZBESK(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, IERR)
 //         LARGE, LOSSES OF SIGNIFICANCE BY ARGUMENT REDUCTION OCCUR.
 //         CONSEQUENTLY, if EITHER ONE EXCEEDS U1=SQRT(0.5/UR), THEN
 //         LOSSES EXCEEDING HALF PRECISION ARE LIKELY AND AN ERROR FLAG
-//         IERR=3 IS TRIGGERED WHERE UR=DMAX1(d1mach(4),1.0D-18) IS
+//         IERR=3 IS TRIGGERED WHERE UR=DMAX1(d1mach(4),1.0e-18) IS
 //         DOUBLE PRECISION UNIT ROUNDOFF LIMITED TO 18 DIGITS PRECISION.
 //         if EITHER IS LARGER THAN U2=0.5/UR, THEN ALL SIGNIFICANCE IS
 //         LOST AND IERR=4. IN ORDER TO USE THE INT FUNCTION, ARGUMENTS
@@ -1114,7 +1127,7 @@ fn ZBESK(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, IERR)
 //     DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).
 //     FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU
 //-----------------------------------------------------------------------
-      TOL = DMAX1(d1mach(4),1.0D-18)
+      TOL = DMAX1(d1mach(4),1.0e-18)
       K1 = i1mach(15)
       K2 = i1mach(16)
       R1M5 = d1mach(5)
@@ -1147,7 +1160,7 @@ fn ZBESK(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, IERR)
       UFL = d1mach(1)*1.0D+3
       if (AZ < UFL) GO TO 180
       if (FNU > FNUL) GO TO 80
-      if (FN.LE.1.0) GO TO 60
+      if (FN <= 1.0) GO TO 60
       if (FN > 2.0) GO TO 50
       if (AZ > TOL) GO TO 60
       ARG = 0.5*AZ
@@ -1176,7 +1189,7 @@ fn ZBESK(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, IERR)
       RETURN
 //-----------------------------------------------------------------------
 //     LEFT HALF PLANE COMPUTATION
-//     PI/2 < ARG(Z).LE.PI AND -PI < ARG(Z) < -PI/2.
+//     PI/2 < ARG(Z) <= PI AND -PI < ARG(Z) < -PI/2.
 //-----------------------------------------------------------------------
    70 CONTINUE
       if (NZ != 0) GO TO 180
@@ -1235,7 +1248,7 @@ fn ZBESY(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, CWRKR,
 //         ON KODE=1, ZBESY COMPUTES AN N MEMBER SEQUENCE OF COMPLEX
 //         BESSEL FUNCTIONS CY(I)=Y(FNU+I-1,Z) FOR REAL, NONNEGATIVE
 //         ORDERS FNU+I-1, I=1,...,N AND COMPLEX Z IN THE CUT PLANE
-//         -PI < ARG(Z).LE.PI. ON KODE=2, ZBESY RETURNS THE SCALED
+//         -PI < ARG(Z) <= PI. ON KODE=2, ZBESY RETURNS THE SCALED
 //         FUNCTIONS
 //
 //         CY(I)=EXP(-ABS(Y))*Y(FNU+I-1,Z)   I = 1,...,N , Y=AIMAG(Z)
@@ -1247,7 +1260,7 @@ fn ZBESY(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, CWRKR,
 //
 //         INPUT      ZR,ZI,FNU ARE DOUBLE PRECISION
 //           ZR,ZI  - Z=CMPLX(ZR,ZI), Z != CMPLX(0.0,0.0),
-//                    -PI < ARG(Z).LE.PI
+//                    -PI < ARG(Z) <= PI
 //           FNU    - ORDER OF INITIAL Y FUNCTION, FNU >= 0.0
 //           KODE   - A PARAMETER TO INDICATE THE SCALING OPTION
 //                    KODE= 1  RETURNS
@@ -1314,7 +1327,7 @@ fn ZBESY(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, CWRKR,
 //         LARGE, LOSSES OF SIGNIFICANCE BY ARGUMENT REDUCTION OCCUR.
 //         CONSEQUENTLY, if EITHER ONE EXCEEDS U1=SQRT(0.5/UR), THEN
 //         LOSSES EXCEEDING HALF PRECISION ARE LIKELY AND AN ERROR FLAG
-//         IERR=3 IS TRIGGERED WHERE UR=DMAX1(d1mach(4),1.0D-18) IS
+//         IERR=3 IS TRIGGERED WHERE UR=DMAX1(d1mach(4),1.0e-18) IS
 //         DOUBLE PRECISION UNIT ROUNDOFF LIMITED TO 18 DIGITS PRECISION.
 //         if EITHER IS LARGER THAN U2=0.5/UR, THEN ALL SIGNIFICANCE IS
 //         LOST AND IERR=4. IN ORDER TO USE THE INT FUNCTION, ARGUMENTS
@@ -1440,7 +1453,7 @@ fn ZBESY(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, CWRKR,
    60 CONTINUE
       EXR = COS(ZR)
       EXI = SIN(ZR)
-      TOL = MAX(d1mach(4),1.0D-18)
+      TOL = MAX(d1mach(4),1.0e-18)
       K1 = i1mach(15)
       K2 = i1mach(16)
       K = MIN(K1.abs(),K2.abs())
@@ -1569,14 +1582,14 @@ fn ZAIRY(ZR, ZI, ID, KODE, AIR, AII, NZ, IERR)
 //                           C=1.0/(PI*SQRT(3.0))
 //                            ZTA=(2/3)*Z**(3/2)
 //
-//         WITH THE POWER SERIES FOR CABS(Z).LE.1.0.
+//         WITH THE POWER SERIES FOR CABS(Z) <= 1.0.
 //
 //         IN MOST COMPLEX VARIABLE COMPUTATION, ONE MUST EVALUATE ELE-
 //         MENTARY FUNCTIONS. WHEN THE MAGNITUDE OF Z IS LARGE, LOSSES
 //         OF SIGNIFICANCE BY ARGUMENT REDUCTION OCCUR. CONSEQUENTLY, if
 //         THE MAGNITUDE OF ZETA=(2/3)*Z**1.5 EXCEEDS U1=SQRT(0.5/UR),
 //         THEN LOSSES EXCEEDING HALF PRECISION ARE LIKELY AND AN ERROR
-//         FLAG IERR=3 IS TRIGGERED WHERE UR=DMAX1(d1mach(4),1.0D-18) IS
+//         FLAG IERR=3 IS TRIGGERED WHERE UR=DMAX1(d1mach(4),1.0e-18) IS
 //         DOUBLE PRECISION UNIT ROUNDOFF LIMITED TO 18 DIGITS PRECISION.
 //         ALSO, if THE MAGNITUDE OF ZETA IS LARGER THAN U2=0.5/UR, THEN
 //         ALL SIGNIFICANCE IS LOST AND IERR=4. IN ORDER TO USE THE INT
@@ -1641,9 +1654,9 @@ fn ZAIRY(ZR, ZI, ID, KODE, AIR, AII, NZ, IERR)
      * ZEROR, ZI, ZR, ZTAI, ZTAR, Z3I, Z3R, d1mach, ZABS, ALAZ, BB
       INTEGER ID, IERR, IFLAG, K, KODE, K1, K2, MR, NN, NZ, i1mach
       DIMENSION CYR(1), CYI(1)
-      DATA TTH, C1, C2, COEF /6.66666666666666667D-01,
-     * 3.55028053887817240D-01,2.58819403792806799D-01,
-     * 1.83776298473930683D-01/
+      DATA TTH, C1, C2, COEF /6.66666666666666667e-01,
+     * 3.55028053887817240e-01,2.58819403792806799e-01,
+     * 1.83776298473930683e-01/
       DATA ZEROR, ZEROI, CONER, CONEI /0.0,0.0,1.0,0.0/
 // ***FIRST EXECUTABLE STATEMENT  ZAIRY
       IERR = 0
@@ -1652,11 +1665,11 @@ fn ZAIRY(ZR, ZI, ID, KODE, AIR, AII, NZ, IERR)
       if (KODE < 1 || KODE > 2) IERR=1
       if (IERR != 0) RETURN
       AZ = ZABS(ZR,ZI)
-      TOL = DMAX1(d1mach(4),1.0D-18)
+      TOL = DMAX1(d1mach(4),1.0e-18)
       FID = (ID as f64)
       if (AZ > 1.0) GO TO 70
 //-----------------------------------------------------------------------
-//     POWER SERIES FOR CABS(Z).LE.1.
+//     POWER SERIES FOR CABS(Z) <= 1.
 //-----------------------------------------------------------------------
       S1R = CONER
       S1I = CONEI
@@ -1719,7 +1732,7 @@ fn ZAIRY(ZR, ZI, ID, KODE, AIR, AII, NZ, IERR)
    50 CONTINUE
       AIR = -S2R*C2
       AII = -S2I*C2
-      if (AZ.LE.TOL) GO TO 60
+      if (AZ <= TOL) GO TO 60
       STR = ZR*S1R - ZI*S1I
       STI = ZR*S1I + ZI*S1R
       CC = C1/(1.0+FID)
@@ -1742,7 +1755,7 @@ fn ZAIRY(ZR, ZI, ID, KODE, AIR, AII, NZ, IERR)
       FNU = (1.0+FID)/3.0
 //-----------------------------------------------------------------------
 //     SET PARAMETERS RELATED TO MACHINE CONSTANTS.
-//     TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0D-18.
+//     TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0e-18.
 //     ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.
 //     EXP(-ELIM) < EXP(-ALIM)=EXP(-ELIM)/TOL    AND
 //     EXP(ELIM) > EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR
@@ -1776,7 +1789,7 @@ fn ZAIRY(ZR, ZI, ID, KODE, AIR, AII, NZ, IERR)
       ZTAR = TTH*(ZR*CSQR-ZI*CSQI)
       ZTAI = TTH*(ZR*CSQI+ZI*CSQR)
 //-----------------------------------------------------------------------
-//     RE(ZTA).LE.0 WHEN RE(Z) < 0, ESPECIALLY WHEN IM(Z) IS SMALL
+//     RE(ZTA) <= 0 WHEN RE(Z) < 0, ESPECIALLY WHEN IM(Z) IS SMALL
 //-----------------------------------------------------------------------
       IFLAG = 0
       SFAC = 1.0
@@ -1861,7 +1874,7 @@ fn ZAIRY(ZR, ZI, ID, KODE, AIR, AII, NZ, IERR)
       S1R = ZEROR
       S1I = ZEROI
       if (ID == 1) GO TO 190
-      if (AZ.LE.AA) GO TO 180
+      if (AZ <= AA) GO TO 180
       S1R = C2*ZR
       S1I = C2*ZI
   180 CONTINUE
@@ -1872,7 +1885,7 @@ fn ZAIRY(ZR, ZI, ID, KODE, AIR, AII, NZ, IERR)
       AIR = -C2
       AII = 0.0
       AA = DSQRT(AA)
-      if (AZ.LE.AA) GO TO 200
+      if (AZ <= AA) GO TO 200
       S1R = 0.5*(ZR*ZR-ZI*ZI)
       S1I = ZR*ZI
   200 CONTINUE
@@ -1958,14 +1971,14 @@ fn ZBIRY(ZR, ZI, ID, KODE, BIR, BII, IERR)
 //                               C=1.0/SQRT(3.0)
 //                             ZTA=(2/3)*Z**(3/2)
 //
-//         WITH THE POWER SERIES FOR CABS(Z).LE.1.0.
+//         WITH THE POWER SERIES FOR CABS(Z) <= 1.0.
 //
 //         IN MOST COMPLEX VARIABLE COMPUTATION, ONE MUST EVALUATE ELE-
 //         MENTARY FUNCTIONS. WHEN THE MAGNITUDE OF Z IS LARGE, LOSSES
 //         OF SIGNIFICANCE BY ARGUMENT REDUCTION OCCUR. CONSEQUENTLY, if
 //         THE MAGNITUDE OF ZETA=(2/3)*Z**1.5 EXCEEDS U1=SQRT(0.5/UR),
 //         THEN LOSSES EXCEEDING HALF PRECISION ARE LIKELY AND AN ERROR
-//         FLAG IERR=3 IS TRIGGERED WHERE UR=DMAX1(d1mach(4),1.0D-18) IS
+//         FLAG IERR=3 IS TRIGGERED WHERE UR=DMAX1(d1mach(4),1.0e-18) IS
 //         DOUBLE PRECISION UNIT ROUNDOFF LIMITED TO 18 DIGITS PRECISION.
 //         ALSO, if THE MAGNITUDE OF ZETA IS LARGER THAN U2=0.5/UR, THEN
 //         ALL SIGNIFICANCE IS LOST AND IERR=4. IN ORDER TO USE THE INT
@@ -2030,9 +2043,9 @@ fn ZBIRY(ZR, ZI, ID, KODE, BIR, BII, IERR)
      * TRM2R, TTH, ZI, ZR, ZTAI, ZTAR, Z3I, Z3R, d1mach, ZABS
       INTEGER ID, IERR, K, KODE, K1, K2, NZ, i1mach
       DIMENSION CYR(2), CYI(2)
-      DATA TTH, C1, C2, COEF, PI /6.66666666666666667D-01,
-     * 6.14926627446000736D-01,4.48288357353826359D-01,
-     * 5.77350269189625765D-01,3.14159265358979324D+00/
+      DATA TTH, C1, C2, COEF, PI /6.66666666666666667e-01,
+     * 6.14926627446000736e-01,4.48288357353826359e-01,
+     * 5.77350269189625765e-01,3.14159265358979324e+00/
       DATA CONER, CONEI /1.0,0.0/
 // ***FIRST EXECUTABLE STATEMENT  ZBIRY
       IERR = 0
@@ -2041,11 +2054,11 @@ fn ZBIRY(ZR, ZI, ID, KODE, BIR, BII, IERR)
       if (KODE < 1 || KODE > 2) IERR=1
       if (IERR != 0) RETURN
       AZ = ZABS(ZR,ZI)
-      TOL = DMAX1(d1mach(4),1.0D-18)
+      TOL = DMAX1(d1mach(4),1.0e-18)
       FID = (ID as f64)
       if (AZ > 1.0E0) GO TO 70
 //-----------------------------------------------------------------------
-//     POWER SERIES FOR CABS(Z).LE.1.
+//     POWER SERIES FOR CABS(Z) <= 1.
 //-----------------------------------------------------------------------
       S1R = CONER
       S1I = CONEI
@@ -2109,7 +2122,7 @@ fn ZBIRY(ZR, ZI, ID, KODE, BIR, BII, IERR)
    50 CONTINUE
       BIR = S2R*C2
       BII = S2I*C2
-      if (AZ.LE.TOL) GO TO 60
+      if (AZ <= TOL) GO TO 60
       CC = C1/(1.0+FID)
       STR = S1R*ZR - S1I*ZI
       STI = S1R*ZI + S1I*ZR
@@ -2168,7 +2181,7 @@ fn ZBIRY(ZR, ZI, ID, KODE, BIR, BII, IERR)
       ZTAR = TTH*(ZR*CSQR-ZI*CSQI)
       ZTAI = TTH*(ZR*CSQI+ZI*CSQR)
 //-----------------------------------------------------------------------
-//     RE(ZTA).LE.0 WHEN RE(Z) < 0, ESPECIALLY WHEN IM(Z) IS SMALL
+//     RE(ZTA) <= 0 WHEN RE(Z) < 0, ESPECIALLY WHEN IM(Z) IS SMALL
 //-----------------------------------------------------------------------
       SFAC = 1.0
       AK = ZTAI
@@ -2317,7 +2330,7 @@ fn ZSQRT(AR, AI, BR, BI)
       if (AR == 0.0D+0) GO TO 10
       if (AI == 0.0D+0) GO TO 20
       DTHETA = DATAN(AI/AR)
-      if (DTHETA.LE.0.0D+0) GO TO 40
+      if (DTHETA <= 0.0D+0) GO TO 40
       if (AR < 0.0D+0) DTHETA = DTHETA - DPI
       GO TO 50
    10 if (AI > 0.0D+0) GO TO 60
@@ -2379,7 +2392,7 @@ fn ZLOG(AR, AI, BR, BI, IERR)
       if (AR == 0.0D+0) GO TO 10
       if (AI == 0.0D+0) GO TO 20
       DTHETA = DATAN(AI/AR)
-      if (DTHETA.LE.0.0D+0) GO TO 40
+      if (DTHETA <= 0.0D+0) GO TO 40
       if (AR < 0.0D+0) DTHETA = DTHETA - DPI
       GO TO 50
    10 if (AI == 0.0D+0) GO TO 60
@@ -2439,7 +2452,7 @@ fn ZBKNU(ZR, ZI, FNU, KODE, N, YR, YI, NZ, TOL, ELIM,
 //
 //     ZBKNU COMPUTES THE K BESSEL FUNCTION IN THE RIGHT HALF Z PLANE.
 //
-// ***ROUTINES CALLED  DGAMLN,i1mach,d1mach,ZKSCL,ZSHCH,ZUCHK,ZABS,ZDIV,
+// ***ROUTINES CALLED  gamma_ln,i1mach,d1mach,ZKSCL,ZSHCH,ZUunderflowCHK,ZABS,ZDIV,
 //                    ZEXP,ZLOG,ZMLT,ZSQRT
 // ***END PROLOGUE  ZBKNU
 //
@@ -2451,7 +2464,7 @@ fn ZBKNU(ZR, ZI, FNU, KODE, N, YR, YI, NZ, TOL, ELIM,
      * FI, FK, FKS, FMUI, FMUR, FNU, FPI, FR, G1, G2, FRAC_2_PI, PI, PR, PTI,
      * PTR, P1I, P1R, P2I, P2M, P2R, QI, QR, RAK, RCAZ, RTFRAC_2_PI, RZI,
      * RZR, R1, S, SMUI, SMUR, SPI, STI, STR, S1I, S1R, S2I, S2R, TM,
-     * TOL, TTH, T1, T2, YI, YR, ZI, ZR, DGAMLN, d1mach, ZABS, ELM,
+     * TOL, TTH, T1, T2, YI, YR, ZI, ZR, gamma_ln, d1mach, ZABS, ELM,
      * CELMR, ZDR, ZDI, AS, ALAS, HELIM, CYR, CYI
       INTEGER I, IFLAG, INU, K, KFLAG, KK, KMAX, KODE, KODED, N, NZ,
      * IDUM, i1mach, J, IC, INUB, NW
@@ -2466,12 +2479,12 @@ fn ZBKNU(ZR, ZI, FNU, KODE, N, YR, YI, NZ, TOL, ELIM,
       DATA DPI, RTFRAC_2_PI, SPI ,FRAC_2_PI, FPI, TTH /
      1     3.14159265358979324,       1.25331413731550025,
      2     1.90985931710274403,       1.57079632679489662,
-     3     1.89769999331517738,       6.66666666666666666D-01/
+     3     1.89769999331517738,       6.66666666666666666e-01/
       DATA CC(1), CC(2), CC(3), CC(4), CC(5), CC(6), CC(7), CC(8)/
-     1     5.77215664901532861D-01,    -4.20026350340952355D-02,
-     2    -4.21977345555443367D-02,     7.21894324666309954D-03,
-     3    -2.15241674114950973D-04,    -2.01348547807882387D-05,
-     4     1.13302723198169588D-06,     6.11609510448141582D-09/
+     1     5.77215664901532861e-01,    -4.20026350340952355e-02,
+     2    -4.21977345555443367e-02,     7.21894324666309954e-03,
+     3    -2.15241674114950973e-04,    -2.01348547807882387e-05,
+     4     1.13302723198169588e-06,     6.11609510448141582e-09/
 //
       CAZ = ZABS(ZR,ZI)
       CSCLR = 1.0/TOL
@@ -2500,7 +2513,7 @@ fn ZBKNU(ZR, ZI, FNU, KODE, N, YR, YI, NZ, TOL, ELIM,
       if ((DNU).abs() > TOL) DNU2 = DNU*DNU
       if (CAZ > R1) GO TO 110
 //-----------------------------------------------------------------------
-//     SERIES FOR CABS(Z).LE.R1
+//     SERIES FOR CABS(Z) <= R1
 //-----------------------------------------------------------------------
       FC = 1.0
       CALL ZLOG(RZR, RZI, SMUR, SMUI, IDUM)
@@ -2517,7 +2530,7 @@ fn ZBKNU(ZR, ZI, FNU, KODE, N, YR, YI, NZ, TOL, ELIM,
 //-----------------------------------------------------------------------
 //     GAM(1-Z)*GAM(1+Z)=PI*Z/SIN(PI*Z), T1=1/GAM(1-DNU), T2=1/GAM(1+DNU)
 //-----------------------------------------------------------------------
-      T2 = DEXP(-DGAMLN(A2,IDUM))
+      T2 = DEXP(-gamma_ln(A2,IDUM))
       T1 = 1.0/(T2*FC)
       if ((DNU).abs() > 0.1) GO TO 40
 //-----------------------------------------------------------------------
@@ -2556,7 +2569,7 @@ fn ZBKNU(ZR, ZI, FNU, KODE, N, YR, YI, NZ, TOL, ELIM,
       BK = 1.0 - DNU2
       if (INU > 0 || N > 1) GO TO 80
 //-----------------------------------------------------------------------
-//     GENERATE K(FNU,Z), 0.0 .LE. FNU  <  0.5 AND N=1
+//     GENERATE K(FNU,Z), 0.0  <=  FNU  <  0.5 AND N=1
 //-----------------------------------------------------------------------
       if (CAZ < TOL) GO TO 70
       CALL ZMLT(ZR, ZI, ZR, ZI, CZR, CZI)
@@ -2667,7 +2680,7 @@ fn ZBKNU(ZR, ZI, FNU, KODE, N, YR, YI, NZ, TOL, ELIM,
 //-----------------------------------------------------------------------
 //     COMPUTE R2=F(E). if CABS(Z) >= R2, USE FORWARD RECURRENCE TO
 //     DETERMINE THE BACKWARD INDEX K. R2=F(E) IS A STRAIGHT LINE ON
-//     12.LE.E.LE.60. E IS COMPUTED FROM 2**(-E)=B**(1-i1mach(14))=
+//     12 <= E <= 60. E IS COMPUTED FROM 2**(-E)=B**(1-i1mach(14))=
 //     TOL WHERE B IS THE BASE OF THE ARITHMETIC.
 //-----------------------------------------------------------------------
       T1 = DBLE(FLOAT(i1mach(14)-1))
@@ -2823,7 +2836,7 @@ fn ZBKNU(ZR, ZI, FNU, KODE, N, YR, YI, NZ, TOL, ELIM,
         STR = (P2R).abs()
         STI = (P2I).abs()
         P2M = DMAX1(STR,STI)
-        if (P2M.LE.ASCLE) GO TO 230
+        if (P2M <= ASCLE) GO TO 230
         KFLAG = KFLAG + 1
         ASCLE = BRY(KFLAG)
         S1R = S1R*P1R
@@ -2871,7 +2884,7 @@ fn ZBKNU(ZR, ZI, FNU, KODE, N, YR, YI, NZ, TOL, ELIM,
         STR = (P2R).abs()
         STI = (P2I).abs()
         P2M = DMAX1(STR,STI)
-        if (P2M.LE.ASCLE) GO TO 260
+        if (P2M <= ASCLE) GO TO 260
         KFLAG = KFLAG + 1
         ASCLE = BRY(KFLAG)
         S1R = S1R*P1R
@@ -2917,7 +2930,7 @@ fn ZBKNU(ZR, ZI, FNU, KODE, N, YR, YI, NZ, TOL, ELIM,
         P2M = DEXP(P2R)/TOL
         P1R = P2M*DCOS(P2I)
         P1I = P2M*DSIN(P2I)
-        CALL ZUCHK(P1R,P1I,NW,ASCLE,TOL)
+        CALL ZUunderflowCHK(P1R,P1I,NW,ASCLE,TOL)
         if(NW != 0) GO TO 263
         J = 3 - J
         CYR(J) = P1R
@@ -2945,7 +2958,7 @@ fn ZBKNU(ZR, ZI, FNU, KODE, N, YR, YI, NZ, TOL, ELIM,
       J = 3 - J
       S1R = CYR(J)
       S1I = CYI(J)
-      if(INUB.LE.INU) GO TO 225
+      if(INUB <= INU) GO TO 225
       if(N != 1) GO TO 240
       S1R = S2R
       S1I = S2I
@@ -2960,7 +2973,7 @@ fn ZBKNU(ZR, ZI, FNU, KODE, N, YR, YI, NZ, TOL, ELIM,
       ASCLE = BRY(1)
       CALL ZKSCL(ZDR,ZDI,FNU,N,YR,YI,NZ,RZR,RZI,ASCLE,TOL,ELIM)
       INU = N - NZ
-      if (INU.LE.0) RETURN
+      if (INU <= 0) RETURN
       KK = NZ + 1
       S1R = YR(KK)
       S1I = YI(KK)
@@ -3009,7 +3022,7 @@ fn ZKSCL(ZRR,ZRI,FNU,N,YR,YI,NZ,RZR,RZI,ASCLE,TOL,ELIM)
 //     ON SCALED FUNCTIONS UNTIL TWO MEMBERS COME ON SCALE, THEN
 //     RETURN WITH MIN(NZ+2,N) VALUES SCALED BY 1/TOL.
 //
-// ***ROUTINES CALLED  ZUCHK,ZABS,ZLOG
+// ***ROUTINES CALLED  ZUunderflowCHK,ZABS,ZLOG
 // ***END PROLOGUE  ZKSCL
 //     COMPLEX CK,CS,CY,CZERO,RZ,S1,S2,Y,ZR,ZD,CELM
       EXTERNAL ZABS
@@ -3041,7 +3054,7 @@ fn ZKSCL(ZRR,ZRI,FNU,N,YR,YI,NZ,RZR,RZI,ASCLE,TOL,ELIM)
         STR = DEXP(CSR)/TOL
         CSR = STR*DCOS(CSI)
         CSI = STR*DSIN(CSI)
-        CALL ZUCHK(CSR, CSI, NW, ASCLE, TOL)
+        CALL ZUunderflowCHK(CSR, CSI, NW, ASCLE, TOL)
         if (NW != 0) GO TO 10
         YR(I) = CSR
         YI(I) = CSI
@@ -3095,7 +3108,7 @@ fn ZKSCL(ZRR,ZRI,FNU,N,YR,YI,NZ,RZR,RZI,ASCLE,TOL,ELIM)
         STR = DEXP(CSR)/TOL
         CSR = STR*DCOS(CSI)
         CSI = STR*DSIN(CSI)
-        CALL ZUCHK(CSR, CSI, NW, ASCLE, TOL)
+        CALL ZUunderflowCHK(CSR, CSI, NW, ASCLE, TOL)
         if (NW != 0) GO TO 25
         YR(I) = CSR
         YI(I) = CSI
@@ -3219,7 +3232,7 @@ fn ZRATI(ZR, ZI, FNU, N, CYR, CYI, TOL)
       T1R = T1R + RZR
       T1I = T1I + RZI
       AP2 = ZABS(P2R,P2I)
-      if (AP1.LE.TEST) GO TO 10
+      if (AP1 <= TEST) GO TO 10
       if (ITIME == 2) GO TO 20
       AK = ZABS(T1R,T1I)*0.5
       FLAM = AK + DSQRT(AK*AK-1.0)
@@ -3349,14 +3362,14 @@ fn ZBUNK(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
       if (AY > AX) GO TO 10
 //-----------------------------------------------------------------------
 //     ASYMPTOTIC EXPANSION FOR K(FNU,Z) FOR LARGE FNU APPLIED IN
-//     -PI/3.LE.ARG(Z).LE.PI/3
+//     -PI/3 <= ARG(Z) <= PI/3
 //-----------------------------------------------------------------------
       CALL ZUNK1(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM, ALIM)
       GO TO 20
    10 CONTINUE
 //-----------------------------------------------------------------------
 //     ASYMPTOTIC EXPANSION FOR H(2,FNU,Z*EXP(M*FRAC_2_PI)) FOR LARGE FNU
-//     APPLIED IN PI/3 < ABS(ARG(Z)).LE.PI/2 WHERE M=+I OR -I
+//     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I
 //     AND FRAC_2_PI=PI/2
 //-----------------------------------------------------------------------
       CALL ZUNK2(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM, ALIM)
@@ -3370,14 +3383,14 @@ fn ZMLRI(ZR, ZI, FNU, KODE, N, YR, YI, NZ, TOL)
 //     ZMLRI COMPUTES THE I BESSEL FUNCTION FOR RE(Z) >= 0.0 BY THE
 //     MILLER ALGORITHM NORMALIZED BY A NEUMANN SERIES.
 //
-// ***ROUTINES CALLED  DGAMLN,d1mach,ZABS,ZEXP,ZLOG,ZMLT
+// ***ROUTINES CALLED  gamma_ln,d1mach,ZABS,ZEXP,ZLOG,ZMLT
 // ***END PROLOGUE  ZMLRI
 //     COMPLEX CK,CNORM,CONE,CTWO,CZERO,PT,P1,P2,RZ,SUM,Y,Z
       EXTERNAL ZABS
       DOUBLE PRECISION ACK, AK, AP, AT, AZ, BK, CKI, CKR, CNORMI,
      * CNORMR, CONEI, CONER, FKAP, FKK, FLAM, FNF, FNU, PTI, PTR, P1I,
      * P1R, P2I, P2R, RAZ, RHO, RHO2, RZI, RZR, SCLE, STI, STR, SUMI,
-     * SUMR, TFNF, TOL, TST, YI, YR, ZEROI, ZEROR, ZI, ZR, DGAMLN,
+     * SUMR, TFNF, TOL, TST, YI, YR, ZEROI, ZEROR, ZI, ZR, gamma_ln,
      * d1mach, ZABS
       INTEGER I, IAZ, IDUM, IFNU, INU, ITIME, K, KK, KM, KODE, M, N, NZ
       DIMENSION YR(N), YI(N)
@@ -3478,8 +3491,8 @@ fn ZMLRI(ZR, ZI, FNU, KODE, N, YR, YI, NZ, TOL)
       P2I = ZEROI
       FNF = FNU - (IFNU as f64)
       TFNF = FNF + FNF
-      BK = DGAMLN(FKK+TFNF+1.0,IDUM) - DGAMLN(FKK+1.0,IDUM) -
-     * DGAMLN(TFNF+1.0,IDUM)
+      BK = gamma_ln(FKK+TFNF+1.0,IDUM) - gamma_ln(FKK+1.0,IDUM) -
+     * gamma_ln(TFNF+1.0,IDUM)
       BK = DEXP(BK)
       SUMR = ZEROR
       SUMI = ZEROI
@@ -3519,7 +3532,7 @@ fn ZMLRI(ZR, ZI, FNU, KODE, N, YR, YI, NZ, TOL)
         YI(M) = P2I
    60 CONTINUE
    70 CONTINUE
-      if (IFNU.LE.0) GO TO 90
+      if (IFNU <= 0) GO TO 90
       DO 80 I=1,IFNU
         PTR = P2R
         PTI = P2I
@@ -3541,7 +3554,7 @@ fn ZMLRI(ZR, ZI, FNU, KODE, N, YR, YI, NZ, TOL)
       CALL ZLOG(RZR, RZI, STR, STI, IDUM)
       P1R = -FNF*STR + PTR
       P1I = -FNF*STI + PTI
-      AP = DGAMLN(1.0+FNF,IDUM)
+      AP = gamma_ln(1.0+FNF,IDUM)
       PTR = P1R - AP
       PTI = P1I
 //-----------------------------------------------------------------------
@@ -3663,197 +3676,340 @@ fn ZWRSK(ZRR, ZRI, FNU, KODE, N, YR, YI, NZ, CWR, CWI,
       if(NW == (-2)) NZ=-2
       RETURN
       END
-fn ZSERI(ZR, ZI, FNU, KODE, N, YR, YI, NZ, TOL, ELIM,
-     * ALIM)
-// ***BEGIN PROLOGUE  ZSERI
-// ***REFER TO  ZBESI,ZBESK
-//
-//     ZSERI COMPUTES THE I BESSEL FUNCTION FOR REAL(Z) >= 0.0 BY
-//     MEANS OF THE POWER SERIES FOR LARGE CABS(Z) IN THE
-//     REGION CABS(Z).LE.2*SQRT(FNU+1). NZ=0 IS A NORMAL RETURN.
-//     NZ > 0 MEANS THAT THE LAST NZ COMPONENTS WERE SET TO ZERO
-//     DUE TO UNDERFLOW. NZ < 0 MEANS UNDERFLOW OCCURRED, BUT THE
-//     CONDITION CABS(Z).LE.2*SQRT(FNU+1) WAS VIOLATED AND THE
-//     COMPUTATION MUST BE COMPLETED IN ANOTHER ROUTINE WITH N=N-ABS(NZ).
-//
-// ***ROUTINES CALLED  DGAMLN,d1mach,ZUCHK,ZABS,ZDIV,ZLOG,ZMLT
-// ***END PROLOGUE  ZSERI
-//     COMPLEX AK1,CK,COEF,CONE,CRSC,CSCL,CZ,CZERO,HZ,RZ,S1,S2,Y,Z
-      EXTERNAL ZABS
-      DOUBLE PRECISION AA, ACZ, AK, AK1I, AK1R, ALIM, ARM, ASCLE, ATOL,
-     * AZ, CKI, CKR, COEFI, COEFR, CONEI, CONER, CRSCR, CZI, CZR, DFNU,
-     * ELIM, FNU, FNUP, HZI, HZR, RAZ, RS, RTR1, RZI, RZR, S, SS, STI,
-     * STR, S1I, S1R, S2I, S2R, TOL, YI, YR, WI, WR, ZEROI, ZEROR, ZI,
-     * ZR, DGAMLN, d1mach, ZABS
-      INTEGER I, IB, IDUM, IFLAG, IL, K, KODE, L, M, N, NN, NZ, NW
-      DIMENSION YR(N), YI(N), WR(2), WI(2)
-      DATA ZEROR,ZEROI,CONER,CONEI / 0.0, 0.0, 1.0, 0.0 /
-//
-      NZ = 0
-      AZ = ZABS(ZR,ZI)
-      if (AZ == 0.0) GO TO 160
-      ARM = 1.0D+3*d1mach(1)
-      RTR1 = DSQRT(ARM)
-      CRSCR = 1.0
-      IFLAG = 0
-      if (AZ < ARM) GO TO 150
-      HZR = 0.5*ZR
-      HZI = 0.5*ZI
-      CZR = ZEROR
-      CZI = ZEROI
-      if (AZ.LE.RTR1) GO TO 10
-      CALL ZMLT(HZR, HZI, HZR, HZI, CZR, CZI)
-   10 CONTINUE
-      ACZ = ZABS(CZR,CZI)
-      NN = N
-      CALL ZLOG(HZR, HZI, CKR, CKI, IDUM)
-   20 CONTINUE
-      DFNU = FNU + ((NN-1) as f64)
-      FNUP = DFNU + 1.0
-//-----------------------------------------------------------------------
-//     UNDERFLOW TEST
-//-----------------------------------------------------------------------
-      AK1R = CKR*DFNU
-      AK1I = CKI*DFNU
-      AK = DGAMLN(FNUP,IDUM)
-      AK1R = AK1R - AK
-      if (KODE == 2) AK1R = AK1R - ZR
-      if (AK1R > (-ELIM)) GO TO 40
-   30 CONTINUE
-      NZ = NZ + 1
-      YR(NN) = ZEROR
-      YI(NN) = ZEROI
-      if (ACZ > DFNU) GO TO 190
-      NN = NN - 1
-      if (NN == 0) RETURN
-      GO TO 20
-   40 CONTINUE
-      if (AK1R > (-ALIM)) GO TO 50
-      IFLAG = 1
-      SS = 1.0/TOL
-      CRSCR = TOL
-      ASCLE = ARM*SS
-   50 CONTINUE
-      AA = DEXP(AK1R)
-      if (IFLAG == 1) AA = AA*SS
-      COEFR = AA*DCOS(AK1I)
-      COEFI = AA*DSIN(AK1I)
-      ATOL = TOL*ACZ/FNUP
-      IL = MIN0(2,NN)
-      DO 90 I=1,IL
-        DFNU = FNU + ((NN-I) as f64)
-        FNUP = DFNU + 1.0
-        S1R = CONER
-        S1I = CONEI
-        if (ACZ < TOL*FNUP) GO TO 70
-        AK1R = CONER
-        AK1I = CONEI
-        AK = FNUP + 2.0
-        S = FNUP
-        AA = 2.0
-   60   CONTINUE
-        RS = 1.0/S
-        STR = AK1R*CZR - AK1I*CZI
-        STI = AK1R*CZI + AK1I*CZR
-        AK1R = STR*RS
-        AK1I = STI*RS
-        S1R = S1R + AK1R
-        S1I = S1I + AK1I
-        S = S + AK
-        AK = AK + 2.0
-        AA = AA*ACZ*RS
-        if (AA > ATOL) GO TO 60
-   70   CONTINUE
-        S2R = S1R*COEFR - S1I*COEFI
-        S2I = S1R*COEFI + S1I*COEFR
-        WR(I) = S2R
-        WI(I) = S2I
-        if (IFLAG == 0) GO TO 80
-        CALL ZUCHK(S2R, S2I, NW, ASCLE, TOL)
-        if (NW != 0) GO TO 30
-   80   CONTINUE
-        M = NN - I + 1
-        YR(M) = S2R*CRSCR
-        YI(M) = S2I*CRSCR
-        if (I == IL) GO TO 90
-        CALL ZDIV(COEFR, COEFI, HZR, HZI, STR, STI)
-        COEFR = STR*DFNU
-        COEFI = STI*DFNU
-   90 CONTINUE
-      if (NN.LE.2) RETURN
-      K = NN - 2
-      AK = (K as f64)
-      RAZ = 1.0/AZ
-      STR = ZR*RAZ
-      STI = -ZI*RAZ
-      RZR = (STR+STR)*RAZ
-      RZI = (STI+STI)*RAZ
-      if (IFLAG == 1) GO TO 120
-      IB = 3
-  100 CONTINUE
-      DO 110 I=IB,NN
-        YR(K) = (AK+FNU)*(RZR*YR(K+1)-RZI*YI(K+1)) + YR(K+2)
-        YI(K) = (AK+FNU)*(RZR*YI(K+1)+RZI*YR(K+1)) + YI(K+2)
-        AK = AK - 1.0
-        K = K - 1
-  110 CONTINUE
-      RETURN
-//-----------------------------------------------------------------------
-//     RECUR BACKWARD WITH SCALED VALUES
-//-----------------------------------------------------------------------
-  120 CONTINUE
-//-----------------------------------------------------------------------
-//     EXP(-ALIM)=EXP(-ELIM)/TOL=APPROX. ONE PRECISION ABOVE THE
-//     UNDERFLOW LIMIT = ASCLE = d1mach(1)*SS*1.0D+3
-//-----------------------------------------------------------------------
-      S1R = WR(1)
-      S1I = WI(1)
-      S2R = WR(2)
-      S2I = WI(2)
-      DO 130 L=3,NN
-        CKR = S2R
-        CKI = S2I
-        S2R = S1R + (AK+FNU)*(RZR*CKR-RZI*CKI)
-        S2I = S1I + (AK+FNU)*(RZR*CKI+RZI*CKR)
-        S1R = CKR
-        S1I = CKI
-        CKR = S2R*CRSCR
-        CKI = S2I*CRSCR
-        YR(K) = CKR
-        YI(K) = CKI
-        AK = AK - 1.0
-        K = K - 1
-        if (ZABS(CKR,CKI) > ASCLE) GO TO 140
-  130 CONTINUE
-      RETURN
-  140 CONTINUE
-      IB = L + 1
-      if (IB > NN) RETURN
-      GO TO 100
-  150 CONTINUE
-      NZ = N
-      if (FNU == 0.0) NZ = NZ - 1
-  160 CONTINUE
-      YR(1) = ZEROR
-      YI(1) = ZEROI
-      if (FNU != 0.0) GO TO 170
-      YR(1) = CONER
-      YI(1) = CONEI
-  170 CONTINUE
-      if (N == 1) RETURN
-      DO 180 I=2,N
-        YR(I) = ZEROR
-        YI(I) = ZEROI
-  180 CONTINUE
-      RETURN
-//-----------------------------------------------------------------------
-//     RETURN WITH NZ < 0 if CABS(Z*Z/4) > FNU+N-NZ-1 COMPLETE
-//     THE CALCULATION IN CBINU WITH N=N-NZ.abs()
-//-----------------------------------------------------------------------
-  190 CONTINUE
-      NZ = -NZ
-      RETURN
-      END
+      */
+
+fn ZSERI(
+    z: Complex64, //ZR, ZI,
+    order: f64,   //FNU,
+    KODE: Scaling,
+    N: usize,
+    //Ouputs: YR, YI, NZ,
+    TOL: f64,
+    ELIM: f64,
+    ALIM: f64,
+) -> Result<(Vec<Complex64>, isize), BesselError> {
+    // ***BEGIN PROLOGUE  ZSERI
+    // ***REFER TO  ZBESI,ZBESK
+    //
+    //     ZSERI COMPUTES THE I BESSEL FUNCTION FOR REAL(Z) >= 0.0 BY
+    //     MEANS OF THE POWER SERIES FOR LARGE CABS(Z) IN THE
+    //     REGION CABS(Z) <= 2*SQRT(FNU+1). NZ=0 IS A NORMAL RETURN.
+    //     NZ > 0 MEANS THAT THE LAST NZ COMPONENTS WERE SET TO ZERO
+    //     DUE TO UNDERFLOW. NZ < 0 MEANS UNDERFLOW OCCURRED, BUT THE
+    //     CONDITION CABS(Z) <= 2*SQRT(FNU+1) WAS VIOLATED AND THE
+    //     COMPUTATION MUST BE COMPLETED IN ANOTHER ROUTINE WITH N=N-ABS(NZ).
+    //
+    // ***ROUTINES CALLED  gamma_ln,d1mach,ZUunderflowCHK,ZABS,ZDIV,ZLOG,ZMLT
+    // ***END PROLOGUE  ZSERI
+    //     COMPLEX AK1,CK,COEF,CONE,CRSC,CSCL,CZ,CZERO,HZ,RZ,S1,S2,Y,Z
+    //       EXTERNAL ZABS
+    //       DOUBLE PRECISION AA, ACZ, AK, AK1I, AK1R, ALIM, ARM, ASCLE, ATOL,
+    //      * AZ, CKI, CKR, COEFI, COEFR, CONEI, CONER, CRSCR, CZI, CZR, DFNU,
+    //      * ELIM, FNU, FNUP, HZI, HZR, RAZ, RS, RTR1, RZI, RZR, S, SS, STI,
+    //      * STR, S1I, S1R, S2I, S2R, TOL, YI, YR, WI, WR, ZEROI, ZEROR, ZI,
+    //      * ZR, gamma_ln, d1mach, ZABS
+    //       INTEGER I, IB, IDUM, IFLAG, IL, K, KODE, L, M, N, NN, NZ, NW
+    //       DIMENSION YR(N), YI(N), WR(2), WI(2)
+    //       DATA ZEROR,ZEROI,CONER,CONEI / 0.0, 0.0, 1.0, 0.0 /
+    //
+    let mut NZ = 0;
+    let AZ = z.abs(); //ZABS(ZR,ZI)
+    let mut y = vec![Complex64::zero(); N];
+    let mut w = vec![Complex64::zero(); 2];
+    if AZ == 0.0 {
+        // Not setting zero below, as was set in initialisation of y above
+        // y[1] = Complex64::new(ZEROR, ZEROI);
+        // YR[1] = ZEROR;
+        // YI[1] = ZEROI;
+        if order == 0.0 {
+            y[1] = Complex64::new(CONER, CONEI);
+            // YR(1) = CONER;
+            // YI(1) = CONEI;
+        }
+        // Not setting zero below, as was set in initialisation of y above
+        // if N == 1 {return Ok((y, NZ));}
+        // for I in 2..N
+        // {
+        //       YR(I) = ZEROR;
+        //       YI(I) = ZEROI;
+        // }
+        return Ok((y, NZ));
+    }
+    let ARM = 1.0e+3 * d1mach(1);
+    let RTR1 = ARM.sqrt();
+    let mut CRSCR = 1.0;
+    let mut IFLAG = false;
+    if AZ < ARM {
+        //GO TO 150;
+        NZ = N.try_into().unwrap();
+        if order == 0.0 {
+            NZ = NZ - 1;
+        }
+        // Not setting zero below, as was set in initialisation of y above
+        // y[1] = Complex64::new(ZEROR, ZEROI);
+        // YR[1] = ZEROR;
+        // YI[1] = ZEROI;
+        if order == 0.0 {
+            y[1] = Complex64::new(CONER, CONEI);
+            // YR(1) = CONER;
+            // YI(1) = CONEI;
+        }
+        // Not setting zero below, as was set in initialisation of y above
+        // if N == 1 {return Ok((y, NZ));}
+        // for I in 2..N
+        // {
+        //       YR(I) = ZEROR;
+        //       YI(I) = ZEROI;
+        // }
+        return Ok((y, NZ));
+    }
+    // let HZR = 0.5*z.re;
+    // let HZI = 0.5*z.im;
+    let hz = 0.5 * z;
+    // let CZR = ZEROR;
+    // let CZI = ZEROI;
+    let mut cz = Complex64::zero();
+    if !(AZ <= RTR1) {
+        //CALL ZMLT(HZR, HZI, HZR, HZI, CZR, CZI);
+        cz = (hz).powu(2);
+    }
+
+    let ACZ = cz.abs(); //ZABS(CZR,CZI);
+    let mut NN = N;
+    // CALL ZLOG(HZR, HZI, CKR, CKI, IDUM);
+    let ck = hz.ln();
+
+    let mut ak1;
+    let mut FNUP;
+    let mut AK;
+    let mut st;
+    let mut ASCLE = f64::INFINITY;
+    'l20: loop {
+        // 20 CONTINUE;
+        let mut DFNU = order + ((NN - 1) as f64);
+        FNUP = DFNU + 1.0;
+        //-----------------------------------------------------------------------;
+        //     UNDERFLOW TEST
+        //-----------------------------------------------------------------------;
+        // let AK1R = CKR*DFNU;
+        // let AK1I = CKI*DFNU;
+        ak1 = ck * DFNU;
+        AK = gamma_ln(FNUP).unwrap();
+        ak1.re -= AK;
+        if KODE == Scaling::Scaled {
+            ak1.re -= z.re;
+        }
+        let skip_to_40 = ak1.re > (-ELIM);
+        //    30 CONTINUE;
+        'l30: loop {
+            if !skip_to_40 {
+                NZ = NZ + 1;
+                // YR(NN) = ZEROR;
+                // YI(NN) = ZEROI;
+                y[NN] = Complex64::zero();
+                if ACZ > DFNU {
+                    return Ok((y, -NZ));
+                }
+                NN -= 1;
+                if NN == 0 {
+                    return Ok((y, -NZ));
+                }
+                continue 'l20;
+            }
+            // GO TO 20;
+            //    40 CONTINUE;
+            let mut SS = 0.0;
+            if !(ak1.re > (-ALIM))
+            //GO TO 50;
+            {
+                IFLAG = true;
+                SS = 1.0 / TOL;
+                CRSCR = TOL;
+                ASCLE = ARM * SS;
+            }
+            //    50 CONTINUE;
+            let mut AA = ak1.re.exp();
+            if IFLAG {
+                AA *= SS
+            };
+            let mut coef = AA * Complex64::new(ak1.im.cos(), ak1.im.sin());
+            // let COEFR = AA * ak1.im.cos();
+            // let COEFI = AA * ak1.im.sin();
+            let ATOL = TOL * ACZ / FNUP;
+            let IL = 2.min(NN);
+            for I in 1..=IL {
+                // DO 90 I=1,IL;
+                DFNU = order + ((NN - I) as f64);
+                FNUP = DFNU + 1.0;
+                let mut s1 = Complex64::one();
+                // S1R = CONER;
+                // S1I = CONEI;
+                if !(ACZ < TOL * FNUP) {
+                    //GO TO 70;
+                    //     AK1R = CONER;
+                    //     AK1I = CONEI;
+                    ak1 = Complex64::one();
+                    AK = FNUP + 2.0;
+                    let mut S = FNUP;
+                    AA = 2.0;
+                    //    60   CONTINUE;
+                    'l60: loop {
+                        let RS = 1.0 / S;
+                        st = ak1 * cz;
+                        //   STR = AK1R * CZR - AK1I * CZI;
+                        //   STI = AK1R * CZI + AK1I * CZR;
+                        // AK1R = STR * RS;
+                        // AK1I = STI * RS;
+                        ak1 = st * RS;
+                        s1 += ak1;
+                        // S1R = S1R + AK1R;
+                        // S1I = S1I + AK1I;
+                        S = S + AK;
+                        AK = AK + 2.0;
+                        AA = AA * ACZ * RS;
+                        if !(AA > ATOL) {
+                            break;
+                        }
+                    }
+                }
+                // 70   CONTINUE;
+                let s2 = s1 * coef;
+                w[I] = s2;
+                //     WR(I) = S2R;
+                //     WI(I) = S2I;
+                if IFLAG && ZUunderflowCHK(s2, ASCLE, TOL)
+                //GO TO 80;
+                {
+                    continue 'l30;
+                    //GO TO 30;
+                }
+                //    80   CONTINUE;
+                let M = NN - I + 1;
+                //   YR(M) = S2R*CRSCR;
+                //   YI(M) = S2I*CRSCR;
+                y[M] = s2 * CRSCR;
+                if I != IL
+                //GO TO 90;
+                {
+                    // CALL ZDIV(COEFR, COEFI, HZR, HZI, STR, STI);
+                    st = coef / hz;
+                    // COEFR = STR*DFNU;
+                    // COEFI = STI*DFNU;
+                    coef = st * DFNU;
+                }
+            }
+            break 'l30;
+        }
+        break 'l20;
+    }
+    //    90 CONTINUE;
+    if NN <= 2 {
+        return Ok((y, NZ));
+    }
+    let mut K = NN - 2;
+    AK = K as f64;
+    let RAZ = 1.0 / AZ;
+    st = z.conj() * RAZ;
+    //     STR = ZR * RAZ;
+    //     STI = -ZI * RAZ;
+    let rz = 2.0 * st * RAZ;
+    //     RZR = (STR + STR) * RAZ;
+    //     RZI = (STI + STI) * RAZ;
+    let mut IB;
+    'l100: loop {
+        // moved outside if statment, but believe the logic holds
+        if !IFLAG {
+            //GO TO 120;
+            IB = 3;
+            // 100 CONTINUE;
+            'l110: for _I in IB..=NN {
+                //DO 110 I=IB,NN;
+                y[K].re = (AK + order) * (rz.re * y[K + 1].re - rz.im * y[K + 1].im) + y[K + 2].re;
+                y[K].im = (AK + order) * (rz.re * y[K + 1].im + rz.im * y[K + 1].re) + y[K + 2].im;
+                AK = AK - 1.0;
+                K = K - 1;
+            }
+            //   110 CONTINUE;
+            return Ok((y, NZ));
+        }
+        //-----------------------------------------------------------------------;
+        //     RECUR BACKWARD WITH SCALED VALUES;
+        //-----------------------------------------------------------------------;
+        //   120 CONTINUE;
+        //-----------------------------------------------------------------------;
+        //     EXP(-ALIM)=EXP(-ELIM)/TOL=APPROX. ONE PRECISION ABOVE THE;
+        //     UNDERFLOW LIMIT = ASCLE = d1mach(1)*SS*1.0D+3;
+        //-----------------------------------------------------------------------;
+        let mut s1 = w[1];
+        let mut s2 = w[2];
+        //   S1R = WR(1);
+        //   S1I = WI(1);
+        //   S2R = WR(2);
+        //   S2I = WI(2);
+        let mut to_return = true;
+        let mut L = 0;
+        for L_inner in 3..=NN {
+            // DO 130 L=3,NN;
+            // CKR = S2R;
+            // CKI = S2I;
+            let ck = s2;
+            s2 = s1 + (AK + order) * (rz * ck);
+            // S2R = S1R + (AK + order) * (RZR * CKR - RZI * CKI);
+            // S2I = S1I + (AK + order) * (RZR * CKI + RZI * CKR);
+            s1 = ck;
+            // S1R = CKR;
+            // S1I = CKI;
+            let ck = s2 * CRSCR;
+            // CKR = S2R * CRSCR;
+            // CKI = S2I * CRSCR;
+            y[K] = ck;
+            // YR(K) = CKR;
+            // YI(K) = CKI;
+            AK = AK - 1.0;
+            K = K - 1;
+            L = L_inner;
+            if ck.abs() > ASCLE {
+                // if (ZABS(CKR, CKI) > ASCLE) {
+                to_return = false;
+                break;
+            } //GO TO 140;
+        }
+        //   130 CONTINUE;
+        if to_return {
+            return Ok((y, NZ));
+        }
+        //   140 CONTINUE;
+        IB = L + 1;
+        if IB > NN {
+            return Ok((y, NZ));
+        };
+    } //GO TO 100;
+    //   150 CONTINUE;
+    //       NZ = N;
+    //       if (FNU == 0.0) NZ = NZ - 1;
+    //   160 CONTINUE;
+    //       YR(1) = ZEROR;
+    //       YI(1) = ZEROI;
+    //       if (FNU == 0.0) {;
+    //       YR(1) = CONER;
+    //       YI(1) = CONEI;
+    //       };
+    //       if (N == 1) RETURN;
+    //       DO 180 I=2,N;
+    //         YR(I) = ZEROR;
+    //         YI(I) = ZEROI;
+    //   180 CONTINUE;
+    //       RETURN;
+    //-----------------------------------------------------------------------
+    //     RETURN WITH NZ < 0 if CABS(Z*Z/4) > FNU+N-NZ-1 COMPLETE
+    //     THE CALCULATION IN CBINU WITH N=N-NZ.abs()
+    //-----------------------------------------------------------------------
+    //   190 CONTINUE
+    //       NZ = -NZ
+    //       RETURN
+    //       END
+}
+/*
 fn ZASYI(ZR, ZI, FNU, KODE, N, YR, YI, NZ, RL, TOL, ELIM,
      * ALIM)
 // ***BEGIN PROLOGUE  ZASYI
@@ -3968,7 +4124,7 @@ fn ZASYI(ZR, ZI, FNU, KODE, N, YR, YI, NZ, RL, TOL, ELIM,
           BB = BB + AEZ
           AK = AK + 8.0
           SQK = SQK - AK
-          if (AA.LE.ATOL) GO TO 50
+          if (AA <= ATOL) GO TO 50
    40   CONTINUE
         GO TO 110
    50   CONTINUE
@@ -3990,7 +4146,7 @@ fn ZASYI(ZR, ZI, FNU, KODE, N, YR, YI, NZ, RL, TOL, ELIM,
         YR(M) = S2R*AK1R - S2I*AK1I
         YI(M) = S2R*AK1I + S2I*AK1R
    70 CONTINUE
-      if (N.LE.2) RETURN
+      if (N <= 2) RETURN
       NN = N
       K = NN - 2
       AK = (K as f64)
@@ -4045,7 +4201,7 @@ fn ZUOIK(ZR, ZI, FNU, KODE, IKFLG, N, YR, YI, NUF, TOL,
 //     IKFLG=2 AND 0 < NUF < N NOT CONSIDERED. Y MUST BE SET BY
 //             ANOTHER ROUTINE
 //
-// ***ROUTINES CALLED  ZUCHK,ZUNHJ,ZUNIK,d1mach,ZABS,ZLOG
+// ***ROUTINES CALLED  ZUunderflowCHK,ZUNHJ,ZUNIK,d1mach,ZABS,ZLOG
 // ***END PROLOGUE  ZUOIK
 //     COMPLEX ARG,ASUM,BSUM,CWRK,CZ,CZERO,PHI,SUM,Y,Z,ZB,ZETA1,ZETA2,ZN,
 //    *ZR
@@ -4058,7 +4214,7 @@ fn ZUOIK(ZR, ZI, FNU, KODE, IKFLG, N, YR, YI, NUF, TOL,
       INTEGER I, IDUM, IFORM, IKFLG, INIT, KODE, N, NN, NUF, NW
       DIMENSION YR(N), YI(N), CWRKR(16), CWRKI(16)
       DATA ZEROR,ZEROI / 0.0, 0.0 /
-      DATA AIC / 1.265512123484645396D+00 /
+      DATA AIC / 1.265512123484645396e+00 /
       NUF = 0
       NN = N
       ZRR = ZR
@@ -4152,7 +4308,7 @@ fn ZUOIK(ZR, ZI, FNU, KODE, IKFLG, N, YR, YI, NUF, TOL,
       AY = CZI
       CZR = AX*DCOS(AY)
       CZI = AX*DSIN(AY)
-      CALL ZUCHK(CZR, CZI, NW, ASCLE, TOL)
+      CALL ZUunderflowCHK(CZR, CZI, NW, ASCLE, TOL)
       if (NW != 0) GO TO 90
   130 CONTINUE
       if (IKFLG == 2) RETURN
@@ -4186,7 +4342,7 @@ fn ZUOIK(ZR, ZI, FNU, KODE, IKFLG, N, YR, YI, NUF, TOL,
       if (RCZ > (-ALIM)) RETURN
       RCZ = RCZ + DLOG(APHI)
       if (IFORM == 2) RCZ = RCZ - 0.25*DLOG(AARG) - AIC
-      if (RCZ > (-ELIM)) GO TO 190
+      if (RCZ > (-ELIM)) {return Ok(y, -NZ);}
   180 CONTINUE
       YR(NN) = ZEROR
       YI(NN) = ZEROI
@@ -4208,7 +4364,7 @@ fn ZUOIK(ZR, ZI, FNU, KODE, IKFLG, N, YR, YI, NUF, TOL,
       AY = CZI
       CZR = AX*DCOS(AY)
       CZI = AX*DSIN(AY)
-      CALL ZUCHK(CZR, CZI, NW, ASCLE, TOL)
+      CALL ZUunderflowCHK(CZR, CZI, NW, ASCLE, TOL)
       if (NW != 0) GO TO 180
       RETURN
   210 CONTINUE
@@ -4400,7 +4556,7 @@ fn ZACON(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, RL, FNUL,
         PTR = (C1R).abs()
         PTI = (C1I).abs()
         C1M = DMAX1(PTR,PTI)
-        if (C1M.LE.BSCLE) GO TO 80
+        if (C1M <= BSCLE) GO TO 80
         KFLAG = KFLAG + 1
         BSCLE = BRY(KFLAG)
         S1R = S1R*CSR
@@ -4419,307 +4575,141 @@ fn ZACON(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, RL, FNUL,
       if(NW == (-2)) NZ=-2
       RETURN
       END
+*/
+fn ZBINU(
+    z: Complex64, //ZR, ZI,
+    order: f64,
+    KODE: Scaling,
+    N: usize,
+    RL: f64,
+    FNUL: f64,
+    TOL: f64,
+    ELIM: f64,
+    ALIM: f64,
+) -> Result<(Vec<Complex64>, usize), BesselError> {
+    //output?: CYR, CYI, NZ,)
+    // ***BEGIN PROLOGUE  ZBINU
+    // ***REFER TO  ZBESH,ZBESI,ZBESJ,ZBESK,ZAIRY,ZBIRY
+    //
+    //     ZBINU COMPUTES THE I FUNCTION IN THE RIGHT HALF Z PLANE
+    //
+    // ***ROUTINES CALLED  ZABS,ZASYI,ZBUNI,ZMLRI,ZSERI,ZUOIK,ZWRSK
+    // ***END PROLOGUE  ZBINU
+    //       EXTERNAL ZABS
+    //       DOUBLE PRECISION ALIM, AZ, CWI, CWR, CYI, CYR, DFNU, ELIM, FNU,
+    //      * FNUL, RL, TOL, ZEROI, ZEROR, ZI, ZR, ZABS
+    //       INTEGER I, INW, KODE, N, NLAST, NN, NUI, NW, NZ
+    //       DIMENSION CYR(N), CYI(N), CWR(2), CWI(2)
+    //       DATA ZEROR,ZEROI / 0.0, 0.0 /
+    //
+    let NZ = 0;
+    let AZ = z.abs(); //ZABS(ZR,ZI)
+    let mut NN: usize = N;
+    let mut DFNU = order + ((N - 1) as f64);
+    if !(AZ <= 2.0) {
+        if !(AZ * AZ * 0.25 > DFNU + 1.0) {
+            //-----------------------------------------------------------------------
+            //     POWER SERIES
+            //-----------------------------------------------------------------------
+            let (cy, NW) = ZSERI(z, order, KODE, NN, /*CYR, CYI, NW, */ TOL, ELIM, ALIM)?;
+            let INW: usize = NW.abs().try_into().unwrap();
+            let NZ = NZ + INW;
+            NN = NN - INW;
+            if NN == 0 {
+                return Ok((cy, NZ.try_into().unwrap()));
+            }
+            if NW >= 0 {
+                return Ok((cy, NZ.try_into().unwrap()));
+            }
 
-fn ZBINU(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, RL, FNUL,
-     * TOL, ELIM, ALIM)
-// ***BEGIN PROLOGUE  ZBINU
-// ***REFER TO  ZBESH,ZBESI,ZBESJ,ZBESK,ZAIRY,ZBIRY
-//
-//     ZBINU COMPUTES THE I FUNCTION IN THE RIGHT HALF Z PLANE
-//
-// ***ROUTINES CALLED  ZABS,ZASYI,ZBUNI,ZMLRI,ZSERI,ZUOIK,ZWRSK
-// ***END PROLOGUE  ZBINU
-      EXTERNAL ZABS
-      DOUBLE PRECISION ALIM, AZ, CWI, CWR, CYI, CYR, DFNU, ELIM, FNU,
-     * FNUL, RL, TOL, ZEROI, ZEROR, ZI, ZR, ZABS
-      INTEGER I, INW, KODE, N, NLAST, NN, NUI, NW, NZ
-      DIMENSION CYR(N), CYI(N), CWR(2), CWI(2)
-      DATA ZEROR,ZEROI / 0.0, 0.0 /
-//
-      NZ = 0
-      AZ = ZABS(ZR,ZI)
-      NN = N
-      DFNU = FNU + ((N-1) as f64)
-      if (AZ.LE.2.0) GO TO 10
-      if (AZ*AZ*0.25 > DFNU+1.0) GO TO 20
-   10 CONTINUE
-//-----------------------------------------------------------------------
-//     POWER SERIES
-//-----------------------------------------------------------------------
-      CALL ZSERI(ZR, ZI, FNU, KODE, NN, CYR, CYI, NW, TOL, ELIM, ALIM)
-      INW = NW.abs()
-      NZ = NZ + INW
-      NN = NN - INW
-      if (NN == 0) RETURN
-      if (NW >= 0) GO TO 120
-      DFNU = FNU + ((NN-1) as f64)
-   20 CONTINUE
-      if (AZ < RL) GO TO 40
-      if (DFNU.LE.1.0) GO TO 30
-      if (AZ+AZ < DFNU*DFNU) GO TO 50
-//-----------------------------------------------------------------------
-//     ASYMPTOTIC EXPANSION FOR LARGE Z
-//-----------------------------------------------------------------------
-   30 CONTINUE
-      CALL ZASYI(ZR, ZI, FNU, KODE, NN, CYR, CYI, NW, RL, TOL, ELIM,
-     * ALIM)
-      if (NW < 0) GO TO 130
-      GO TO 120
-   40 CONTINUE
-      if (DFNU.LE.1.0) GO TO 70
-   50 CONTINUE
-//-----------------------------------------------------------------------
-//     OVERFLOW AND UNDERFLOW TEST ON I SEQUENCE FOR MILLER ALGORITHM
-//-----------------------------------------------------------------------
-      CALL ZUOIK(ZR, ZI, FNU, KODE, 1, NN, CYR, CYI, NW, TOL, ELIM,
-     * ALIM)
-      if (NW < 0) GO TO 130
-      NZ = NZ + NW
-      NN = NN - NW
-      if (NN == 0) RETURN
-      DFNU = FNU+((NN-1) as f64)
-      if (DFNU > FNUL) GO TO 110
-      if (AZ > FNUL) GO TO 110
-   60 CONTINUE
-      if (AZ > RL) GO TO 80
-   70 CONTINUE
-//-----------------------------------------------------------------------
-//     MILLER ALGORITHM NORMALIZED BY THE SERIES
-//-----------------------------------------------------------------------
-      CALL ZMLRI(ZR, ZI, FNU, KODE, NN, CYR, CYI, NW, TOL)
-      if(NW < 0) GO TO 130
-      GO TO 120
-   80 CONTINUE
-//-----------------------------------------------------------------------
-//     MILLER ALGORITHM NORMALIZED BY THE WRONSKIAN
-//-----------------------------------------------------------------------
-//-----------------------------------------------------------------------
-//     OVERFLOW TEST ON K FUNCTIONS USED IN WRONSKIAN
-//-----------------------------------------------------------------------
-      CALL ZUOIK(ZR, ZI, FNU, KODE, 2, 2, CWR, CWI, NW, TOL, ELIM,
-     * ALIM)
-      if (NW >= 0) GO TO 100
-      NZ = NN
-      DO 90 I=1,NN
-        CYR(I) = ZEROR
-        CYI(I) = ZEROI
-   90 CONTINUE
-      RETURN
-  100 CONTINUE
-      if (NW > 0) GO TO 130
-      CALL ZWRSK(ZR, ZI, FNU, KODE, NN, CYR, CYI, NW, CWR, CWI, TOL,
-     * ELIM, ALIM)
-      if (NW < 0) GO TO 130
-      GO TO 120
-  110 CONTINUE
-//-----------------------------------------------------------------------
-//     INCREMENT FNU+NN-1 UP TO FNUL, COMPUTE AND RECUR BACKWARD
-//-----------------------------------------------------------------------
-      NUI = INT(SNGL(FNUL-DFNU)) + 1
-      NUI = MAX0(NUI,0)
-      CALL ZBUNI(ZR, ZI, FNU, KODE, NN, CYR, CYI, NW, NUI, NLAST, FNUL,
-     * TOL, ELIM, ALIM)
-      if (NW < 0) GO TO 130
-      NZ = NZ + NW
-      if (NLAST == 0) GO TO 120
-      NN = NLAST
-      GO TO 60
-  120 CONTINUE
-      RETURN
-  130 CONTINUE
-      NZ = -1
-      if(NW == (-2)) NZ=-2
-      RETURN
-      END
-      DOUBLE PRECISION FUNCTION DGAMLN(Z,IERR)
-// ***BEGIN PROLOGUE  DGAMLN
-// ***DATE WRITTEN   830501   (YYMMDD)
-// ***REVISION DATE  830501   (YYMMDD)
-// ***CATEGORY NO.  B5F
-// ***KEYWORDS  GAMMA FUNCTION,LOGARITHM OF GAMMA FUNCTION
-// ***AUTHOR  AMOS, DONALD E., SANDIA NATIONAL LABORATORIES
-// ***PURPOSE  TO COMPUTE THE LOGARITHM OF THE GAMMA FUNCTION
-// ***DESCRIPTION
-//
-//               **** A DOUBLE PRECISION ROUTINE ****
-//         DGAMLN COMPUTES THE NATURAL LOG OF THE GAMMA FUNCTION FOR
-//         Z > 0.  THE ASYMPTOTIC EXPANSION IS USED TO GENERATE VALUES
-//         GREATER THAN ZMIN WHICH ARE ADJUSTED BY THE RECURSION
-//         G(Z+1)=Z*G(Z) FOR Z.LE.ZMIN.  THE FUNCTION WAS MADE AS
-//         PORTABLE AS POSSIBLE BY COMPUTIMG ZMIN FROM THE NUMBER OF BASE
-//         10 DIGITS IN A WORD, RLN=AMAX1(-ALOG10(R1MACH(4)),0.5E-18)
-//         LIMITED TO 18 DIGITS OF (RELATIVE) ACCURACY.
-//
-//         SINCE INTEGER ARGUMENTS ARE COMMON, A TABLE LOOK UP ON 100
-//         VALUES IS USED FOR SPEED OF EXECUTION.
-//
-//     DESCRIPTION OF ARGUMENTS
-//
-//         INPUT      Z IS UBLE PRECISION
-//           Z      - ARGUMENT, Z > 0.0
-//
-//         OUTPUT      DGAMLN IS DOUBLE PRECISION
-//           DGAMLN  - NATURAL LOG OF THE GAMMA FUNCTION AT Z != 0.0
-//           IERR    - ERROR FLAG
-//                     IERR=0, NORMAL RETURN, COMPUTATION COMPLETED
-//                     IERR=1, Z.LE.0.0,    NO COMPUTATION
-//
-//
-// ***REFERENCES  COMPUTATION OF BESSEL FUNCTIONS OF COMPLEX ARGUMENT
-//                 BY D. E. AMOS, SAND83-0083, MAY, 1983.
-// ***ROUTINES CALLED  i1mach,d1mach
-// ***END PROLOGUE  DGAMLN
-      DOUBLE PRECISION CF, CON, FLN, FZ, GLN, RLN, S, TLG, TRM, TST,
-     * T1, WDTOL, Z, ZDMY, ZINC, ZM, ZMIN, ZP, ZSQ, d1mach
-      INTEGER I, IERR, I1M, K, MZ, NZ, i1mach
-      DIMENSION CF(22), GLN(100)
-//           LNGAMMA(N), N=1,100
-      DATA GLN(1), GLN(2), GLN(3), GLN(4), GLN(5), GLN(6), GLN(7),
-     1     GLN(8), GLN(9), GLN(10), GLN(11), GLN(12), GLN(13), GLN(14),
-     2     GLN(15), GLN(16), GLN(17), GLN(18), GLN(19), GLN(20),
-     3     GLN(21), GLN(22)/
-     4     0.00000000000000000D+00,     0.00000000000000000D+00,
-     5     6.93147180559945309D-01,     1.79175946922805500D+00,
-     6     3.17805383034794562D+00,     4.78749174278204599D+00,
-     7     6.57925121201010100D+00,     8.52516136106541430D+00,
-     8     1.06046029027452502D+01,     1.28018274800814696D+01,
-     9     1.51044125730755153D+01,     1.75023078458738858D+01,
-     A     1.99872144956618861D+01,     2.25521638531234229D+01,
-     B     2.51912211827386815D+01,     2.78992713838408916D+01,
-     C     3.06718601060806728D+01,     3.35050734501368889D+01,
-     D     3.63954452080330536D+01,     3.93398841871994940D+01,
-     E     4.23356164607534850D+01,     4.53801388984769080D+01/
-      DATA GLN(23), GLN(24), GLN(25), GLN(26), GLN(27), GLN(28),
-     1     GLN(29), GLN(30), GLN(31), GLN(32), GLN(33), GLN(34),
-     2     GLN(35), GLN(36), GLN(37), GLN(38), GLN(39), GLN(40),
-     3     GLN(41), GLN(42), GLN(43), GLN(44)/
-     4     4.84711813518352239D+01,     5.16066755677643736D+01,
-     5     5.47847293981123192D+01,     5.80036052229805199D+01,
-     6     6.12617017610020020D+01,     6.45575386270063311D+01,
-     7     6.78897431371815350D+01,     7.12570389671680090D+01,
-     8     7.46582363488301644D+01,     7.80922235533153106D+01,
-     9     8.15579594561150372D+01,     8.50544670175815174D+01,
-     A     8.85808275421976788D+01,     9.21361756036870925D+01,
-     B     9.57196945421432025D+01,     9.93306124547874269D+01,
-     C     1.02968198614513813D+02,     1.06631760260643459D+02,
-     D     1.10320639714757395D+02,     1.14034211781461703D+02,
-     E     1.17771881399745072D+02,     1.21533081515438634D+02/
-      DATA GLN(45), GLN(46), GLN(47), GLN(48), GLN(49), GLN(50),
-     1     GLN(51), GLN(52), GLN(53), GLN(54), GLN(55), GLN(56),
-     2     GLN(57), GLN(58), GLN(59), GLN(60), GLN(61), GLN(62),
-     3     GLN(63), GLN(64), GLN(65), GLN(66)/
-     4     1.25317271149356895D+02,     1.29123933639127215D+02,
-     5     1.32952575035616310D+02,     1.36802722637326368D+02,
-     6     1.40673923648234259D+02,     1.44565743946344886D+02,
-     7     1.48477766951773032D+02,     1.52409592584497358D+02,
-     8     1.56360836303078785D+02,     1.60331128216630907D+02,
-     9     1.64320112263195181D+02,     1.68327445448427652D+02,
-     A     1.72352797139162802D+02,     1.76395848406997352D+02,
-     B     1.80456291417543771D+02,     1.84533828861449491D+02,
-     C     1.88628173423671591D+02,     1.92739047287844902D+02,
-     D     1.96866181672889994D+02,     2.01009316399281527D+02,
-     E     2.05168199482641199D+02,     2.09342586752536836D+02/
-      DATA GLN(67), GLN(68), GLN(69), GLN(70), GLN(71), GLN(72),
-     1     GLN(73), GLN(74), GLN(75), GLN(76), GLN(77), GLN(78),
-     2     GLN(79), GLN(80), GLN(81), GLN(82), GLN(83), GLN(84),
-     3     GLN(85), GLN(86), GLN(87), GLN(88)/
-     4     2.13532241494563261D+02,     2.17736934113954227D+02,
-     5     2.21956441819130334D+02,     2.26190548323727593D+02,
-     6     2.30439043565776952D+02,     2.34701723442818268D+02,
-     7     2.38978389561834323D+02,     2.43268849002982714D+02,
-     8     2.47572914096186884D+02,     2.51890402209723194D+02,
-     9     2.56221135550009525D+02,     2.60564940971863209D+02,
-     A     2.64921649798552801D+02,     2.69291097651019823D+02,
-     B     2.73673124285693704D+02,     2.78067573440366143D+02,
-     C     2.82474292687630396D+02,     2.86893133295426994D+02,
-     D     2.91323950094270308D+02,     2.95766601350760624D+02,
-     E     3.00220948647014132D+02,     3.04686856765668715D+02/
-      DATA GLN(89), GLN(90), GLN(91), GLN(92), GLN(93), GLN(94),
-     1     GLN(95), GLN(96), GLN(97), GLN(98), GLN(99), GLN(100)/
-     2     3.09164193580146922D+02,     3.13652829949879062D+02,
-     3     3.18152639620209327D+02,     3.22663499126726177D+02,
-     4     3.27185287703775217D+02,     3.31717887196928473D+02,
-     5     3.36261181979198477D+02,     3.40815058870799018D+02,
-     6     3.45379407062266854D+02,     3.49954118040770237D+02,
-     7     3.54539085519440809D+02,     3.59134205369575399D+02/
-//             COEFFICIENTS OF ASYMPTOTIC EXPANSION
-      DATA CF(1), CF(2), CF(3), CF(4), CF(5), CF(6), CF(7), CF(8),
-     1     CF(9), CF(10), CF(11), CF(12), CF(13), CF(14), CF(15),
-     2     CF(16), CF(17), CF(18), CF(19), CF(20), CF(21), CF(22)/
-     3     8.33333333333333333D-02,    -2.77777777777777778D-03,
-     4     7.93650793650793651D-04,    -5.95238095238095238D-04,
-     5     8.41750841750841751D-04,    -1.91752691752691753D-03,
-     6     6.41025641025641026D-03,    -2.95506535947712418D-02,
-     7     1.79644372368830573D-01,    -1.39243221690590112D+00,
-     8     1.34028640441683920D+01,    -1.56848284626002017D+02,
-     9     2.19310333333333333D+03,    -3.61087712537249894D+04,
-     A     6.91472268851313067D+05,    -1.52382215394074162D+07,
-     B     3.82900751391414141D+08,    -1.08822660357843911D+10,
-     C     3.47320283765002252D+11,    -1.23696021422692745D+13,
-     D     4.88788064793079335D+14,    -2.13203339609193739D+16/
-//
-//             LN(2*PI)
-      DATA CON                    /     1.83787706640934548D+00/
-//
-// ***FIRST EXECUTABLE STATEMENT  DGAMLN
-      IERR=0
-      if (Z.LE.0.0) GO TO 70
-      if (Z > 101.0) GO TO 10
-      NZ = INT(Z)
-      FZ = Z - FLOAT(NZ)
-      if (FZ > 0.0) GO TO 10
-      if (NZ > 100) GO TO 10
-      DGAMLN = GLN(NZ)
-      RETURN
-   10 CONTINUE
-      WDTOL = d1mach(4)
-      WDTOL = DMAX1(WDTOL,0.5D-18)
-      I1M = i1mach(14)
-      RLN = d1mach(5)*FLOAT(I1M)
-      FLN = DMIN1(RLN,20.0)
-      FLN = DMAX1(FLN,3.0)
-      FLN = FLN - 3.0
-      ZM = 1.8000 + 0.3875*FLN
-      MZ = INT(SNGL(ZM)) + 1
-      ZMIN = FLOAT(MZ)
-      ZDMY = Z
-      ZINC = 0.0
-      if (Z >= ZMIN) GO TO 20
-      ZINC = ZMIN - FLOAT(NZ)
-      ZDMY = Z + ZINC
-   20 CONTINUE
-      ZP = 1.0/ZDMY
-      T1 = CF(1)*ZP
-      S = T1
-      if (ZP < WDTOL) GO TO 40
-      ZSQ = ZP*ZP
-      TST = T1*WDTOL
-      DO 30 K=2,22
-        ZP = ZP*ZSQ
-        TRM = CF(K)*ZP
-        if ((TRM).abs() < TST) GO TO 40
-        S = S + TRM
-   30 CONTINUE
-   40 CONTINUE
-      if (ZINC != 0.0) GO TO 50
-      TLG = DLOG(Z)
-      DGAMLN = Z*(TLG-1.0) + 0.5*(CON-TLG) + S
-      RETURN
-   50 CONTINUE
-      ZP = 1.0
-      NZ = INT(SNGL(ZINC))
-      DO 60 I=1,NZ
-        ZP = ZP*(Z+FLOAT(I-1))
-   60 CONTINUE
-      TLG = DLOG(ZDMY)
-      DGAMLN = ZDMY*(TLG-1.0) - DLOG(ZP) + 0.5*(CON-TLG) + S
-      RETURN
-//
-//
-   70 CONTINUE
-      IERR=1
-      RETURN
-      END
+            DFNU = order + ((NN as f64) - 1.0);
+        }
+    }
+    todo!();
+    /*
+          if (AZ < RL) GO TO 40
+          if (DFNU <= 1.0) GO TO 30
+          if (AZ+AZ < DFNU*DFNU) GO TO 50
+    //-----------------------------------------------------------------------
+    //     ASYMPTOTIC EXPANSION FOR LARGE Z
+    //-----------------------------------------------------------------------
+       30 CONTINUE
+          CALL ZASYI(ZR, ZI, FNU, KODE, NN, CYR, CYI, NW, RL, TOL, ELIM,
+          ALIM)
+          if (NW < 0) GO TO 130
+          return Ok(cy, NZ);
+       40 CONTINUE
+          if (DFNU <= 1.0) GO TO 70
+       50 CONTINUE
+    //-----------------------------------------------------------------------
+    //     OVERFLOW AND UNDERFLOW TEST ON I SEQUENCE FOR MILLER ALGORITHM
+    //-----------------------------------------------------------------------
+          CALL ZUOIK(ZR, ZI, FNU, KODE, 1, NN, CYR, CYI, NW, TOL, ELIM,
+         * ALIM)
+          if (NW < 0) GO TO 130
+          NZ = NZ + NW
+          NN = NN - NW
+          if (NN == 0) RETURN
+          DFNU = FNU+((NN-1) as f64)
+          if (DFNU > FNUL) GO TO 110
+          if (AZ > FNUL) GO TO 110
+       60 CONTINUE
+          if (AZ > RL) GO TO 80
+       70 CONTINUE
+    //-----------------------------------------------------------------------
+    //     MILLER ALGORITHM NORMALIZED BY THE SERIES
+    //-----------------------------------------------------------------------
+          CALL ZMLRI(ZR, ZI, FNU, KODE, NN, CYR, CYI, NW, TOL)
+          if(NW < 0) GO TO 130
+          return Ok(cy, NZ);
+       80 CONTINUE
+    //-----------------------------------------------------------------------
+    //     MILLER ALGORITHM NORMALIZED BY THE WRONSKIAN
+    //-----------------------------------------------------------------------
+    //-----------------------------------------------------------------------
+    //     OVERFLOW TEST ON K FUNCTIONS USED IN WRONSKIAN
+    //-----------------------------------------------------------------------
+          CALL ZUOIK(ZR, ZI, FNU, KODE, 2, 2, CWR, CWI, NW, TOL, ELIM,
+         * ALIM)
+          if (NW >= 0) GO TO 100
+          NZ = NN
+          DO 90 I=1,NN
+            CYR(I) = ZEROR
+            CYI(I) = ZEROI
+       90 CONTINUE
+          RETURN
+      100 CONTINUE
+          if (NW > 0) GO TO 130
+          CALL ZWRSK(ZR, ZI, FNU, KODE, NN, CYR, CYI, NW, CWR, CWI, TOL,
+         * ELIM, ALIM)
+          if (NW < 0) GO TO 130
+          return Ok(cy, NZ);
+      110 CONTINUE
+    //-----------------------------------------------------------------------
+    //     INCREMENT FNU+NN-1 UP TO FNUL, COMPUTE AND RECUR BACKWARD
+    //-----------------------------------------------------------------------
+          NUI = INT(SNGL(FNUL-DFNU)) + 1
+          NUI = MAX0(NUI,0)
+          CALL ZBUNI(ZR, ZI, FNU, KODE, NN, CYR, CYI, NW, NUI, NLAST, FNUL,
+         * TOL, ELIM, ALIM)
+          if (NW < 0) GO TO 130
+          NZ = NZ + NW
+          if (NLAST == 0) {return Ok(cy, NZ);}
+          NN = NLAST
+          GO TO 60
+    //   120 CONTINUE
+    //       RETURN
+      130 CONTINUE
+      //     NZ = -1
+          return if(NW == (-2)) { Err(DidNotConverge);}// NZ=-2
+          else{Err(Overflow)}
+
+          RETURN
+          // END
+          */
+}
+
+/*
 fn ZACAI(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, RL, TOL,
      * ELIM, ALIM)
 // ***BEGIN PROLOGUE  ZACAI
@@ -4752,7 +4742,7 @@ fn ZACAI(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, RL, TOL,
       AZ = ZABS(ZR,ZI)
       NN = N
       DFNU = FNU + ((N-1) as f64)
-      if (AZ.LE.2.0) GO TO 10
+      if (AZ <= 2.0) GO TO 10
       if (AZ*AZ*0.25 > DFNU+1.0) GO TO 20
    10 CONTINUE
 //-----------------------------------------------------------------------
@@ -4820,34 +4810,42 @@ fn ZACAI(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, RL, TOL,
       if(NW == (-2)) NZ=-2
       RETURN
       END
-fn ZUCHK(YR, YI, NZ, ASCLE, TOL)
-// ***BEGIN PROLOGUE  ZUCHK
-// ***REFER TO ZSERI,ZUOIK,ZUNK1,ZUNK2,ZUNI1,ZUNI2,ZKSCL
-//
-//      Y ENTERS AS A SCALED QUANTITY WHOSE MAGNITUDE IS GREATER THAN
-//      EXP(-ALIM)=ASCLE=1.0E+3*d1mach(1)/TOL. THE TEST IS MADE TO SEE
-//      if THE MAGNITUDE OF THE REAL OR IMAGINARY PART WOULD UNDERFLOW
-//      WHEN Y IS SCALED (BY TOL) TO ITS PROPER VALUE. Y IS ACCEPTED
-//      if THE UNDERFLOW IS AT LEAST ONE PRECISION BELOW THE MAGNITUDE
-//      OF THE LARGEST COMPONENT; OTHERWISE THE PHASE ANGLE DOES NOT HAVE
-//      ABSOLUTE ACCURACY AND AN UNDERFLOW IS ASSUMED.
-//
-// ***ROUTINES CALLED  (NONE)
-// ***END PROLOGUE  ZUCHK
-//
-//     COMPLEX Y
-      DOUBLE PRECISION ASCLE, SS, ST, TOL, WR, WI, YR, YI
-      INTEGER NZ
-      NZ = 0
-      WR = (YR).abs()
-      WI = (YI).abs()
-      ST = DMIN1(WR,WI)
-      if (ST > ASCLE) RETURN
-      SS = DMAX1(WR,WI)
-      ST = ST/TOL
-      if (SS < ST) NZ = 1
-      RETURN
-      END
+      */
+fn ZUunderflowCHK(
+    y: Complex64, //YR, YI,
+    // Outputs: NZ
+    ASCLE: f64,
+    TOL: f64,
+) -> bool {
+    // ***BEGIN PROLOGUE  ZUunderflowCHK
+    // ***REFER TO ZSERI,ZUOIK,ZUNK1,ZUNK2,ZUNI1,ZUNI2,ZKSCL
+    //
+    //      Y ENTERS AS A SCALED QUANTITY WHOSE MAGNITUDE IS GREATER THAN
+    //      EXP(-ALIM)=ASCLE=1.0E+3*d1mach(1)/TOL. THE TEST IS MADE TO SEE
+    //      if THE MAGNITUDE OF THE REAL OR IMAGINARY PART WOULD UNDERFLOW
+    //      WHEN Y IS SCALED (BY TOL) TO ITS PROPER VALUE. Y IS ACCEPTED
+    //      if THE UNDERFLOW IS AT LEAST ONE PRECISION BELOW THE MAGNITUDE
+    //      OF THE LARGEST COMPONENT; OTHERWISE THE PHASE ANGLE DOES NOT HAVE
+    //      ABSOLUTE ACCURACY AND AN UNDERFLOW IS ASSUMED.
+    //
+    // ***ROUTINES CALLED  (NONE)
+    // ***END PROLOGUE  ZUunderflowCHK
+    //
+    //     COMPLEX Y
+    // DOUBLE PRECISION ASCLE, SS, ST, TOL, WR, WI, YR, YI
+    // INTEGER NZ
+    let WR = y.re.abs();
+    let WI = y.im.abs();
+    let mut ST = WR.min(WI);
+    if ST > ASCLE {
+        false
+    } else {
+        let SS = WR.max(WI);
+        ST = ST / TOL;
+        SS < ST
+    }
+}
+/*
 fn ZUNIK(ZRR, ZRI, FNU, IKFLG, IPMTR, TOL, INIT, PHIR,
      * PHII, ZETA1R, ZETA1I, ZETA2R, ZETA2I, SUMR, SUMI, CWRKR, CWRKI)
 // ***BEGIN PROLOGUE  ZUNIK
@@ -4880,83 +4878,83 @@ fn ZUNIK(ZRR, ZRI, FNU, IKFLG, IPMTR, TOL, INIT, PHIR,
       DIMENSION C(120), CWRKR(16), CWRKI(16), CON(2)
       DATA ZEROR,ZEROI,CONER,CONEI / 0.0, 0.0, 1.0, 0.0 /
       DATA CON(1), CON(2)  /
-     1 3.98942280401432678D-01,  1.25331413731550025D+00 /
+     1 3.98942280401432678e-01,  1.25331413731550025e+00 /
       DATA C(1), C(2), C(3), C(4), C(5), C(6), C(7), C(8), C(9), C(10),
      1     C(11), C(12), C(13), C(14), C(15), C(16), C(17), C(18),
      2     C(19), C(20), C(21), C(22), C(23), C(24)/
-     3     1.00000000000000000D+00,    -2.08333333333333333D-01,
-     4     1.25000000000000000D-01,     3.34201388888888889D-01,
-     5    -4.01041666666666667D-01,     7.03125000000000000D-02,
-     6    -1.02581259645061728D+00,     1.84646267361111111D+00,
-     7    -8.91210937500000000D-01,     7.32421875000000000D-02,
-     8     4.66958442342624743D+00,    -1.12070026162229938D+01,
-     9     8.78912353515625000D+00,    -2.36408691406250000D+00,
-     A     1.12152099609375000D-01,    -2.82120725582002449D+01,
-     B     8.46362176746007346D+01,    -9.18182415432400174D+01,
-     C     4.25349987453884549D+01,    -7.36879435947963170D+00,
-     D     2.27108001708984375D-01,     2.12570130039217123D+02,
-     E    -7.65252468141181642D+02,     1.05999045252799988D+03/
+     3     1.00000000000000000e+00,    -2.08333333333333333e-01,
+     4     1.25000000000000000e-01,     3.34201388888888889e-01,
+     5    -4.01041666666666667e-01,     7.03125000000000000e-02,
+     6    -1.02581259645061728e+00,     1.84646267361111111e+00,
+     7    -8.91210937500000000e-01,     7.32421875000000000e-02,
+     8     4.66958442342624743e+00,    -1.12070026162229938e+01,
+     9     8.78912353515625000e+00,    -2.36408691406250000e+00,
+     A     1.12152099609375000e-01,    -2.82120725582002449e+01,
+     B     8.46362176746007346e+01,    -9.18182415432400174e+01,
+     C     4.25349987453884549e+01,    -7.36879435947963170e+00,
+     D     2.27108001708984375e-01,     2.12570130039217123e+02,
+     E    -7.65252468141181642e+02,     1.05999045252799988e+03/
       DATA C(25), C(26), C(27), C(28), C(29), C(30), C(31), C(32),
      1     C(33), C(34), C(35), C(36), C(37), C(38), C(39), C(40),
      2     C(41), C(42), C(43), C(44), C(45), C(46), C(47), C(48)/
-     3    -6.99579627376132541D+02,     2.18190511744211590D+02,
-     4    -2.64914304869515555D+01,     5.72501420974731445D-01,
-     5    -1.91945766231840700D+03,     8.06172218173730938D+03,
-     6    -1.35865500064341374D+04,     1.16553933368645332D+04,
-     7    -5.30564697861340311D+03,     1.20090291321635246D+03,
-     8    -1.08090919788394656D+02,     1.72772750258445740D+00,
-     9     2.02042913309661486D+04,    -9.69805983886375135D+04,
-     A     1.92547001232531532D+05,    -2.03400177280415534D+05,
-     B     1.22200464983017460D+05,    -4.11926549688975513D+04,
-     C     7.10951430248936372D+03,    -4.93915304773088012D+02,
-     D     6.07404200127348304D+00,    -2.42919187900551333D+05,
-     E     1.31176361466297720D+06,    -2.99801591853810675D+06/
+     3    -6.99579627376132541e+02,     2.18190511744211590e+02,
+     4    -2.64914304869515555e+01,     5.72501420974731445e-01,
+     5    -1.91945766231840700e+03,     8.06172218173730938e+03,
+     6    -1.35865500064341374e+04,     1.16553933368645332e+04,
+     7    -5.30564697861340311e+03,     1.20090291321635246e+03,
+     8    -1.08090919788394656e+02,     1.72772750258445740e+00,
+     9     2.02042913309661486e+04,    -9.69805983886375135e+04,
+     A     1.92547001232531532e+05,    -2.03400177280415534e+05,
+     B     1.22200464983017460e+05,    -4.11926549688975513e+04,
+     C     7.10951430248936372e+03,    -4.93915304773088012e+02,
+     D     6.07404200127348304e+00,    -2.42919187900551333e+05,
+     E     1.31176361466297720e+06,    -2.99801591853810675e+06/
       DATA C(49), C(50), C(51), C(52), C(53), C(54), C(55), C(56),
      1     C(57), C(58), C(59), C(60), C(61), C(62), C(63), C(64),
      2     C(65), C(66), C(67), C(68), C(69), C(70), C(71), C(72)/
-     3     3.76327129765640400D+06,    -2.81356322658653411D+06,
-     4     1.26836527332162478D+06,    -3.31645172484563578D+05,
-     5     4.52187689813627263D+04,    -2.49983048181120962D+03,
-     6     2.43805296995560639D+01,     3.28446985307203782D+06,
-     7    -1.97068191184322269D+07,     5.09526024926646422D+07,
-     8    -7.41051482115326577D+07,     6.63445122747290267D+07,
-     9    -3.75671766607633513D+07,     1.32887671664218183D+07,
-     A    -2.78561812808645469D+06,     3.08186404612662398D+05,
-     B    -1.38860897537170405D+04,     1.10017140269246738D+02,
-     C    -4.93292536645099620D+07,     3.25573074185765749D+08,
-     D    -9.39462359681578403D+08,     1.55359689957058006D+09,
-     E    -1.62108055210833708D+09,     1.10684281682301447D+09/
+     3     3.76327129765640400e+06,    -2.81356322658653411e+06,
+     4     1.26836527332162478e+06,    -3.31645172484563578e+05,
+     5     4.52187689813627263e+04,    -2.49983048181120962e+03,
+     6     2.43805296995560639e+01,     3.28446985307203782e+06,
+     7    -1.97068191184322269e+07,     5.09526024926646422e+07,
+     8    -7.41051482115326577e+07,     6.63445122747290267e+07,
+     9    -3.75671766607633513e+07,     1.32887671664218183e+07,
+     A    -2.78561812808645469e+06,     3.08186404612662398e+05,
+     B    -1.38860897537170405e+04,     1.10017140269246738e+02,
+     C    -4.93292536645099620e+07,     3.25573074185765749e+08,
+     D    -9.39462359681578403e+08,     1.55359689957058006e+09,
+     E    -1.62108055210833708e+09,     1.10684281682301447e+09/
       DATA C(73), C(74), C(75), C(76), C(77), C(78), C(79), C(80),
      1     C(81), C(82), C(83), C(84), C(85), C(86), C(87), C(88),
      2     C(89), C(90), C(91), C(92), C(93), C(94), C(95), C(96)/
-     3    -4.95889784275030309D+08,     1.42062907797533095D+08,
-     4    -2.44740627257387285D+07,     2.24376817792244943D+06,
-     5    -8.40054336030240853D+04,     5.51335896122020586D+02,
-     6     8.14789096118312115D+08,    -5.86648149205184723D+09,
-     7     1.86882075092958249D+10,    -3.46320433881587779D+10,
-     8     4.12801855797539740D+10,    -3.30265997498007231D+10,
-     9     1.79542137311556001D+10,    -6.56329379261928433D+09,
-     A     1.55927986487925751D+09,    -2.25105661889415278D+08,
-     B     1.73951075539781645D+07,    -5.49842327572288687D+05,
-     C     3.03809051092238427D+03,    -1.46792612476956167D+10,
-     D     1.14498237732025810D+11,    -3.99096175224466498D+11,
-     E     8.19218669548577329D+11,    -1.09837515608122331D+12/
+     3    -4.95889784275030309e+08,     1.42062907797533095e+08,
+     4    -2.44740627257387285e+07,     2.24376817792244943e+06,
+     5    -8.40054336030240853e+04,     5.51335896122020586e+02,
+     6     8.14789096118312115e+08,    -5.86648149205184723e+09,
+     7     1.86882075092958249e+10,    -3.46320433881587779e+10,
+     8     4.12801855797539740e+10,    -3.30265997498007231e+10,
+     9     1.79542137311556001e+10,    -6.56329379261928433e+09,
+     A     1.55927986487925751e+09,    -2.25105661889415278e+08,
+     B     1.73951075539781645e+07,    -5.49842327572288687e+05,
+     C     3.03809051092238427e+03,    -1.46792612476956167e+10,
+     D     1.14498237732025810e+11,    -3.99096175224466498e+11,
+     E     8.19218669548577329e+11,    -1.09837515608122331e+12/
       DATA C(97), C(98), C(99), C(100), C(101), C(102), C(103), C(104),
      1     C(105), C(106), C(107), C(108), C(109), C(110), C(111),
      2     C(112), C(113), C(114), C(115), C(116), C(117), C(118)/
-     3     1.00815810686538209D+12,    -6.45364869245376503D+11,
-     4     2.87900649906150589D+11,    -8.78670721780232657D+10,
-     5     1.76347306068349694D+10,    -2.16716498322379509D+09,
-     6     1.43157876718888981D+08,    -3.87183344257261262D+06,
-     7     1.82577554742931747D+04,     2.86464035717679043D+11,
-     8    -2.40629790002850396D+12,     9.10934118523989896D+12,
-     9    -2.05168994109344374D+13,     3.05651255199353206D+13,
-     A    -3.16670885847851584D+13,     2.33483640445818409D+13,
-     B    -1.23204913055982872D+13,     4.61272578084913197D+12,
-     C    -1.19655288019618160D+12,     2.05914503232410016D+11,
-     D    -2.18229277575292237D+10,     1.24700929351271032D+09/
+     3     1.00815810686538209e+12,    -6.45364869245376503e+11,
+     4     2.87900649906150589e+11,    -8.78670721780232657e+10,
+     5     1.76347306068349694e+10,    -2.16716498322379509e+09,
+     6     1.43157876718888981e+08,    -3.87183344257261262e+06,
+     7     1.82577554742931747e+04,     2.86464035717679043e+11,
+     8    -2.40629790002850396e+12,     9.10934118523989896e+12,
+     9    -2.05168994109344374e+13,     3.05651255199353206e+13,
+     A    -3.16670885847851584e+13,     2.33483640445818409e+13,
+     B    -1.23204913055982872e+13,     4.61272578084913197e+12,
+     C    -1.19655288019618160e+12,     2.05914503232410016e+11,
+     D    -2.18229277575292237e+10,     1.24700929351271032e+09/
       DATA C(119), C(120)/
-     1    -2.91883881222208134D+07,     1.18838426256783253D+05/
+     1    -2.91883881222208134e+07,     1.18838426256783253e+05/
 //
       if (INIT != 0) GO TO 40
 //-----------------------------------------------------------------------
@@ -5112,383 +5110,383 @@ fn ZUNHJ(ZR, ZI, FNU, IPMTR, TOL, PHIR, PHII, ARGR, ARGI,
      * DRR(14), DRI(14)
       DATA AR(1), AR(2), AR(3), AR(4), AR(5), AR(6), AR(7), AR(8),
      1     AR(9), AR(10), AR(11), AR(12), AR(13), AR(14)/
-     2     1.00000000000000000D+00,     1.04166666666666667D-01,
-     3     8.35503472222222222D-02,     1.28226574556327160D-01,
-     4     2.91849026464140464D-01,     8.81627267443757652D-01,
-     5     3.32140828186276754D+00,     1.49957629868625547D+01,
-     6     7.89230130115865181D+01,     4.74451538868264323D+02,
-     7     3.20749009089066193D+03,     2.40865496408740049D+04,
-     8     1.98923119169509794D+05,     1.79190200777534383D+06/
+     2     1.00000000000000000e+00,     1.04166666666666667e-01,
+     3     8.35503472222222222e-02,     1.28226574556327160e-01,
+     4     2.91849026464140464e-01,     8.81627267443757652e-01,
+     5     3.32140828186276754e+00,     1.49957629868625547e+01,
+     6     7.89230130115865181e+01,     4.74451538868264323e+02,
+     7     3.20749009089066193e+03,     2.40865496408740049e+04,
+     8     1.98923119169509794e+05,     1.79190200777534383e+06/
       DATA BR(1), BR(2), BR(3), BR(4), BR(5), BR(6), BR(7), BR(8),
      1     BR(9), BR(10), BR(11), BR(12), BR(13), BR(14)/
-     2     1.00000000000000000D+00,    -1.45833333333333333D-01,
-     3    -9.87413194444444444D-02,    -1.43312053915895062D-01,
-     4    -3.17227202678413548D-01,    -9.42429147957120249D-01,
-     5    -3.51120304082635426D+00,    -1.57272636203680451D+01,
-     6    -8.22814390971859444D+01,    -4.92355370523670524D+02,
-     7    -3.31621856854797251D+03,    -2.48276742452085896D+04,
-     8    -2.04526587315129788D+05,    -1.83844491706820990D+06/
+     2     1.00000000000000000e+00,    -1.45833333333333333e-01,
+     3    -9.87413194444444444e-02,    -1.43312053915895062e-01,
+     4    -3.17227202678413548e-01,    -9.42429147957120249e-01,
+     5    -3.51120304082635426e+00,    -1.57272636203680451e+01,
+     6    -8.22814390971859444e+01,    -4.92355370523670524e+02,
+     7    -3.31621856854797251e+03,    -2.48276742452085896e+04,
+     8    -2.04526587315129788e+05,    -1.83844491706820990e+06/
       DATA C(1), C(2), C(3), C(4), C(5), C(6), C(7), C(8), C(9), C(10),
      1     C(11), C(12), C(13), C(14), C(15), C(16), C(17), C(18),
      2     C(19), C(20), C(21), C(22), C(23), C(24)/
-     3     1.00000000000000000D+00,    -2.08333333333333333D-01,
-     4     1.25000000000000000D-01,     3.34201388888888889D-01,
-     5    -4.01041666666666667D-01,     7.03125000000000000D-02,
-     6    -1.02581259645061728D+00,     1.84646267361111111D+00,
-     7    -8.91210937500000000D-01,     7.32421875000000000D-02,
-     8     4.66958442342624743D+00,    -1.12070026162229938D+01,
-     9     8.78912353515625000D+00,    -2.36408691406250000D+00,
-     A     1.12152099609375000D-01,    -2.82120725582002449D+01,
-     B     8.46362176746007346D+01,    -9.18182415432400174D+01,
-     C     4.25349987453884549D+01,    -7.36879435947963170D+00,
-     D     2.27108001708984375D-01,     2.12570130039217123D+02,
-     E    -7.65252468141181642D+02,     1.05999045252799988D+03/
+     3     1.00000000000000000e+00,    -2.08333333333333333e-01,
+     4     1.25000000000000000e-01,     3.34201388888888889e-01,
+     5    -4.01041666666666667e-01,     7.03125000000000000e-02,
+     6    -1.02581259645061728e+00,     1.84646267361111111e+00,
+     7    -8.91210937500000000e-01,     7.32421875000000000e-02,
+     8     4.66958442342624743e+00,    -1.12070026162229938e+01,
+     9     8.78912353515625000e+00,    -2.36408691406250000e+00,
+     A     1.12152099609375000e-01,    -2.82120725582002449e+01,
+     B     8.46362176746007346e+01,    -9.18182415432400174e+01,
+     C     4.25349987453884549e+01,    -7.36879435947963170e+00,
+     D     2.27108001708984375e-01,     2.12570130039217123e+02,
+     E    -7.65252468141181642e+02,     1.05999045252799988e+03/
       DATA C(25), C(26), C(27), C(28), C(29), C(30), C(31), C(32),
      1     C(33), C(34), C(35), C(36), C(37), C(38), C(39), C(40),
      2     C(41), C(42), C(43), C(44), C(45), C(46), C(47), C(48)/
-     3    -6.99579627376132541D+02,     2.18190511744211590D+02,
-     4    -2.64914304869515555D+01,     5.72501420974731445D-01,
-     5    -1.91945766231840700D+03,     8.06172218173730938D+03,
-     6    -1.35865500064341374D+04,     1.16553933368645332D+04,
-     7    -5.30564697861340311D+03,     1.20090291321635246D+03,
-     8    -1.08090919788394656D+02,     1.72772750258445740D+00,
-     9     2.02042913309661486D+04,    -9.69805983886375135D+04,
-     A     1.92547001232531532D+05,    -2.03400177280415534D+05,
-     B     1.22200464983017460D+05,    -4.11926549688975513D+04,
-     C     7.10951430248936372D+03,    -4.93915304773088012D+02,
-     D     6.07404200127348304D+00,    -2.42919187900551333D+05,
-     E     1.31176361466297720D+06,    -2.99801591853810675D+06/
+     3    -6.99579627376132541e+02,     2.18190511744211590e+02,
+     4    -2.64914304869515555e+01,     5.72501420974731445e-01,
+     5    -1.91945766231840700e+03,     8.06172218173730938e+03,
+     6    -1.35865500064341374e+04,     1.16553933368645332e+04,
+     7    -5.30564697861340311e+03,     1.20090291321635246e+03,
+     8    -1.08090919788394656e+02,     1.72772750258445740e+00,
+     9     2.02042913309661486e+04,    -9.69805983886375135e+04,
+     A     1.92547001232531532e+05,    -2.03400177280415534e+05,
+     B     1.22200464983017460e+05,    -4.11926549688975513e+04,
+     C     7.10951430248936372e+03,    -4.93915304773088012e+02,
+     D     6.07404200127348304e+00,    -2.42919187900551333e+05,
+     E     1.31176361466297720e+06,    -2.99801591853810675e+06/
       DATA C(49), C(50), C(51), C(52), C(53), C(54), C(55), C(56),
      1     C(57), C(58), C(59), C(60), C(61), C(62), C(63), C(64),
      2     C(65), C(66), C(67), C(68), C(69), C(70), C(71), C(72)/
-     3     3.76327129765640400D+06,    -2.81356322658653411D+06,
-     4     1.26836527332162478D+06,    -3.31645172484563578D+05,
-     5     4.52187689813627263D+04,    -2.49983048181120962D+03,
-     6     2.43805296995560639D+01,     3.28446985307203782D+06,
-     7    -1.97068191184322269D+07,     5.09526024926646422D+07,
-     8    -7.41051482115326577D+07,     6.63445122747290267D+07,
-     9    -3.75671766607633513D+07,     1.32887671664218183D+07,
-     A    -2.78561812808645469D+06,     3.08186404612662398D+05,
-     B    -1.38860897537170405D+04,     1.10017140269246738D+02,
-     C    -4.93292536645099620D+07,     3.25573074185765749D+08,
-     D    -9.39462359681578403D+08,     1.55359689957058006D+09,
-     E    -1.62108055210833708D+09,     1.10684281682301447D+09/
+     3     3.76327129765640400e+06,    -2.81356322658653411e+06,
+     4     1.26836527332162478e+06,    -3.31645172484563578e+05,
+     5     4.52187689813627263e+04,    -2.49983048181120962e+03,
+     6     2.43805296995560639e+01,     3.28446985307203782e+06,
+     7    -1.97068191184322269e+07,     5.09526024926646422e+07,
+     8    -7.41051482115326577e+07,     6.63445122747290267e+07,
+     9    -3.75671766607633513e+07,     1.32887671664218183e+07,
+     A    -2.78561812808645469e+06,     3.08186404612662398e+05,
+     B    -1.38860897537170405e+04,     1.10017140269246738e+02,
+     C    -4.93292536645099620e+07,     3.25573074185765749e+08,
+     D    -9.39462359681578403e+08,     1.55359689957058006e+09,
+     E    -1.62108055210833708e+09,     1.10684281682301447e+09/
       DATA C(73), C(74), C(75), C(76), C(77), C(78), C(79), C(80),
      1     C(81), C(82), C(83), C(84), C(85), C(86), C(87), C(88),
      2     C(89), C(90), C(91), C(92), C(93), C(94), C(95), C(96)/
-     3    -4.95889784275030309D+08,     1.42062907797533095D+08,
-     4    -2.44740627257387285D+07,     2.24376817792244943D+06,
-     5    -8.40054336030240853D+04,     5.51335896122020586D+02,
-     6     8.14789096118312115D+08,    -5.86648149205184723D+09,
-     7     1.86882075092958249D+10,    -3.46320433881587779D+10,
-     8     4.12801855797539740D+10,    -3.30265997498007231D+10,
-     9     1.79542137311556001D+10,    -6.56329379261928433D+09,
-     A     1.55927986487925751D+09,    -2.25105661889415278D+08,
-     B     1.73951075539781645D+07,    -5.49842327572288687D+05,
-     C     3.03809051092238427D+03,    -1.46792612476956167D+10,
-     D     1.14498237732025810D+11,    -3.99096175224466498D+11,
-     E     8.19218669548577329D+11,    -1.09837515608122331D+12/
+     3    -4.95889784275030309e+08,     1.42062907797533095e+08,
+     4    -2.44740627257387285e+07,     2.24376817792244943e+06,
+     5    -8.40054336030240853e+04,     5.51335896122020586e+02,
+     6     8.14789096118312115e+08,    -5.86648149205184723e+09,
+     7     1.86882075092958249e+10,    -3.46320433881587779e+10,
+     8     4.12801855797539740e+10,    -3.30265997498007231e+10,
+     9     1.79542137311556001e+10,    -6.56329379261928433e+09,
+     A     1.55927986487925751e+09,    -2.25105661889415278e+08,
+     B     1.73951075539781645e+07,    -5.49842327572288687e+05,
+     C     3.03809051092238427e+03,    -1.46792612476956167e+10,
+     D     1.14498237732025810e+11,    -3.99096175224466498e+11,
+     E     8.19218669548577329e+11,    -1.09837515608122331e+12/
       DATA C(97), C(98), C(99), C(100), C(101), C(102), C(103), C(104),
      1     C(105)/
-     2     1.00815810686538209D+12,    -6.45364869245376503D+11,
-     3     2.87900649906150589D+11,    -8.78670721780232657D+10,
-     4     1.76347306068349694D+10,    -2.16716498322379509D+09,
-     5     1.43157876718888981D+08,    -3.87183344257261262D+06,
-     6     1.82577554742931747D+04/
+     2     1.00815810686538209e+12,    -6.45364869245376503e+11,
+     3     2.87900649906150589e+11,    -8.78670721780232657e+10,
+     4     1.76347306068349694e+10,    -2.16716498322379509e+09,
+     5     1.43157876718888981e+08,    -3.87183344257261262e+06,
+     6     1.82577554742931747e+04/
       DATA ALFA(1), ALFA(2), ALFA(3), ALFA(4), ALFA(5), ALFA(6),
      1     ALFA(7), ALFA(8), ALFA(9), ALFA(10), ALFA(11), ALFA(12),
      2     ALFA(13), ALFA(14), ALFA(15), ALFA(16), ALFA(17), ALFA(18),
      3     ALFA(19), ALFA(20), ALFA(21), ALFA(22)/
-     4    -4.44444444444444444D-03,    -9.22077922077922078D-04,
-     5    -8.84892884892884893D-05,     1.65927687832449737D-04,
-     6     2.46691372741792910D-04,     2.65995589346254780D-04,
-     7     2.61824297061500945D-04,     2.48730437344655609D-04,
-     8     2.32721040083232098D-04,     2.16362485712365082D-04,
-     9     2.00738858762752355D-04,     1.86267636637545172D-04,
-     A     1.73060775917876493D-04,     1.61091705929015752D-04,
-     B     1.50274774160908134D-04,     1.40503497391269794D-04,
-     C     1.31668816545922806D-04,     1.23667445598253261D-04,
-     D     1.16405271474737902D-04,     1.09798298372713369D-04,
-     E     1.03772410422992823D-04,     9.82626078369363448D-05/
+     4    -4.44444444444444444e-03,    -9.22077922077922078e-04,
+     5    -8.84892884892884893e-05,     1.65927687832449737e-04,
+     6     2.46691372741792910e-04,     2.65995589346254780e-04,
+     7     2.61824297061500945e-04,     2.48730437344655609e-04,
+     8     2.32721040083232098e-04,     2.16362485712365082e-04,
+     9     2.00738858762752355e-04,     1.86267636637545172e-04,
+     A     1.73060775917876493e-04,     1.61091705929015752e-04,
+     B     1.50274774160908134e-04,     1.40503497391269794e-04,
+     C     1.31668816545922806e-04,     1.23667445598253261e-04,
+     D     1.16405271474737902e-04,     1.09798298372713369e-04,
+     E     1.03772410422992823e-04,     9.82626078369363448e-05/
       DATA ALFA(23), ALFA(24), ALFA(25), ALFA(26), ALFA(27), ALFA(28),
      1     ALFA(29), ALFA(30), ALFA(31), ALFA(32), ALFA(33), ALFA(34),
      2     ALFA(35), ALFA(36), ALFA(37), ALFA(38), ALFA(39), ALFA(40),
      3     ALFA(41), ALFA(42), ALFA(43), ALFA(44)/
-     4     9.32120517249503256D-05,     8.85710852478711718D-05,
-     5     8.42963105715700223D-05,     8.03497548407791151D-05,
-     6     7.66981345359207388D-05,     7.33122157481777809D-05,
-     7     7.01662625163141333D-05,     6.72375633790160292D-05,
-     8     6.93735541354588974D-04,     2.32241745182921654D-04,
-     9    -1.41986273556691197D-05,    -1.16444931672048640D-04,
-     A    -1.50803558053048762D-04,    -1.55121924918096223D-04,
-     B    -1.46809756646465549D-04,    -1.33815503867491367D-04,
-     C    -1.19744975684254051D-04,    -1.06184319207974020D-04,
-     D    -9.37699549891194492D-05,    -8.26923045588193274D-05,
-     E    -7.29374348155221211D-05,    -6.44042357721016283D-05/
+     4     9.32120517249503256e-05,     8.85710852478711718e-05,
+     5     8.42963105715700223e-05,     8.03497548407791151e-05,
+     6     7.66981345359207388e-05,     7.33122157481777809e-05,
+     7     7.01662625163141333e-05,     6.72375633790160292e-05,
+     8     6.93735541354588974e-04,     2.32241745182921654e-04,
+     9    -1.41986273556691197e-05,    -1.16444931672048640e-04,
+     A    -1.50803558053048762e-04,    -1.55121924918096223e-04,
+     B    -1.46809756646465549e-04,    -1.33815503867491367e-04,
+     C    -1.19744975684254051e-04,    -1.06184319207974020e-04,
+     D    -9.37699549891194492e-05,    -8.26923045588193274e-05,
+     E    -7.29374348155221211e-05,    -6.44042357721016283e-05/
       DATA ALFA(45), ALFA(46), ALFA(47), ALFA(48), ALFA(49), ALFA(50),
      1     ALFA(51), ALFA(52), ALFA(53), ALFA(54), ALFA(55), ALFA(56),
      2     ALFA(57), ALFA(58), ALFA(59), ALFA(60), ALFA(61), ALFA(62),
      3     ALFA(63), ALFA(64), ALFA(65), ALFA(66)/
-     4    -5.69611566009369048D-05,    -5.04731044303561628D-05,
-     5    -4.48134868008882786D-05,    -3.98688727717598864D-05,
-     6    -3.55400532972042498D-05,    -3.17414256609022480D-05,
-     7    -2.83996793904174811D-05,    -2.54522720634870566D-05,
-     8    -2.28459297164724555D-05,    -2.05352753106480604D-05,
-     9    -1.84816217627666085D-05,    -1.66519330021393806D-05,
-     A    -1.50179412980119482D-05,    -1.35554031379040526D-05,
-     B    -1.22434746473858131D-05,    -1.10641884811308169D-05,
-     C    -3.54211971457743841D-04,    -1.56161263945159416D-04,
-     D     3.04465503594936410D-05,     1.30198655773242693D-04,
-     E     1.67471106699712269D-04,     1.70222587683592569D-04/
+     4    -5.69611566009369048e-05,    -5.04731044303561628e-05,
+     5    -4.48134868008882786e-05,    -3.98688727717598864e-05,
+     6    -3.55400532972042498e-05,    -3.17414256609022480e-05,
+     7    -2.83996793904174811e-05,    -2.54522720634870566e-05,
+     8    -2.28459297164724555e-05,    -2.05352753106480604e-05,
+     9    -1.84816217627666085e-05,    -1.66519330021393806e-05,
+     A    -1.50179412980119482e-05,    -1.35554031379040526e-05,
+     B    -1.22434746473858131e-05,    -1.10641884811308169e-05,
+     C    -3.54211971457743841e-04,    -1.56161263945159416e-04,
+     D     3.04465503594936410e-05,     1.30198655773242693e-04,
+     E     1.67471106699712269e-04,     1.70222587683592569e-04/
       DATA ALFA(67), ALFA(68), ALFA(69), ALFA(70), ALFA(71), ALFA(72),
      1     ALFA(73), ALFA(74), ALFA(75), ALFA(76), ALFA(77), ALFA(78),
      2     ALFA(79), ALFA(80), ALFA(81), ALFA(82), ALFA(83), ALFA(84),
      3     ALFA(85), ALFA(86), ALFA(87), ALFA(88)/
-     4     1.56501427608594704D-04,     1.36339170977445120D-04,
-     5     1.14886692029825128D-04,     9.45869093034688111D-05,
-     6     7.64498419250898258D-05,     6.07570334965197354D-05,
-     7     4.74394299290508799D-05,     3.62757512005344297D-05,
-     8     2.69939714979224901D-05,     1.93210938247939253D-05,
-     9     1.30056674793963203D-05,     7.82620866744496661D-06,
-     A     3.59257485819351583D-06,     1.44040049814251817D-07,
-     B    -2.65396769697939116D-06,    -4.91346867098485910D-06,
-     C    -6.72739296091248287D-06,    -8.17269379678657923D-06,
-     D    -9.31304715093561232D-06,    -1.02011418798016441D-05,
-     E    -1.08805962510592880D-05,    -1.13875481509603555D-05/
+     4     1.56501427608594704e-04,     1.36339170977445120e-04,
+     5     1.14886692029825128e-04,     9.45869093034688111e-05,
+     6     7.64498419250898258e-05,     6.07570334965197354e-05,
+     7     4.74394299290508799e-05,     3.62757512005344297e-05,
+     8     2.69939714979224901e-05,     1.93210938247939253e-05,
+     9     1.30056674793963203e-05,     7.82620866744496661e-06,
+     A     3.59257485819351583e-06,     1.44040049814251817e-07,
+     B    -2.65396769697939116e-06,    -4.91346867098485910e-06,
+     C    -6.72739296091248287e-06,    -8.17269379678657923e-06,
+     D    -9.31304715093561232e-06,    -1.02011418798016441e-05,
+     E    -1.08805962510592880e-05,    -1.13875481509603555e-05/
       DATA ALFA(89), ALFA(90), ALFA(91), ALFA(92), ALFA(93), ALFA(94),
      1     ALFA(95), ALFA(96), ALFA(97), ALFA(98), ALFA(99), ALFA(100),
      2     ALFA(101), ALFA(102), ALFA(103), ALFA(104), ALFA(105),
      3     ALFA(106), ALFA(107), ALFA(108), ALFA(109), ALFA(110)/
-     4    -1.17519675674556414D-05,    -1.19987364870944141D-05,
-     5     3.78194199201772914D-04,     2.02471952761816167D-04,
-     6    -6.37938506318862408D-05,    -2.38598230603005903D-04,
-     7    -3.10916256027361568D-04,    -3.13680115247576316D-04,
-     8    -2.78950273791323387D-04,    -2.28564082619141374D-04,
-     9    -1.75245280340846749D-04,    -1.25544063060690348D-04,
-     A    -8.22982872820208365D-05,    -4.62860730588116458D-05,
-     B    -1.72334302366962267D-05,     5.60690482304602267D-06,
-     C     2.31395443148286800D-05,     3.62642745856793957D-05,
-     D     4.58006124490188752D-05,     5.24595294959114050D-05,
-     E     5.68396208545815266D-05,     5.94349820393104052D-05/
+     4    -1.17519675674556414e-05,    -1.19987364870944141e-05,
+     5     3.78194199201772914e-04,     2.02471952761816167e-04,
+     6    -6.37938506318862408e-05,    -2.38598230603005903e-04,
+     7    -3.10916256027361568e-04,    -3.13680115247576316e-04,
+     8    -2.78950273791323387e-04,    -2.28564082619141374e-04,
+     9    -1.75245280340846749e-04,    -1.25544063060690348e-04,
+     A    -8.22982872820208365e-05,    -4.62860730588116458e-05,
+     B    -1.72334302366962267e-05,     5.60690482304602267e-06,
+     C     2.31395443148286800e-05,     3.62642745856793957e-05,
+     D     4.58006124490188752e-05,     5.24595294959114050e-05,
+     E     5.68396208545815266e-05,     5.94349820393104052e-05/
       DATA ALFA(111), ALFA(112), ALFA(113), ALFA(114), ALFA(115),
      1     ALFA(116), ALFA(117), ALFA(118), ALFA(119), ALFA(120),
      2     ALFA(121), ALFA(122), ALFA(123), ALFA(124), ALFA(125),
      3     ALFA(126), ALFA(127), ALFA(128), ALFA(129), ALFA(130)/
-     4     6.06478527578421742D-05,     6.08023907788436497D-05,
-     5     6.01577894539460388D-05,     5.89199657344698500D-05,
-     6     5.72515823777593053D-05,     5.52804375585852577D-05,
-     7     5.31063773802880170D-05,     5.08069302012325706D-05,
-     8     4.84418647620094842D-05,     4.60568581607475370D-05,
-     9    -6.91141397288294174D-04,    -4.29976633058871912D-04,
-     A     1.83067735980039018D-04,     6.60088147542014144D-04,
-     B     8.75964969951185931D-04,     8.77335235958235514D-04,
-     C     7.49369585378990637D-04,     5.63832329756980918D-04,
-     D     3.68059319971443156D-04,     1.88464535514455599D-04/
+     4     6.06478527578421742e-05,     6.08023907788436497e-05,
+     5     6.01577894539460388e-05,     5.89199657344698500e-05,
+     6     5.72515823777593053e-05,     5.52804375585852577e-05,
+     7     5.31063773802880170e-05,     5.08069302012325706e-05,
+     8     4.84418647620094842e-05,     4.60568581607475370e-05,
+     9    -6.91141397288294174e-04,    -4.29976633058871912e-04,
+     A     1.83067735980039018e-04,     6.60088147542014144e-04,
+     B     8.75964969951185931e-04,     8.77335235958235514e-04,
+     C     7.49369585378990637e-04,     5.63832329756980918e-04,
+     D     3.68059319971443156e-04,     1.88464535514455599e-04/
       DATA ALFA(131), ALFA(132), ALFA(133), ALFA(134), ALFA(135),
      1     ALFA(136), ALFA(137), ALFA(138), ALFA(139), ALFA(140),
      2     ALFA(141), ALFA(142), ALFA(143), ALFA(144), ALFA(145),
      3     ALFA(146), ALFA(147), ALFA(148), ALFA(149), ALFA(150)/
-     4     3.70663057664904149D-05,    -8.28520220232137023D-05,
-     5    -1.72751952869172998D-04,    -2.36314873605872983D-04,
-     6    -2.77966150694906658D-04,    -3.02079514155456919D-04,
-     7    -3.12594712643820127D-04,    -3.12872558758067163D-04,
-     8    -3.05678038466324377D-04,    -2.93226470614557331D-04,
-     9    -2.77255655582934777D-04,    -2.59103928467031709D-04,
-     A    -2.39784014396480342D-04,    -2.20048260045422848D-04,
-     B    -2.00443911094971498D-04,    -1.81358692210970687D-04,
-     C    -1.63057674478657464D-04,    -1.45712672175205844D-04,
-     D    -1.29425421983924587D-04,    -1.14245691942445952D-04/
+     4     3.70663057664904149e-05,    -8.28520220232137023e-05,
+     5    -1.72751952869172998e-04,    -2.36314873605872983e-04,
+     6    -2.77966150694906658e-04,    -3.02079514155456919e-04,
+     7    -3.12594712643820127e-04,    -3.12872558758067163e-04,
+     8    -3.05678038466324377e-04,    -2.93226470614557331e-04,
+     9    -2.77255655582934777e-04,    -2.59103928467031709e-04,
+     A    -2.39784014396480342e-04,    -2.20048260045422848e-04,
+     B    -2.00443911094971498e-04,    -1.81358692210970687e-04,
+     C    -1.63057674478657464e-04,    -1.45712672175205844e-04,
+     D    -1.29425421983924587e-04,    -1.14245691942445952e-04/
       DATA ALFA(151), ALFA(152), ALFA(153), ALFA(154), ALFA(155),
      1     ALFA(156), ALFA(157), ALFA(158), ALFA(159), ALFA(160),
      2     ALFA(161), ALFA(162), ALFA(163), ALFA(164), ALFA(165),
      3     ALFA(166), ALFA(167), ALFA(168), ALFA(169), ALFA(170)/
-     4     1.92821964248775885D-03,     1.35592576302022234D-03,
-     5    -7.17858090421302995D-04,    -2.58084802575270346D-03,
-     6    -3.49271130826168475D-03,    -3.46986299340960628D-03,
-     7    -2.82285233351310182D-03,    -1.88103076404891354D-03,
-     8    -8.89531718383947600D-04,     3.87912102631035228D-06,
-     9     7.28688540119691412D-04,     1.26566373053457758D-03,
-     A     1.62518158372674427D-03,     1.83203153216373172D-03,
-     B     1.91588388990527909D-03,     1.90588846755546138D-03,
-     C     1.82798982421825727D-03,     1.70389506421121530D-03,
-     D     1.55097127171097686D-03,     1.38261421852276159D-03/
+     4     1.92821964248775885e-03,     1.35592576302022234e-03,
+     5    -7.17858090421302995e-04,    -2.58084802575270346e-03,
+     6    -3.49271130826168475e-03,    -3.46986299340960628e-03,
+     7    -2.82285233351310182e-03,    -1.88103076404891354e-03,
+     8    -8.89531718383947600e-04,     3.87912102631035228e-06,
+     9     7.28688540119691412e-04,     1.26566373053457758e-03,
+     A     1.62518158372674427e-03,     1.83203153216373172e-03,
+     B     1.91588388990527909e-03,     1.90588846755546138e-03,
+     C     1.82798982421825727e-03,     1.70389506421121530e-03,
+     D     1.55097127171097686e-03,     1.38261421852276159e-03/
       DATA ALFA(171), ALFA(172), ALFA(173), ALFA(174), ALFA(175),
      1     ALFA(176), ALFA(177), ALFA(178), ALFA(179), ALFA(180)/
-     2     1.20881424230064774D-03,     1.03676532638344962D-03,
-     3     8.71437918068619115D-04,     7.16080155297701002D-04,
-     4     5.72637002558129372D-04,     4.42089819465802277D-04,
-     5     3.24724948503090564D-04,     2.20342042730246599D-04,
-     6     1.28412898401353882D-04,     4.82005924552095464D-05/
+     2     1.20881424230064774e-03,     1.03676532638344962e-03,
+     3     8.71437918068619115e-04,     7.16080155297701002e-04,
+     4     5.72637002558129372e-04,     4.42089819465802277e-04,
+     5     3.24724948503090564e-04,     2.20342042730246599e-04,
+     6     1.28412898401353882e-04,     4.82005924552095464e-05/
       DATA BETA(1), BETA(2), BETA(3), BETA(4), BETA(5), BETA(6),
      1     BETA(7), BETA(8), BETA(9), BETA(10), BETA(11), BETA(12),
      2     BETA(13), BETA(14), BETA(15), BETA(16), BETA(17), BETA(18),
      3     BETA(19), BETA(20), BETA(21), BETA(22)/
-     4     1.79988721413553309D-02,     5.59964911064388073D-03,
-     5     2.88501402231132779D-03,     1.80096606761053941D-03,
-     6     1.24753110589199202D-03,     9.22878876572938311D-04,
-     7     7.14430421727287357D-04,     5.71787281789704872D-04,
-     8     4.69431007606481533D-04,     3.93232835462916638D-04,
-     9     3.34818889318297664D-04,     2.88952148495751517D-04,
-     A     2.52211615549573284D-04,     2.22280580798883327D-04,
-     B     1.97541838033062524D-04,     1.76836855019718004D-04,
-     C     1.59316899661821081D-04,     1.44347930197333986D-04,
-     D     1.31448068119965379D-04,     1.20245444949302884D-04,
-     E     1.10449144504599392D-04,     1.01828770740567258D-04/
+     4     1.79988721413553309e-02,     5.59964911064388073e-03,
+     5     2.88501402231132779e-03,     1.80096606761053941e-03,
+     6     1.24753110589199202e-03,     9.22878876572938311e-04,
+     7     7.14430421727287357e-04,     5.71787281789704872e-04,
+     8     4.69431007606481533e-04,     3.93232835462916638e-04,
+     9     3.34818889318297664e-04,     2.88952148495751517e-04,
+     A     2.52211615549573284e-04,     2.22280580798883327e-04,
+     B     1.97541838033062524e-04,     1.76836855019718004e-04,
+     C     1.59316899661821081e-04,     1.44347930197333986e-04,
+     D     1.31448068119965379e-04,     1.20245444949302884e-04,
+     E     1.10449144504599392e-04,     1.01828770740567258e-04/
       DATA BETA(23), BETA(24), BETA(25), BETA(26), BETA(27), BETA(28),
      1     BETA(29), BETA(30), BETA(31), BETA(32), BETA(33), BETA(34),
      2     BETA(35), BETA(36), BETA(37), BETA(38), BETA(39), BETA(40),
      3     BETA(41), BETA(42), BETA(43), BETA(44)/
-     4     9.41998224204237509D-05,     8.74130545753834437D-05,
-     5     8.13466262162801467D-05,     7.59002269646219339D-05,
-     6     7.09906300634153481D-05,     6.65482874842468183D-05,
-     7     6.25146958969275078D-05,     5.88403394426251749D-05,
-     8    -1.49282953213429172D-03,    -8.78204709546389328D-04,
-     9    -5.02916549572034614D-04,    -2.94822138512746025D-04,
-     A    -1.75463996970782828D-04,    -1.04008550460816434D-04,
-     B    -5.96141953046457895D-05,    -3.12038929076098340D-05,
-     C    -1.26089735980230047D-05,    -2.42892608575730389D-07,
-     D     8.05996165414273571D-06,     1.36507009262147391D-05,
-     E     1.73964125472926261D-05,     1.98672978842133780D-05/
+     4     9.41998224204237509e-05,     8.74130545753834437e-05,
+     5     8.13466262162801467e-05,     7.59002269646219339e-05,
+     6     7.09906300634153481e-05,     6.65482874842468183e-05,
+     7     6.25146958969275078e-05,     5.88403394426251749e-05,
+     8    -1.49282953213429172e-03,    -8.78204709546389328e-04,
+     9    -5.02916549572034614e-04,    -2.94822138512746025e-04,
+     A    -1.75463996970782828e-04,    -1.04008550460816434e-04,
+     B    -5.96141953046457895e-05,    -3.12038929076098340e-05,
+     C    -1.26089735980230047e-05,    -2.42892608575730389e-07,
+     D     8.05996165414273571e-06,     1.36507009262147391e-05,
+     E     1.73964125472926261e-05,     1.98672978842133780e-05/
       DATA BETA(45), BETA(46), BETA(47), BETA(48), BETA(49), BETA(50),
      1     BETA(51), BETA(52), BETA(53), BETA(54), BETA(55), BETA(56),
      2     BETA(57), BETA(58), BETA(59), BETA(60), BETA(61), BETA(62),
      3     BETA(63), BETA(64), BETA(65), BETA(66)/
-     4     2.14463263790822639D-05,     2.23954659232456514D-05,
-     5     2.28967783814712629D-05,     2.30785389811177817D-05,
-     6     2.30321976080909144D-05,     2.28236073720348722D-05,
-     7     2.25005881105292418D-05,     2.20981015361991429D-05,
-     8     2.16418427448103905D-05,     2.11507649256220843D-05,
-     9     2.06388749782170737D-05,     2.01165241997081666D-05,
-     A     1.95913450141179244D-05,     1.90689367910436740D-05,
-     B     1.85533719641636667D-05,     1.80475722259674218D-05,
-     C     5.52213076721292790D-04,     4.47932581552384646D-04,
-     D     2.79520653992020589D-04,     1.52468156198446602D-04,
-     E     6.93271105657043598D-05,     1.76258683069991397D-05/
+     4     2.14463263790822639e-05,     2.23954659232456514e-05,
+     5     2.28967783814712629e-05,     2.30785389811177817e-05,
+     6     2.30321976080909144e-05,     2.28236073720348722e-05,
+     7     2.25005881105292418e-05,     2.20981015361991429e-05,
+     8     2.16418427448103905e-05,     2.11507649256220843e-05,
+     9     2.06388749782170737e-05,     2.01165241997081666e-05,
+     A     1.95913450141179244e-05,     1.90689367910436740e-05,
+     B     1.85533719641636667e-05,     1.80475722259674218e-05,
+     C     5.52213076721292790e-04,     4.47932581552384646e-04,
+     D     2.79520653992020589e-04,     1.52468156198446602e-04,
+     E     6.93271105657043598e-05,     1.76258683069991397e-05/
       DATA BETA(67), BETA(68), BETA(69), BETA(70), BETA(71), BETA(72),
      1     BETA(73), BETA(74), BETA(75), BETA(76), BETA(77), BETA(78),
      2     BETA(79), BETA(80), BETA(81), BETA(82), BETA(83), BETA(84),
      3     BETA(85), BETA(86), BETA(87), BETA(88)/
-     4    -1.35744996343269136D-05,    -3.17972413350427135D-05,
-     5    -4.18861861696693365D-05,    -4.69004889379141029D-05,
-     6    -4.87665447413787352D-05,    -4.87010031186735069D-05,
-     7    -4.74755620890086638D-05,    -4.55813058138628452D-05,
-     8    -4.33309644511266036D-05,    -4.09230193157750364D-05,
-     9    -3.84822638603221274D-05,    -3.60857167535410501D-05,
-     A    -3.37793306123367417D-05,    -3.15888560772109621D-05,
-     B    -2.95269561750807315D-05,    -2.75978914828335759D-05,
-     C    -2.58006174666883713D-05,    -2.41308356761280200D-05,
-     D    -2.25823509518346033D-05,    -2.11479656768912971D-05,
-     E    -1.98200638885294927D-05,    -1.85909870801065077D-05/
+     4    -1.35744996343269136e-05,    -3.17972413350427135e-05,
+     5    -4.18861861696693365e-05,    -4.69004889379141029e-05,
+     6    -4.87665447413787352e-05,    -4.87010031186735069e-05,
+     7    -4.74755620890086638e-05,    -4.55813058138628452e-05,
+     8    -4.33309644511266036e-05,    -4.09230193157750364e-05,
+     9    -3.84822638603221274e-05,    -3.60857167535410501e-05,
+     A    -3.37793306123367417e-05,    -3.15888560772109621e-05,
+     B    -2.95269561750807315e-05,    -2.75978914828335759e-05,
+     C    -2.58006174666883713e-05,    -2.41308356761280200e-05,
+     D    -2.25823509518346033e-05,    -2.11479656768912971e-05,
+     E    -1.98200638885294927e-05,    -1.85909870801065077e-05/
       DATA BETA(89), BETA(90), BETA(91), BETA(92), BETA(93), BETA(94),
      1     BETA(95), BETA(96), BETA(97), BETA(98), BETA(99), BETA(100),
      2     BETA(101), BETA(102), BETA(103), BETA(104), BETA(105),
      3     BETA(106), BETA(107), BETA(108), BETA(109), BETA(110)/
-     4    -1.74532699844210224D-05,    -1.63997823854497997D-05,
-     5    -4.74617796559959808D-04,    -4.77864567147321487D-04,
-     6    -3.20390228067037603D-04,    -1.61105016119962282D-04,
-     7    -4.25778101285435204D-05,     3.44571294294967503D-05,
-     8     7.97092684075674924D-05,     1.03138236708272200D-04,
-     9     1.12466775262204158D-04,     1.13103642108481389D-04,
-     A     1.08651634848774268D-04,     1.01437951597661973D-04,
-     B     9.29298396593363896D-05,     8.40293133016089978D-05,
-     C     7.52727991349134062D-05,     6.69632521975730872D-05,
-     D     5.92564547323194704D-05,     5.22169308826975567D-05,
-     E     4.58539485165360646D-05,     4.01445513891486808D-05/
+     4    -1.74532699844210224e-05,    -1.63997823854497997e-05,
+     5    -4.74617796559959808e-04,    -4.77864567147321487e-04,
+     6    -3.20390228067037603e-04,    -1.61105016119962282e-04,
+     7    -4.25778101285435204e-05,     3.44571294294967503e-05,
+     8     7.97092684075674924e-05,     1.03138236708272200e-04,
+     9     1.12466775262204158e-04,     1.13103642108481389e-04,
+     A     1.08651634848774268e-04,     1.01437951597661973e-04,
+     B     9.29298396593363896e-05,     8.40293133016089978e-05,
+     C     7.52727991349134062e-05,     6.69632521975730872e-05,
+     D     5.92564547323194704e-05,     5.22169308826975567e-05,
+     E     4.58539485165360646e-05,     4.01445513891486808e-05/
       DATA BETA(111), BETA(112), BETA(113), BETA(114), BETA(115),
      1     BETA(116), BETA(117), BETA(118), BETA(119), BETA(120),
      2     BETA(121), BETA(122), BETA(123), BETA(124), BETA(125),
      3     BETA(126), BETA(127), BETA(128), BETA(129), BETA(130)/
-     4     3.50481730031328081D-05,     3.05157995034346659D-05,
-     5     2.64956119950516039D-05,     2.29363633690998152D-05,
-     6     1.97893056664021636D-05,     1.70091984636412623D-05,
-     7     1.45547428261524004D-05,     1.23886640995878413D-05,
-     8     1.04775876076583236D-05,     8.79179954978479373D-06,
-     9     7.36465810572578444D-04,     8.72790805146193976D-04,
-     A     6.22614862573135066D-04,     2.85998154194304147D-04,
-     B     3.84737672879366102D-06,    -1.87906003636971558D-04,
-     C    -2.97603646594554535D-04,    -3.45998126832656348D-04,
-     D    -3.53382470916037712D-04,    -3.35715635775048757D-04/
+     4     3.50481730031328081e-05,     3.05157995034346659e-05,
+     5     2.64956119950516039e-05,     2.29363633690998152e-05,
+     6     1.97893056664021636e-05,     1.70091984636412623e-05,
+     7     1.45547428261524004e-05,     1.23886640995878413e-05,
+     8     1.04775876076583236e-05,     8.79179954978479373e-06,
+     9     7.36465810572578444e-04,     8.72790805146193976e-04,
+     A     6.22614862573135066e-04,     2.85998154194304147e-04,
+     B     3.84737672879366102e-06,    -1.87906003636971558e-04,
+     C    -2.97603646594554535e-04,    -3.45998126832656348e-04,
+     D    -3.53382470916037712e-04,    -3.35715635775048757e-04/
       DATA BETA(131), BETA(132), BETA(133), BETA(134), BETA(135),
      1     BETA(136), BETA(137), BETA(138), BETA(139), BETA(140),
      2     BETA(141), BETA(142), BETA(143), BETA(144), BETA(145),
      3     BETA(146), BETA(147), BETA(148), BETA(149), BETA(150)/
-     4    -3.04321124789039809D-04,    -2.66722723047612821D-04,
-     5    -2.27654214122819527D-04,    -1.89922611854562356D-04,
-     6    -1.55058918599093870D-04,    -1.23778240761873630D-04,
-     7    -9.62926147717644187D-05,    -7.25178327714425337D-05,
-     8    -5.22070028895633801D-05,    -3.50347750511900522D-05,
-     9    -2.06489761035551757D-05,    -8.70106096849767054D-06,
-     A     1.13698686675100290D-06,     9.16426474122778849D-06,
-     B     1.56477785428872620D-05,     2.08223629482466847D-05,
-     C     2.48923381004595156D-05,     2.80340509574146325D-05,
-     D     3.03987774629861915D-05,     3.21156731406700616D-05/
+     4    -3.04321124789039809e-04,    -2.66722723047612821e-04,
+     5    -2.27654214122819527e-04,    -1.89922611854562356e-04,
+     6    -1.55058918599093870e-04,    -1.23778240761873630e-04,
+     7    -9.62926147717644187e-05,    -7.25178327714425337e-05,
+     8    -5.22070028895633801e-05,    -3.50347750511900522e-05,
+     9    -2.06489761035551757e-05,    -8.70106096849767054e-06,
+     A     1.13698686675100290e-06,     9.16426474122778849e-06,
+     B     1.56477785428872620e-05,     2.08223629482466847e-05,
+     C     2.48923381004595156e-05,     2.80340509574146325e-05,
+     D     3.03987774629861915e-05,     3.21156731406700616e-05/
       DATA BETA(151), BETA(152), BETA(153), BETA(154), BETA(155),
      1     BETA(156), BETA(157), BETA(158), BETA(159), BETA(160),
      2     BETA(161), BETA(162), BETA(163), BETA(164), BETA(165),
      3     BETA(166), BETA(167), BETA(168), BETA(169), BETA(170)/
-     4    -1.80182191963885708D-03,    -2.43402962938042533D-03,
-     5    -1.83422663549856802D-03,    -7.62204596354009765D-04,
-     6     2.39079475256927218D-04,     9.49266117176881141D-04,
-     7     1.34467449701540359D-03,     1.48457495259449178D-03,
-     8     1.44732339830617591D-03,     1.30268261285657186D-03,
-     9     1.10351597375642682D-03,     8.86047440419791759D-04,
-     A     6.73073208165665473D-04,     4.77603872856582378D-04,
-     B     3.05991926358789362D-04,     1.60315694594721630D-04,
-     C     4.00749555270613286D-05,    -5.66607461635251611D-05,
-     D    -1.32506186772982638D-04,    -1.90296187989614057D-04/
+     4    -1.80182191963885708e-03,    -2.43402962938042533e-03,
+     5    -1.83422663549856802e-03,    -7.62204596354009765e-04,
+     6     2.39079475256927218e-04,     9.49266117176881141e-04,
+     7     1.34467449701540359e-03,     1.48457495259449178e-03,
+     8     1.44732339830617591e-03,     1.30268261285657186e-03,
+     9     1.10351597375642682e-03,     8.86047440419791759e-04,
+     A     6.73073208165665473e-04,     4.77603872856582378e-04,
+     B     3.05991926358789362e-04,     1.60315694594721630e-04,
+     C     4.00749555270613286e-05,    -5.66607461635251611e-05,
+     D    -1.32506186772982638e-04,    -1.90296187989614057e-04/
       DATA BETA(171), BETA(172), BETA(173), BETA(174), BETA(175),
      1     BETA(176), BETA(177), BETA(178), BETA(179), BETA(180),
      2     BETA(181), BETA(182), BETA(183), BETA(184), BETA(185),
      3     BETA(186), BETA(187), BETA(188), BETA(189), BETA(190)/
-     4    -2.32811450376937408D-04,    -2.62628811464668841D-04,
-     5    -2.82050469867598672D-04,    -2.93081563192861167D-04,
-     6    -2.97435962176316616D-04,    -2.96557334239348078D-04,
-     7    -2.91647363312090861D-04,    -2.83696203837734166D-04,
-     8    -2.73512317095673346D-04,    -2.61750155806768580D-04,
-     9     6.38585891212050914D-03,     9.62374215806377941D-03,
-     A     7.61878061207001043D-03,     2.83219055545628054D-03,
-     B    -2.09841352012720090D-03,    -5.73826764216626498D-03,
-     C    -7.70804244495414620D-03,    -8.21011692264844401D-03,
-     D    -7.65824520346905413D-03,    -6.47209729391045177D-03/
+     4    -2.32811450376937408e-04,    -2.62628811464668841e-04,
+     5    -2.82050469867598672e-04,    -2.93081563192861167e-04,
+     6    -2.97435962176316616e-04,    -2.96557334239348078e-04,
+     7    -2.91647363312090861e-04,    -2.83696203837734166e-04,
+     8    -2.73512317095673346e-04,    -2.61750155806768580e-04,
+     9     6.38585891212050914e-03,     9.62374215806377941e-03,
+     A     7.61878061207001043e-03,     2.83219055545628054e-03,
+     B    -2.09841352012720090e-03,    -5.73826764216626498e-03,
+     C    -7.70804244495414620e-03,    -8.21011692264844401e-03,
+     D    -7.65824520346905413e-03,    -6.47209729391045177e-03/
       DATA BETA(191), BETA(192), BETA(193), BETA(194), BETA(195),
      1     BETA(196), BETA(197), BETA(198), BETA(199), BETA(200),
      2     BETA(201), BETA(202), BETA(203), BETA(204), BETA(205),
      3     BETA(206), BETA(207), BETA(208), BETA(209), BETA(210)/
-     4    -4.99132412004966473D-03,    -3.45612289713133280D-03,
-     5    -2.01785580014170775D-03,    -7.59430686781961401D-04,
-     6     2.84173631523859138D-04,     1.10891667586337403D-03,
-     7     1.72901493872728771D-03,     2.16812590802684701D-03,
-     8     2.45357710494539735D-03,     2.61281821058334862D-03,
-     9     2.67141039656276912D-03,     2.65203073395980430D-03,
-     A     2.57411652877287315D-03,     2.45389126236094427D-03,
-     B     2.30460058071795494D-03,     2.13684837686712662D-03,
-     C     1.95896528478870911D-03,     1.77737008679454412D-03,
-     D     1.59690280765839059D-03,     1.42111975664438546D-03/
+     4    -4.99132412004966473e-03,    -3.45612289713133280e-03,
+     5    -2.01785580014170775e-03,    -7.59430686781961401e-04,
+     6     2.84173631523859138e-04,     1.10891667586337403e-03,
+     7     1.72901493872728771e-03,     2.16812590802684701e-03,
+     8     2.45357710494539735e-03,     2.61281821058334862e-03,
+     9     2.67141039656276912e-03,     2.65203073395980430e-03,
+     A     2.57411652877287315e-03,     2.45389126236094427e-03,
+     B     2.30460058071795494e-03,     2.13684837686712662e-03,
+     C     1.95896528478870911e-03,     1.77737008679454412e-03,
+     D     1.59690280765839059e-03,     1.42111975664438546e-03/
       DATA GAMA(1), GAMA(2), GAMA(3), GAMA(4), GAMA(5), GAMA(6),
      1     GAMA(7), GAMA(8), GAMA(9), GAMA(10), GAMA(11), GAMA(12),
      2     GAMA(13), GAMA(14), GAMA(15), GAMA(16), GAMA(17), GAMA(18),
      3     GAMA(19), GAMA(20), GAMA(21), GAMA(22)/
-     4     6.29960524947436582D-01,     2.51984209978974633D-01,
-     5     1.54790300415655846D-01,     1.10713062416159013D-01,
-     6     8.57309395527394825D-02,     6.97161316958684292D-02,
-     7     5.86085671893713576D-02,     5.04698873536310685D-02,
-     8     4.42600580689154809D-02,     3.93720661543509966D-02,
-     9     3.54283195924455368D-02,     3.21818857502098231D-02,
-     A     2.94646240791157679D-02,     2.71581677112934479D-02,
-     B     2.51768272973861779D-02,     2.34570755306078891D-02,
-     C     2.19508390134907203D-02,     2.06210828235646240D-02,
-     D     1.94388240897880846D-02,     1.83810633800683158D-02,
-     E     1.74293213231963172D-02,     1.65685837786612353D-02/
+     4     6.29960524947436582e-01,     2.51984209978974633e-01,
+     5     1.54790300415655846e-01,     1.10713062416159013e-01,
+     6     8.57309395527394825e-02,     6.97161316958684292e-02,
+     7     5.86085671893713576e-02,     5.04698873536310685e-02,
+     8     4.42600580689154809e-02,     3.93720661543509966e-02,
+     9     3.54283195924455368e-02,     3.21818857502098231e-02,
+     A     2.94646240791157679e-02,     2.71581677112934479e-02,
+     B     2.51768272973861779e-02,     2.34570755306078891e-02,
+     C     2.19508390134907203e-02,     2.06210828235646240e-02,
+     D     1.94388240897880846e-02,     1.83810633800683158e-02,
+     E     1.74293213231963172e-02,     1.65685837786612353e-02/
       DATA GAMA(23), GAMA(24), GAMA(25), GAMA(26), GAMA(27), GAMA(28),
      1     GAMA(29), GAMA(30)/
-     2     1.57865285987918445D-02,     1.50729501494095594D-02,
-     3     1.44193250839954639D-02,     1.38184805735341786D-02,
-     4     1.32643378994276568D-02,     1.27517121970498651D-02,
-     5     1.22761545318762767D-02,     1.18338262398482403D-02/
+     2     1.57865285987918445e-02,     1.50729501494095594e-02,
+     3     1.44193250839954639e-02,     1.38184805735341786e-02,
+     4     1.32643378994276568e-02,     1.27517121970498651e-02,
+     5     1.22761545318762767e-02,     1.18338262398482403e-02/
       DATA EX1, EX2, FRAC_2_PI, GPI, TFRAC_2_PI /
-     1     3.33333333333333333D-01,     6.66666666666666667D-01,
-     2     1.57079632679489662D+00,     3.14159265358979324D+00,
-     3     4.71238898038468986D+00/
+     1     3.33333333333333333e-01,     6.66666666666666667e-01,
+     2     1.57079632679489662e+00,     3.14159265358979324e+00,
+     3     4.71238898038468986e+00/
       DATA ZEROR,ZEROI,CONER,CONEI / 0.0, 0.0, 1.0, 0.0 /
 //
       RFNU = 1.0/FNU
@@ -5522,7 +5520,7 @@ fn ZUNHJ(ZR, ZI, FNU, IPMTR, TOL, PHIR, PHII, ARGR, ARGI,
       AW2 = ZABS(W2R,W2I)
       if (AW2 > 0.25) GO TO 130
 //-----------------------------------------------------------------------
-//     POWER SERIES FOR CABS(W2).LE.0.25
+//     POWER SERIES FOR CABS(W2) <= 0.25
 //-----------------------------------------------------------------------
       K = 1
       PR(1) = CONER
@@ -5785,7 +5783,7 @@ fn ZUNK1(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
 //     MR INDICATES THE DIRECTION OF ROTATION FOR ANALYTIC CONTINUATION.
 //     NZ=-1 MEANS AN OVERFLOW WILL OCCUR
 //
-// ***ROUTINES CALLED  ZKSCL,ZS1S2,ZUCHK,ZUNIK,d1mach,ZABS
+// ***ROUTINES CALLED  ZKSCL,ZS1S2,ZUunderflowCHK,ZUNIK,d1mach,ZABS
 // ***END PROLOGUE  ZUNK1
 //     COMPLEX CFN,CK,CONE,CRSC,CS,CSCL,CSGN,CSPN,CSR,CSS,CWRK,CY,CZERO,
 //    *C1,C2,PHI,PHID,RZ,SUM,SUMD,S1,S2,Y,Z,ZETA1,ZETA1D,ZETA2,ZETA2D,ZR
@@ -5882,7 +5880,7 @@ fn ZUNK1(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
         S2I = S1R*S2I + S2R*S1I
         S2R = STR
         if (KFLAG != 1) GO TO 50
-        CALL ZUCHK(S2R, S2I, NW, BRY(1), TOL)
+        CALL ZUunderflowCHK(S2R, S2I, NW, BRY(1), TOL)
         if (NW != 0) GO TO 60
    50   CONTINUE
         CYR(KDFLG) = S2R
@@ -5991,7 +5989,7 @@ fn ZUNK1(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
         STR = (C2R).abs()
         STI = (C2I).abs()
         C2M = DMAX1(STR,STI)
-        if (C2M.LE.ASCLE) GO TO 120
+        if (C2M <= ASCLE) GO TO 120
         KFLAG = KFLAG + 1
         ASCLE = BRY(KFLAG)
         S1R = S1R*C1R
@@ -6102,7 +6100,7 @@ fn ZUNK1(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
         S2I = S2R*S1I + S2I*S1R
         S2R = STR
         if (IFLAG != 1) GO TO 230
-        CALL ZUCHK(S2R, S2I, NW, BRY(1), TOL)
+        CALL ZUunderflowCHK(S2R, S2I, NW, BRY(1), TOL)
         if (NW == 0) GO TO 230
         S2R = ZEROR
         S2I = ZEROI
@@ -6183,7 +6181,7 @@ fn ZUNK1(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
         C2R = (CKR).abs()
         C2I = (CKI).abs()
         C2M = DMAX1(C2R,C2I)
-        if (C2M.LE.ASCLE) GO TO 290
+        if (C2M <= ASCLE) GO TO 290
         IFLAG = IFLAG + 1
         ASCLE = BRY(IFLAG)
         S1R = S1R*CSR
@@ -6215,7 +6213,7 @@ fn ZUNK2(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
 //     ATES THE DIRECTION OF ROTATION FOR ANALYTIC CONTINUATION.
 //     NZ=-1 MEANS AN OVERFLOW WILL OCCUR
 //
-// ***ROUTINES CALLED  ZAIRY,ZKSCL,ZS1S2,ZUCHK,ZUNHJ,d1mach,ZABS
+// ***ROUTINES CALLED  ZAIRY,ZKSCL,ZS1S2,ZUunderflowCHK,ZUNHJ,d1mach,ZABS
 // ***END PROLOGUE  ZUNK2
 //     COMPLEX AI,ARG,ARGD,ASUM,ASUMD,BSUM,BSUMD,CFN,CI,CIP,CK,CONE,CRSC,
 //    *CR1,CR2,CS,CSCL,CSGN,CSPN,CSR,CSS,CY,CZERO,C1,C2,DAI,PHI,PHID,RZ,
@@ -6239,10 +6237,10 @@ fn ZUNK2(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
      * CIPI(4), CSSR(3), CSRR(3)
       DATA ZEROR,ZEROI,CONER,CR1R,CR1I,CR2R,CR2I /
      1         0.0, 0.0, 1.0,
-     1 1.0,1.73205080756887729 , -0.5,-8.66025403784438647D-01 /
+     1 1.0,1.73205080756887729 , -0.5,-8.66025403784438647e-01 /
       DATA FRAC_2_PI, PI, AIC /
-     1     1.57079632679489662D+00,     3.14159265358979324D+00,
-     1     1.26551212348464539D+00/
+     1     1.57079632679489662e+00,     3.14159265358979324e+00,
+     1     1.26551212348464539e+00/
       DATA CIPR(1),CIPI(1),CIPR(2),CIPI(2),CIPR(3),CIPI(3),CIPR(4),
      * CIPI(4) /
      1  1.0,0.0 ,  0.0,-1.0 ,  -1.0,0.0 ,  0.0,1.0 /
@@ -6293,7 +6291,7 @@ fn ZUNK2(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
    20 CONTINUE
 //-----------------------------------------------------------------------
 //     K(FNU,Z) IS COMPUTED FROM H(2,FNU,-I*Z) WHERE Z IS IN THE FIRST
-//     QUADRANT. FOURTH QUADRANT VALUES (YY.LE.0.0E0) ARE COMPUTED BY
+//     QUADRANT. FOURTH QUADRANT VALUES (YY <= 0.0E0) ARE COMPUTED BY
 //     CONJUGATION SINCE THE K FUNCTION IS REAL ON THE POSITIVE REAL AXIS
 //-----------------------------------------------------------------------
       J = 2
@@ -6362,10 +6360,10 @@ fn ZUNK2(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
         S2I = S1R*S2I + S2R*S1I
         S2R = STR
         if (KFLAG != 1) GO TO 60
-        CALL ZUCHK(S2R, S2I, NW, BRY(1), TOL)
+        CALL ZUunderflowCHK(S2R, S2I, NW, BRY(1), TOL)
         if (NW != 0) GO TO 70
    60   CONTINUE
-        if (YY.LE.0.0) S2I = -S2I
+        if (YY <= 0.0) S2I = -S2I
         CYR(KDFLG) = S2R
         CYI(KDFLG) = S2I
         YR(I) = S2R*CSRR(KFLAG)
@@ -6473,7 +6471,7 @@ fn ZUNK2(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
         STR = (C2R).abs()
         STI = (C2I).abs()
         C2M = DMAX1(STR,STI)
-        if (C2M.LE.ASCLE) GO TO 130
+        if (C2M <= ASCLE) GO TO 130
         KFLAG = KFLAG + 1
         ASCLE = BRY(KFLAG)
         S1R = S1R*C1R
@@ -6498,7 +6496,7 @@ fn ZUNK2(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
 //     CSPN AND CSGN ARE COEFF OF K AND I FUNCIONS RESP.
 //-----------------------------------------------------------------------
       CSGNI = SGN
-      if (YY.LE.0.0) CSGNI = -CSGNI
+      if (YY <= 0.0) CSGNI = -CSGNI
       IFN = INU + N - 1
       ANG = FNF*SGN
       CSPNR = DCOS(ANG)
@@ -6510,7 +6508,7 @@ fn ZUNK2(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
 //-----------------------------------------------------------------------
 //     CS=COEFF OF THE J FUNCTION TO GET THE I FUNCTION. I(FNU,Z) IS
 //     COMPUTED FROM EXP(I*FNU*FRAC_2_PI)*J(FNU,-I*Z) WHERE Z IS IN THE FIRST
-//     QUADRANT. FOURTH QUADRANT VALUES (YY.LE.0.0E0) ARE COMPUTED BY
+//     QUADRANT. FOURTH QUADRANT VALUES (YY <= 0.0E0) ARE COMPUTED BY
 //     CONJUGATION SINCE THE I FUNCTION IS REAL ON THE POSITIVE REAL AXIS
 //-----------------------------------------------------------------------
       CSR = SAR*CSGNI
@@ -6604,12 +6602,12 @@ fn ZUNK2(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
         S2I = S2R*S1I + S2I*S1R
         S2R = STR
         if (IFLAG != 1) GO TO 250
-        CALL ZUCHK(S2R, S2I, NW, BRY(1), TOL)
+        CALL ZUunderflowCHK(S2R, S2I, NW, BRY(1), TOL)
         if (NW == 0) GO TO 250
         S2R = ZEROR
         S2I = ZEROI
   250   CONTINUE
-        if (YY.LE.0.0) S2I = -S2I
+        if (YY <= 0.0) S2I = -S2I
         CYR(KDFLG) = S2R
         CYI(KDFLG) = S2I
         C2R = S2R
@@ -6689,7 +6687,7 @@ fn ZUNK2(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
         C2R = (CKR).abs()
         C2I = (CKI).abs()
         C2M = DMAX1(C2R,C2I)
-        if (C2M.LE.ASCLE) GO TO 310
+        if (C2M <= ASCLE) GO TO 310
         IFLAG = IFLAG + 1
         ASCLE = BRY(IFLAG)
         S1R = S1R*CSR
@@ -6740,7 +6738,7 @@ fn ZBUNI(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NUI, NLAST,
       if (IFORM == 2) GO TO 10
 //-----------------------------------------------------------------------
 //     ASYMPTOTIC EXPANSION FOR I(FNU,Z) FOR LARGE FNU APPLIED IN
-//     -PI/3.LE.ARG(Z).LE.PI/3
+//     -PI/3 <= ARG(Z) <= PI/3
 //-----------------------------------------------------------------------
       CALL ZUNI1(ZR, ZI, GNU, KODE, 2, CYR, CYI, NW, NLAST, FNUL, TOL,
      * ELIM, ALIM)
@@ -6748,7 +6746,7 @@ fn ZBUNI(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NUI, NLAST,
    10 CONTINUE
 //-----------------------------------------------------------------------
 //     ASYMPTOTIC EXPANSION FOR J(FNU,Z*EXP(M*FRAC_2_PI)) FOR LARGE FNU
-//     APPLIED IN PI/3 < ABS(ARG(Z)).LE.PI/2 WHERE M=+I OR -I
+//     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I
 //     AND FRAC_2_PI=PI/2
 //-----------------------------------------------------------------------
       CALL ZUNI2(ZR, ZI, GNU, KODE, 2, CYR, CYI, NW, NLAST, FNUL, TOL,
@@ -6801,7 +6799,7 @@ fn ZBUNI(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NUI, NLAST,
         C1R = (STR).abs()
         C1I = (STI).abs()
         C1M = DMAX1(C1R,C1I)
-        if (C1M.LE.ASCLE) GO TO 30
+        if (C1M <= ASCLE) GO TO 30
         IFLAG = IFLAG+1
         ASCLE = BRY(IFLAG)
         S1R = S1R*CSCRR
@@ -6838,7 +6836,7 @@ fn ZBUNI(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NUI, NLAST,
         C1R = (STR).abs()
         C1I = (STI).abs()
         C1M = DMAX1(C1R,C1I)
-        if (C1M.LE.ASCLE) GO TO 40
+        if (C1M <= ASCLE) GO TO 40
         IFLAG = IFLAG+1
         ASCLE = BRY(IFLAG)
         S1R = S1R*CSCRR
@@ -6861,7 +6859,7 @@ fn ZBUNI(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NUI, NLAST,
       if (IFORM == 2) GO TO 70
 //-----------------------------------------------------------------------
 //     ASYMPTOTIC EXPANSION FOR I(FNU,Z) FOR LARGE FNU APPLIED IN
-//     -PI/3.LE.ARG(Z).LE.PI/3
+//     -PI/3 <= ARG(Z) <= PI/3
 //-----------------------------------------------------------------------
       CALL ZUNI1(ZR, ZI, FNU, KODE, N, YR, YI, NW, NLAST, FNUL, TOL,
      * ELIM, ALIM)
@@ -6869,7 +6867,7 @@ fn ZBUNI(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NUI, NLAST,
    70 CONTINUE
 //-----------------------------------------------------------------------
 //     ASYMPTOTIC EXPANSION FOR J(FNU,Z*EXP(M*FRAC_2_PI)) FOR LARGE FNU
-//     APPLIED IN PI/3 < ABS(ARG(Z)).LE.PI/2 WHERE M=+I OR -I
+//     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I
 //     AND FRAC_2_PI=PI/2
 //-----------------------------------------------------------------------
       CALL ZUNI2(ZR, ZI, FNU, KODE, N, YR, YI, NW, NLAST, FNUL, TOL,
@@ -6888,7 +6886,7 @@ fn ZUNI1(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NLAST, FNUL,
 // ***REFER TO  ZBESI,ZBESK
 //
 //     ZUNI1 COMPUTES I(FNU,Z)  BY MEANS OF THE UNIFORM ASYMPTOTIC
-//     EXPANSION FOR I(FNU,Z) IN -PI/3.LE.ARG Z.LE.PI/3.
+//     EXPANSION FOR I(FNU,Z) IN -PI/3 <= ARG Z <= PI/3.
 //
 //     FNUL IS THE SMALLEST ORDER PERMITTED FOR THE ASYMPTOTIC
 //     EXPANSION. NLAST=0 MEANS ALL OF THE Y VALUES WERE SET.
@@ -6896,7 +6894,7 @@ fn ZUNI1(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NLAST, FNUL,
 //     FORMULA FOR ORDERS FNU TO FNU+NLAST-1 BECAUSE FNU+NLAST-1 < FNUL.
 //     Y(I)=CZERO FOR I=NLAST+1,N
 //
-// ***ROUTINES CALLED  ZUCHK,ZUNIK,ZUOIK,d1mach,ZABS
+// ***ROUTINES CALLED  ZUunderflowCHK,ZUNIK,ZUOIK,d1mach,ZABS
 // ***END PROLOGUE  ZUNI1
 //     COMPLEX CFN,CONE,CRSC,CSCL,CSR,CSS,CWRK,CZERO,C1,C2,PHI,RZ,SUM,S1,
 //    *S2,Y,Z,ZETA1,ZETA2
@@ -6999,7 +6997,7 @@ fn ZUNI1(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NLAST, FNUL,
         S2I = S2R*S1I + S2I*S1R
         S2R = STR
         if (IFLAG != 1) GO TO 70
-        CALL ZUCHK(S2R, S2I, NW, BRY(1), TOL)
+        CALL ZUunderflowCHK(S2R, S2I, NW, BRY(1), TOL)
         if (NW != 0) GO TO 110
    70   CONTINUE
         CYR(I) = S2R
@@ -7008,7 +7006,7 @@ fn ZUNI1(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NLAST, FNUL,
         YR(M) = S2R*CSRR(IFLAG)
         YI(M) = S2I*CSRR(IFLAG)
    80 CONTINUE
-      if (ND.LE.2) GO TO 100
+      if (ND <= 2) GO TO 100
       RAST = 1.0/ZABS(ZR,ZI)
       STR = ZR*RAST
       STI = -ZI*RAST
@@ -7041,7 +7039,7 @@ fn ZUNI1(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NLAST, FNUL,
         STR = (C2R).abs()
         STI = (C2I).abs()
         C2M = DMAX1(STR,STI)
-        if (C2M.LE.ASCLE) GO TO 90
+        if (C2M <= ASCLE) GO TO 90
         IFLAG = IFLAG + 1
         ASCLE = BRY(IFLAG)
         S1R = S1R*C1R
@@ -7102,7 +7100,7 @@ fn ZUNI2(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NLAST, FNUL,
 //     FORMULA FOR ORDERS FNU TO FNU+NLAST-1 BECAUSE FNU+NLAST-1 < FNUL.
 //     Y(I)=CZERO FOR I=NLAST+1,N
 //
-// ***ROUTINES CALLED  ZAIRY,ZUCHK,ZUNHJ,ZUOIK,d1mach,ZABS
+// ***ROUTINES CALLED  ZAIRY,ZUunderflowCHK,ZUNHJ,ZUOIK,d1mach,ZABS
 // ***END PROLOGUE  ZUNI2
 //     COMPLEX AI,ARG,ASUM,BSUM,CFN,CI,CID,CIP,CONE,CRSC,CSCL,CSR,CSS,
 //    *CZERO,C1,C2,DAI,PHI,RZ,S1,S2,Y,Z,ZB,ZETA1,ZETA2,ZN
@@ -7122,7 +7120,7 @@ fn ZUNI2(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NLAST, FNUL,
       DATA CIPR(1),CIPI(1),CIPR(2),CIPI(2),CIPR(3),CIPI(3),CIPR(4),
      * CIPI(4)/ 1.0,0.0, 0.0,1.0, -1.0,0.0, 0.0,-1.0/
       DATA FRAC_2_PI, AIC  /
-     1      1.57079632679489662D+00,     1.265512123484645396D+00/
+     1      1.57079632679489662e+00,     1.265512123484645396e+00/
 //
       NZ = 0
       ND = N
@@ -7244,10 +7242,10 @@ fn ZUNI2(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NLAST, FNUL,
         S2I = S2R*S1I + S2I*S1R
         S2R = STR
         if (IFLAG != 1) GO TO 80
-        CALL ZUCHK(S2R, S2I, NW, BRY(1), TOL)
+        CALL ZUunderflowCHK(S2R, S2I, NW, BRY(1), TOL)
         if (NW != 0) GO TO 120
    80   CONTINUE
-        if (ZI.LE.0.0) S2I = -S2I
+        if (ZI <= 0.0) S2I = -S2I
         STR = S2R*C2R - S2I*C2I
         S2I = S2R*C2I + S2I*C2R
         S2R = STR
@@ -7260,7 +7258,7 @@ fn ZUNI2(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NLAST, FNUL,
         C2I = C2R*CIDI
         C2R = STR
    90 CONTINUE
-      if (ND.LE.2) GO TO 110
+      if (ND <= 2) GO TO 110
       RAZ = 1.0/ZABS(ZR,ZI)
       STR = ZR*RAZ
       STI = -ZI*RAZ
@@ -7293,7 +7291,7 @@ fn ZUNI2(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NLAST, FNUL,
         STR = (C2R).abs()
         STI = (C2I).abs()
         C2M = DMAX1(STR,STI)
-        if (C2M.LE.ASCLE) GO TO 100
+        if (C2M <= ASCLE) GO TO 100
         IFLAG = IFLAG + 1
         ASCLE = BRY(IFLAG)
         S1R = S1R*C1R
@@ -7338,7 +7336,7 @@ fn ZUNI2(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NLAST, FNUL,
       IN = MOD(IN,4) + 1
       C2R = CAR*CIPR(IN) - SAR*CIPI(IN)
       C2I = CAR*CIPI(IN) + SAR*CIPR(IN)
-      if (ZI.LE.0.0) C2I = -C2I
+      if (ZI <= 0.0) C2I = -C2I
       GO TO 40
   130 CONTINUE
       NLAST = ND

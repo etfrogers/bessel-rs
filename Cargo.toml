@@ -6,3 +6,6 @@ edition = "2024"
 [dependencies]
 num = "0.4.3"
 thiserror = "2.0.11"
+
+[dev-dependencies]
+approx = { version = "0.5.1", features = ["num-complex"] }
