@@ -9,3 +9,4 @@ thiserror = "2.0.11"
 
 [dev-dependencies]
 approx = { version = "0.5.1", features = ["num-complex"] }
+complex-bessel-rs = "1.2.1"

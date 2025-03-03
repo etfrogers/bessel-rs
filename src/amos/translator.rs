@@ -635,7 +635,7 @@ fn ZBESI(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, IERR)
       RETURN
       END
 */
-fn ZBESJ(
+pub fn zbesj(
     z: Complex64, //ZR, ZI,
     order: f64,   //FNU,
     KODE: Scaling,
@@ -910,7 +910,7 @@ fn ZBESJ(
     }
     let RTOL = 1.0 / TOL;
     let ASCLE = d1mach(1) * RTOL * 1.0e3;
-    for i in 1..=NL {
+    for i in 0..NL {
         //       STR = CYR(I)*CSGNR - CYI(I)*CSGNI
         //       CYI(I) = CYR(I)*CSGNI + CYI(I)*CSGNR
         //       CYR(I) = STR
@@ -3837,7 +3837,7 @@ fn ZSERI(
             // let COEFI = AA * ak1.im.sin();
             let ATOL = TOL * ACZ / FNUP;
             let IL = 2.min(NN);
-            for I in 1..=IL {
+            for I in 0..IL {
                 // DO 90 I=1,IL;
                 DFNU = order + ((NN - I) as f64);
                 FNUP = DFNU + 1.0;
@@ -3884,7 +3884,7 @@ fn ZSERI(
                     //GO TO 30;
                 }
                 //    80   CONTINUE;
-                let M = NN - I + 1;
+                let M = NN - I - 1;
                 //   YR(M) = S2R*CRSCR;
                 //   YI(M) = S2I*CRSCR;
                 y[M] = s2 * CRSCR;

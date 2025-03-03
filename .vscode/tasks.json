@@ -1,0 +1,21 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "compile fortran",
+			"type": "shell",
+			"command": "gfortran",
+			"args": [
+				"test.f90",
+				"amos_iso_c_fortran_wrapper.f90",
+				"zbesh.for",
+				"machine.for",
+				"-g",
+				"-Wall"
+			],
+			"options": {
+				"cwd": "${workspaceRoot}/src/amos/"
+			}
+		}
+	]
+}
