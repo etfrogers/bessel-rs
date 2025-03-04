@@ -1,6 +1,6 @@
 use num::complex::Complex64;
 
-pub fn ZUunderflowCHK(
+pub fn will_z_underflow(
     y: Complex64, //YR, YI,
     // Outputs: NZ
     ascle: f64,

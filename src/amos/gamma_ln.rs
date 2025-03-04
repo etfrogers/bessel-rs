@@ -56,7 +56,7 @@ pub fn gamma_ln(z: f64) -> Result<f64, GammaError> {
     //      1     GLN(8), GLN(9), GLN(10), GLN(11), GLN(12), GLN(13), GLN(14),
     //      2     GLN(15), GLN(16), GLN(17), GLN(18), GLN(19), GLN(20),
     //      3     GLN(21), GLN(22)/
-    let int_gamma_log_data = [
+    const INT_GAMMA_LOG_DATA: [f64; 101] = [
         0.0, // value at GLN[0] - can never be reached.
         0.00000000000000000e+00,
         0.00000000000000000e+00,
@@ -177,7 +177,7 @@ pub fn gamma_ln(z: f64) -> Result<f64, GammaError> {
     //       DATA CF(1), CF(2), CF(3), CF(4), CF(5), CF(6), CF(7), CF(8),
     //      CF(9), CF(10), CF(11), CF(12), CF(13), CF(14), CF(15),
     //      CF(16), CF(17), CF(18), CF(19), CF(20), CF(21), CF(22)/
-    let CF = [
+    const CF: [f64; 22] = [
         8.33333333333333333e-02,
         -2.77777777777777778e-03,
         7.93650793650793651e-04,
@@ -203,7 +203,7 @@ pub fn gamma_ln(z: f64) -> Result<f64, GammaError> {
     ];
     //
     //             LN(2*PI)
-    const con: f64 = 1.83787706640934548e+00;
+    const CON: f64 = 1.83787706640934548e+00;
     //
     // ***FIRST EXECUTABLE STATEMENT  DGAMLN
     // IERR=0
@@ -218,7 +218,7 @@ pub fn gamma_ln(z: f64) -> Result<f64, GammaError> {
         // let FZ = z - (NZ as f64);
 
         if z.fract() == 0.0 {
-            return Ok(int_gamma_log_data[z_int]);
+            return Ok(INT_GAMMA_LOG_DATA[z_int]);
             // if (NZ > 100) GO TO 10
             // DGAMLN = GLN(NZ)
             // RETURN
@@ -262,7 +262,7 @@ pub fn gamma_ln(z: f64) -> Result<f64, GammaError> {
     if zinc == 0.0 {
         //GO TO 50;
         let tlg = z.ln(); //DLOG(Z);
-        return Ok(z * (tlg - 1.0) + 0.5 * (con - tlg) + s);
+        return Ok(z * (tlg - 1.0) + 0.5 * (CON - tlg) + s);
     }
     //    50 CONTINUE;
     let mut zp = 1.0;
@@ -272,7 +272,7 @@ pub fn gamma_ln(z: f64) -> Result<f64, GammaError> {
         zp = zp * (z + (i as f64));
     } // 60 CONTINUE;
     let tlg = zdmy.ln(); //DLOG(ZDMY);
-    return Ok(zdmy * (tlg - 1.0) - zp.ln() + 0.5 * (con - tlg) + s);
+    return Ok(zdmy * (tlg - 1.0) - zp.ln() + 0.5 * (CON - tlg) + s);
     //     RETURN;
     //
     //

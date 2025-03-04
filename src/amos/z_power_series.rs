@@ -3,7 +3,7 @@ use num::{
     complex::{Complex64, ComplexFloat},
 };
 
-use super::{BesselError, CONEI, CONER, Scaling, gamma_ln, machine::d1mach, utils::ZUunderflowCHK};
+use super::{BesselError, Scaling, gamma_ln, machine::d1mach, utils::will_z_underflow};
 
 pub fn z_power_series(
     z: Complex64, //ZR, ZI,
@@ -28,236 +28,151 @@ pub fn z_power_series(
     //
     // ***ROUTINES CALLED  gamma_ln,d1mach,ZUunderflowCHK,ZABS,ZDIV,ZLOG,ZMLT
     // ***END PROLOGUE  z_power_series
-    //     COMPLEX AK1,CK,COEF,CONE,CRSC,CSCL,CZ,CZERO,HZ,RZ,S1,S2,Y,Z
-    //       EXTERNAL ZABS
-    //       DOUBLE PRECISION AA, ACZ, AK, AK1I, AK1R, ALIM, ARM, ASCLE, ATOL,
-    //      * AZ, CKI, CKR, COEFI, COEFR, CONEI, CONER, CRSCR, CZI, CZR, DFNU,
-    //      * ELIM, FNU, FNUP, HZI, HZR, RAZ, RS, RTR1, RZI, RZR, S, SS, STI,
-    //      * STR, S1I, S1R, S2I, S2R, TOL, YI, YR, WI, WR, ZEROI, ZEROR, ZI,
-    //      * ZR, gamma_ln, d1mach, ZABS
-    //       INTEGER I, IB, IDUM, IFLAG, IL, K, KODE, L, M, N, NN, NZ, NW
-    //       DIMENSION YR(N), YI(N), WR(2), WI(2)
-    //       DATA ZEROR,ZEROI,CONER,CONEI / 0.0, 0.0, 1.0, 0.0 /
-    //
-    let mut NZ = 0;
-    let AZ = z.abs(); //ZABS(ZR,ZI)
+    let mut nz = 0;
+    let az = z.abs(); //ZABS(ZR,ZI)
     let mut y = vec![Complex64::zero(); n];
     let mut w = vec![Complex64::zero(); 2];
-    if AZ == 0.0 {
+    if az == 0.0 {
         // Not setting zero below, as was set in initialisation of y above
-        // y[1] = Complex64::new(ZEROR, ZEROI);
-        // YR[1] = ZEROR;
-        // YI[1] = ZEROI;
         if order == 0.0 {
-            y[1] = Complex64::new(CONER, CONEI);
-            // YR(1) = CONER;
-            // YI(1) = CONEI;
+            y[1] = Complex64::one();
         }
-        // Not setting zero below, as was set in initialisation of y above
-        // if N == 1 {return Ok((y, NZ));}
-        // for I in 2..N
-        // {
-        //       YR(I) = ZEROR;
-        //       YI(I) = ZEROI;
-        // }
-        return Ok((y, NZ));
+        return Ok((y, nz));
     }
-    let ARM = 1.0e+3 * d1mach(1);
-    let RTR1 = ARM.sqrt();
-    let mut CRSCR = 1.0;
-    let mut IFLAG = false;
-    if AZ < ARM {
-        //GO TO 150;
-        NZ = n.try_into().unwrap();
+    let arm = 1.0e+3 * d1mach(1);
+    let rtr1 = arm.sqrt();
+    let mut crscr = 1.0;
+    let mut iflag = false;
+    if az < arm {
+        nz = n.try_into().unwrap();
         if order == 0.0 {
-            NZ = NZ - 1;
+            nz = nz - 1;
         }
         // Not setting zero below, as was set in initialisation of y above
-        // y[1] = Complex64::new(ZEROR, ZEROI);
-        // YR[1] = ZEROR;
-        // YI[1] = ZEROI;
         if order == 0.0 {
-            y[1] = Complex64::new(CONER, CONEI);
-            // YR(1) = CONER;
-            // YI(1) = CONEI;
+            y[1] = Complex64::one();
         }
         // Not setting zero below, as was set in initialisation of y above
-        // if N == 1 {return Ok((y, NZ));}
-        // for I in 2..N
-        // {
-        //       YR(I) = ZEROR;
-        //       YI(I) = ZEROI;
-        // }
-        return Ok((y, NZ));
+        return Ok((y, nz));
     }
-    // let HZR = 0.5*z.re;
-    // let HZI = 0.5*z.im;
     let hz = 0.5 * z;
-    // let CZR = ZEROR;
-    // let CZI = ZEROI;
     let mut cz = Complex64::zero();
-    if !(AZ <= RTR1) {
-        //CALL ZMLT(HZR, HZI, HZR, HZI, CZR, CZI);
+    if !(az <= rtr1) {
         cz = (hz).powu(2);
     }
 
-    let ACZ = cz.abs(); //ZABS(CZR,CZI);
-    let mut NN = n;
-    // CALL ZLOG(HZR, HZI, CKR, CKI, IDUM);
+    let acz = cz.abs();
+    let mut nn = n;
     let ck = hz.ln();
 
     let mut ak1;
-    let mut FNUP;
-    let mut AK;
+    let mut fnup;
+    let mut ak;
     let mut st;
-    let mut ASCLE = f64::INFINITY;
+    let mut ascle = f64::INFINITY;
     'l20: loop {
-        // 20 CONTINUE;
-        let mut DFNU = order + ((NN - 1) as f64);
-        FNUP = DFNU + 1.0;
+        let mut dfnu = order + ((nn - 1) as f64);
+        fnup = dfnu + 1.0;
         //-----------------------------------------------------------------------;
         //     UNDERFLOW TEST
         //-----------------------------------------------------------------------;
-        // let AK1R = CKR*DFNU;
-        // let AK1I = CKI*DFNU;
-        ak1 = ck * DFNU;
-        AK = gamma_ln(FNUP).unwrap();
-        ak1.re -= AK;
+        ak1 = ck * dfnu;
+        ak = gamma_ln(fnup).unwrap();
+        ak1.re -= ak;
         if kode == Scaling::Scaled {
             ak1.re -= z.re;
         }
         let skip_to_40 = ak1.re > (-elim);
-        //    30 CONTINUE;
         'l30: loop {
             if !skip_to_40 {
-                NZ = NZ + 1;
-                // YR(NN) = ZEROR;
-                // YI(NN) = ZEROI;
-                y[NN - 1] = Complex64::zero();
-                if ACZ > DFNU {
-                    return Ok((y, -NZ));
+                nz = nz + 1;
+                y[nn - 1] = Complex64::zero();
+                if acz > dfnu {
+                    return Ok((y, -nz));
                 }
-                NN -= 1;
-                if NN == 0 {
-                    return Ok((y, -NZ));
+                nn -= 1;
+                if nn == 0 {
+                    return Ok((y, -nz));
                 }
                 continue 'l20;
             }
-            // GO TO 20;
-            //    40 CONTINUE;
-            let mut SS = 0.0;
-            if !(ak1.re > (-alim))
-            //GO TO 50;
-            {
-                IFLAG = true;
-                SS = 1.0 / tol;
-                CRSCR = tol;
-                ASCLE = ARM * SS;
+            let mut ss = 0.0;
+            if !(ak1.re > (-alim)) {
+                iflag = true;
+                ss = 1.0 / tol;
+                crscr = tol;
+                ascle = arm * ss;
             }
-            //    50 CONTINUE;
-            let mut AA = ak1.re.exp();
-            if IFLAG {
-                AA *= SS
+            let mut aa = ak1.re.exp();
+            if iflag {
+                aa *= ss
             };
-            let mut coef = AA * Complex64::new(ak1.im.cos(), ak1.im.sin());
-            // let COEFR = AA * ak1.im.cos();
-            // let COEFI = AA * ak1.im.sin();
-            let ATOL = tol * ACZ / FNUP;
-            let IL = 2.min(NN);
-            for I in 0..IL {
-                // DO 90 I=1,IL;
-                DFNU = order + ((NN - (I + 1)) as f64);
-                FNUP = DFNU + 1.0;
+            let mut coef = aa * Complex64::new(ak1.im.cos(), ak1.im.sin());
+            let atol = tol * acz / fnup;
+            let il = 2.min(nn);
+            for i in 0..il {
+                dfnu = order + ((nn - (i + 1)) as f64);
+                fnup = dfnu + 1.0;
                 let mut s1 = Complex64::one();
-                // S1R = CONER;
-                // S1I = CONEI;
-                if !(ACZ < tol * FNUP) {
-                    //GO TO 70;
-                    //     AK1R = CONER;
-                    //     AK1I = CONEI;
+                if !(acz < tol * fnup) {
                     ak1 = Complex64::one();
-                    AK = FNUP + 2.0;
-                    let mut S = FNUP;
-                    AA = 2.0;
-                    //    60   CONTINUE;
-                    'l60: loop {
-                        let RS = 1.0 / S;
+                    ak = fnup + 2.0;
+                    let mut s = fnup;
+                    aa = 2.0;
+                    '_l60: loop {
+                        let rs = 1.0 / s;
                         st = ak1 * cz;
-                        //   STR = AK1R * CZR - AK1I * CZI;
-                        //   STI = AK1R * CZI + AK1I * CZR;
-                        // AK1R = STR * RS;
-                        // AK1I = STI * RS;
-                        ak1 = st * RS;
+                        ak1 = st * rs;
                         s1 += ak1;
-                        // S1R = S1R + AK1R;
-                        // S1I = S1I + AK1I;
-                        S = S + AK;
-                        AK = AK + 2.0;
-                        AA = AA * ACZ * RS;
-                        if !(AA > ATOL) {
+                        s = s + ak;
+                        ak = ak + 2.0;
+                        aa = aa * acz * rs;
+                        if !(aa > atol) {
                             break;
                         }
                     }
                 }
-                // 70   CONTINUE;
                 let s2 = s1 * coef;
-                w[I] = s2;
-                //     WR(I) = S2R;
-                //     WI(I) = S2I;
-                if IFLAG && ZUunderflowCHK(s2, ASCLE, tol)
-                //GO TO 80;
-                {
+                w[i] = s2;
+                if iflag && will_z_underflow(s2, ascle, tol) {
                     continue 'l30;
-                    //GO TO 30;
                 }
-                //    80   CONTINUE;
-                let M = NN - I - 1;
-                //   YR(M) = S2R*CRSCR;
-                //   YI(M) = S2I*CRSCR;
-                y[M] = s2 * CRSCR;
-                if I != (IL - 1)
-                //GO TO 90;
-                {
-                    // CALL ZDIV(COEFR, COEFI, HZR, HZI, STR, STI);
+                let m = nn - i - 1;
+                y[m] = s2 * crscr;
+                if i != (il - 1) {
                     st = coef / hz;
-                    // COEFR = STR*DFNU;
-                    // COEFI = STI*DFNU;
-                    coef = st * DFNU;
+                    coef = st * dfnu;
                 }
             }
             break 'l30;
         }
         break 'l20;
     }
-    //    90 CONTINUE;
-    if NN <= 2 {
-        return Ok((y, NZ));
+    if nn <= 2 {
+        return Ok((y, nz));
     }
-    let mut K = NN - 2;
-    AK = K as f64;
-    let RAZ = 1.0 / AZ;
-    st = z.conj() * RAZ;
-    //     STR = ZR * RAZ;
-    //     STI = -ZI * RAZ;
-    let rz = 2.0 * st * RAZ;
-    //     RZR = (STR + STR) * RAZ;
-    //     RZI = (STI + STI) * RAZ;
-    let mut IB;
-    'l100: loop {
+    let mut k = nn - 2;
+    ak = k as f64;
+    let raz = 1.0 / az;
+    st = z.conj() * raz;
+    let rz = 2.0 * st * raz;
+    let mut ib;
+    '_l100: loop {
         // moved outside if statment, but believe the logic holds
-        if !IFLAG {
+        if !iflag {
             //GO TO 120;
-            IB = 3;
+            ib = 3;
             // 100 CONTINUE;
-            'l110: for _I in IB..=NN {
+            '_l110: for _ in ib..=nn {
                 //DO 110 I=IB,NN;
-                y[K].re = (AK + order) * (rz.re * y[K + 1].re - rz.im * y[K + 1].im) + y[K + 2].re;
-                y[K].im = (AK + order) * (rz.re * y[K + 1].im + rz.im * y[K + 1].re) + y[K + 2].im;
-                AK = AK - 1.0;
-                K = K - 1;
+                //TODO refactor
+                y[k - 1].re = (ak + order) * (rz.re * y[k].re - rz.im * y[k].im) + y[k + 1].re;
+                y[k - 1].im = (ak + order) * (rz.re * y[k].im + rz.im * y[k].re) + y[k + 1].im;
+                ak = ak - 1.0;
+                k = k - 1;
             }
             //   110 CONTINUE;
-            return Ok((y, NZ));
+            return Ok((y, nz));
         }
         //-----------------------------------------------------------------------;
         //     RECUR BACKWARD WITH SCALED VALUES;
@@ -274,28 +189,29 @@ pub fn z_power_series(
         //   S2R = WR(2);
         //   S2I = WI(2);
         let mut to_return = true;
-        let mut L = 0;
-        for L_inner in 3..=NN {
+        let mut l = 0;
+        debug_assert!(nn >= 3);
+        for l_inner in 3..=nn {
             // DO 130 L=3,NN;
             // CKR = S2R;
             // CKI = S2I;
             let ck = s2;
-            s2 = s1 + (AK + order) * (rz * ck);
+            s2 = s1 + (ak + order) * (rz * ck);
             // S2R = S1R + (AK + order) * (RZR * CKR - RZI * CKI);
             // S2I = S1I + (AK + order) * (RZR * CKI + RZI * CKR);
             s1 = ck;
             // S1R = CKR;
             // S1I = CKI;
-            let ck = s2 * CRSCR;
+            let ck = s2 * crscr;
             // CKR = S2R * CRSCR;
             // CKI = S2I * CRSCR;
-            y[K] = ck;
+            y[k] = ck;
             // YR(K) = CKR;
             // YI(K) = CKI;
-            AK = AK - 1.0;
-            K = K - 1;
-            L = L_inner;
-            if ck.abs() > ASCLE {
+            ak = ak - 1.0;
+            k = k - 1;
+            l = l_inner;
+            if ck.abs() > ascle {
                 // if (ZABS(CKR, CKI) > ASCLE) {
                 to_return = false;
                 break;
@@ -303,36 +219,12 @@ pub fn z_power_series(
         }
         //   130 CONTINUE;
         if to_return {
-            return Ok((y, NZ));
+            return Ok((y, nz));
         }
         //   140 CONTINUE;
-        IB = L + 1;
-        if IB > NN {
-            return Ok((y, NZ));
+        ib = l + 1;
+        if ib > nn {
+            return Ok((y, nz));
         };
     } //GO TO 100;
-    //   150 CONTINUE;
-    //       NZ = N;
-    //       if (FNU == 0.0) NZ = NZ - 1;
-    //   160 CONTINUE;
-    //       YR(1) = ZEROR;
-    //       YI(1) = ZEROI;
-    //       if (FNU == 0.0) {;
-    //       YR(1) = CONER;
-    //       YI(1) = CONEI;
-    //       };
-    //       if (N == 1) RETURN;
-    //       DO 180 I=2,N;
-    //         YR(I) = ZEROR;
-    //         YI(I) = ZEROI;
-    //   180 CONTINUE;
-    //       RETURN;
-    //-----------------------------------------------------------------------
-    //     RETURN WITH NZ < 0 if CABS(Z*Z/4) > FNU+N-NZ-1 COMPLETE
-    //     THE CALCULATION IN CBINU WITH N=N-NZ.abs()
-    //-----------------------------------------------------------------------
-    //   190 CONTINUE
-    //       NZ = -NZ
-    //       RETURN
-    //       END
 }
