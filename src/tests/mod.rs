@@ -1,7 +1,7 @@
 use approx::assert_relative_eq;
 use rstest::rstest;
 
-use crate::amos::bindings::zbesi_wrap;
+use crate::amos::bindings::zbesj_wrap;
 use crate::amos::{gamma_ln, zbesj};
 use crate::{BesselError, GammaError, Scaling, bessel_j};
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_ref;
@@ -70,34 +70,38 @@ fn test_bessel_j_random() {
 fn test_bessel_j_large_n_real(
     #[case] order: f64,
     #[case] z: f64,
-    #[values(3/* , 4, 9, 100*/)] n: usize,
-    #[values(Scaling::Unscaled, /*Scaling::Scaled*/)] scaling: Scaling,
+    #[values(3 , 4, 9, 100)] n: usize,
+    #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
 ) {
     let actual = zbesj(z.into(), order, scaling, n);
 
-    let mut cyr = vec![0.0; n];
-    let mut cyi = vec![0.0; n];
+    let mut cyr: Vec<f64> = Vec::with_capacity(n);
+    let mut cyi: Vec<f64> = Vec::with_capacity(n);
     let mut nz = 0;
     let mut ierr = 0;
 
+    let r_uninit = cyr.spare_capacity_mut();
+    let i_uninit = cyi.spare_capacity_mut();
     unsafe {
-        zbesi_wrap(
+        zbesj_wrap(
             z,
             0.0,
             order,
             scaling as i32,
             n.try_into().unwrap(),
-            cyr.as_mut_ptr().cast(),
-            cyi.as_mut_ptr().cast(),
+            r_uninit.as_mut_ptr().cast(),
+            i_uninit.as_mut_ptr().cast(),
             &mut nz,
             &mut ierr,
         );
+        cyr.set_len(n);
+        cyi.set_len(n);
     }
     assert_eq!(nz, 0);
     assert_eq!(ierr, 0);
     let actual = actual.unwrap();
-    let actual_real: Vec<_> = actual.0.iter().map(|z| z.re).collect();
-    let actual_im: Vec<_> = actual.0.iter().map(|z| z.im).collect();
-    assert_eq!(cyr, actual_real);
-    assert_eq!(cyi, actual_im);
+    for ((re, im), zi) in cyr.into_iter().zip(cyi).zip(actual.0) {
+        assert_relative_eq!(re, zi.re);
+        assert_relative_eq!(im, zi.im);
+    }
 }
