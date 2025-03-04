@@ -1,9 +1,12 @@
 pub use gamma_ln::{GammaError, gamma_ln};
 use thiserror::Error;
 pub use translator::zbesj;
+pub use z_power_series::z_power_series;
 mod gamma_ln;
 mod machine;
 mod translator;
+mod utils;
+mod z_power_series;
 // mod zbesh;
 
 const ZEROR: f64 = 0.0;
