@@ -3806,7 +3806,7 @@ fn ZSERI(
                 NZ = NZ + 1;
                 // YR(NN) = ZEROR;
                 // YI(NN) = ZEROI;
-                y[NN] = Complex64::zero();
+                y[NN - 1] = Complex64::zero();
                 if ACZ > DFNU {
                     return Ok((y, -NZ));
                 }
@@ -4625,7 +4625,7 @@ fn ZBINU(
             DFNU = order + ((NN as f64) - 1.0);
         }
     }
-    todo!();
+    return Err(NotYetImplemented);
     /*
           if (AZ < RL) GO TO 40
           if (DFNU <= 1.0) GO TO 30

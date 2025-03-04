@@ -1,4 +1,4 @@
-pub use gamma_ln::{gamma_ln, GammaError};
+pub use gamma_ln::{GammaError, gamma_ln};
 use thiserror::Error;
 pub use translator::zbesj;
 mod gamma_ln;
@@ -13,7 +13,7 @@ const CONEI: f64 = 0.0;
 
 // const COMPLEX_ONE: Complex64 = Complex64::one();
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq, Eq)]
 #[repr(u16)]
 pub enum BesselError {
     // This correpsonds IERRR
@@ -42,6 +42,8 @@ pub enum BesselError {
     //                 CANCE BY ARGUMENT REDUCTION
     //         IERR=5, ERROR              - NO COMPUTATION,
     //                 ALGORITHM TERMINATION CONDITION NOT MET
+    #[error("not yet implemented")]
+    NotYetImplemented,
 }
 
 pub enum HankelKind {
