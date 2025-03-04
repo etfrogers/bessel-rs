@@ -10,13 +10,6 @@ mod utils;
 mod z_power_series;
 // mod zbesh;
 
-const ZEROR: f64 = 0.0;
-const ZEROI: f64 = 0.0;
-const CONER: f64 = 1.0;
-const CONEI: f64 = 0.0;
-
-// const COMPLEX_ONE: Complex64 = Complex64::one();
-
 #[derive(Error, Debug, PartialEq, Eq)]
 #[repr(u16)]
 pub enum BesselError {

@@ -2,16 +2,12 @@
 use std::f64::{self, consts::FRAC_PI_2};
 
 use super::{
-    BesselError, CONEI, CONER, Scaling, ZEROI, ZEROR, gamma_ln,
+    BesselError, Scaling,
     machine::{d1mach, i1mach},
     z_power_series,
 };
 use crate::amos::BesselError::*;
-use num::{
-    One, Zero,
-    complex::{Complex64, ComplexFloat},
-};
-use thiserror::Error;
+use num::complex::{Complex64, ComplexFloat};
 
 /*
 fn ZBESH(ZR, ZI, FNU, KODE, M, N, CYR, CYI, NZ, IERR)
