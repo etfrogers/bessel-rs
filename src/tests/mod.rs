@@ -1,4 +1,5 @@
 use approx::assert_relative_eq;
+use num::complex::Complex64;
 use rstest::rstest;
 
 use crate::amos::bindings::zbesj_wrap;
@@ -49,12 +50,14 @@ fn test_bessel_j(#[case] order: f64, #[case] z: f64) {
 fn test_bessel_j_random() {
     for _ in 0..1000000 {
         let order = rand::random_range(-1000.0..1000.0);
-        let z = rand::random_range(-1000.0..1000.0);
+        let zr = rand::random_range(-1000.0..1000.0);
+        let zi = rand::random_range(-1000.0..1000.0);
+        let z = Complex64::new(zr, zi);
         let ans = bessel_j(order, z);
         if let Ok(actual) = ans {
             assert_relative_eq!(
                 actual,
-                bessel_j_ref(order, z.into()).unwrap(),
+                bessel_j_ref(order, z).unwrap(),
                 epsilon = 1e-10
             )
         } else {
@@ -70,7 +73,7 @@ fn test_bessel_j_random() {
 fn test_bessel_j_large_n_real(
     #[case] order: f64,
     #[case] z: f64,
-    #[values(3 , 4, 9, 100)] n: usize,
+    #[values(3, 4, 9, 100)] n: usize,
     #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
 ) {
     let actual = zbesj(z.into(), order, scaling, n);
