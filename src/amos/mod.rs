@@ -1,4 +1,4 @@
-pub use gamma_ln::gamma_ln;
+pub use gamma_ln::{gamma_ln, GammaError};
 use thiserror::Error;
 pub use translator::zbesj;
 mod gamma_ln;

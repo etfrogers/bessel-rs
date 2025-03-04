@@ -2,7 +2,7 @@ use thiserror::Error;
 
 use super::machine::{d1mach, i1mach};
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq, Eq)]
 pub enum GammaError {
     #[error("Gamma ln can only be calculated for input z > 0.0")]
     ZLessThanZero,
