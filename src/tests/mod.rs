@@ -65,18 +65,15 @@ fn test_bessel_j_random() {
 
 #[rstest]
 #[case(4.0, 2.1)]
+#[trace]
 // #[case(5.0, 2.0001)]
 fn test_bessel_j_large_n_real(
     #[case] order: f64,
     #[case] z: f64,
     #[values(3/* , 4, 9, 100*/)] n: usize,
-    #[values(Scaling::Scaled, /*Scaling::Unscaled*/)] scaling: Scaling,
+    #[values(Scaling::Unscaled, /*Scaling::Scaled*/)] scaling: Scaling,
 ) {
     let actual = zbesj(z.into(), order, scaling, n);
-    let kode = match scaling {
-        Scaling::Unscaled => 1,
-        Scaling::Scaled => 2,
-    };
 
     let mut cyr = vec![0.0; n];
     let mut cyi = vec![0.0; n];
@@ -88,7 +85,7 @@ fn test_bessel_j_large_n_real(
             z,
             0.0,
             order,
-            kode.into(),
+            scaling as i32,
             n.try_into().unwrap(),
             cyr.as_mut_ptr().cast(),
             cyi.as_mut_ptr().cast(),
