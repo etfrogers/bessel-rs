@@ -1,5 +1,5 @@
 #![allow(non_snake_case)]
-use std::f64::{self, consts::FRAC_2_PI};
+use std::f64::{self, consts::FRAC_PI_2};
 
 use super::{
     BesselError, CONEI, CONER, Scaling, ZEROI, ZEROR, gamma_ln,
@@ -84,7 +84,7 @@ fn ZBESH(ZR, ZI, FNU, KODE, M, N, CYR, CYI, NZ, IERR)
 //         THE COMPUTATION IS CARRIED OUT BY THE RELATION
 //
 //         H(M,FNU,Z)=(1/MP)*EXP(-MP*FNU)*K(FNU,Z*EXP(-MP))
-//             MP=MM*FRAC_2_PI*I,  MM=3-2*M,  FRAC_2_PI=PI/2,  I**2=-1
+//             MP=MM*FRAC_PI_2*I,  MM=3-2*M,  FRAC_PI_2=PI/2,  I**2=-1
 //
 //         FOR M=1 OR 2 WHERE THE K BESSEL FUNCTION IS COMPUTED FOR THE
 //         RIGHT HALF PLANE RE(Z) >= 0.0. THE K FUNCTION IS CONTINUED
@@ -174,14 +174,14 @@ fn ZBESH(ZR, ZI, FNU, KODE, M, N, CYR, CYI, NZ, IERR)
 //     COMPLEX CY,Z,ZN,ZT,CSGN
 //       EXTERNAL ZABS
 //       DOUBLE PRECISION AA, ALIM, ALN, ARG, AZ, CYI, CYR, DIG, ELIM,
-//      * FMM, FN, FNU, FNUL, FRAC_2_PI, RFRAC_2_PI, RL, R1M5, SGN, STR, TOL, UFL, ZI,
+//      * FMM, FN, FNU, FNUL, FRAC_PI_2, RFRAC_PI_2, RL, R1M5, SGN, STR, TOL, UFL, ZI,
 //      * ZNI, ZNR, ZR, ZTI, d1mach, ZABS, BB, ASCLE, RTOL, ATOL, STI,
 //      * CSGNR, CSGNI
 //       INTEGER I, IERR, INU, INUH, IR, K, KODE, K1, K2, M,
 //      * MM, MR, N, NN, NUF, NW, NZ, i1mach
 //       DIMENSION CYR(N), CYI(N)
 //
-//      DATA FRAC_2_PI /1.57079632679489662/
+//      DATA FRAC_PI_2 /1.57079632679489662/
 //
 // ***FIRST EXECUTABLE STATEMENT  ZBESH
       IERR = 0
@@ -295,24 +295,24 @@ fn ZBESH(ZR, ZI, FNU, KODE, M, N, CYR, CYI, NZ, IERR)
       NZ = NZ + NW
   110 CONTINUE
 //-----------------------------------------------------------------------
-//     H(M,FNU,Z) = -FMM*(I/FRAC_2_PI)*(ZT**FNU)*K(FNU,-Z*ZT)
+//     H(M,FNU,Z) = -FMM*(I/FRAC_PI_2)*(ZT**FNU)*K(FNU,-Z*ZT)
 //
-//     ZT=EXP(-FMM*FRAC_2_PI*I) = CMPLX(0.0,-FMM), FMM=3-2*M, M=1,2
+//     ZT=EXP(-FMM*FRAC_PI_2*I) = CMPLX(0.0,-FMM), FMM=3-2*M, M=1,2
 //-----------------------------------------------------------------------
-      SGN = DSIGN(FRAC_2_PI,-FMM)
+      SGN = DSIGN(FRAC_PI_2,-FMM)
 //-----------------------------------------------------------------------
-//     CALCULATE EXP(FNU*FRAC_2_PI*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
+//     CALCULATE EXP(FNU*FRAC_PI_2*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
 //     WHEN FNU IS LARGE
 //-----------------------------------------------------------------------
       INU = INT(SNGL(FNU))
       INUH = INU/2
       IR = INU - 2*INUH
       ARG = (FNU-((INU-IR) as f64))*SGN
-      RFRAC_2_PI = 1.0/SGN
-//     ZNI = RFRAC_2_PI*DCOS(ARG)
-//     ZNR = -RFRAC_2_PI*DSIN(ARG)
-      CSGNI = RFRAC_2_PI*DCOS(ARG)
-      CSGNR = -RFRAC_2_PI*DSIN(ARG)
+      RFRAC_PI_2 = 1.0/SGN
+//     ZNI = RFRAC_PI_2*DCOS(ARG)
+//     ZNR = -RFRAC_PI_2*DSIN(ARG)
+      CSGNI = RFRAC_PI_2*DCOS(ARG)
+      CSGNR = -RFRAC_PI_2*DSIN(ARG)
       if (MOD(INUH,2) == 0) GO TO 120
 //     ZNR = -ZNR
 //     ZNI = -ZNI
@@ -791,11 +791,11 @@ pub fn zbesj(
     //     COMPLEX CI,CSGN,CY,Z,ZN
     //       EXTERNAL ZABS
     //       DOUBLE PRECISION AA, ALIM, ARG, CII, CSGNI, CSGNR, CYI, CYR, DIG,
-    //      * ELIM, FNU, FNUL, FRAC_2_PI, RL, R1M5, STR, TOL, ZI, ZNI, ZNR, ZR,
+    //      * ELIM, FNU, FNUL, FRAC_PI_2, RL, R1M5, STR, TOL, ZI, ZNI, ZNR, ZR,
     //      * d1mach, BB, FN, AZ, ZABS, ASCLE, RTOL, ATOL, STI
     //       INTEGER I, IERR, INU, INUH, IR, K, KODE, K1, K2, N, NL, NZ, i1mach
     //       DIMENSION CYR(N), CYI(N)
-    //      DATA FRAC_2_PI /1.57079632679489662/
+    //      DATA FRAC_PI_2 /1.57079632679489662/
     //
     // ***FIRST EXECUTABLE STATEMENT  ZBESJ
     // IERR = 0
@@ -861,14 +861,14 @@ pub fn zbesj(
         significance_loss = true;
     }
     //-----------------------------------------------------------------------
-    //     CALCULATE CSGN=EXP(FNU*FRAC_2_PI*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
+    //     CALCULATE CSGN=EXP(FNU*FRAC_PI_2*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
     //     WHEN FNU IS LARGE
     //-----------------------------------------------------------------------
     let mut CII = 1.0;
     let INU = order as i64;
     let INUH = INU / 2;
     let IR = INU - 2 * INUH;
-    let ARG = (order - ((INU - IR) as f64)) * FRAC_2_PI;
+    let ARG = (order - ((INU - IR) as f64)) * FRAC_PI_2;
     let mut CSGNR = ARG.cos();
     let mut CSGNI = ARG.sin();
     if (INUH % 2) != 0 {
@@ -1387,14 +1387,14 @@ fn ZBESY(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, CWRKR,
 //     COMPLEX CWRK,CY,C1,C2,EX,HCI,Z,ZU,ZV
       DOUBLE PRECISION ARG, ASCLE, CIPI, CIPR, CSGNI, CSGNR, CSPNI,
      * CSPNR, CWRKI, CWRKR, CYI, CYR, D1M5, d1mach, ELIM, EXI, EXR, EY,
-     * FNU, FFNU, FRAC_2_PI, RFRAC_2_PI, STR, STI, TAY, TOL, ATOL, RTOL, ZI, ZR,
+     * FNU, FFNU, FRAC_PI_2, RFRAC_PI_2, STR, STI, TAY, TOL, ATOL, RTOL, ZI, ZR,
      * ZNI, ZNR, ZUI, ZUR, ZVI, ZVR, ZZI, ZZR
       INTEGER I, IERR, IFNU, I4, K, KODE, K1, K2, N, NZ, NZ1, NZ2,
      * i1mach
       DIMENSION CYR(N), CYI(N), CWRKR(N), CWRKI(N), CIPR(4), CIPI(4)
       DATA CIPR(1),CIPR(2),CIPR(3),CIPR(4)/1.0, 0.0, -1.0, 0.0/
       DATA CIPI(1),CIPI(2),CIPI(3),CIPI(4)/0.0, 1.0, 0.0, -1.0/
-      DATA FRAC_2_PI / 1.57079632679489662 /
+      DATA FRAC_PI_2 / 1.57079632679489662 /
 // ***FIRST EXECUTABLE STATEMENT  ZBESY
       IERR = 0
       NZ=0
@@ -1415,16 +1415,16 @@ fn ZBESY(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, CWRKR,
       NZ = MIN(NZ1,NZ2)
       IFNU = INT(SNGL(FNU))
       FFNU = FNU - (IFNU as f64)
-      ARG = FRAC_2_PI*FFNU
+      ARG = FRAC_PI_2*FFNU
       CSGNR = COS(ARG)
       CSGNI = SIN(ARG)
       I4 = MOD(IFNU,4) + 1
       STR = CSGNR*CIPR(I4) - CSGNI*CIPI(I4)
       CSGNI = CSGNR*CIPI(I4) + CSGNI*CIPR(I4)
       CSGNR = STR
-      RFRAC_2_PI = 1.0/FRAC_2_PI
-      CSPNR = CSGNR*RFRAC_2_PI
-      CSPNI = -CSGNI*RFRAC_2_PI
+      RFRAC_PI_2 = 1.0/FRAC_PI_2
+      CSPNR = CSGNR*RFRAC_PI_2
+      CSPNI = -CSGNI*RFRAC_PI_2
       STR = -CSGNI
       CSGNI = CSGNR
       CSGNR = STR
@@ -2382,10 +2382,10 @@ fn ZLOG(AR, AI, BR, BI, IERR)
 // ***ROUTINES CALLED  ZABS
 // ***END PROLOGUE  ZLOG
       EXTERNAL ZABS
-      DOUBLE PRECISION AR, AI, BR, BI, ZM, DTHETA, DPI, DFRAC_2_PI
+      DOUBLE PRECISION AR, AI, BR, BI, ZM, DTHETA, DPI, DFRAC_PI_2
       DOUBLE PRECISION ZABS
       INTEGER IERR
-      DATA DPI , DFRAC_2_PI  / 3.141592653589793238462643383D+0,
+      DATA DPI , DFRAC_PI_2  / 3.141592653589793238462643383D+0,
      1                   1.570796326794896619231321696D+0/
 //
       IERR=0
@@ -2396,7 +2396,7 @@ fn ZLOG(AR, AI, BR, BI, IERR)
       if (AR < 0.0D+0) DTHETA = DTHETA - DPI
       GO TO 50
    10 if (AI == 0.0D+0) GO TO 60
-      BI = DFRAC_2_PI
+      BI = DFRAC_PI_2
       BR = DLOG((AI).abs())
       if (AI < 0.0D+0) BI = -BI
       RETURN
@@ -2461,8 +2461,8 @@ fn ZBKNU(ZR, ZI, FNU, KODE, N, YR, YI, NZ, TOL, ELIM,
      * CBI, CBR, CC, CCHI, CCHR, CKI, CKR, COEFI, COEFR, CONEI, CONER,
      * CRSCR, CSCLR, CSHI, CSHR, CSI, CSR, CSRR, CSSR, CTWOR,
      * CZEROI, CZEROR, CZI, CZR, DNU, DNU2, DPI, ELIM, ETEST, FC, FHS,
-     * FI, FK, FKS, FMUI, FMUR, FNU, FPI, FR, G1, G2, FRAC_2_PI, PI, PR, PTI,
-     * PTR, P1I, P1R, P2I, P2M, P2R, QI, QR, RAK, RCAZ, RTFRAC_2_PI, RZI,
+     * FI, FK, FKS, FMUI, FMUR, FNU, FPI, FR, G1, G2, FRAC_PI_2, PI, PR, PTI,
+     * PTR, P1I, P1R, P2I, P2M, P2R, QI, QR, RAK, RCAZ, RTFRAC_PI_2, RZI,
      * RZR, R1, S, SMUI, SMUR, SPI, STI, STR, S1I, S1R, S2I, S2R, TM,
      * TOL, TTH, T1, T2, YI, YR, ZI, ZR, gamma_ln, d1mach, ZABS, ELM,
      * CELMR, ZDR, ZDI, AS, ALAS, HELIM, CYR, CYI
@@ -2476,7 +2476,7 @@ fn ZBKNU(ZR, ZI, FNU, KODE, N, YR, YI, NZ, TOL, ELIM,
       DATA KMAX / 30 /
       DATA CZEROR,CZEROI,CONER,CONEI,CTWOR,R1/
      1  0.0 , 0.0 , 1.0 , 0.0 , 2.0 , 2.0 /
-      DATA DPI, RTFRAC_2_PI, SPI ,FRAC_2_PI, FPI, TTH /
+      DATA DPI, RTFRAC_PI_2, SPI ,FRAC_PI_2, FPI, TTH /
      1     3.14159265358979324,       1.25331413731550025,
      2     1.90985931710274403,       1.57079632679489662,
      3     1.89769999331517738,       6.66666666666666666e-01/
@@ -2658,7 +2658,7 @@ fn ZBKNU(ZR, ZI, FNU, KODE, N, YR, YI, NZ, TOL, ELIM,
 //-----------------------------------------------------------------------
   110 CONTINUE
       CALL ZSQRT(ZR, ZI, STR, STI)
-      CALL ZDIV(RTFRAC_2_PI, CZEROI, STR, STI, COEFR, COEFI)
+      CALL ZDIV(RTFRAC_PI_2, CZEROI, STR, STI, COEFR, COEFI)
       KFLAG = 2
       if (KODED == 2) GO TO 120
       if (ZR > ALIM) GO TO 290
@@ -2689,7 +2689,7 @@ fn ZBKNU(ZR, ZI, FNU, KODE, N, YR, YI, NZ, TOL, ELIM,
       T1 = DMIN1(T1,60.0)
       T2 = TTH*T1 - 6.0
       if (ZR != 0.0) GO TO 130
-      T1 = FRAC_2_PI
+      T1 = FRAC_PI_2
       GO TO 140
   130 CONTINUE
       T1 = DATAN(ZI/ZR)
@@ -3368,9 +3368,9 @@ fn ZBUNK(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
       GO TO 20
    10 CONTINUE
 //-----------------------------------------------------------------------
-//     ASYMPTOTIC EXPANSION FOR H(2,FNU,Z*EXP(M*FRAC_2_PI)) FOR LARGE FNU
+//     ASYMPTOTIC EXPANSION FOR H(2,FNU,Z*EXP(M*FRAC_PI_2)) FOR LARGE FNU
 //     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I
-//     AND FRAC_2_PI=PI/2
+//     AND FRAC_PI_2=PI/2
 //-----------------------------------------------------------------------
       CALL ZUNK2(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM, ALIM)
    20 CONTINUE
@@ -5096,10 +5096,10 @@ fn ZUNHJ(ZR, ZI, FNU, IPMTR, TOL, PHIR, PHII, ARGR, ARGI,
       EXTERNAL ZABS
       DOUBLE PRECISION ALFA, ANG, AP, AR, ARGI, ARGR, ASUMI, ASUMR,
      * ATOL, AW2, AZTH, BETA, BR, BSUMI, BSUMR, BTOL, C, CONEI, CONER,
-     * CRI, CRR, DRI, DRR, EX1, EX2, FNU, FN13, FN23, GAMA, GPI, FRAC_2_PI,
+     * CRI, CRR, DRI, DRR, EX1, EX2, FNU, FN13, FN23, GAMA, GPI, FRAC_PI_2,
      * PHII, PHIR, PI, PP, PR, PRZTHI, PRZTHR, PTFNI, PTFNR, RAW, RAW2,
      * RAZTH, RFNU, RFNU2, RFN13, RTZTI, RTZTR, RZTHI, RZTHR, STI, STR,
-     * SUMAI, SUMAR, SUMBI, SUMBR, TEST, TFNI, TFNR, TFRAC_2_PI, TOL, TZAI,
+     * SUMAI, SUMAR, SUMBI, SUMBR, TEST, TFNI, TFNR, TFRAC_PI_2, TOL, TZAI,
      * TZAR, T2I, T2R, UPI, UPR, WI, WR, W2I, W2R, ZAI, ZAR, ZBI, ZBR,
      * ZCI, ZCR, ZEROI, ZEROR, ZETAI, ZETAR, ZETA1I, ZETA1R, ZETA2I,
      * ZETA2R, ZI, ZR, ZTHI, ZTHR, ZABS, AC, d1mach
@@ -5483,7 +5483,7 @@ fn ZUNHJ(ZR, ZI, FNU, IPMTR, TOL, PHIR, PHII, ARGR, ARGI,
      3     1.44193250839954639e-02,     1.38184805735341786e-02,
      4     1.32643378994276568e-02,     1.27517121970498651e-02,
      5     1.22761545318762767e-02,     1.18338262398482403e-02/
-      DATA EX1, EX2, FRAC_2_PI, GPI, TFRAC_2_PI /
+      DATA EX1, EX2, FRAC_PI_2, GPI, TFRAC_PI_2 /
      1     3.33333333333333333e-01,     6.66666666666666667e-01,
      2     1.57079632679489662e+00,     3.14159265358979324e+00,
      3     4.71238898038468986e+00/
@@ -5633,7 +5633,7 @@ fn ZUNHJ(ZR, ZI, FNU, IPMTR, TOL, PHIR, PHII, ARGR, ARGI,
       CALL ZDIV(STR, STI, ZBR, ZBI, ZAR, ZAI)
       CALL ZLOG(ZAR, ZAI, ZCR, ZCI, IDUM)
       if (ZCI < 0.0) ZCI = 0.0
-      if (ZCI > FRAC_2_PI) ZCI = FRAC_2_PI
+      if (ZCI > FRAC_PI_2) ZCI = FRAC_PI_2
       if (ZCR < 0.0) ZCR = 0.0
       ZTHR = (ZCR-WR)*1.5
       ZTHI = (ZCI-WI)*1.5
@@ -5642,9 +5642,9 @@ fn ZUNHJ(ZR, ZI, FNU, IPMTR, TOL, PHIR, PHII, ARGR, ARGI,
       ZETA2R = WR*FNU
       ZETA2I = WI*FNU
       AZTH = ZABS(ZTHR,ZTHI)
-      ANG = TFRAC_2_PI
+      ANG = TFRAC_PI_2
       if (ZTHR >= 0.0 && ZTHI < 0.0) GO TO 140
-      ANG = FRAC_2_PI
+      ANG = FRAC_PI_2
       if (ZTHR == 0.0) GO TO 140
       ANG = DATAN(ZTHI/ZTHR)
       if (ZTHR < 0.0) ANG = ANG + GPI
@@ -6224,7 +6224,7 @@ fn ZUNK2(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
      * BRY, BSUMDI, BSUMDR, BSUMI, BSUMR, CAR, CIPI, CIPR, CKI, CKR,
      * CONER, CRSC, CR1I, CR1R, CR2I, CR2R, CSCL, CSGNI, CSI,
      * CSPNI, CSPNR, CSR, CSRR, CSSR, CYI, CYR, C1I, C1R, C2I, C2M,
-     * C2R, DAII, DAIR, ELIM, FMR, FN, FNF, FNU, FRAC_2_PI, PHIDI, PHIDR,
+     * C2R, DAII, DAIR, ELIM, FMR, FN, FNF, FNU, FRAC_PI_2, PHIDI, PHIDR,
      * PHII, PHIR, PI, PTI, PTR, RAST, RAZR, RS1, RZI, RZR, SAR, SGN,
      * STI, STR, S1I, S1R, S2I, S2R, TOL, YI, YR, YY, ZBI, ZBR, ZEROI,
      * ZEROR, ZETA1I, ZETA1R, ZETA2I, ZETA2R, ZET1DI, ZET1DR, ZET2DI,
@@ -6238,7 +6238,7 @@ fn ZUNK2(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
       DATA ZEROR,ZEROI,CONER,CR1R,CR1I,CR2R,CR2I /
      1         0.0, 0.0, 1.0,
      1 1.0,1.73205080756887729 , -0.5,-8.66025403784438647e-01 /
-      DATA FRAC_2_PI, PI, AIC /
+      DATA FRAC_PI_2, PI, AIC /
      1     1.57079632679489662e+00,     3.14159265358979324e+00,
      1     1.26551212348464539e+00/
       DATA CIPR(1),CIPI(1),CIPR(2),CIPI(2),CIPR(3),CIPI(3),CIPR(4),
@@ -6275,11 +6275,11 @@ fn ZUNK2(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
       ZBI = ZRI
       INU = INT(SNGL(FNU))
       FNF = FNU - (INU as f64)
-      ANG = -FRAC_2_PI*FNF
+      ANG = -FRAC_PI_2*FNF
       CAR = DCOS(ANG)
       SAR = DSIN(ANG)
-      C2R = FRAC_2_PI*SAR
-      C2I = -FRAC_2_PI*CAR
+      C2R = FRAC_PI_2*SAR
+      C2I = -FRAC_PI_2*CAR
       KK = MOD(INU,4) + 1
       STR = C2R*CIPR(KK) - C2I*CIPI(KK)
       STI = C2R*CIPI(KK) + C2I*CIPR(KK)
@@ -6507,7 +6507,7 @@ fn ZUNK2(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
   190 CONTINUE
 //-----------------------------------------------------------------------
 //     CS=COEFF OF THE J FUNCTION TO GET THE I FUNCTION. I(FNU,Z) IS
-//     COMPUTED FROM EXP(I*FNU*FRAC_2_PI)*J(FNU,-I*Z) WHERE Z IS IN THE FIRST
+//     COMPUTED FROM EXP(I*FNU*FRAC_PI_2)*J(FNU,-I*Z) WHERE Z IS IN THE FIRST
 //     QUADRANT. FOURTH QUADRANT VALUES (YY <= 0.0E0) ARE COMPUTED BY
 //     CONJUGATION SINCE THE I FUNCTION IS REAL ON THE POSITIVE REAL AXIS
 //-----------------------------------------------------------------------
@@ -6745,9 +6745,9 @@ fn ZBUNI(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NUI, NLAST,
       GO TO 20
    10 CONTINUE
 //-----------------------------------------------------------------------
-//     ASYMPTOTIC EXPANSION FOR J(FNU,Z*EXP(M*FRAC_2_PI)) FOR LARGE FNU
+//     ASYMPTOTIC EXPANSION FOR J(FNU,Z*EXP(M*FRAC_PI_2)) FOR LARGE FNU
 //     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I
-//     AND FRAC_2_PI=PI/2
+//     AND FRAC_PI_2=PI/2
 //-----------------------------------------------------------------------
       CALL ZUNI2(ZR, ZI, GNU, KODE, 2, CYR, CYI, NW, NLAST, FNUL, TOL,
      * ELIM, ALIM)
@@ -6866,9 +6866,9 @@ fn ZBUNI(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NUI, NLAST,
       GO TO 80
    70 CONTINUE
 //-----------------------------------------------------------------------
-//     ASYMPTOTIC EXPANSION FOR J(FNU,Z*EXP(M*FRAC_2_PI)) FOR LARGE FNU
+//     ASYMPTOTIC EXPANSION FOR J(FNU,Z*EXP(M*FRAC_PI_2)) FOR LARGE FNU
 //     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I
-//     AND FRAC_2_PI=PI/2
+//     AND FRAC_PI_2=PI/2
 //-----------------------------------------------------------------------
       CALL ZUNI2(ZR, ZI, FNU, KODE, N, YR, YI, NW, NLAST, FNUL, TOL,
      * ELIM, ALIM)
@@ -7108,7 +7108,7 @@ fn ZUNI2(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NLAST, FNUL,
       DOUBLE PRECISION AARG, AIC, AII, AIR, ALIM, ANG, APHI, ARGI,
      * ARGR, ASCLE, ASUMI, ASUMR, BRY, BSUMI, BSUMR, CIDI, CIPI, CIPR,
      * CONER, CRSC, CSCL, CSRR, CSSR, C1R, C2I, C2M, C2R, DAII,
-     * DAIR, ELIM, FN, FNU, FNUL, FRAC_2_PI, PHII, PHIR, RAST, RAZ, RS1, RZI,
+     * DAIR, ELIM, FN, FNU, FNUL, FRAC_PI_2, PHII, PHIR, RAST, RAZ, RS1, RZI,
      * RZR, STI, STR, S1I, S1R, S2I, S2R, TOL, YI, YR, ZBI, ZBR, ZEROI,
      * ZEROR, ZETA1I, ZETA1R, ZETA2I, ZETA2R, ZI, ZNI, ZNR, ZR, CYR,
      * CYI, d1mach, ZABS, CAR, SAR
@@ -7119,7 +7119,7 @@ fn ZUNI2(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NLAST, FNUL,
       DATA ZEROR,ZEROI,CONER / 0.0, 0.0, 1.0 /
       DATA CIPR(1),CIPI(1),CIPR(2),CIPI(2),CIPR(3),CIPI(3),CIPR(4),
      * CIPI(4)/ 1.0,0.0, 0.0,1.0, -1.0,0.0, 0.0,-1.0/
-      DATA FRAC_2_PI, AIC  /
+      DATA FRAC_PI_2, AIC  /
      1      1.57079632679489662e+00,     1.265512123484645396e+00/
 //
       NZ = 0
@@ -7148,7 +7148,7 @@ fn ZUNI2(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NLAST, FNUL,
       ZBI = ZI
       CIDI = -CONER
       INU = INT(SNGL(FNU))
-      ANG = FRAC_2_PI*(FNU-(INU as f64))
+      ANG = FRAC_PI_2*(FNU-(INU as f64))
       C2R = DCOS(ANG)
       C2I = DSIN(ANG)
       CAR = C2R
