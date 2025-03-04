@@ -2,6 +2,7 @@ pub use gamma_ln::{GammaError, gamma_ln};
 use thiserror::Error;
 pub use translator::zbesj;
 pub use z_power_series::z_power_series;
+pub mod bindings;
 mod gamma_ln;
 mod machine;
 mod translator;
@@ -54,7 +55,8 @@ pub enum HankelKind {
     Second,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[repr(i32)]
 pub enum Scaling {
     Unscaled = 1,
     Scaled = 2,

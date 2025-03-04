@@ -1,8 +1,9 @@
 use approx::assert_relative_eq;
 use rstest::rstest;
 
-use crate::amos::gamma_ln;
-use crate::{BesselError, GammaError, bessel_j};
+use crate::amos::bindings::zbesi_wrap;
+use crate::amos::{gamma_ln, zbesj};
+use crate::{BesselError, GammaError, Scaling, bessel_j};
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_ref;
 
 #[test]
@@ -38,28 +39,68 @@ fn test_gamma_ln_negative() {
 #[trace]
 #[case(4.0, 2.1)]
 #[case(5.0, 2.0001)]
-fn test_bessel_j(#[case] order: f64, #[case] f: f64) {
-    assert_relative_eq!(
-        bessel_j(order, f).unwrap(),
-        bessel_j_ref(order, f.into()).unwrap(),
-        epsilon = 1e-10
-    )
+fn test_bessel_j(#[case] order: f64, #[case] z: f64) {
+    let actual = bessel_j(order, z).unwrap();
+    let expected = bessel_j_ref(order, z.into()).unwrap();
+    assert_relative_eq!(actual, expected, epsilon = 1e-10)
 }
 
 #[rstest]
 fn test_bessel_j_random() {
     for _ in 0..1000000 {
         let order = rand::random_range(-1000.0..1000.0);
-        let f = rand::random_range(-1000.0..1000.0);
-        let ans = bessel_j(order, f);
+        let z = rand::random_range(-1000.0..1000.0);
+        let ans = bessel_j(order, z);
         if let Ok(actual) = ans {
             assert_relative_eq!(
                 actual,
-                bessel_j_ref(order, f.into()).unwrap(),
+                bessel_j_ref(order, z.into()).unwrap(),
                 epsilon = 1e-10
             )
         } else {
             assert_eq!(ans, Err(BesselError::NotYetImplemented));
         }
     }
+}
+
+#[rstest]
+#[case(4.0, 2.1)]
+// #[case(5.0, 2.0001)]
+fn test_bessel_j_large_n_real(
+    #[case] order: f64,
+    #[case] z: f64,
+    #[values(3/* , 4, 9, 100*/)] n: usize,
+    #[values(Scaling::Scaled, /*Scaling::Unscaled*/)] scaling: Scaling,
+) {
+    let actual = zbesj(z.into(), order, scaling, n);
+    let kode = match scaling {
+        Scaling::Unscaled => 1,
+        Scaling::Scaled => 2,
+    };
+
+    let mut cyr = vec![0.0; n];
+    let mut cyi = vec![0.0; n];
+    let mut nz = 0;
+    let mut ierr = 0;
+
+    unsafe {
+        zbesi_wrap(
+            z,
+            0.0,
+            order,
+            kode.into(),
+            n.try_into().unwrap(),
+            cyr.as_mut_ptr().cast(),
+            cyi.as_mut_ptr().cast(),
+            &mut nz,
+            &mut ierr,
+        );
+    }
+    assert_eq!(nz, 0);
+    assert_eq!(ierr, 0);
+    let actual = actual.unwrap();
+    let actual_real: Vec<_> = actual.0.iter().map(|z| z.re).collect();
+    let actual_im: Vec<_> = actual.0.iter().map(|z| z.im).collect();
+    assert_eq!(cyr, actual_real);
+    assert_eq!(cyi, actual_im);
 }
