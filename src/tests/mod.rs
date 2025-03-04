@@ -26,10 +26,11 @@ fn test_gamma_ln() {
 
 #[test]
 fn test_bessel_j() {
-    let (order, f) = (4.0, 2.1);
-    assert_relative_eq!(
-        bessel_j(order, f).unwrap(),
-        bessel_j_ref(order, f.into()).unwrap(),
-        epsilon = 1e-10
-    )
+    for (order, f) in [(4.0, 2.1), (5.0, 2.0001)] {
+        assert_relative_eq!(
+            bessel_j(order, f).unwrap(),
+            bessel_j_ref(order, f.into()).unwrap(),
+            epsilon = 1e-10
+        )
+    }
 }
