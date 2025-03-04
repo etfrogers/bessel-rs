@@ -4284,10 +4284,7 @@ fn ZBINU(
             let INW: usize = NW.abs().try_into().unwrap();
             let NZ = NZ + INW;
             NN = NN - INW;
-            if NN == 0 {
-                return Ok((cy, NZ.try_into().unwrap()));
-            }
-            if NW >= 0 {
+            if NN == 0 || NW >= 0 {
                 return Ok((cy, NZ.try_into().unwrap()));
             }
 
