@@ -3839,7 +3839,7 @@ fn ZSERI(
             let IL = 2.min(NN);
             for I in 0..IL {
                 // DO 90 I=1,IL;
-                DFNU = order + ((NN - I) as f64);
+                DFNU = order + ((NN - (I + 1)) as f64);
                 FNUP = DFNU + 1.0;
                 let mut s1 = Complex64::one();
                 // S1R = CONER;
@@ -3888,7 +3888,7 @@ fn ZSERI(
                 //   YR(M) = S2R*CRSCR;
                 //   YI(M) = S2I*CRSCR;
                 y[M] = s2 * CRSCR;
-                if I != IL
+                if I != (IL - 1)
                 //GO TO 90;
                 {
                     // CALL ZDIV(COEFR, COEFI, HZR, HZI, STR, STI);
