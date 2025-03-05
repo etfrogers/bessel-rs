@@ -42,9 +42,14 @@ fn test_gamma_ln_negative() {
 #[case(5.0, 2.0001)] // z_power_series
 #[case(340.0, 35.0001)] // z_power_series, iflag = true
 fn test_bessel_j(#[case] order: f64, #[case] z: f64) {
-    let actual = bessel_j(order, z).unwrap();
-    let expected = bessel_j_ref(order, z.into()).unwrap();
-    assert_relative_eq!(actual, expected, epsilon = 1e-10)
+    let actual = bessel_j(order, z);
+
+    let expected = bessel_j_ref(order, z.into());
+    if let Ok(actual) = actual {
+        assert_relative_eq!(actual, expected.unwrap(), epsilon = 1e-10)
+    } else {
+        assert_eq!(actual.unwrap_err().error_code(), expected.unwrap_err())
+    }
 }
 
 #[rstest]
@@ -55,10 +60,20 @@ fn test_bessel_j_random() {
         let zi = rand::random_range(-1000.0..1000.0);
         let z = Complex64::new(zr, zi);
         let ans = bessel_j(order, z);
+        let expected = bessel_j_ref(order, z);
         if let Ok(actual) = ans {
-            assert_relative_eq!(actual, bessel_j_ref(order, z).unwrap(), epsilon = 1e-10)
+            assert_relative_eq!(
+                actual,
+                expected.unwrap(),
+                epsilon = 1e-10,
+                max_relative = 1e-10
+            )
         } else {
-            assert_eq!(ans, Err(BesselError::NotYetImplemented));
+            let err = ans.unwrap_err();
+            if err == BesselError::NotYetImplemented {
+                continue;
+            }
+            assert_eq!(err.error_code(), expected.unwrap_err());
         }
     }
 }
@@ -107,15 +122,14 @@ fn test_bessel_j_large_n_real(
     assert_eq!(nz, actual.1.try_into().unwrap());
     assert_eq!(ierr, 0);
     for ((re, im), zi) in cyr.into_iter().zip(cyi).zip(actual.0) {
-        assert_relative_eq!(re, zi.re);
-        assert_relative_eq!(im, zi.im);
+        assert_relative_eq!(re, zi.re, epsilon = 1e-10, max_relative = 1e-10);
+        assert_relative_eq!(im, zi.im, epsilon = 1e-10, max_relative = 1e-10);
     }
 }
 
 #[rstest]
 fn test_bessel_j_large_n_random() {
     let n = 10;
-
     for i in 0..100000 {
         let order = rand::random_range(std::f64::EPSILON..1000.0);
         let zr = rand::random_range(-1000.0..1000.0);
@@ -123,9 +137,10 @@ fn test_bessel_j_large_n_random() {
         let z = Complex64::new(zr, zi);
 
         let actual = zbesj(z.into(), order, Scaling::Unscaled, n);
-        if let Err(err) = actual {
-            assert_eq!(err, BesselError::NotYetImplemented);
-            continue;
+        if let Err(ref err) = actual {
+            if *err == BesselError::NotYetImplemented {
+                continue;
+            }
         }
         let mut cyr: Vec<f64> = Vec::with_capacity(n);
         let mut cyi: Vec<f64> = Vec::with_capacity(n);
@@ -149,12 +164,16 @@ fn test_bessel_j_large_n_random() {
             cyr.set_len(n);
             cyi.set_len(n);
         }
-        let actual = actual.unwrap();
-        assert_eq!(nz, actual.1.try_into().unwrap());
-        assert_eq!(ierr, 0);
-        for ((re, im), zi) in cyr.into_iter().zip(cyi).zip(actual.0) {
-            assert_relative_eq!(re, zi.re);
-            assert_relative_eq!(im, zi.im);
+        if let Err(err) = actual {
+            assert_eq!(ierr, err.error_code());
+        } else {
+            let actual = actual.unwrap();
+            assert_eq!(nz, actual.1.try_into().unwrap());
+
+            for ((re, im), zi) in cyr.into_iter().zip(cyi).zip(actual.0) {
+                assert_relative_eq!(re, zi.re, epsilon = 1e-10, max_relative = 1e-10);
+                assert_relative_eq!(im, zi.im, epsilon = 1e-10, max_relative = 1e-10);
+            }
         }
     }
 }

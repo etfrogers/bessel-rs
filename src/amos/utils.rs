@@ -1,5 +1,7 @@
 use num::complex::Complex64;
 
+pub const RTPI: f64 = 0.159154943091895336;
+
 pub fn will_z_underflow(
     y: Complex64, //YR, YI,
     // Outputs: NZ
