@@ -179,49 +179,31 @@ pub fn z_power_series(
         //-----------------------------------------------------------------------;
         let mut s1 = w[0];
         let mut s2 = w[1];
-        //   S1R = WR(1);
-        //   S1I = WI(1);
-        //   S2R = WR(2);
-        //   S2I = WI(2);
         let mut to_return = true;
         let mut l = 0;
         debug_assert!(nn >= 3);
         for l_inner in 2..nn {
-            // DO 130 L=3,NN;
-            // CKR = S2R;
-            // CKI = S2I;
             let ck = s2;
             s2 = s1 + (ak + order) * (rz * ck);
-            // S2R = S1R + (AK + order) * (RZR * CKR - RZI * CKI);
-            // S2I = S1I + (AK + order) * (RZR * CKI + RZI * CKR);
             s1 = ck;
-            // S1R = CKR;
-            // S1I = CKI;
             let ck = s2 * crscr;
-            // CKR = S2R * CRSCR;
-            // CKI = S2I * CRSCR;
             y[k] = ck;
-            // YR(K) = CKR;
-            // YI(K) = CKI;
             ak = ak - 1.0;
             if k > 0 {
                 k -= 1;
             }
             l = l_inner + 1;
             if ck.abs() > ascle {
-                // if (ZABS(CKR, CKI) > ASCLE) {
                 to_return = false;
                 break;
-            } //GO TO 140;
+            }
         }
-        //   130 CONTINUE;
         if to_return {
             return Ok((y, nz));
         }
-        //   140 CONTINUE;
         ib = l + 1;
         if ib > nn {
             return Ok((y, nz));
         };
-    } //GO TO 100;
+    }
 }
