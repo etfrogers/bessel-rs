@@ -204,7 +204,9 @@ pub fn z_power_series(
             // YR(K) = CKR;
             // YI(K) = CKI;
             ak = ak - 1.0;
-            k = k - 1;
+            if k > 0 {
+                k -= 1;
+            }
             l = l_inner + 1;
             if ck.abs() > ascle {
                 // if (ZABS(CKR, CKI) > ASCLE) {
