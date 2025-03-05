@@ -797,8 +797,10 @@ pub fn zbesj(
     // ***FIRST EXECUTABLE STATEMENT  ZBESJ
     // IERR = 0
     let mut significance_loss = false;
-    let NZ = 0;
     let mut err = None;
+    if order < 0.0_f64 {
+        err = Some("order must be positive")
+    };
     if order == 0.0_f64 {
         err = Some("order cannot be zero")
     };

@@ -49,17 +49,13 @@ fn test_bessel_j(#[case] order: f64, #[case] z: f64) {
 #[rstest]
 fn test_bessel_j_random() {
     for _ in 0..1000000 {
-        let order = rand::random_range(-1000.0..1000.0);
+        let order = rand::random_range(std::f64::EPSILON..1000.0);
         let zr = rand::random_range(-1000.0..1000.0);
         let zi = rand::random_range(-1000.0..1000.0);
         let z = Complex64::new(zr, zi);
         let ans = bessel_j(order, z);
         if let Ok(actual) = ans {
-            assert_relative_eq!(
-                actual,
-                bessel_j_ref(order, z).unwrap(),
-                epsilon = 1e-10
-            )
+            assert_relative_eq!(actual, bessel_j_ref(order, z).unwrap(), epsilon = 1e-10)
         } else {
             assert_eq!(ans, Err(BesselError::NotYetImplemented));
         }
@@ -67,6 +63,12 @@ fn test_bessel_j_random() {
 }
 
 #[rstest]
+fn test_bessel_j_random_negative() {
+    todo!("Add negative values")
+}
+
+#[rstest]
+#[trace]
 #[case(4.0, 2.1)]
 #[trace]
 // #[case(5.0, 2.0001)]
