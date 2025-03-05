@@ -89,10 +89,18 @@ pub fn z_power_series(
                 y[nn - 1] = Complex64::zero();
                 if acz > dfnu {
                     return Ok((y, -nz));
+                    // Feels like this should return an error, but the amos code effectively
+                    // ignores the negative return value anyway. Treating it like an error
+                    // changes the behavior of the code
+                    // if nz == 2 {
+                    //     return Err(DidNotConverge);
+                    // } else {
+                    //     return Err(Overflow);
+                    // };
                 }
                 nn -= 1;
                 if nn == 0 {
-                    return Ok((y, -nz));
+                    return Ok((y, nz));
                 }
                 continue 'l20;
             } else {
