@@ -158,20 +158,13 @@ pub fn z_power_series(
     let rz = 2.0 * st * raz;
     let mut ib;
     '_l100: loop {
-        // moved outside if statment, but believe the logic holds
         if !iflag {
-            //GO TO 120;
             ib = 3;
-            // 100 CONTINUE;
             '_l110: for _ in ib..=nn {
-                //DO 110 I=IB,NN;
-                //TODO refactor
-                y[k - 1].re = (ak + order) * (rz.re * y[k].re - rz.im * y[k].im) + y[k + 1].re;
-                y[k - 1].im = (ak + order) * (rz.re * y[k].im + rz.im * y[k].re) + y[k + 1].im;
+                y[k - 1] = (ak + order) * (rz * y[k]) + y[k + 1];
                 ak = ak - 1.0;
                 k = k - 1;
             }
-            //   110 CONTINUE;
             return Ok((y, nz));
         }
         //-----------------------------------------------------------------------;
@@ -182,8 +175,8 @@ pub fn z_power_series(
         //     EXP(-ALIM)=EXP(-ELIM)/TOL=APPROX. ONE PRECISION ABOVE THE;
         //     UNDERFLOW LIMIT = ASCLE = d1mach(1)*SS*1.0D+3;
         //-----------------------------------------------------------------------;
-        let mut s1 = w[1];
-        let mut s2 = w[2];
+        let mut s1 = w[0];
+        let mut s2 = w[1];
         //   S1R = WR(1);
         //   S1I = WI(1);
         //   S2R = WR(2);
@@ -191,7 +184,7 @@ pub fn z_power_series(
         let mut to_return = true;
         let mut l = 0;
         debug_assert!(nn >= 3);
-        for l_inner in 3..=nn {
+        for l_inner in 2..nn {
             // DO 130 L=3,NN;
             // CKR = S2R;
             // CKI = S2I;
@@ -210,7 +203,7 @@ pub fn z_power_series(
             // YI(K) = CKI;
             ak = ak - 1.0;
             k = k - 1;
-            l = l_inner;
+            l = l_inner + 1;
             if ck.abs() > ascle {
                 // if (ZABS(CKR, CKI) > ASCLE) {
                 to_return = false;

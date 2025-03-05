@@ -70,8 +70,8 @@ fn test_bessel_j_random_negative() {
 #[rstest]
 #[trace]
 #[case(4.0, 2.1)]
-#[trace]
-// #[case(5.0, 2.0001)]
+#[case(5.0, 2.0001)]
+#[case(340.0, 35.0001)]
 fn test_bessel_j_large_n_real(
     #[case] order: f64,
     #[case] z: f64,
@@ -102,9 +102,9 @@ fn test_bessel_j_large_n_real(
         cyr.set_len(n);
         cyi.set_len(n);
     }
-    assert_eq!(nz, 0);
-    assert_eq!(ierr, 0);
     let actual = actual.unwrap();
+    assert_eq!(nz, actual.1.try_into().unwrap());
+    assert_eq!(ierr, 0);
     for ((re, im), zi) in cyr.into_iter().zip(cyi).zip(actual.0) {
         assert_relative_eq!(re, zi.re);
         assert_relative_eq!(im, zi.im);
