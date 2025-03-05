@@ -38,8 +38,9 @@ fn test_gamma_ln_negative() {
 
 #[rstest]
 #[trace]
-#[case(4.0, 2.1)]
-#[case(5.0, 2.0001)]
+#[case(4.0, 2.1)] // z_power_series
+#[case(5.0, 2.0001)] // z_power_series
+#[case(340.0, 35.0001)] // z_power_series, iflag = true
 fn test_bessel_j(#[case] order: f64, #[case] z: f64) {
     let actual = bessel_j(order, z).unwrap();
     let expected = bessel_j_ref(order, z.into()).unwrap();
@@ -69,9 +70,9 @@ fn test_bessel_j_random_negative() {
 
 #[rstest]
 #[trace]
-#[case(4.0, 2.1)]
-#[case(5.0, 2.0001)]
-#[case(340.0, 35.0001)]
+#[case(4.0, 2.1)] // z_power_series
+#[case(5.0, 2.0001)] // z_power_series
+#[case(340.0, 35.0001)] // z_power_series, iflag = true
 fn test_bessel_j_large_n_real(
     #[case] order: f64,
     #[case] z: f64,

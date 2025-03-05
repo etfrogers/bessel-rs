@@ -82,7 +82,7 @@ pub fn z_power_series(
         if kode == Scaling::Scaled {
             ak1.re -= z.re;
         }
-        let skip_to_40 = ak1.re > (-elim);
+        let mut skip_to_40 = ak1.re > (-elim);
         'l30: loop {
             if !skip_to_40 {
                 nz = nz + 1;
@@ -95,6 +95,8 @@ pub fn z_power_series(
                     return Ok((y, -nz));
                 }
                 continue 'l20;
+            } else {
+                skip_to_40 = false; // should only skip once until sent back to 'l20
             }
             let mut ss = 0.0;
             if !(ak1.re > (-alim)) {
