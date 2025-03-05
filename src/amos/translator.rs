@@ -812,11 +812,6 @@ pub fn zbesj(
             details: details.to_owned(),
         });
     }
-
-    // // if (FNU < 0.0) IERR=1
-    // // if (KODE < 1 || KODE > 2) IERR=1
-    // // if (N < 1) IERR=1
-    // if (IERR != 0) RETURN
     //-----------------------------------------------------------------------
     //     SET PARAMETERS RELATED TO MACHINE CONSTANTS.
     //     TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0E-18.
@@ -890,19 +885,12 @@ pub fn zbesj(
         order,
         KODE,
         N,
-        /*CYR, CYI, NZ,*/ RL,
+        RL,
         FNUL,
         TOL,
         ELIM,
         ALIM,
     )?;
-    //     if NZ < 0 {
-    //         if NZ == (-2) {
-    //             return Err(DidNotConverge);
-    //         } else {
-    //             return Err(Overflow);
-    //         };
-    //     }
     let NL = N - NZ;
     if NL == 0 {
         return Ok((cy, NZ));
@@ -910,11 +898,8 @@ pub fn zbesj(
     let RTOL = 1.0 / TOL;
     let ASCLE = d1mach(1) * RTOL * 1.0e3;
     for i in 0..NL {
-        //       STR = CYR(I)*CSGNR - CYI(I)*CSGNI
-        //       CYI(I) = CYR(I)*CSGNI + CYI(I)*CSGNR
-        //       CYR(I) = STR
-        AA = cy[i].re; //CYR(I);
-        bb = cy[i].im; //CYI(I);
+        AA = cy[i].re;
+        bb = cy[i].im;
         let mut ATOL = 1.0;
         if !((AA.abs().max(bb.abs())) > ASCLE) {
             AA = AA * RTOL;
@@ -923,28 +908,12 @@ pub fn zbesj(
         }
         let mut STR = AA * CSGNR - bb * CSGNI;
         let STI = AA * CSGNI + bb * CSGNR;
-        //   CYR(I) = STR * ATOL;
-        //   CYI(I) = STI * ATOL;
         cy[i] = Complex64::new(STR * ATOL, STI * ATOL);
         STR = -CSGNI * CII;
         CSGNI = CSGNR * CII;
         CSGNR = STR;
     }
     Ok((cy, NZ))
-    //   130 CONTINUE
-
-    // NZ = 0
-    // IERR = 2
-    // RETURN
-    //   140 CONTINUE
-    //       NZ=0
-    //       IERR=5
-    //       RETURN
-    //   260 CONTINUE
-    //       NZ=0
-    //       IERR=4
-    //       RETURN
-    //       END
 }
 /*
 fn ZBESK(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, IERR)
