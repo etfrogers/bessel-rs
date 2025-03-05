@@ -11,7 +11,7 @@ mod z_power_series;
 // mod zbesh;
 
 #[derive(Error, Debug, PartialEq, Eq)]
-#[repr(u16)]
+#[repr(i32)]
 pub enum BesselError {
     // This correpsonds IERRR
     // 0 = no error
@@ -40,7 +40,19 @@ pub enum BesselError {
     //         IERR=5, ERROR              - NO COMPUTATION,
     //                 ALGORITHM TERMINATION CONDITION NOT MET
     #[error("not yet implemented")]
-    NotYetImplemented,
+    NotYetImplemented = 100,
+}
+
+impl BesselError {
+    pub fn error_code(&self) -> i32 {
+        match self {
+            BesselError::InvalidInput { .. } => 1,
+            BesselError::Overflow => 2,
+            BesselError::LossOfSignificance => 4,
+            BesselError::DidNotConverge => 5,
+            BesselError::NotYetImplemented => 100,
+        }
+    }
 }
 
 pub enum HankelKind {
