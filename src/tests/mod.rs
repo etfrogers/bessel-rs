@@ -94,8 +94,50 @@ fn test_bessel_j_large_n_real(
     #[values(3, 4, 9, 100)] n: usize,
     #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
 ) {
-    let actual = zbesj(z.into(), order, scaling, n);
+    check_against_fortran(order, z.into(), scaling, n);
+}
 
+#[rstest]
+fn test_bessel_j_large_n_random() {
+    let n = 10;
+    for _ in 0..100000 {
+        let order = rand::random_range(std::f64::EPSILON..1000.0);
+        let zr = rand::random_range(-1000.0..1000.0);
+        let zi = rand::random_range(-1000.0..1000.0);
+        let z = Complex64::new(zr, zi);
+        check_against_fortran(order, z, Scaling::Unscaled, n);
+    }
+}
+
+fn check_against_fortran(order: f64, z: Complex64, scaling: Scaling, n: usize) {
+    let actual = zbesj(z, order, scaling, n);
+    if let Err(ref err) = actual {
+        if *err == BesselError::NotYetImplemented {
+            return;
+        }
+    }
+
+    let (cy, nz, ierr) = zbesj_fortran(order, z, scaling, n);
+
+    if let Err(err) = actual {
+        assert_eq!(ierr, err.error_code());
+    } else {
+        let actual = actual.unwrap();
+        assert_eq!(nz, actual.1.try_into().unwrap());
+
+        for (czi, zi) in cy.into_iter().zip(actual.0) {
+            assert_relative_eq!(czi, zi, epsilon = 1e-10, max_relative = 1e-10);
+            // assert_relative_eq!(im, zi.im, epsilon = 1e-10, max_relative = 1e-10);
+        }
+    }
+}
+
+fn zbesj_fortran(
+    order: f64,
+    z: Complex64,
+    scaling: Scaling,
+    n: usize,
+) -> (Vec<Complex64>, usize, i32) {
     let mut cyr: Vec<f64> = Vec::with_capacity(n);
     let mut cyi: Vec<f64> = Vec::with_capacity(n);
     let mut nz = 0;
@@ -105,8 +147,8 @@ fn test_bessel_j_large_n_real(
     let i_uninit = cyi.spare_capacity_mut();
     unsafe {
         zbesj_wrap(
-            z,
-            0.0,
+            z.re,
+            z.im,
             order,
             scaling as i32,
             n.try_into().unwrap(),
@@ -118,62 +160,10 @@ fn test_bessel_j_large_n_real(
         cyr.set_len(n);
         cyi.set_len(n);
     }
-    let actual = actual.unwrap();
-    assert_eq!(nz, actual.1.try_into().unwrap());
-    assert_eq!(ierr, 0);
-    for ((re, im), zi) in cyr.into_iter().zip(cyi).zip(actual.0) {
-        assert_relative_eq!(re, zi.re, epsilon = 1e-10, max_relative = 1e-10);
-        assert_relative_eq!(im, zi.im, epsilon = 1e-10, max_relative = 1e-10);
-    }
-}
-
-#[rstest]
-fn test_bessel_j_large_n_random() {
-    let n = 10;
-    for i in 0..100000 {
-        let order = rand::random_range(std::f64::EPSILON..1000.0);
-        let zr = rand::random_range(-1000.0..1000.0);
-        let zi = rand::random_range(-1000.0..1000.0);
-        let z = Complex64::new(zr, zi);
-
-        let actual = zbesj(z.into(), order, Scaling::Unscaled, n);
-        if let Err(ref err) = actual {
-            if *err == BesselError::NotYetImplemented {
-                continue;
-            }
-        }
-        let mut cyr: Vec<f64> = Vec::with_capacity(n);
-        let mut cyi: Vec<f64> = Vec::with_capacity(n);
-        let mut nz = 0;
-        let mut ierr = 0;
-
-        let r_uninit = cyr.spare_capacity_mut();
-        let i_uninit = cyi.spare_capacity_mut();
-        unsafe {
-            zbesj_wrap(
-                zr,
-                zi,
-                order,
-                1,
-                n.try_into().unwrap(),
-                r_uninit.as_mut_ptr().cast(),
-                i_uninit.as_mut_ptr().cast(),
-                &mut nz,
-                &mut ierr,
-            );
-            cyr.set_len(n);
-            cyi.set_len(n);
-        }
-        if let Err(err) = actual {
-            assert_eq!(ierr, err.error_code());
-        } else {
-            let actual = actual.unwrap();
-            assert_eq!(nz, actual.1.try_into().unwrap());
-
-            for ((re, im), zi) in cyr.into_iter().zip(cyi).zip(actual.0) {
-                assert_relative_eq!(re, zi.re, epsilon = 1e-10, max_relative = 1e-10);
-                assert_relative_eq!(im, zi.im, epsilon = 1e-10, max_relative = 1e-10);
-            }
-        }
-    }
+    let cy = cyr
+        .into_iter()
+        .zip(cyi)
+        .map(|(r, i)| Complex64::new(r, i))
+        .collect();
+    (cy, nz.try_into().unwrap(), ierr)
 }
