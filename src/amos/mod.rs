@@ -7,6 +7,7 @@ mod gamma_ln;
 mod machine;
 mod translator;
 mod utils;
+mod z_asymptotic_i;
 mod z_power_series;
 // mod zbesh;
 

@@ -15,7 +15,7 @@ pub fn z_power_series(
     elim: f64,
     alim: f64,
 ) -> Result<(Vec<Complex64>, isize), BesselError> {
-    // ***BEGIN PROLOGUE  z_power_series
+    // ***BEGIN PROLOGUE  z_power_series - was ZSERI
     // ***REFER TO  ZBESI,ZBESK
     //
     //     z_power_series COMPUTES THE I BESSEL FUNCTION FOR REAL(Z) >= 0.0 BY
