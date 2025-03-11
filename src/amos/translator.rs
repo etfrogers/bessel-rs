@@ -3831,6 +3831,7 @@ fn ZUOIK(
     //     REAL PARTS OF ZETA1, ZETA2 AND ZB. NO ATTEMPT IS MADE TO GET;
     //     THE SIGN OF THE IMAGINARY PART CORRECT.;
     //-----------------------------------------------------------------------;
+    let mut zn = None;
     let (mut cz, phi, arg, AARG) = if IFORM != 2 {
         //GO TO 30;
         let INIT = 0;
@@ -3845,22 +3846,23 @@ fn ZUOIK(
     // GO TO 50;
     //    30 CONTINUE;
     } else {
-        let mut zn = Complex64::new(zr.im, -zr.re);
+        let mut zn_ = Complex64::new(zr.im, -zr.re);
         // ZNR = ZRI;
         // ZNI = -ZRR;
         if z.im <= 0.0
         //GO TO 40;
         {
-            zn.re = -zn.re;
+            zn_.re = -zn_.re;
         }
         //    40 CONTINUE;
         let (phi, arg, zeta1, zeta2, _, _) = ZUNHJ(
             //ZNR, ZNI,
-            zn, GNU, true,
+            zn_, GNU, true,
             TOL,
             //       PHIR, PHII, ARGR, ARGI, ZETA1R,
             // ZETA1I, ZETA2R, ZETA2I, ASUMR, ASUMI, BSUMR, BSUMI
         );
+        zn = Some(zn_);
         // CZR = -ZETA1R + ZETA2R;
         // CZI = -ZETA1I + ZETA2I;
         let cz = -zeta1 + zeta2;
@@ -3981,7 +3983,7 @@ fn ZUOIK(
                 (phi, cz, 0.0)
             } else {
                 //   150 CONTINUE;
-                let (phi, arg, zeta1, zeta2, _, _) = ZUNHJ(z, GNU, true, TOL);
+                let (phi, arg, zeta1, zeta2, _, _) = ZUNHJ(zn.unwrap(), GNU, true, TOL);
                 //       CALL ZUNHJ(ZNR, ZNI, GNU, 1, TOL, PHIR, PHII, ARGR, ARGI, ZETA1R,;
                 //      * ZETA1I, ZETA2R, ZETA2I, ASUMR, ASUMI, BSUMR, BSUMI);
                 cz = -zeta1 + zeta2;
@@ -4013,7 +4015,7 @@ fn ZUOIK(
                 if (IFORM == 2) {
                     RCZ = RCZ - 0.25 * AARG.ln() - AIC;
                 }
-                if !(RCZ > (-ELIM)) {
+                if (RCZ > (-ELIM)) {
                     skip_to_190 = true
                 } //GO TO 190
             }
