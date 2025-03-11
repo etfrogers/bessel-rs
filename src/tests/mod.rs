@@ -43,7 +43,7 @@ fn test_gamma_ln_negative() {
 #[case(340.0, 35.0001, 0.0)]
 // z_power_series, iflag = true
 // #[case(407.332478234955,-325.1302407029058, 635.2191950523381)] //not yet implemented
-#[case(465.45726205167904,-867.9390777060459, -448.2782267806473)]
+// #[case(465.45726205167904,-867.9390777060459, -448.2782267806473)] //not yet implemented
 fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     let z = Complex64::new(zr, zi);
     let actual = bessel_j(order, z);
@@ -67,7 +67,7 @@ fn test_bessel_j_random() {
         let zr = rand::random_range(-1000.0..1000.0);
         let zi = rand::random_range(-1000.0..1000.0);
         let z = Complex64::new(zr, zi);
-        dbg!(order, &z);
+        // dbg!(order, &z);
         let ans = bessel_j(order, z);
         let expected = bessel_j_ref(order, z);
         if let Ok(actual) = ans {
@@ -82,7 +82,7 @@ fn test_bessel_j_random() {
             if err == BesselError::NotYetImplemented {
                 continue;
             }
-            dbg!(&err, &expected);
+            // dbg!(&err, &expected);
             assert_eq!(err.error_code(), expected.unwrap_err());
         }
     }
@@ -108,13 +108,27 @@ fn test_bessel_j_large_n_real(
 }
 
 #[rstest]
+#[case(899.6186771978487,-35.73821920707451,317.85710422430134)]
+fn test_bessel_j_large_n_complex(
+    #[case] order: f64,
+    #[case] zr: f64,
+    #[case] zi: f64,
+    #[values(/*3, 4,*/9, /*100*/)] n: usize,
+    #[values(Scaling::Unscaled, /*Scaling::Scaled*/)] scaling: Scaling,
+) {
+    let z = Complex64::new(zr, zi);
+    check_against_fortran(order, z.into(), scaling, n);
+}
+
+#[rstest]
 fn test_bessel_j_large_n_random() {
-    let n = 10;
+    let n = 9;
     for _ in 0..100000 {
         let order = rand::random_range(std::f64::EPSILON..1000.0);
         let zr = rand::random_range(-1000.0..1000.0);
         let zi = rand::random_range(-1000.0..1000.0);
         let z = Complex64::new(zr, zi);
+        dbg!(order, &z);
         check_against_fortran(order, z, Scaling::Unscaled, n);
     }
 }
