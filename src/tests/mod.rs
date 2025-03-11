@@ -38,10 +38,12 @@ fn test_gamma_ln_negative() {
 
 #[rstest]
 #[trace]
-#[case(4.0, 2.1)] // z_power_series
-#[case(5.0, 2.0001)] // z_power_series
-#[case(340.0, 35.0001)] // z_power_series, iflag = true
-fn test_bessel_j(#[case] order: f64, #[case] z: f64) {
+#[case(4.0, 2.1, 0.0)] // z_power_series
+#[case(5.0, 2.0001, 0.0)] // z_power_series
+#[case(340.0, 35.0001, 0.0)] // z_power_series, iflag = true
+#[case(407.332478234955,-325.1302407029058, 635.2191950523381)]
+fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
+    let z = Complex64::new(zr, zi);
     let actual = bessel_j(order, z);
 
     let expected = bessel_j_ref(order, z.into());
@@ -59,6 +61,7 @@ fn test_bessel_j_random() {
         let zr = rand::random_range(-1000.0..1000.0);
         let zi = rand::random_range(-1000.0..1000.0);
         let z = Complex64::new(zr, zi);
+        dbg!(order, &z);
         let ans = bessel_j(order, z);
         let expected = bessel_j_ref(order, z);
         if let Ok(actual) = ans {
@@ -73,6 +76,7 @@ fn test_bessel_j_random() {
             if err == BesselError::NotYetImplemented {
                 continue;
             }
+            dbg!(&err, &expected);
             assert_eq!(err.error_code(), expected.unwrap_err());
         }
     }
