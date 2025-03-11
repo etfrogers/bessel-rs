@@ -40,11 +40,17 @@ fn test_gamma_ln_negative() {
 #[trace]
 #[case(4.0, 2.1, 0.0)] // z_power_series
 #[case(5.0, 2.0001, 0.0)] // z_power_series
-#[case(340.0, 35.0001, 0.0)] // z_power_series, iflag = true
-#[case(407.332478234955,-325.1302407029058, 635.2191950523381)]
+#[case(340.0, 35.0001, 0.0)]
+// z_power_series, iflag = true
+// #[case(407.332478234955,-325.1302407029058, 635.2191950523381)] //not yet implemented
+#[case(465.45726205167904,-867.9390777060459, -448.2782267806473)]
 fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     let z = Complex64::new(zr, zi);
     let actual = bessel_j(order, z);
+
+    if actual == Err(BesselError::NotYetImplemented) {
+        todo!()
+    }
 
     let expected = bessel_j_ref(order, z.into());
     if let Ok(actual) = actual {
