@@ -3873,7 +3873,7 @@ fn ZUOIK(
         // CZI = CZI - ZBI;
     }
     //    60 CONTINUE;
-    if IKFLG == 1 {
+    if IKFLG != 1 {
         // GO TO 70;
         cz = -cz;
         // CZR = -CZR;
@@ -3890,7 +3890,7 @@ fn ZUOIK(
     if RCZ > ELIM {
         return Err(Overflow);
     } //GO TO 210;
-    if RCZ <= ALIM {
+    if RCZ >= ALIM {
         //GO TO 80;
         // RCZ = RCZ + DLOG(APHI);
         RCZ += aphi.ln();
@@ -3906,16 +3906,19 @@ fn ZUOIK(
         //-----------------------------------------------------------------------;
         //     UNDERFLOW TEST;
         //-----------------------------------------------------------------------;
-        if RCZ >= (-ELIM) {
-            //GO TO 90;
-            if RCZ <= (-ALIM) {
-                //GO TO 130;
-                RCZ += aphi.ln();
-                if IFORM == 2 {
-                    RCZ = RCZ - 0.25 * AARG.ln() - AIC
-                };
-                if !(RCZ > (-ELIM)) { //GO TO 110;
-                }
+        if RCZ < (-ELIM) {
+            return Ok((vec![Complex64::zero(); NN], NN));
+        }
+        //GO TO 90;
+        if RCZ <= (-ALIM) {
+            //GO TO 130;
+            RCZ += aphi.ln();
+            if IFORM == 2 {
+                RCZ = RCZ - 0.25 * AARG.ln() - AIC
+            };
+            if !(RCZ > (-ELIM)) {
+                //GO TO 110;
+
                 //    90 CONTINUE;
                 //       DO 100 I=1,NN;
                 //         YR(I) = ZEROR;
@@ -4356,7 +4359,7 @@ fn ZBINU(
         DFNU = order + ((NN - 1) as f64);
         //     if (DFNU > FNUL) GO TO 110
         //     if (AZ > FNUL) GO TO 110
-        if (DFNU > FNUL) || (AZ > FNUL)
+        if !((DFNU > FNUL) || (AZ > FNUL))
         //GO TO 110
         {
             //  60 CONTINUE
@@ -4765,11 +4768,11 @@ fn ZUNIK(
     // SRI = TI*RFN;
     working[15] = sr.sqrt();
     // CALL ZSQRT(SRR, SRI, CWRKR(16), CWRKI(16));
-    let mut phi = working[15] * CON[IKFLG];
+    let mut phi = working[15] * CON[IKFLG - 1];
     // PHIR = CWRKR(16)*CON(IKFLG);
     // PHII = CWRKI(16)*CON(IKFLG);
     if only_phi_zeta {
-        return (zeta1, zeta2, phi, None);
+        return (phi, zeta1, zeta2, None);
     };
     let t2 = Complex64::one() / s;
     // CALL ZDIV(CONER, CONEI, SR, SI, T2R, T2I);
@@ -4841,7 +4844,7 @@ fn ZUNIK(
         // PHIR = CWRKR(16)*CON(1);
         // PHII = CWRKI(16)*CON(1);
         // RETURN;
-        (zeta1, zeta2, phi, Some(sum))
+        (phi, zeta1, zeta2, Some(sum))
     } else if IKFLG == 2 {
         //    60 CONTINUE;
         //-----------------------------------------------------------------------;
@@ -4870,7 +4873,7 @@ fn ZUNIK(
         // PHIR = CWRKR(16)*CON(2);
         // PHII = CWRKI(16)*CON(2);
         phi = working[15] * CON[1];
-        (zeta1, zeta2, phi, Some(sum))
+        (phi, zeta1, zeta2, Some(sum))
 
     // RETURN;
     // END;
