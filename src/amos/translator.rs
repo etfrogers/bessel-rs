@@ -3854,7 +3854,7 @@ fn ZUOIK(
         //    40 CONTINUE;
         let (phi, arg, zeta1, zeta2, _, _) = ZUNHJ(
             //ZNR, ZNI,
-            z, GNU, true,
+            zn, GNU, true,
             TOL,
             //       PHIR, PHII, ARGR, ARGI, ZETA1R,
             // ZETA1I, ZETA2R, ZETA2I, ASUMR, ASUMI, BSUMR, BSUMI
