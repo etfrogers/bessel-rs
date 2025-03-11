@@ -3581,7 +3581,7 @@ fn ZMLRI(
     if IFNU > 0 {
         //GO TO 90;
         // DO 80 I=1,IFNU;
-        for i in 0..IFNU {
+        for _i in 0..IFNU {
             let pt = p2;
             //   PTR = P2R;
             //   PTI = P2I;
@@ -3617,6 +3617,8 @@ fn ZMLRI(
     // P1R = -FNF*STR + PTR;
     // P1I = -FNF*STI + PTI;
     let AP = gamma_ln(1.0 + FNF).unwrap();
+    p1 -= AP;
+    // let pt = p1 - AP;
     // PTR = P1R - AP;
     // PTI = P1I;
     //-----------------------------------------------------------------------;
@@ -3630,7 +3632,7 @@ fn ZMLRI(
     let AP = p2.abs();
     // P1R = 1.0/AP;
     // CALL ZEXP(PTR, PTI, STR, STI);
-    ck = (p1 - AP).exp() / AP;
+    ck = p1.exp() / AP;
     // CKR = STR*P1R;
     // CKI = STI*P1R;
     // PTR = P2R*P1R;
@@ -3966,7 +3968,7 @@ fn ZUOIK(
     'outer: loop {
         'l140: loop {
             GNU = order + ((NN - 1) as f64);
-            let (phi, mut cz, AARG) = if IFORM == 2 {
+            let (phi, mut cz, AARG) = if IFORM != 2 {
                 //GO TO 150;
                 let INIT = 0;
                 let (phi, zeta1, zeta2, _) = ZUNIK(zr, GNU, IKFLG, true, TOL, INIT);
