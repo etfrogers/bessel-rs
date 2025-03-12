@@ -3967,59 +3967,64 @@ fn ZUOIK(
     //     SET UNDERFLOWS ON I SEQUENCE;
     //-----------------------------------------------------------------------;
     //   140 CONTINUE;
+    let mut go_to_180 = false;
+    let mut skip_to_190;
     'outer: loop {
         'l140: loop {
-            GNU = order + ((NN - 1) as f64);
-            let (phi, mut cz, AARG) = if IFORM != 2 {
-                //GO TO 150;
-                let INIT = 0;
-                let (phi, zeta1, zeta2, _) = ZUNIK(zr, GNU, IKFLG, true, TOL, INIT);
-                //       CALL ZUNIK(ZRR, ZRI, GNU, IKFLG, 1, TOL, INIT, PHIR, PHII,;
-                //      * ZETA1R, ZETA1I, ZETA2R, ZETA2I, SUMR, SUMI, CWRKR, CWRKI);
-                cz = -zeta1 + zeta2;
-                // CZR = -ZETA1R + ZETA2R;
-                // CZI = -ZETA1I + ZETA2I;
-                // GO TO 160;
-                (phi, cz, 0.0)
-            } else {
-                //   150 CONTINUE;
-                let (phi, arg, zeta1, zeta2, _, _) = ZUNHJ(zn.unwrap(), GNU, true, TOL);
-                //       CALL ZUNHJ(ZNR, ZNI, GNU, 1, TOL, PHIR, PHII, ARGR, ARGI, ZETA1R,;
-                //      * ZETA1I, ZETA2R, ZETA2I, ASUMR, ASUMI, BSUMR, BSUMI);
-                cz = -zeta1 + zeta2;
-                // CZR = -ZETA1R + ZETA2R;
-                // CZI = -ZETA1I + ZETA2I;
-                let AARG = arg.abs();
-                // AARG = ZABS(ARGR,ARGI);
-                (phi, cz, AARG)
-            };
-            //   160 CONTINUE;
-            if KODE == Scaling::Scaled {
-                //GO TO 170;
-                cz -= zb;
-                // CZR = CZR - ZBR;
-                // CZI = CZI - ZBI;
-            }
-            //   170 CONTINUE;
-            let aphi = phi.abs();
-            // APHI = ZABS(PHIR,PHII);
-            RCZ = cz.re;
-            let mut skip_to_190 = false;
-            if !(RCZ < (-ELIM)) {
-                //GO TO 180;
-                if (RCZ > (-ALIM)) {
-                    return Ok((y, NUF));
+            skip_to_190 = false;
+            if !go_to_180 {
+                GNU = order + ((NN - 1) as f64);
+                let (phi, mut cz, AARG) = if IFORM != 2 {
+                    //GO TO 150;
+                    let INIT = 0;
+                    let (phi, zeta1, zeta2, _) = ZUNIK(zr, GNU, IKFLG, true, TOL, INIT);
+                    //       CALL ZUNIK(ZRR, ZRI, GNU, IKFLG, 1, TOL, INIT, PHIR, PHII,;
+                    //      * ZETA1R, ZETA1I, ZETA2R, ZETA2I, SUMR, SUMI, CWRKR, CWRKI);
+                    cz = -zeta1 + zeta2;
+                    // CZR = -ZETA1R + ZETA2R;
+                    // CZI = -ZETA1I + ZETA2I;
+                    // GO TO 160;
+                    (phi, cz, 0.0)
+                } else {
+                    //   150 CONTINUE;
+                    let (phi, arg, zeta1, zeta2, _, _) = ZUNHJ(zn.unwrap(), GNU, true, TOL);
+                    //       CALL ZUNHJ(ZNR, ZNI, GNU, 1, TOL, PHIR, PHII, ARGR, ARGI, ZETA1R,;
+                    //      * ZETA1I, ZETA2R, ZETA2I, ASUMR, ASUMI, BSUMR, BSUMI);
+                    cz = -zeta1 + zeta2;
+                    // CZR = -ZETA1R + ZETA2R;
+                    // CZI = -ZETA1I + ZETA2I;
+                    let AARG = arg.abs();
+                    // AARG = ZABS(ARGR,ARGI);
+                    (phi, cz, AARG)
                 };
-                // RCZ = RCZ + DLOG(APHI);
-                RCZ += aphi.ln();
-                if (IFORM == 2) {
-                    RCZ = RCZ - 0.25 * AARG.ln() - AIC;
+                //   160 CONTINUE;
+                if KODE == Scaling::Scaled {
+                    //GO TO 170;
+                    cz -= zb;
+                    // CZR = CZR - ZBR;
+                    // CZI = CZI - ZBI;
                 }
-                if (RCZ > (-ELIM)) {
-                    skip_to_190 = true
-                } //GO TO 190
+                //   170 CONTINUE;
+                let aphi = phi.abs();
+                // APHI = ZABS(PHIR,PHII);
+                RCZ = cz.re;
+                if !(RCZ < (-ELIM)) {
+                    //GO TO 180;
+                    if (RCZ > (-ALIM)) {
+                        return Ok((y, NUF));
+                    };
+                    // RCZ = RCZ + DLOG(APHI);
+                    RCZ += aphi.ln();
+                    if (IFORM == 2) {
+                        RCZ = RCZ - 0.25 * AARG.ln() - AIC;
+                    }
+                    if (RCZ > (-ELIM)) {
+                        skip_to_190 = true
+                    } //GO TO 190
+                }
+                //   180 CONTINUE;
             }
-            //   180 CONTINUE;
+            go_to_180 = false;
             if !skip_to_190 {
                 y[NN - 1] = Complex64::zero();
                 // YR(NN) = ZEROR;
@@ -4053,9 +4058,10 @@ fn ZUOIK(
         cz = AX * Complex64::new(AY.cos(), AY.sin());
         // CZR = AX*DCOS(AY);
         // CZI = AX*DSIN(AY);
-        if !will_z_underflow(cz, ASCLE, TOL)
         //ZUunderflowCHK(CZR, CZI, NW, ASCLE, TOL);
-        {
+        if will_z_underflow(cz, ASCLE, TOL) {
+            go_to_180 = true;
+        } else {
             break 'outer;
         }
     }
