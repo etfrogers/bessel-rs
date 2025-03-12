@@ -5,6 +5,7 @@ pub use z_power_series::z_power_series;
 pub mod bindings;
 mod gamma_ln;
 mod machine;
+mod overflow_checks;
 mod translator;
 mod utils;
 mod z_asymptotic_i;
