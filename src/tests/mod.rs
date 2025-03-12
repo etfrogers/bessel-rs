@@ -118,8 +118,8 @@ fn test_bessel_j_large_n_complex(
     #[case] order: f64,
     #[case] zr: f64,
     #[case] zi: f64,
-    #[values(/*3, 4,*/9, /*100*/)] n: usize,
-    #[values(Scaling::Unscaled, /*Scaling::Scaled*/)] scaling: Scaling,
+    #[values(3, 4, 9, 100)] n: usize,
+    #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
 ) {
     let z = Complex64::new(zr, zi);
     check_against_fortran(order, z.into(), scaling, n);
