@@ -7,13 +7,16 @@ use num::{
 
 use crate::amos::{machine::d1mach, utils::will_z_underflow};
 
-use super::{BesselError, BesselError::*, Scaling};
+use super::{
+    BesselError::{self, *},
+    IKType, Scaling,
+};
 
 pub fn zuoik(
     z: Complex64,
     order: f64, //ZR, ZI, FNU,
     kode: Scaling,
-    ikflg: usize,
+    ikflg: IKType,
     n: usize, //YR, YI, NUF,
     mut y: Vec<Complex64>,
     tol: f64,
@@ -54,7 +57,7 @@ pub fn zuoik(
     let ay = z.im.abs();
     let iform = if ay > ax { 2 } else { 1 };
     let mut gnu = order.max(1.0);
-    if ikflg != 1 {
+    if ikflg == IKType::K {
         let fnn = nn as f64;
         let gnn = order + fnn - 1.0;
         gnu = gnn.max(fnn);
@@ -83,7 +86,7 @@ pub fn zuoik(
     if kode == Scaling::Scaled {
         cz -= zb;
     }
-    if ikflg != 1 {
+    if ikflg == IKType::K {
         cz = -cz;
     }
     let aphi = phi.abs();
@@ -132,7 +135,7 @@ pub fn zuoik(
             }
         }
     }
-    if ikflg == 2 || n == 1 {
+    if ikflg == IKType::K || n == 1 {
         return Ok((y, nuf));
     }
     //-----------------------------------------------------------------------;
@@ -206,7 +209,7 @@ pub fn zuoik(
 fn zunik(
     zr: Complex64,
     order: f64,
-    ikflg: usize,
+    ikflg: IKType,
     only_phi_zeta: bool,
     tol: f64,
     init: &mut usize,
@@ -264,7 +267,7 @@ fn zunik(
     let t = Complex64::one() / sr;
     let sr = t * rfn;
     working[15] = sr.sqrt();
-    let mut phi = working[15] * CON[ikflg - 1];
+    let mut phi = working[15] * CON[ikflg.index() - 1_usize];
     if only_phi_zeta {
         return (phi, zeta1, zeta2, None);
     };
@@ -294,7 +297,7 @@ fn zunik(
     //-----------------------------------------------------------------------;
     // FINISH INIT. Use OnceCell here later?
     //-----------------------------------------------------------------------;
-    return if ikflg == 1 {
+    return if ikflg == IKType::I {
         //GO TO 60;
         //-----------------------------------------------------------------------;
         //     COMPUTE SUM FOR THE I FUNCTION;
@@ -317,7 +320,7 @@ fn zunik(
         // PHII = CWRKI(16)*CON(1);
         // RETURN;
         (phi, zeta1, zeta2, Some(sum))
-    } else if ikflg == 2 {
+    } else if ikflg == IKType::K {
         //    60 CONTINUE;
         //-----------------------------------------------------------------------;
         //     COMPUTE SUM FOR THE K FUNCTION;

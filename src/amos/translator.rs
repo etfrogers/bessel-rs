@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 use super::{
-    BesselError, Scaling, gamma_ln,
+    BesselError, IKType, Scaling, gamma_ln,
     machine::{d1mach, i1mach},
     overflow_checks::zuoik,
     z_power_series,
@@ -4034,10 +4034,7 @@ fn ZBINU(
         //-----------------------------------------------------------------------
         //     OVERFLOW AND UNDERFLOW TEST ON I SEQUENCE FOR MILLER ALGORITHM
         //-----------------------------------------------------------------------
-        let (cy, nw) = zuoik(
-            z, order, //ZR, ZI, FNU,
-            KODE, 1, NN, cy, /*CYR, CYI, NW,*/ TOL, ELIM, ALIM,
-        )?;
+        let (cy, nw) = zuoik(z, order, KODE, IKType::I, NN, cy, TOL, ELIM, ALIM)?;
 
         NZ = NZ + nw;
         NN = NN - nw;

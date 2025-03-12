@@ -57,6 +57,34 @@ impl BesselError {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[repr(usize)]
+pub enum IKType {
+    I = 1,
+    K = 2,
+}
+
+impl From<IKType> for usize {
+    fn from(value: IKType) -> Self {
+        match value {
+            IKType::I => 1,
+            IKType::K => 2,
+        }
+    }
+}
+impl From<&IKType> for usize {
+    fn from(value: &IKType) -> Self {
+        (*value).into()
+    }
+}
+
+impl IKType {
+    pub fn index(&self) -> usize {
+        self.into()
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum HankelKind {
     First,
     Second,
