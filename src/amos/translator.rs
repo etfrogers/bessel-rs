@@ -2,7 +2,7 @@
 use super::{
     BesselError, Scaling, gamma_ln,
     machine::{d1mach, i1mach},
-    overflow_checks::ZUOIK,
+    overflow_checks::zuoik,
     z_power_series,
 };
 use crate::amos::{BesselError::*, z_asymptotic_i::z_asymptotic_i};
@@ -4034,7 +4034,7 @@ fn ZBINU(
         //-----------------------------------------------------------------------
         //     OVERFLOW AND UNDERFLOW TEST ON I SEQUENCE FOR MILLER ALGORITHM
         //-----------------------------------------------------------------------
-        let (cy, nw) = ZUOIK(
+        let (cy, nw) = zuoik(
             z, order, //ZR, ZI, FNU,
             KODE, 1, NN, cy, /*CYR, CYI, NW,*/ TOL, ELIM, ALIM,
         )?;
