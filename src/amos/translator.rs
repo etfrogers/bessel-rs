@@ -3758,6 +3758,7 @@ fn ZUOIK(
     KODE: Scaling,
     IKFLG: usize,
     N: usize, //YR, YI, NUF,
+    mut y: Vec<Complex64>,
     TOL: f64,
     ELIM: f64,
     ALIM: f64,
@@ -3799,7 +3800,6 @@ fn ZUOIK(
     //       DIMENSION YR(N), YI(N), CWRKR(16), CWRKI(16)
     //       DATA ZEROR,ZEROI / 0.0, 0.0 /
     const AIC: f64 = 1.265512123484645396e+00;
-    let mut y = vec![Complex64::zero(); N];
     let mut NUF = 0;
     let mut NN = N;
     //     let zr = z;
@@ -3911,7 +3911,8 @@ fn ZUOIK(
         //     UNDERFLOW TEST;
         //-----------------------------------------------------------------------;
         if RCZ < (-ELIM) {
-            return Ok((vec![Complex64::zero(); NN], NN));
+            y[0..NN].iter_mut().for_each(|v| *v = Complex64::zero());
+            return Ok((y, NN));
         }
         //GO TO 90;
         if RCZ <= (-ALIM) {
@@ -3952,7 +3953,8 @@ fn ZUOIK(
             // CZR = AX*DCOS(AY);
             // CZI = AX*DSIN(AY);
             if will_z_underflow(cz, ASCLE, TOL) {
-                return Ok((vec![Complex64::zero(); NN], NN));
+                y[0..NN].iter_mut().for_each(|v| *v = Complex64::zero());
+                return Ok((y, NN));
             }
             // if (NW != 0) {}//GO TO 90;
         }
@@ -4309,15 +4311,16 @@ fn ZBINU(
     let AZ = z.abs(); //ZABS(ZR,ZI)
     let mut NN: usize = N;
     let mut DFNU = order + ((N - 1) as f64);
+    let mut cy = vec![Complex64::zero(); N];
     if !(AZ <= 2.0) {
         if !(AZ * AZ * 0.25 > DFNU + 1.0) {
             //-----------------------------------------------------------------------
             //     POWER SERIES
             //-----------------------------------------------------------------------
-            let (cy, NW) =
-                z_power_series(z, order, KODE, NN, /*CYR, CYI, NW, */ TOL, ELIM, ALIM)?;
+            let NW;
+            (cy, NW) = z_power_series(z, order, KODE, NN, /*CYR, CYI, NW, */ TOL, ELIM, ALIM)?;
             let INW: usize = NW.abs().try_into().unwrap();
-            let NZ = NZ + INW;
+            NZ = NZ + INW;
             NN = NN - INW;
             if NN == 0 || NW >= 0 {
                 return Ok((cy, NZ.try_into().unwrap()));
@@ -4358,7 +4361,7 @@ fn ZBINU(
         //-----------------------------------------------------------------------
         let (cy, nw) = ZUOIK(
             z, order, //ZR, ZI, FNU,
-            KODE, 1, NN, /*CYR, CYI, NW,*/ TOL, ELIM, ALIM,
+            KODE, 1, NN, cy, /*CYR, CYI, NW,*/ TOL, ELIM, ALIM,
         )?;
 
         NZ = NZ + nw;

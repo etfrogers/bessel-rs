@@ -111,6 +111,8 @@ fn test_bessel_j_large_n_real(
 #[case(899.6186771978487,-35.73821920707451,317.85710422430134)]
 #[case(531.0,-106.7,-16.0)]
 #[case(531.0,-106.0,-16.0)]
+#[case(433.0,16.874,-38.17)]
+#[case(433.0,16.8,-38.17)]
 #[trace]
 fn test_bessel_j_large_n_complex(
     #[case] order: f64,
@@ -131,7 +133,7 @@ fn test_bessel_j_large_n_random() {
         let zr = rand::random_range(-1000.0..1000.0);
         let zi = rand::random_range(-1000.0..1000.0);
         let z = Complex64::new(zr, zi);
-        dbg!(order, &z);
+        // dbg!(order, &z);
         check_against_fortran(order, z, Scaling::Unscaled, n);
     }
 }
