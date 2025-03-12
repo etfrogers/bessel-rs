@@ -31,7 +31,7 @@ pub fn z_power_series(
     let mut nz = 0;
     let az = z.abs(); //ZABS(ZR,ZI)
     let mut y = vec![Complex64::zero(); n];
-    let mut w = vec![Complex64::zero(); 2];
+    let mut w = [Complex64::zero(); 2];
     if az == 0.0 {
         // Not setting zero below, as was set in initialisation of y above
         if order == 0.0 {
@@ -46,7 +46,7 @@ pub fn z_power_series(
     if az < arm {
         nz = n.try_into().unwrap();
         if order == 0.0 {
-            nz = nz - 1;
+            nz -= 1;
         }
         // Not setting zero below, as was set in initialisation of y above
         if order == 0.0 {
@@ -57,7 +57,7 @@ pub fn z_power_series(
     }
     let hz = 0.5 * z;
     let mut cz = Complex64::zero();
-    if !(az <= rtr1) {
+    if az > rtr1 {
         cz = (hz).powu(2);
     }
 
@@ -85,7 +85,7 @@ pub fn z_power_series(
         let mut skip_to_40 = ak1.re > (-elim);
         'l30: loop {
             if !skip_to_40 {
-                nz = nz + 1;
+                nz += 1;
                 y[nn - 1] = Complex64::zero();
                 if acz > dfnu {
                     return Ok((y, -nz));
@@ -107,7 +107,7 @@ pub fn z_power_series(
                 skip_to_40 = false; // should only skip once until sent back to 'l20
             }
             let mut ss = 0.0;
-            if !(ak1.re > (-alim)) {
+            if ak1.re <= (-alim) {
                 iflag = true;
                 ss = 1.0 / tol;
                 crscr = tol;
@@ -124,7 +124,7 @@ pub fn z_power_series(
                 dfnu = order + ((nn - (i + 1)) as f64);
                 fnup = dfnu + 1.0;
                 let mut s1 = Complex64::one();
-                if !(acz < tol * fnup) {
+                if acz >= tol * fnup {
                     ak1 = Complex64::one();
                     ak = fnup + 2.0;
                     let mut s = fnup;
@@ -134,10 +134,10 @@ pub fn z_power_series(
                         st = ak1 * cz;
                         ak1 = st * rs;
                         s1 += ak1;
-                        s = s + ak;
-                        ak = ak + 2.0;
+                        s += ak;
+                        ak += 2.0;
                         aa = aa * acz * rs;
-                        if !(aa > atol) {
+                        if aa <= atol {
                             break;
                         }
                     }
@@ -172,8 +172,8 @@ pub fn z_power_series(
             ib = 3;
             '_l110: for _ in ib..=nn {
                 y[k - 1] = (ak + order) * (rz * y[k]) + y[k + 1];
-                ak = ak - 1.0;
-                k = k - 1;
+                ak -= 1.0;
+                k -= 1;
             }
             return Ok((y, nz));
         }
@@ -196,7 +196,7 @@ pub fn z_power_series(
             s1 = ck;
             let ck = s2 * crscr;
             y[k] = ck;
-            ak = ak - 1.0;
+            ak -= 1.0;
             if k > 0 {
                 k -= 1;
             }
