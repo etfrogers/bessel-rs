@@ -29,18 +29,6 @@ pub fn z_asymptotic_i(
     //
     // ***ROUTINES CALLED  d1mach,ZABS,ZDIV,ZEXP,ZMLT,ZSQRT
     // ***END PROLOGUE  ZASYI
-    //     COMPLEX AK1,CK,CONE,CS1,CS2,CZ,CZERO,DK,EZ,P1,RZ,S2,Y,Z
-    //       EXTERNAL ZABS
-    //       DOUBLE PRECISION AA, AEZ, AK, AK1I, AK1R, ALIM, ARG, ARM, ATOL,
-    //      * AZ, BB, BK, CKI, CKR, CONEI, CONER, CS1I, CS1R, CS2I, CS2R, CZI,
-    //      * CZR, DFNU, DKI, DKR, DNU2, ELIM, EZI, EZR, FDN, FNU, PI, P1I,
-    //      * P1R, RAZ, RL, RTPI, RTR1, RZI, RZR, S, SGN, SQK, STI, STR, S2I,
-    //      * S2R, TOL, TZI, TZR, YI, YR, ZEROI, ZEROR, ZI, ZR, d1mach, ZABS
-    //       INTEGER I, IB, IL, INU, J, JL, K, KODE, KODED, M, N, NN, NZ
-    //       DIMENSION YR(N), YI(N)
-    // DATA PI, RTPI  /3.14159265358979324 , 0.159154943091895336 /
-    // DATA ZEROR,ZEROI,CONER,CONEI / 0.0, 0.0, 1.0, 0.0 /
-    //
     let nz = 0;
     let mut y = vec![Complex64::zero(); n];
     let az = z.abs();
@@ -52,23 +40,10 @@ pub fn z_asymptotic_i(
     //     OVERFLOW TEST;
     //-----------------------------------------------------------------------;
     let raz = 1.0 / az;
-    let mut st = raz * z.conj();
-    // STR = ZR*RAZ;
-    // STI = -ZI*RAZ;
-    let mut ak1 = RTPI * st * raz;
-    // AK1R = RTPI*STR*RAZ;
-    // AK1I = RTPI*STI*RAZ;
-    // CALL ZSQRT(AK1R, AK1I, AK1R, AK1I);
-    ak1 = ak1.sqrt();
-    // CZR = ZR;
-    // CZI = ZI;
+    let mut ak1 = (RTPI * z.conj() * raz.powi(2)).sqrt();
     let mut cz = z;
-    if kode == Scaling::Scaled
-    //GO TO 10;
-    {
+    if kode == Scaling::Scaled {
         cz.re = 0.0;
-        // CZR = ZEROR;
-        // CZI = ZI;
     }
     //    10 CONTINUE;
     if cz.re.abs() > elim {
@@ -79,19 +54,13 @@ pub fn z_asymptotic_i(
     if !((cz.re.abs() > alim) && (n > 2)) {
         // GO TO 20;
         koded = false;
-        st = cz.exp();
-        // CALL ZEXP(CZR, CZI, STR, STI);
-        ak1 *= st;
-        // CALL ZMLT(AK1R, AK1I, STR, STI, AK1R, AK1I);
+        ak1 *= cz.exp();
     }
-    //    20 CONTINUE;
     let mut fdn = 0.0;
     if dnu2 > rtr1 {
         fdn = dnu2 * dnu2
     };
     let ez = z * 8.0;
-    // EZR = ZR*8.0;
-    // EZI = ZI*8.0;
     //-----------------------------------------------------------------------;
     //     WHEN Z IS IMAGINARY, THE ERROR TEST MUST BE MADE RELATIVE TO THE;
     //     FIRST RECIPROCAL POWER SINCE THIS IS THE LEADING TERM OF THE;
@@ -104,8 +73,7 @@ pub fn z_asymptotic_i(
     // P1R = ZEROR;
     // P1I = ZEROI;
     let mut p1 = Complex64::zero();
-    if !(z.im == 0.0) {
-        //GO TO 30;
+    if z.im != 0.0 {
         //-----------------------------------------------------------------------;
         //     CALCULATE EXP(PI*(0.5+FNU+N-IL)*I) TO MINIMIZE LOSSES OF;
         //     SIGNIFICANCE WHEN FNU OR N IS LARGE;
@@ -119,13 +87,8 @@ pub fn z_asymptotic_i(
             bk = -bk
         };
         p1 = Complex64::new(ak, bk);
-        // P1R = AK;
-        // P1I = BK;
         if !(inu % 2) == 0 {
-            // GO TO 30;
             p1 = -p1;
-            // P1R = -P1R;
-            // P1I = -P1I;
         }
     }
     //    30 CONTINUE;
@@ -152,109 +115,55 @@ pub fn z_asymptotic_i(
         //   DO 40 J=1,JL;
         let mut converged = false;
         'l40: for _ in 0..jl {
-            st = ck / dk;
-            //     CALL ZDIV(CKR, CKI, DKR, DKI, STR, STI);
-            ck = st * sqk;
-            //     CKR = STR*SQK;
-            //     CKI = STI*SQK;
+            ck *= sqk / dk;
             cs2 += ck;
-            //     CS2R = CS2R + CKR;
-            //     CS2I = CS2I + CKI;
             sign = -sign;
             cs1 += ck * sign;
-            //     CS1R = CS1R + CKR*SGN;
-            //     CS1I = CS1I + CKI*SGN;
             dk += ez;
-            //     DKR = DKR + EZR;
-            //     DKI = DKI + EZI;
-            aa = aa * sqk.abs() / bb;
-            bb = bb + aez;
-            ak = ak + 8.0;
-            sqk = sqk - ak;
+            aa *= sqk.abs() / bb;
+            bb += aez;
+            ak += 8.0;
+            sqk -= ak;
             if aa <= atol {
-                //GO TO 50;
                 converged = true;
                 break 'l40;
             }
         }
-        //    40   CONTINUE;
         if !converged {
             return Err(DidNotConverge);
         }
-        //   GO TO 110;
-        //    50   CONTINUE;
         let mut s2 = cs1;
         //   S2R = CS1R;
         //   S2I = CS1I;
         if !(z.re * 2.0 >= elim) {
             //GO TO 60;
             let tz = z * 2.0;
-            //   TZR = ZR + ZR;
-            //   TZI = ZI + ZI;
-            st = (-tz).exp();
-            //   CALL ZEXP(-TZR, -TZI, STR, STI);
-            st *= p1;
-            //   CALL ZMLT(STR, STI, P1R, P1I, STR, STI);
-            st *= cs2;
-            //   CALL ZMLT(STR, STI, CS2R, CS2I, STR, STI);
-            s2 += st;
-            //   S2R = S2R + STR;
-            //   S2I = S2I + STI;
+            s2 += (-tz).exp() * p1 * cs2;
         }
-        //    60   CONTINUE;
         fdn = fdn + 8.0 * dfnu + 4.0;
         p1 = -p1;
-        //   P1R = -P1R;
-        //   P1I = -P1I;
-        let m = n - il + k;
-        y[m] = s2 * ak1;
-        //   YR(M) = S2R*AK1R - S2I*AK1I;
-        //   YI(M) = S2R*AK1I + S2I*AK1R;
+        y[n - il + k] = s2 * ak1;
     }
-    //    70 CONTINUE;
     if n <= 2 {
         return Ok((y, nz));
     }
 
-    // NOT TESTED by ZBINU. May be used by ZACAI.
     let nn = n;
     let mut k = nn - 2;
     let mut ak = k as f64;
-    st = z.conj() * raz;
-    // STR = ZR*RAZ;
-    // STI = -ZI*RAZ;
-    let rz = st * 2.0 * raz;
-    // RZR = (STR+STR)*RAZ;
-    // RZI = (STI+STI)*RAZ;
+    let rz = z.conj() * 2.0 * raz.powi(2);
     let ib = 3;
-    // DO 80 I=IB,NN;
     '_l80: for _ in ib..nn {
         y[k] = (ak + order) * (rz * y[k + 1]) + y[k + 2];
-        //   YR(K) = (AK+FNU)*(RZR*YR(K+1)-RZI*YI(K+1)) + YR(K+2);
-        //   YI(K) = (AK+FNU)*(RZR*YI(K+1)+RZI*YR(K+1)) + YI(K+2);
-        ak = ak - 1.0;
-        k = k - 1;
+        ak -= 1.0;
+        k -= 1;
     }
-    //    80 CONTINUE;
     if !koded {
         return Ok((y, nz));
     }
     let ck = cz.exp();
-    // CALL ZEXP(CZR, CZI, CKR, CKI);
-    // DO 90 I=1,NN;
     '_l90: for i in 0..nn {
-        //   STR = YR(I)*CKR - YI(I)*CKI;
-        //   YI(I) = YR(I)*CKI + YI(I)*CKR;
-        //   YR(I) = STR;
         y[i] *= ck;
     }
-    //    90 CONTINUE;
-    return Ok((y, nz));
-    //   100 CONTINUE;
-    //       NZ = -1;
-    //       RETURN;
-    //   110 CONTINUE;
-    //       NZ=-2;
-    //       RETURN;
-    //       END;
+    Ok((y, nz))
 }
