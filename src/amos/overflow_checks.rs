@@ -9,7 +9,7 @@ use crate::amos::{machine::d1mach, utils::will_z_underflow};
 
 use super::{
     BesselError::{self, *},
-    IKType, Scaling,
+    IKType, MachineConsts, Scaling,
 };
 
 pub fn zuoik(
@@ -19,9 +19,7 @@ pub fn zuoik(
     ikflg: IKType,
     n: usize, //YR, YI, NUF,
     mut y: Vec<Complex64>,
-    tol: f64,
-    elim: f64,
-    alim: f64,
+    machine_consts: &MachineConsts,
 ) -> Result<(Vec<Complex64>, usize), BesselError> {
     // ***BEGIN PROLOGUE  ZUOIK
     // ***REFER TO  ZBESI,ZBESK,ZBESH
@@ -70,14 +68,14 @@ pub fn zuoik(
     let mut zn = None;
     let (mut cz, phi, arg, aarg) = if iform != 2 {
         let mut init = 0;
-        let (phi, zeta1, zeta2, _) = zunik(zr, gnu, ikflg, true, tol, &mut init);
+        let (phi, zeta1, zeta2, _) = zunik(zr, gnu, ikflg, true, machine_consts, &mut init);
         (-zeta1 + zeta2, phi, Complex64::zero(), 0.0)
     } else {
         let mut zn_ = Complex64::new(zr.im, -zr.re);
         if z.im <= 0.0 {
             zn_.re = -zn_.re;
         }
-        let (phi, arg, zeta1, zeta2, _, _) = zunhj(zn_, gnu, true, tol);
+        let (phi, arg, zeta1, zeta2, _, _) = zunhj(zn_, gnu, true, machine_consts.tol);
         zn = Some(zn_);
         let cz = -zeta1 + zeta2;
         let aarg = arg.abs();
@@ -94,42 +92,41 @@ pub fn zuoik(
     //-----------------------------------------------------------------------;
     //     OVERFLOW TEST;
     //-----------------------------------------------------------------------;
-    if rcz > elim {
+    if rcz > machine_consts.elim {
         return Err(Overflow);
     }
-    if rcz >= alim {
+    if rcz >= machine_consts.alim {
         rcz += aphi.ln();
         if iform == 2 {
             rcz = rcz - 0.25 * aarg.ln() - AIC
         };
-        if rcz > elim {
+        if rcz > machine_consts.elim {
             return Err(Overflow);
         }
     } else {
         //-----------------------------------------------------------------------;
         //     UNDERFLOW TEST;
         //-----------------------------------------------------------------------;
-        if rcz < (-elim) {
+        if rcz < (-machine_consts.elim) {
             y[0..nn].iter_mut().for_each(|v| *v = Complex64::zero());
             return Ok((y, nn));
         }
-        if rcz <= (-alim) {
+        if rcz <= (-machine_consts.alim) {
             rcz += aphi.ln();
             if iform == 2 {
                 rcz = rcz - 0.25 * aarg.ln() - AIC
             };
-            if !(rcz > (-elim)) {
+            if !(rcz > (-machine_consts.elim)) {
                 return Ok((y, nn));
             }
-            let ascle = 1.0e+3 * d1mach(1) / tol;
             cz += phi.ln();
             if iform != 1 {
                 cz -= 0.25 * arg.ln() + AIC
             }
-            let ax = rcz.exp() / tol;
+            let ax = rcz.exp() / machine_consts.tol;
             let ay = cz.im;
             cz = ax * Complex64::new(ay.cos(), ay.sin());
-            if will_z_underflow(cz, ascle, tol) {
+            if will_z_underflow(cz, machine_consts.ascle, machine_consts.tol) {
                 y[0..nn].iter_mut().for_each(|v| *v = Complex64::zero());
                 return Ok((y, nn));
             }
@@ -150,11 +147,13 @@ pub fn zuoik(
                 gnu = order + ((nn - 1) as f64);
                 let (phi, mut cz, aarg) = if iform != 2 {
                     let mut init = 0;
-                    let (phi, zeta1, zeta2, _) = zunik(zr, gnu, ikflg, true, tol, &mut init);
+                    let (phi, zeta1, zeta2, _) =
+                        zunik(zr, gnu, ikflg, true, machine_consts, &mut init);
                     cz = -zeta1 + zeta2;
                     (phi, cz, 0.0)
                 } else {
-                    let (phi, arg, zeta1, zeta2, _, _) = zunhj(zn.unwrap(), gnu, true, tol);
+                    let (phi, arg, zeta1, zeta2, _, _) =
+                        zunhj(zn.unwrap(), gnu, true, machine_consts.tol);
                     cz = -zeta1 + zeta2;
                     let aarg = arg.abs();
                     (phi, cz, aarg)
@@ -164,15 +163,15 @@ pub fn zuoik(
                 }
                 let aphi = phi.abs();
                 rcz = cz.re;
-                if !(rcz < (-elim)) {
-                    if rcz > (-alim) {
+                if !(rcz < (-machine_consts.elim)) {
+                    if rcz > (-machine_consts.alim) {
                         return Ok((y, nuf));
                     };
                     rcz += aphi.ln();
                     if iform == 2 {
                         rcz = rcz - 0.25 * aarg.ln() - AIC;
                     }
-                    if rcz > (-elim) {
+                    if rcz > (-machine_consts.elim) {
                         skip_to_190 = true
                     }
                 }
@@ -189,15 +188,15 @@ pub fn zuoik(
                 break 'l140;
             }
         }
-        let ascle = 1.0e+3 * d1mach(1) / tol;
+        let ascle = 1.0e+3 * d1mach(1) / machine_consts.tol;
         cz += phi.ln();
         if iform != 1 {
             cz -= 0.25 * arg.ln() + AIC
         }
-        let ax = rcz.exp() / tol;
+        let ax = rcz.exp() / machine_consts.tol;
         let ay = cz.im;
         cz = ax * Complex64::new(ay.cos(), ay.sin());
-        if will_z_underflow(cz, ascle, tol) {
+        if will_z_underflow(cz, ascle, machine_consts.tol) {
             go_to_180 = true;
         } else {
             break 'outer;
@@ -211,7 +210,7 @@ fn zunik(
     order: f64,
     ikflg: IKType,
     only_phi_zeta: bool,
-    tol: f64,
+    machine_consts: &MachineConsts,
     init: &mut usize,
 ) -> (Complex64, Complex64, Complex64, Option<Complex64>) {
     // ***BEGIN PROLOGUE  ZUNIK
@@ -288,7 +287,7 @@ fn zunik(
         working[k_] = crfn * s;
         ac *= rfn;
         let test = working[k_].re.abs() + working[k_].im.abs();
-        if ac < tol && test < tol {
+        if ac < machine_consts.tol && test < machine_consts.tol {
             break 'l20;
         } //GO TO 30;
     }

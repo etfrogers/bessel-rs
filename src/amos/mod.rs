@@ -1,4 +1,7 @@
+use std::sync::LazyLock;
+
 pub use gamma_ln::{GammaError, gamma_ln};
+use machine::{d1mach, i1mach};
 use thiserror::Error;
 pub use translator::zbesj;
 pub use z_power_series::z_power_series;
@@ -96,3 +99,50 @@ pub enum Scaling {
     Unscaled = 1,
     Scaled = 2,
 }
+
+struct MachineConsts {
+    arm: f64,
+    ascle: f64,
+    tol: f64,
+    elim: f64,
+    alim: f64,
+    dig: f64,
+    rl: f64,
+    fnul: f64,
+    rtol: f64,
+}
+
+impl MachineConsts {
+    fn new() -> Self {
+        let arm = 1.0e+3 * d1mach(1);
+        let tol = d1mach(4).max(1.0e-18);
+        let ascle = arm / tol;
+
+        let k1 = i1mach(15);
+        let k2 = i1mach(16);
+        let r1m5 = d1mach(5);
+        let k = k1.abs().min(k2.abs());
+        let elim = 2.303 * ((k as f64) * r1m5 - 3.0);
+        let k1 = i1mach(14) - 1;
+        let mut aa = r1m5 * (k1 as f64);
+        let dig = aa.min(18.0);
+        aa *= 2.303;
+        let alim = elim + (-aa).max(-41.45);
+        let rl = 1.2 * dig + 3.0;
+        let fnul = 10.0 + 6.0 * (dig - 3.0);
+
+        Self {
+            arm,
+            ascle,
+            tol,
+            elim,
+            alim,
+            dig,
+            rl,
+            fnul,
+            rtol: 1.0 / tol,
+        }
+    }
+}
+
+// static MACHINE_CONSTS: LazyLock<MachineConsts> = LazyLock::new(|| MachineConsts::new());

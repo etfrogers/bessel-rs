@@ -3,17 +3,16 @@ use num::{
     complex::{Complex64, ComplexFloat},
 };
 
-use super::{BesselError, Scaling, gamma_ln, machine::d1mach, utils::will_z_underflow};
+use super::{
+    BesselError, MachineConsts, Scaling, gamma_ln, machine::d1mach, utils::will_z_underflow,
+};
 
 pub fn z_power_series(
-    z: Complex64, //ZR, ZI,
-    order: f64,   //FNU,
+    z: Complex64,
+    order: f64,
     kode: Scaling,
     n: usize,
-    //Ouputs: YR, YI, NZ,
-    tol: f64,
-    elim: f64,
-    alim: f64,
+    machine_consts: &MachineConsts,
 ) -> Result<(Vec<Complex64>, isize), BesselError> {
     // ***BEGIN PROLOGUE  z_power_series - was ZSERI
     // ***REFER TO  ZBESI,ZBESK
@@ -39,11 +38,10 @@ pub fn z_power_series(
         }
         return Ok((y, nz));
     }
-    let arm = 1.0e+3 * d1mach(1);
-    let rtr1 = arm.sqrt();
+    let rtr1 = machine_consts.arm.sqrt();
     let mut crscr = 1.0;
     let mut iflag = false;
-    if az < arm {
+    if az < machine_consts.arm {
         nz = n.try_into().unwrap();
         if order == 0.0 {
             nz -= 1;
@@ -69,7 +67,6 @@ pub fn z_power_series(
     let mut fnup;
     let mut ak;
     let mut st;
-    let mut ascle = f64::INFINITY;
     'l20: loop {
         let mut dfnu = order + ((nn - 1) as f64);
         fnup = dfnu + 1.0;
@@ -82,7 +79,7 @@ pub fn z_power_series(
         if kode == Scaling::Scaled {
             ak1.re -= z.re;
         }
-        let mut skip_to_40 = ak1.re > (-elim);
+        let mut skip_to_40 = ak1.re > (-machine_consts.elim);
         'l30: loop {
             if !skip_to_40 {
                 nz += 1;
@@ -106,25 +103,22 @@ pub fn z_power_series(
             } else {
                 skip_to_40 = false; // should only skip once until sent back to 'l20
             }
-            let mut ss = 0.0;
-            if ak1.re <= (-alim) {
+            if ak1.re <= (-machine_consts.alim) {
                 iflag = true;
-                ss = 1.0 / tol;
-                crscr = tol;
-                ascle = arm * ss;
+                crscr = machine_consts.tol;
             }
             let mut aa = ak1.re.exp();
             if iflag {
-                aa *= ss
+                aa *= machine_consts.rtol
             };
             let mut coef = aa * Complex64::new(ak1.im.cos(), ak1.im.sin());
-            let atol = tol * acz / fnup;
+            let atol = machine_consts.tol * acz / fnup;
             let il = 2.min(nn);
             for i in 0..il {
                 dfnu = order + ((nn - (i + 1)) as f64);
                 fnup = dfnu + 1.0;
                 let mut s1 = Complex64::one();
-                if acz >= tol * fnup {
+                if acz >= machine_consts.tol * fnup {
                     ak1 = Complex64::one();
                     ak = fnup + 2.0;
                     let mut s = fnup;
@@ -144,7 +138,7 @@ pub fn z_power_series(
                 }
                 let s2 = s1 * coef;
                 w[i] = s2;
-                if iflag && will_z_underflow(s2, ascle, tol) {
+                if iflag && will_z_underflow(s2, machine_consts.ascle, machine_consts.tol) {
                     continue 'l30;
                 }
                 let m = nn - i - 1;
@@ -201,7 +195,7 @@ pub fn z_power_series(
                 k -= 1;
             }
             l = l_inner + 1;
-            if ck.abs() > ascle {
+            if ck.abs() > machine_consts.ascle {
                 to_return = false;
                 break;
             }

@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 use super::{
-    BesselError, IKType, Scaling, gamma_ln,
+    BesselError, IKType, MachineConsts, Scaling, gamma_ln,
     machine::{d1mach, i1mach},
     overflow_checks::zuoik,
     z_power_series,
@@ -826,25 +826,13 @@ pub fn zbesj(
     //     DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).
     //     FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU.
     //-----------------------------------------------------------------------
-    let TOL = d1mach(4).max(1.0e-18);
-    let K1 = i1mach(15);
-    let K2 = i1mach(16);
-    let R1M5 = d1mach(5);
-    let K = K1.abs().min(K2.abs());
-    let ELIM = 2.303 * ((K as f64) * R1M5 - 3.0);
-    let K1 = i1mach(14) - 1;
-    let mut AA = R1M5 * (K1 as f64);
-    let DIG = AA.min(18.0);
-    AA = AA * 2.303;
-    let ALIM = ELIM + (-AA).max(-41.45);
-    let RL = 1.2 * DIG + 3.0;
-    let FNUL = 10.0 + 6.0 * (DIG - 3.0);
+    let machine_consts = MachineConsts::new();
     //-----------------------------------------------------------------------
     //     TEST FOR PROPER RANGE
     //-----------------------------------------------------------------------
     let az = z.abs(); //ZABS(ZR, ZI);
     let FN = order + ((N - 1) as f64);
-    AA = 0.5 / TOL;
+    let mut AA = 0.5 / machine_consts.tol;
     let mut bb = (i1mach(9) as f64) * 0.5;
     AA = AA.min(bb);
     if az > AA {
@@ -883,31 +871,19 @@ pub fn zbesj(
         CSGNI = -CSGNI;
         CII = -CII;
     }
-    let (mut cy, NZ) = ZBINU(
-        Complex64::new(ZNR, ZNI),
-        order,
-        KODE,
-        N,
-        RL,
-        FNUL,
-        TOL,
-        ELIM,
-        ALIM,
-    )?;
+    let (mut cy, NZ) = ZBINU(Complex64::new(ZNR, ZNI), order, KODE, N, &machine_consts)?;
     let NL = N - NZ;
     if NL == 0 {
         return Ok((cy, NZ));
     }
-    let RTOL = 1.0 / TOL;
-    let ASCLE = d1mach(1) * RTOL * 1.0e3;
     for i in 0..NL {
         AA = cy[i].re;
         bb = cy[i].im;
         let mut ATOL = 1.0;
-        if !((AA.abs().max(bb.abs())) > ASCLE) {
-            AA = AA * RTOL;
-            bb = bb * RTOL;
-            ATOL = TOL;
+        if !((AA.abs().max(bb.abs())) > machine_consts.ascle) {
+            AA = AA * machine_consts.rtol;
+            bb = bb * machine_consts.rtol;
+            ATOL = machine_consts.tol;
         }
         let mut STR = AA * CSGNR - bb * CSGNI;
         let STI = AA * CSGNI + bb * CSGNR;
@@ -3353,7 +3329,7 @@ fn ZMLRI(
     order: f64, //ZR, ZI, FNU,
     KODE: Scaling,
     N: usize, //YR, YI, NZ,
-    TOL: f64,
+    machine_consts: &MachineConsts,
 ) -> Result<(Vec<Complex64>, usize), BesselError> {
     // ***BEGIN PROLOGUE  ZMLRI
     // ***REFER TO  ZBESI,ZBESK
@@ -3373,7 +3349,7 @@ fn ZMLRI(
     //       INTEGER I, IAZ, IDUM, IFNU, INU, ITIME, K, KK, KM, KODE, M, N, NZ
     //       DIMENSION YR(N), YI(N)
     //       DATA ZEROR,ZEROI,CONER,CONEI / 0.0, 0.0, 1.0, 0.0 /
-    let SCLE = d1mach(1) / TOL;
+    let SCLE: f64 = d1mach(1) / machine_consts.tol;
     let NZ = 0;
     let AZ = z.abs(); //ZABS(ZR,ZI);
     let IAZ = AZ as usize;
@@ -3399,7 +3375,7 @@ fn ZMLRI(
     let RHO = ACK + (ACK * ACK - 1.0).sqrt();
     let RHO2 = RHO * RHO;
     let mut TST = (RHO2 + RHO2) / ((RHO2 - 1.0) * (RHO - 1.0));
-    TST /= TOL;
+    TST /= machine_consts.tol;
     //-----------------------------------------------------------------------;
     //     COMPUTE RELATIVE TRUNCATION ERROR INDEX FOR SERIES;
     //-----------------------------------------------------------------------;
@@ -3454,7 +3430,7 @@ fn ZMLRI(
         // CKI = STI*AT*RAZ;
         ck = z.conj() * RAZ * RAZ * AT;
         ACK = AT * RAZ;
-        TST = (ACK / TOL).sqrt();
+        TST = (ACK / machine_consts.tol).sqrt();
         let mut hit_loop_end = false;
         // DO 30 K=1,80;
         converged = false;
@@ -3961,11 +3937,7 @@ fn ZBINU(
     order: f64,
     KODE: Scaling,
     N: usize,
-    RL: f64,
-    FNUL: f64,
-    TOL: f64,
-    ELIM: f64,
-    ALIM: f64,
+    machine_consts: &MachineConsts,
 ) -> Result<(Vec<Complex64>, usize), BesselError> {
     //output?: CYR, CYI, NZ,)
     // ***BEGIN PROLOGUE  ZBINU
@@ -3993,7 +3965,7 @@ fn ZBINU(
             //     POWER SERIES
             //-----------------------------------------------------------------------
             let NW;
-            (cy, NW) = z_power_series(z, order, KODE, NN, /*CYR, CYI, NW, */ TOL, ELIM, ALIM)?;
+            (cy, NW) = z_power_series(z, order, KODE, NN, machine_consts)?;
             let INW: usize = NW.abs().try_into().unwrap();
             NZ = NZ + INW;
             NN = NN - INW;
@@ -4005,7 +3977,7 @@ fn ZBINU(
         }
     }
 
-    if !(AZ < RL)
+    if !(AZ <  machine_consts.rl)
           && (DFNU <= 1.0) //GO TO 30
           && !(AZ+AZ < DFNU*DFNU)
     //GO TO 50 //equiv to go to 40 as (DFNU <= 1.0) is not true to get here
@@ -4017,9 +3989,7 @@ fn ZBINU(
         //     ASYMPTOTIC EXPANSION FOR LARGE Z
         //-----------------------------------------------------------------------
         //  30 CONTINUE
-        let (cy, nw) = z_asymptotic_i(
-            /*ZR, ZI, FNU,*/ z, order, KODE, NN, /*CYR, CYI, NW,*/ RL, TOL, ELIM, ALIM,
-        )?;
+        let (cy, nw) = z_asymptotic_i(z, order, KODE, NN, machine_consts)?;
         //     if (NW < 0) GO TO 130
         debug_assert!(nw == NZ);
         return Ok((cy, NZ));
@@ -4034,7 +4004,7 @@ fn ZBINU(
         //-----------------------------------------------------------------------
         //     OVERFLOW AND UNDERFLOW TEST ON I SEQUENCE FOR MILLER ALGORITHM
         //-----------------------------------------------------------------------
-        let (cy, nw) = zuoik(z, order, KODE, IKType::I, NN, cy, TOL, ELIM, ALIM)?;
+        let (cy, nw) = zuoik(z, order, KODE, IKType::I, NN, cy, machine_consts)?;
 
         NZ = NZ + nw;
         NN = NN - nw;
@@ -4044,12 +4014,12 @@ fn ZBINU(
         DFNU = order + ((NN - 1) as f64);
         //     if (DFNU > FNUL) GO TO 110
         //     if (AZ > FNUL) GO TO 110
-        if !((DFNU > FNUL) || (AZ > FNUL))
+        if !((DFNU > machine_consts.fnul) || (AZ > machine_consts.fnul))
         //GO TO 110
         {
             //  60 CONTINUE
             // 'l60: loop{
-            if !skip_az_rl_check && !(AZ > RL) {
+            if !skip_az_rl_check && !(AZ > machine_consts.rl) {
                 // GO TO 80
                 //  70 CONTINUE
                 //-----------------------------------------------------------------------
@@ -4057,7 +4027,11 @@ fn ZBINU(
                 //-----------------------------------------------------------------------
                 let (cy, _) = ZMLRI(
                     //ZR, ZI, FNU,
-                    z, order, KODE, NN, /*CYR, CYI, NW,*/ TOL,
+                    z,
+                    order,
+                    KODE,
+                    NN,
+                    /*CYR, CYI, NW,*/ machine_consts,
                 )?;
                 //      return{if(NW < 0) { if(NW == (-2)) { Err(DidNotConverge);}// NZ=-2
                 //     else{Err(Overflow)}}}else{

@@ -5,19 +5,19 @@ use num::{
     complex::{Complex64, ComplexFloat},
 };
 
-use super::{BesselError, BesselError::*, Scaling, machine::d1mach, utils::RTPI};
+use super::{
+    BesselError::{self, *},
+    MachineConsts, Scaling,
+    machine::d1mach,
+    utils::RTPI,
+};
 
 pub fn z_asymptotic_i(
-    //ZR, ZI, FNU,
     z: Complex64,
     order: f64,
     kode: Scaling,
     n: usize,
-    //YR, YI, NZ,
-    rl: f64,
-    tol: f64,
-    elim: f64,
-    alim: f64,
+    machine_consts: &MachineConsts,
 ) -> Result<(Vec<Complex64>, usize), BesselError> {
     // ***BEGIN PROLOGUE  ZASYI
     // ***REFER TO  ZBESI,ZBESK
@@ -45,14 +45,12 @@ pub fn z_asymptotic_i(
     if kode == Scaling::Scaled {
         cz.re = 0.0;
     }
-    //    10 CONTINUE;
-    if cz.re.abs() > elim {
+    if cz.re.abs() > machine_consts.elim {
         return Err(Overflow);
     }
     let dnu2 = dfnu + dfnu;
     let mut koded = true;
-    if !((cz.re.abs() > alim) && (n > 2)) {
-        // GO TO 20;
+    if !((cz.re.abs() > machine_consts.alim) && (n > 2)) {
         koded = false;
         ak1 *= cz.exp();
     }
@@ -67,11 +65,8 @@ pub fn z_asymptotic_i(
     //     EXPANSION FOR THE IMAGINARY PART.;
     //-----------------------------------------------------------------------;
     let aez = 8.0 * az;
-    let s = tol / aez;
-    let jl = (rl * 2.0) as i32 + 2;
-    // JL = INT(SNGL(RL+RL)) + 2;
-    // P1R = ZEROR;
-    // P1I = ZEROI;
+    let s = machine_consts.tol / aez;
+    let jl = (machine_consts.rl * 2.0) as i32 + 2;
     let mut p1 = Complex64::zero();
     if z.im != 0.0 {
         //-----------------------------------------------------------------------;
@@ -133,10 +128,7 @@ pub fn z_asymptotic_i(
             return Err(DidNotConverge);
         }
         let mut s2 = cs1;
-        //   S2R = CS1R;
-        //   S2I = CS1I;
-        if !(z.re * 2.0 >= elim) {
-            //GO TO 60;
+        if z.re * 2.0 < machine_consts.elim {
             let tz = z * 2.0;
             s2 += (-tz).exp() * p1 * cs2;
         }
