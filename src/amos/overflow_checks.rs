@@ -1,15 +1,12 @@
 use std::f64::consts::{FRAC_PI_2, PI};
 
-use num::{
-    One, Zero,
-    complex::{Complex64, ComplexFloat},
-};
+use num::complex::{Complex64, ComplexFloat};
 
-use crate::amos::{machine::d1mach, utils::will_z_underflow};
+use crate::amos::{c_zero, machine::d1mach, utils::will_z_underflow};
 
 use super::{
     BesselError::{self, *},
-    IKType, MachineConsts, Scaling,
+    IKType, MachineConsts, Scaling, c_one,
 };
 
 pub fn zuoik(
@@ -69,7 +66,7 @@ pub fn zuoik(
     let (mut cz, phi, arg, aarg) = if iform != 2 {
         let mut init = 0;
         let (phi, zeta1, zeta2, _) = zunik(zr, gnu, ikflg, true, machine_consts, &mut init);
-        (-zeta1 + zeta2, phi, Complex64::zero(), 0.0)
+        (-zeta1 + zeta2, phi, c_zero(), 0.0)
     } else {
         let mut zn_ = Complex64::new(zr.im, -zr.re);
         if z.im <= 0.0 {
@@ -108,7 +105,7 @@ pub fn zuoik(
         //     UNDERFLOW TEST;
         //-----------------------------------------------------------------------;
         if rcz < (-machine_consts.elim) {
-            y[0..nn].iter_mut().for_each(|v| *v = Complex64::zero());
+            y[0..nn].iter_mut().for_each(|v| *v = c_zero());
             return Ok((y, nn));
         }
         if rcz <= (-machine_consts.alim) {
@@ -127,7 +124,7 @@ pub fn zuoik(
             let ay = cz.im;
             cz = ax * Complex64::new(ay.cos(), ay.sin());
             if will_z_underflow(cz, machine_consts.ascle, machine_consts.tol) {
-                y[0..nn].iter_mut().for_each(|v| *v = Complex64::zero());
+                y[0..nn].iter_mut().for_each(|v| *v = c_zero());
                 return Ok((y, nn));
             }
         }
@@ -178,7 +175,7 @@ pub fn zuoik(
             }
             go_to_180 = false;
             if !skip_to_190 {
-                y[nn - 1] = Complex64::zero();
+                y[nn - 1] = c_zero();
                 nn = nn - 1;
                 nuf = nuf + 1;
                 if nn == 0 {
@@ -234,7 +231,7 @@ fn zunik(
     // ***ROUTINES CALLED  ZDIV,ZLOG,ZSQRT,d1mach
     // ***END PROLOGUE  ZUNIK
     //
-    let mut working = vec![Complex64::zero(); 16];
+    let mut working = vec![c_zero(); 16];
 
     if *init != 0 {
         todo!()
@@ -252,33 +249,31 @@ fn zunik(
     if !(zr.re.abs() > ac || zr.im.abs() > ac) {
         let zeta1 = Complex64::new(2.0 * test.ln().abs() + order, 0.0);
         let zeta2 = Complex64::new(order, 0.0);
-        let phi = Complex64::one();
+        let phi = c_one();
         return (zeta1, zeta2, phi, None);
     }
     let t = zr * rfn;
-    let s = Complex64::one() + t * t;
-    let sr = s.sqrt();
-    let st = Complex64::one() + sr;
-    let zn = st / t;
-    let st = zn.ln();
-    let zeta1 = order * st;
-    let zeta2 = order * sr;
-    let t = Complex64::one() / sr;
+    let s = c_one() + t * t;
+    let s_root = s.sqrt();
+    let zn = (c_one() + s_root) / t;
+    let zeta1 = order * zn.ln();
+    let zeta2 = order * s_root;
+    let t = c_one() / s_root;
     let sr = t * rfn;
     working[15] = sr.sqrt();
     let mut phi = working[15] * CON[ikflg.index() - 1_usize];
     if only_phi_zeta {
         return (phi, zeta1, zeta2, None);
     };
-    let t2 = Complex64::one() / s;
-    working[0] = Complex64::one();
-    let mut crfn = Complex64::one();
+    let t2 = c_one() / s;
+    working[0] = c_one();
+    let mut crfn = c_one();
     let mut ac = 1.0;
     let mut l = 1;
     let mut k = 0;
     'l20: for k_ in 1..15 {
         k = k_;
-        let mut s = Complex64::zero();
+        let mut s = c_zero();
         '_l10: for _ in 0..k_ {
             l += 1;
             s = s * t2 + C_ZUNIK[l];
@@ -301,7 +296,7 @@ fn zunik(
         //-----------------------------------------------------------------------;
         //     COMPUTE SUM FOR THE I FUNCTION;
         //-----------------------------------------------------------------------;
-        // s=Complex64::zero();
+        // s=c_zero();
         // SR = ZEROR;
         // SI = ZEROI;
         // DO 50 I=1,INIT;
@@ -414,8 +409,8 @@ fn zunhj(
     if !((z.re).abs() > ac || (z.im).abs() > ac) {
         let zeta1 = Complex64::new(2.0 * test.ln().abs() + order, 0.0);
         let zeta2 = Complex64::new(order, 0.0);
-        let phi = Complex64::one();
-        let arg = Complex64::one();
+        let phi = c_one();
+        let arg = c_one();
         return (phi, arg, zeta1, zeta2, None, None);
     }
     let zb = z * rfnu;
@@ -426,7 +421,7 @@ fn zunhj(
     let fn13 = order.powf(EX1);
     let fn23 = fn13 * fn13;
     let rfn13 = 1.0 / fn13;
-    let w2 = Complex64::one() - zb * zb;
+    let w2 = c_one() - zb * zb;
     let aw2 = w2.abs();
 
     if aw2 <= 0.25 {
@@ -434,9 +429,9 @@ fn zunhj(
         //     POWER SERIES FOR CABS(W2) <= 0.25;
         //-----------------------------------------------------------------------;
         let mut k = 0;
-        let mut p = vec![Complex64::zero(); 30];
+        let mut p = vec![c_zero(); 30];
         let mut ap = vec![0.0; 30];
-        p[0] = Complex64::one();
+        p[0] = c_one();
         let mut suma = Complex64::new(GAMA[0], 0.0);
         ap[0] = 1.0;
         if aw2 >= tol {
@@ -455,7 +450,7 @@ fn zunhj(
         let arg = zeta * fn23;
         let mut za = suma.sqrt();
         let zeta2 = w2.sqrt() * order;
-        let zeta1 = (Complex64::one() + EX2 * zeta * za) * zeta2;
+        let zeta1 = (c_one() + EX2 * zeta * za) * zeta2;
         za *= 2.0;
         let phi = za.sqrt() * rfn13;
         if only_phi_zeta {
@@ -465,7 +460,7 @@ fn zunhj(
         //     SUM SERIES FOR ASUM AND BSUM;
         //-----------------------------------------------------------------------;
         let sumb: Complex64 = p[..kmax].iter().zip(BETA).map(|(p, b)| p * b).sum();
-        let mut asum = Complex64::zero();
+        let mut asum = c_zero();
         let mut bsum = sumb;
         let mut l1 = 0;
         let mut l2 = 30;
@@ -482,7 +477,7 @@ fn zunhj(
                 pp *= rfnu2;
                 if !ias {
                     //GO TO 60;
-                    let mut suma = Complex64::zero();
+                    let mut suma = c_zero();
                     //   SUMAR = ZEROR;
                     //   SUMAI = ZEROI;
                     //   DO 40 K=1,KMAX;
@@ -507,7 +502,7 @@ fn zunhj(
                 //    60   CONTINUE;
                 if !ibs {
                     //GO TO 90;
-                    let mut sumb = Complex64::zero();
+                    let mut sumb = c_zero();
                     //   SUMBR = ZEROR;
                     //   SUMBI = ZEROI;
                     //   DO 70 K=1,KMAX;
@@ -559,8 +554,8 @@ fn zunhj(
         if w.im < 0.0 {
             w.im = 0.0
         };
-        let st = Complex64::one() + w;
-        let za = st / zb;
+
+        let za = (c_one() + w) / zb;
         let mut zc = za.ln();
         if zc.im < 0.0 {
             zc.im = 0.0;
@@ -602,7 +597,6 @@ fn zunhj(
         }
 
         let raw = 1.0 / aw2.sqrt();
-        // let st = ;
         // STR = WR*RAW;
         // STI = -WI*RAW;
         let tfn = w.conj() * raw * raw * rfnu;
@@ -623,17 +617,17 @@ fn zunhj(
         let t2 = w2.conj() * raw2 * raw2;
         // T2R = STR*RAW2;
         // T2I = STI*RAW2;
-        let st = t2 * C_ZUNHJ[1] + C_ZUNHJ[2];
+        // let st = t2 * C_ZUNHJ[1] + C_ZUNHJ[2];
         // STR = T2R*C(2) + C(3);
         // STI = T2I*C(2);
-        let mut up = vec![Complex64::zero(); 14];
-        up[1] = st * tfn;
+        let mut up = vec![c_zero(); 14];
+        up[1] = (t2 * C_ZUNHJ[1] + C_ZUNHJ[2]) * tfn;
         // UPR(2) = STR*TFNR - STI*TFNI;
         // UPI(2) = STR*TFNI + STI*TFNR;
         let mut bsum = up[1] + zc;
         // BSUMR = UPR(2) + ZCR;
         // BSUMI = UPI(2) + ZCI;
-        let mut asum = Complex64::zero();
+        let mut asum = c_zero();
         // ASUMR = ZEROR;
         // ASUMI = ZEROI;
         if !(rfnu < tol) {
@@ -644,7 +638,7 @@ fn zunhj(
             let mut ptfn = tfn;
             // PTFNR = TFNR;
             // PTFNI = TFNI;
-            up[0] = Complex64::one();
+            up[0] = c_one();
             // UPR(1) = CONER;
             // UPI(1) = CONEI;
             pp = 1.0;
@@ -662,8 +656,8 @@ fn zunhj(
                 //     NEXT SUMA AND SUMB;
                 //-----------------------------------------------------------------------;
                 //   DO 160 K=LR,LRP1;
-                let mut cr = vec![Complex64::zero(); 14];
-                let mut dr = vec![Complex64::zero(); 14];
+                let mut cr = vec![c_zero(); 14];
+                let mut dr = vec![c_zero(); 14];
                 for _k in lr..=lrp1 {
                     ks = ks + 1;
                     kp1 = kp1 + 1;
@@ -753,7 +747,7 @@ fn zunhj(
             }
         }
         //   220 CONTINUE;
-        asum += Complex64::one();
+        asum += c_one();
         // ASUMR = ASUMR + CONER;
         bsum = (-bsum * rfn13) / rtzt;
         // STR = -BSUMR*RFN13;

@@ -1,10 +1,7 @@
-use num::{
-    One, Zero,
-    complex::{Complex64, ComplexFloat},
-};
+use num::complex::{Complex64, ComplexFloat};
 
 use super::{
-    BesselError, MachineConsts, Scaling, gamma_ln, machine::d1mach, utils::will_z_underflow,
+    BesselError, MachineConsts, Scaling, c_one, c_zero, gamma_ln, utils::will_z_underflow,
 };
 
 pub fn z_power_series(
@@ -29,12 +26,12 @@ pub fn z_power_series(
     // ***END PROLOGUE  z_power_series
     let mut nz = 0;
     let az = z.abs(); //ZABS(ZR,ZI)
-    let mut y = vec![Complex64::zero(); n];
-    let mut w = [Complex64::zero(); 2];
+    let mut y = vec![c_zero(); n];
+    let mut w = [c_zero(); 2];
     if az == 0.0 {
         // Not setting zero below, as was set in initialisation of y above
         if order == 0.0 {
-            y[1] = Complex64::one();
+            y[1] = c_one();
         }
         return Ok((y, nz));
     }
@@ -48,13 +45,13 @@ pub fn z_power_series(
         }
         // Not setting zero below, as was set in initialisation of y above
         if order == 0.0 {
-            y[1] = Complex64::one();
+            y[1] = c_one();
         }
         // Not setting zero below, as was set in initialisation of y above
         return Ok((y, nz));
     }
     let hz = 0.5 * z;
-    let mut cz = Complex64::zero();
+    let mut cz = c_zero();
     if az > rtr1 {
         cz = (hz).powu(2);
     }
@@ -66,7 +63,6 @@ pub fn z_power_series(
     let mut ak1;
     let mut fnup;
     let mut ak;
-    let mut st;
     'l20: loop {
         let mut dfnu = order + ((nn - 1) as f64);
         fnup = dfnu + 1.0;
@@ -83,7 +79,7 @@ pub fn z_power_series(
         'l30: loop {
             if !skip_to_40 {
                 nz += 1;
-                y[nn - 1] = Complex64::zero();
+                y[nn - 1] = c_zero();
                 if acz > dfnu {
                     return Ok((y, -nz));
                     // Feels like this should return an error, but the amos code effectively
@@ -117,16 +113,15 @@ pub fn z_power_series(
             for i in 0..il {
                 dfnu = order + ((nn - (i + 1)) as f64);
                 fnup = dfnu + 1.0;
-                let mut s1 = Complex64::one();
+                let mut s1 = c_one();
                 if acz >= machine_consts.tol * fnup {
-                    ak1 = Complex64::one();
+                    ak1 = c_one();
                     ak = fnup + 2.0;
                     let mut s = fnup;
                     aa = 2.0;
                     '_l60: loop {
                         let rs = 1.0 / s;
-                        st = ak1 * cz;
-                        ak1 = st * rs;
+                        ak1 = ak1 * cz * rs;
                         s1 += ak1;
                         s += ak;
                         ak += 2.0;
@@ -144,8 +139,7 @@ pub fn z_power_series(
                 let m = nn - i - 1;
                 y[m] = s2 * crscr;
                 if i != (il - 1) {
-                    st = coef / hz;
-                    coef = st * dfnu;
+                    coef *= dfnu / hz;
                 }
             }
             break 'l30;
@@ -157,9 +151,7 @@ pub fn z_power_series(
     }
     let mut k = nn - 2;
     ak = k as f64;
-    let raz = 1.0 / az;
-    st = z.conj() * raz;
-    let rz = 2.0 * st * raz;
+    let rz = 2.0 * z.conj() / (az.powi(2));
     let mut ib;
     '_l100: loop {
         if !iflag {

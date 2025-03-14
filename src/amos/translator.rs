@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 use super::{
-    BesselError, IKType, MachineConsts, Scaling, gamma_ln,
+    BesselError, IKType, MachineConsts, Scaling, c_one, c_zero, gamma_ln,
     machine::{d1mach, i1mach},
     overflow_checks::zuoik,
     z_power_series,
@@ -3365,8 +3365,8 @@ fn ZMLRI(
     let rz = z.conj() * 2.0 * RAZ;
     // RZR = (STR+STR)*RAZ;
     // RZI = (STI+STI)*RAZ;
-    let mut p1 = Complex64::zero();
-    let mut p2 = Complex64::one();
+    let mut p1 = c_zero();
+    let mut p2 = c_one();
     // P1R = ZEROR;
     // P1I = ZEROI;
     // P2R = CONER;
@@ -3417,8 +3417,8 @@ fn ZMLRI(
         //-----------------------------------------------------------------------;
         //     COMPUTE RELATIVE TRUNCATION ERROR FOR RATIOS;
         //-----------------------------------------------------------------------;
-        p1 = Complex64::zero();
-        p2 = Complex64::one();
+        p1 = c_zero();
+        p2 = c_one();
         // P1R = ZEROR;
         // P1I = ZEROI;
         // P2R = CONER;
@@ -3480,7 +3480,7 @@ fn ZMLRI(
     // KK = MAX0(I+IAZ,K+INU);
     let KK = (I + IAZ).max(K + INU);
     let mut FKK = KK as f64;
-    let mut p1 = Complex64::zero();
+    let mut p1 = c_zero();
     // P1R = ZEROR;
     // P1I = ZEROI;
     //-----------------------------------------------------------------------;
@@ -3496,7 +3496,7 @@ fn ZMLRI(
         - gamma_ln(TFNF + 1.0).unwrap())
     .exp();
     // BK = DEXP(BK);
-    let mut sumr = Complex64::zero();
+    let mut sumr = c_zero();
     // SUMR = ZEROR;
     // SUMI = ZEROI;
     // let KM = (KK - INU);
@@ -3520,7 +3520,7 @@ fn ZMLRI(
         FKK = FKK - 1.0;
     }
     //    50 CONTINUE;
-    let mut y = vec![Complex64::zero(); N];
+    let mut y = vec![c_zero(); N];
     y[N] = p2;
     // YR(N) = P2R;
     // YI(N) = P2I;
@@ -3580,11 +3580,7 @@ fn ZMLRI(
 
     // PTR = ZR;
     // PTI = ZI;
-    let pt = if KODE == Scaling::Scaled {
-        Complex64::zero()
-    } else {
-        z
-    };
+    let pt = if KODE == Scaling::Scaled { c_zero() } else { z };
     // if (KODE == 2) PTR = ZEROR;
     // CALL ZLOG(RZR, RZI, STR, STI, IDUM);
     p1 = -FNF * rz.ln() + pt;
@@ -3958,7 +3954,7 @@ fn ZBINU(
     let AZ = z.abs(); //ZABS(ZR,ZI)
     let mut NN: usize = N;
     let mut DFNU = order + ((N - 1) as f64);
-    let mut cy = vec![Complex64::zero(); N];
+    let mut cy = vec![c_zero(); N];
     if !(AZ <= 2.0) {
         if !(AZ * AZ * 0.25 > DFNU + 1.0) {
             //-----------------------------------------------------------------------
@@ -4046,8 +4042,9 @@ fn ZBINU(
             //-----------------------------------------------------------------------
             //     OVERFLOW TEST ON K FUNCTIONS USED IN WRONSKIAN
             //-----------------------------------------------------------------------
-                  CALL ZUOIK(ZR, ZI, FNU, KODE, 2, 2, CWR, CWI, NW, TOL, ELIM,
-                 * ALIM)
+            //       CALL ZUOIK(ZR, ZI, FNU, KODE, 2, 2, CWR, CWI, NW, TOL, ELIM,
+            //      * ALIM)
+            let (cy, NW) = zuoik(z, order, kode, IKType::K, 2, vec![c_one();2], machine_consts)
                   if (NW >= 0) GO TO 100
                   NZ = NN
                   DO 90 I=1,NN

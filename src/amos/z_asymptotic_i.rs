@@ -1,13 +1,10 @@
 use std::f64::consts::PI;
 
-use num::{
-    One, Zero,
-    complex::{Complex64, ComplexFloat},
-};
+use num::complex::{Complex64, ComplexFloat};
 
 use super::{
     BesselError::{self, *},
-    MachineConsts, Scaling,
+    MachineConsts, Scaling, c_one, c_zero,
     machine::d1mach,
     utils::RTPI,
 };
@@ -30,7 +27,7 @@ pub fn z_asymptotic_i(
     // ***ROUTINES CALLED  d1mach,ZABS,ZDIV,ZEXP,ZMLT,ZSQRT
     // ***END PROLOGUE  ZASYI
     let nz = 0;
-    let mut y = vec![Complex64::zero(); n];
+    let mut y = vec![c_zero(); n];
     let az = z.abs();
     let arm = 1.0e+3 * d1mach(1);
     let rtr1 = arm.sqrt();
@@ -67,7 +64,7 @@ pub fn z_asymptotic_i(
     let aez = 8.0 * az;
     let s = machine_consts.tol / aez;
     let jl = (machine_consts.rl * 2.0) as i32 + 2;
-    let mut p1 = Complex64::zero();
+    let mut p1 = c_zero();
     if z.im != 0.0 {
         //-----------------------------------------------------------------------;
         //     CALCULATE EXP(PI*(0.5+FNU+N-IL)*I) TO MINIMIZE LOSSES OF;
@@ -92,13 +89,13 @@ pub fn z_asymptotic_i(
         let mut sqk = fdn - 1.0;
         let atol = s * (sqk).abs();
         let mut sign = 1.0;
-        let mut cs1 = Complex64::one();
+        let mut cs1 = c_one();
         //   CS1R = CONER;
         //   CS1I = CONEI;
-        let mut cs2 = Complex64::one();
+        let mut cs2 = c_one();
         //   CS2R = CONER;
         //   CS2I = CONEI;
-        let mut ck = Complex64::one();
+        let mut ck = c_one();
         //   CKR = CONER;
         //   CKI = CONEI;
         let mut ak = 0.0;

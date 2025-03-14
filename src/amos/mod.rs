@@ -2,6 +2,7 @@ use std::sync::LazyLock;
 
 pub use gamma_ln::{GammaError, gamma_ln};
 use machine::{d1mach, i1mach};
+use num::{One, Zero, complex::Complex64};
 use thiserror::Error;
 pub use translator::zbesj;
 pub use z_power_series::z_power_series;
@@ -145,4 +146,10 @@ impl MachineConsts {
     }
 }
 
-// static MACHINE_CONSTS: LazyLock<MachineConsts> = LazyLock::new(|| MachineConsts::new());
+pub fn c_one() -> Complex64 {
+    Complex64::one()
+}
+
+pub fn c_zero() -> Complex64 {
+    Complex64::zero()
+}
