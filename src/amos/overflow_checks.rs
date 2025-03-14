@@ -1,4 +1,4 @@
-use std::f64::consts::{FRAC_PI_2, PI};
+use std::f64::consts::FRAC_PI_2;
 
 use num::complex::{Complex64, ComplexFloat};
 
@@ -122,7 +122,7 @@ pub fn zuoik(
             }
             let ax = rcz.exp() / machine_consts.tol;
             let ay = cz.im;
-            cz = ax * Complex64::new(ay.cos(), ay.sin());
+            cz = ax * Complex64::cis(ay);
             if will_z_underflow(cz, machine_consts.ascle, machine_consts.tol) {
                 y[0..nn].iter_mut().for_each(|v| *v = c_zero());
                 return Ok((y, nn));
@@ -192,7 +192,7 @@ pub fn zuoik(
         }
         let ax = rcz.exp() / machine_consts.tol;
         let ay = cz.im;
-        cz = ax * Complex64::new(ay.cos(), ay.sin());
+        cz = ax * Complex64::cis(ay);
         if will_z_underflow(cz, ascle, machine_consts.tol) {
             go_to_180 = true;
         } else {
@@ -573,17 +573,11 @@ fn zunhj(
         let azth = zth.abs();
         let mut ang = THREE_PI_BY_2;
         if !(zth.re >= 0.0 && zth.im < 0.0) {
-            ang = FRAC_PI_2;
-            if zth.re != 0.0 {
-                ang = (zth.im / zth.re).atan();
-                if zth.re < 0.0 {
-                    ang = ang + PI
-                };
-            }
+            ang = zth.arg();
         }
         let mut pp = azth.powf(EX2);
         ang *= EX2;
-        let mut zeta = pp * Complex64::new(ang.cos(), ang.sin());
+        let mut zeta = pp * Complex64::cis(ang);
         if zeta.im < 0.0 {
             zeta.im = 0.0
         };
