@@ -6,10 +6,7 @@ use super::{
     z_power_series,
 };
 use crate::amos::{BesselError::*, z_asymptotic_i::z_asymptotic_i};
-use num::{
-    One, Zero,
-    complex::{Complex64, ComplexFloat},
-};
+use num::complex::{Complex64, ComplexFloat};
 use std::f64::{self, consts::FRAC_PI_2};
 
 /*

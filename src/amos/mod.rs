@@ -1,5 +1,3 @@
-use std::sync::LazyLock;
-
 pub use gamma_ln::{GammaError, gamma_ln};
 use machine::{d1mach, i1mach};
 use num::{One, Zero, complex::Complex64};
@@ -101,7 +99,7 @@ pub enum Scaling {
     Scaled = 2,
 }
 
-struct MachineConsts {
+pub(crate) struct MachineConsts {
     arm: f64,
     ascle: f64,
     tol: f64,
