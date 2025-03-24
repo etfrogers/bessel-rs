@@ -3,9 +3,7 @@ use std::f64::consts::PI;
 use num::complex::{Complex64, ComplexFloat};
 
 use super::{
-    BesselError::{self, *},
-    MachineConsts, Scaling, c_one, c_zero,
-    machine::d1mach,
+    BesselError::*, BesselResult, MachineConsts, Scaling, c_one, c_zero, c_zeros, machine::d1mach,
     utils::RTPI,
 };
 
@@ -15,7 +13,7 @@ pub fn z_asymptotic_i(
     kode: Scaling,
     n: usize,
     machine_consts: &MachineConsts,
-) -> Result<(Vec<Complex64>, usize), BesselError> {
+) -> BesselResult {
     // ***BEGIN PROLOGUE  ZASYI
     // ***REFER TO  ZBESI,ZBESK
     //
@@ -27,7 +25,7 @@ pub fn z_asymptotic_i(
     // ***ROUTINES CALLED  d1mach,ZABS,ZDIV,ZEXP,ZMLT,ZSQRT
     // ***END PROLOGUE  ZASYI
     let nz = 0;
-    let mut y = vec![c_zero(); n];
+    let mut y = c_zeros(n);
     let az = z.abs();
     let arm = 1.0e+3 * d1mach(1);
     let rtr1 = arm.sqrt();

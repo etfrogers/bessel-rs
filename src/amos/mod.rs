@@ -99,6 +99,8 @@ pub enum Scaling {
     Scaled = 2,
 }
 
+pub type BesselResult<T = usize> = Result<(Vec<Complex64>, T), BesselError>;
+
 pub(crate) struct MachineConsts {
     arm: f64,
     ascle: f64,
@@ -148,6 +150,16 @@ pub fn c_one() -> Complex64 {
     Complex64::one()
 }
 
+#[inline]
 pub fn c_zero() -> Complex64 {
     Complex64::zero()
+}
+
+#[inline]
+pub fn c_zeros(n: usize) -> Vec<Complex64> {
+    vec![Complex64::zero(); n]
+}
+
+pub fn max_abs_component(c: Complex64) -> f64 {
+    c.re.abs().max(c.im.abs())
 }

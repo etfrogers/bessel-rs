@@ -1,7 +1,7 @@
 use num::complex::{Complex64, ComplexFloat};
 
 use super::{
-    BesselError, MachineConsts, Scaling, c_one, c_zero, gamma_ln, utils::will_z_underflow,
+    BesselResult, MachineConsts, Scaling, c_one, c_zero, c_zeros, gamma_ln, utils::will_z_underflow,
 };
 
 pub fn z_power_series(
@@ -10,7 +10,7 @@ pub fn z_power_series(
     kode: Scaling,
     n: usize,
     machine_consts: &MachineConsts,
-) -> Result<(Vec<Complex64>, isize), BesselError> {
+) -> BesselResult<isize> {
     // ***BEGIN PROLOGUE  z_power_series - was ZSERI
     // ***REFER TO  ZBESI,ZBESK
     //
@@ -26,7 +26,7 @@ pub fn z_power_series(
     // ***END PROLOGUE  z_power_series
     let mut nz = 0;
     let az = z.abs(); //ZABS(ZR,ZI)
-    let mut y = vec![c_zero(); n];
+    let mut y = c_zeros(n);
     let mut w = [c_zero(); 2];
     if az == 0.0 {
         // Not setting zero below, as was set in initialisation of y above

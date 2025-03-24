@@ -4,10 +4,7 @@ use num::complex::{Complex64, ComplexFloat};
 
 use crate::amos::{c_zero, machine::d1mach, utils::will_z_underflow};
 
-use super::{
-    BesselError::{self, *},
-    IKType, MachineConsts, Scaling, c_one,
-};
+use super::{BesselError::*, BesselResult, IKType, MachineConsts, Scaling, c_one, c_zeros};
 
 pub fn zuoik(
     z: Complex64,
@@ -17,7 +14,7 @@ pub fn zuoik(
     n: usize, //YR, YI, NUF,
     mut y: Vec<Complex64>,
     machine_consts: &MachineConsts,
-) -> Result<(Vec<Complex64>, usize), BesselError> {
+) -> BesselResult {
     // ***BEGIN PROLOGUE  ZUOIK
     // ***REFER TO  ZBESI,ZBESK,ZBESH
     //
@@ -231,7 +228,7 @@ fn zunik(
     // ***ROUTINES CALLED  ZDIV,ZLOG,ZSQRT,d1mach
     // ***END PROLOGUE  ZUNIK
     //
-    let mut working = vec![c_zero(); 16];
+    let mut working = c_zeros(16);
 
     if *init != 0 {
         todo!()
@@ -429,7 +426,7 @@ fn zunhj(
         //     POWER SERIES FOR CABS(W2) <= 0.25;
         //-----------------------------------------------------------------------;
         let mut k = 0;
-        let mut p = vec![c_zero(); 30];
+        let mut p = c_zeros(30);
         let mut ap = vec![0.0; 30];
         p[0] = c_one();
         let mut suma = Complex64::new(GAMA[0], 0.0);
@@ -614,7 +611,7 @@ fn zunhj(
         // let st = t2 * C_ZUNHJ[1] + C_ZUNHJ[2];
         // STR = T2R*C(2) + C(3);
         // STI = T2I*C(2);
-        let mut up = vec![c_zero(); 14];
+        let mut up = c_zeros(14);
         up[1] = (t2 * C_ZUNHJ[1] + C_ZUNHJ[2]) * tfn;
         // UPR(2) = STR*TFNR - STI*TFNI;
         // UPI(2) = STR*TFNI + STI*TFNR;
@@ -650,8 +647,8 @@ fn zunhj(
                 //     NEXT SUMA AND SUMB;
                 //-----------------------------------------------------------------------;
                 //   DO 160 K=LR,LRP1;
-                let mut cr = vec![c_zero(); 14];
-                let mut dr = vec![c_zero(); 14];
+                let mut cr = c_zeros(14);
+                let mut dr = c_zeros(14);
                 for _k in lr..=lrp1 {
                     ks = ks + 1;
                     kp1 = kp1 + 1;
