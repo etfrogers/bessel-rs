@@ -4049,7 +4049,7 @@ fn ZMLRI(
             BK = ACK;
             FKK = FKK - 1.0;
             //   M = N - I + 1;
-            y[N - i] = p2;
+            y[N - (i + 1)] = p2;
             //   YR(M) = P2R;
             //   YI(M) = P2I;
         }
@@ -4528,7 +4528,7 @@ fn ZBINU(
     let mut skip_az_rl_check = true;
     if !(DFNU <= 1.0) {
         //GO TO 70
-        skip_az_rl_check = true;
+        skip_az_rl_check = false;
         //  50 CONTINUE
 
         //-----------------------------------------------------------------------
@@ -4544,105 +4544,108 @@ fn ZBINU(
         DFNU = order + ((NN - 1) as f64);
         //     if (DFNU > FNUL) GO TO 110
         //     if (AZ > FNUL) GO TO 110
-        if !((DFNU > machine_consts.fnul) || (AZ > machine_consts.fnul))
-        //GO TO 110
-        {
-            //  60 CONTINUE
-            // 'l60: loop{
-            if !skip_az_rl_check && !(AZ > machine_consts.rl) {
-                // GO TO 80
-                //  70 CONTINUE
-                //-----------------------------------------------------------------------
-                //     MILLER ALGORITHM NORMALIZED BY THE SERIES
-                //-----------------------------------------------------------------------
-                let (cy, _) = ZMLRI(
-                    //ZR, ZI, FNU,
-                    z,
-                    order,
-                    KODE,
-                    NN,
-                    /*CYR, CYI, NW,*/ machine_consts,
-                )?;
-                //      return{if(NW < 0) { if(NW == (-2)) { Err(DidNotConverge);}// NZ=-2
-                //     else{Err(Overflow)}}}else{
-                return Ok((cy, NZ)); //}
-            }
-            //    80 CONTINUE
+    }
+    if !((DFNU > machine_consts.fnul) || (AZ > machine_consts.fnul))
+    //GO TO 110
+    {
+        //  60 CONTINUE
+        // 'l60: loop{
+        if !skip_az_rl_check && !(AZ > machine_consts.rl) {
+            // GO TO 80
+            //  70 CONTINUE
             //-----------------------------------------------------------------------
-            //     MILLER ALGORITHM NORMALIZED BY THE WRONSKIAN
+            //     MILLER ALGORITHM NORMALIZED BY THE SERIES
             //-----------------------------------------------------------------------
-            //-----------------------------------------------------------------------
-            //     OVERFLOW TEST ON K FUNCTIONS USED IN WRONSKIAN
-            //-----------------------------------------------------------------------
-            //       CALL ZUOIK(ZR, ZI, FNU, KODE, 2, 2, CWR, CWI, NW, TOL, ELIM,
-            //      * ALIM)
-            if let Ok((cy, NW)) = zuoik(
+            let (cy, _) = ZMLRI(
+                //ZR, ZI, FNU,
                 z,
                 order,
                 KODE,
-                IKType::K,
-                2,
-                vec![c_one(); 2],
-                machine_consts,
-            ) {
-                if NW > 0 {
-                    return Err(Overflow);
-                } else {
-                    // CALL ZWRSK(ZR, ZI, FNU, KODE, NN, CYR, CYI, NW, CWR, CWI, TOL,
-                    //       * ELIM, ALIM)
-                    //        if (NW < 0) GO TO 130
-                    //        return Ok(cy, NZ);
-                    return ZWRSK(
-                        z,
-                        order,
-                        KODE,
-                        NN,             /*CYR, CYI, NW, CWR, CWI,*/
-                        machine_consts, //TOL, ELIM, ALIM,
-                    );
-                }
-            } else {
-                return Ok((vec![c_one(); NN], NN));
-            }
-            //       if (NW >= 0) GO TO 100
-            //       NZ = NN
-            //       DO 90 I=1,NN
-            //         CYR(I) = ZEROR
-            //         CYI(I) = ZEROI
-            //    90 CONTINUE
-            //       RETURN
-            //   100 CONTINUE
-            // if (NW > 0) GO TO 130
-            // CALL ZWRSK(ZR, ZI, FNU, KODE, NN, CYR, CYI, NW, CWR, CWI, TOL,
-            //       * ELIM, ALIM)
-            //        if (NW < 0) GO TO 130
-            //        return Ok(cy, NZ);
+                NN,
+                /*CYR, CYI, NW,*/ machine_consts,
+            )?;
+            //      return{if(NW < 0) { if(NW == (-2)) { Err(DidNotConverge);}// NZ=-2
+            //     else{Err(Overflow)}}}else{
+            return Ok((cy, NZ)); //}
         }
+        //    80 CONTINUE
+        //-----------------------------------------------------------------------
+        //     MILLER ALGORITHM NORMALIZED BY THE WRONSKIAN
+        //-----------------------------------------------------------------------
+        //-----------------------------------------------------------------------
+        //     OVERFLOW TEST ON K FUNCTIONS USED IN WRONSKIAN
+        //-----------------------------------------------------------------------
+        //       CALL ZUOIK(ZR, ZI, FNU, KODE, 2, 2, CWR, CWI, NW, TOL, ELIM,
+        //      * ALIM)
         /*
-        // 110 CONTINUE
-
-        //-----------------------------------------------------------------------
-        //     INCREMENT FNU+NN-1 UP TO FNUL, COMPUTE AND RECUR BACKWARD
-        //-----------------------------------------------------------------------
-              NUI = INT(SNGL(FNUL-DFNU)) + 1
-              NUI = MAX0(NUI,0)
-              CALL ZBUNI(ZR, ZI, FNU, KODE, NN, CYR, CYI, NW, NUI, NLAST, FNUL,
-             * TOL, ELIM, ALIM)
-              if (NW < 0) GO TO 130
-              NZ = NZ + NW
-              if (NLAST == 0) {return Ok(cy, NZ);}
-              NN = NLAST
-              GO TO 60
-        //   120 CONTINUE
+        if let Ok((cy, NW)) = zuoik(
+            z,
+            order,
+            KODE,
+            IKType::K,
+            2,
+            vec![c_one(); 2],
+            machine_consts,
+        ) {
+            if NW > 0 {
+                return Err(Overflow);
+            } else {
+                // CALL ZWRSK(ZR, ZI, FNU, KODE, NN, CYR, CYI, NW, CWR, CWI, TOL,
+                //       * ELIM, ALIM)
+                //        if (NW < 0) GO TO 130
+                //        return Ok(cy, NZ);
+                return ZWRSK(
+                    z,
+                    order,
+                    KODE,
+                    NN,             /*CYR, CYI, NW, CWR, CWI,*/
+                    machine_consts, //TOL, ELIM, ALIM,
+                );
+            }
+        } else {
+            return Ok((vec![c_one(); NN], NN));
+        }
+        */
+        //       if (NW >= 0) GO TO 100
+        //       NZ = NN
+        //       DO 90 I=1,NN
+        //         CYR(I) = ZEROR
+        //         CYI(I) = ZEROI
+        //    90 CONTINUE
         //       RETURN
-          130 CONTINUE
-          //     NZ = -1
-              return if(NW == (-2)) { Err(DidNotConverge);}// NZ=-2
-              else{Err(Overflow)}
-
-              RETURN
-              // END
-              */
+        //   100 CONTINUE
+        // if (NW > 0) GO TO 130
+        // CALL ZWRSK(ZR, ZI, FNU, KODE, NN, CYR, CYI, NW, CWR, CWI, TOL,
+        //       * ELIM, ALIM)
+        //        if (NW < 0) GO TO 130
+        //        return Ok(cy, NZ);
     }
+    /*
+    // 110 CONTINUE
+
+    //-----------------------------------------------------------------------
+    //     INCREMENT FNU+NN-1 UP TO FNUL, COMPUTE AND RECUR BACKWARD
+    //-----------------------------------------------------------------------
+          NUI = INT(SNGL(FNUL-DFNU)) + 1
+          NUI = MAX0(NUI,0)
+          CALL ZBUNI(ZR, ZI, FNU, KODE, NN, CYR, CYI, NW, NUI, NLAST, FNUL,
+         * TOL, ELIM, ALIM)
+          if (NW < 0) GO TO 130
+          NZ = NZ + NW
+          if (NLAST == 0) {return Ok(cy, NZ);}
+          NN = NLAST
+          GO TO 60
+    //   120 CONTINUE
+    //       RETURN
+      130 CONTINUE
+      //     NZ = -1
+          return if(NW == (-2)) { Err(DidNotConverge);}// NZ=-2
+          else{Err(Overflow)}
+
+          RETURN
+          // END
+          */
+
     return Err(NotYetImplemented);
 }
 
