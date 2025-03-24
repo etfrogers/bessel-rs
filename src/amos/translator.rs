@@ -3866,7 +3866,7 @@ fn ZMLRI(
     // CKR = STR*AT*RAZ;
     // CKI = STI*AT*RAZ;
     let mut ck = z.conj() * RAZ * RAZ * AT;
-    let rz = z.conj() * 2.0 * RAZ;
+    let rz = z.conj() * 2.0 * RAZ * RAZ;
     // RZR = (STR+STR)*RAZ;
     // RZI = (STI+STI)*RAZ;
     let mut p1 = c_zero();
@@ -4025,7 +4025,7 @@ fn ZMLRI(
     }
     //    50 CONTINUE;
     let mut y = c_zeros(N);
-    y[N] = p2;
+    y[N - 1] = p2;
     // YR(N) = P2R;
     // YI(N) = P2I;
     if N != 1 {
@@ -4525,7 +4525,7 @@ fn ZBINU(
         return Ok((cy, NZ));
     }
     //  40 CONTINUE
-    let mut skip_az_rl_check = false;
+    let mut skip_az_rl_check = true;
     if !(DFNU <= 1.0) {
         //GO TO 70
         skip_az_rl_check = true;
