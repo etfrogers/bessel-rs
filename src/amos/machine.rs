@@ -53,11 +53,11 @@ pub fn d1mach(i: u8) -> f64 {
     // integer i
 
     match i {
-        1 => 4.450147717014403e-308,
-        2 => 8.988465674311579e+307,
-        3 => 1.110223024625157e-016,
-        4 => 2.220446049250313e-016,
-        5 => 0.301029995663981e+000,
+        1 => 4.450147717014403e-308, // 2.0 * f64::MIN_POSITIVE
+        2 => 8.988465674311579e+307, // f64::MAX / 2.0
+        3 => 1.110223024625157e-016, // f64::EPSILON / 2.0
+        4 => 2.220446049250313e-016, // f64::EPSILON
+        5 => 0.301029995663981e+000, // f64::RADIX.log10()
         _ => panic!(
             "D1MACH - Fatal error!
   The input argument I is out of bounds.
@@ -159,18 +159,18 @@ pub fn i1mach(i: u8) -> i32 {
         2 => 6,
         3 => 7,
         4 => 6,
-        5 => 32,
-        6 => 4,
-        7 => 2,
-        8 => 31,
-        9 => 2147483647,
-        10 => 2,
-        11 => 24,
-        12 => -125,
-        13 => 128,
-        14 => 53,
-        15 => -1021,
-        16 => 1024,
+        5 => 32,         // WORD size (32 bit!)
+        6 => 4,          // chars per word (8bit chars)
+        7 => 2,          // i32::RADIX if it existed.
+        8 => 31,         // i32::BITS - 1
+        9 => 2147483647, // i32::MAX
+        10 => 2,         // f64::RADIX
+        11 => 24,        // f32::MANTISSA_DIGITS
+        12 => -125,      // f32::MIN_EXP
+        13 => 128,       // f32::MAX_EXP
+        14 => 53,        // f64::MANTISSA_DIGITS
+        15 => -1021,     // f64::MIN_EXP
+        16 => 1024,      // f64::MAX_EXP
         _ => panic!(
             "I1MACH - Fatal error!
 The input argument I is out of bounds.
