@@ -4084,7 +4084,10 @@ fn ZMLRI(
 
     // PTR = ZR;
     // PTI = ZI;
-    let pt = if KODE == Scaling::Scaled { c_zero() } else { z };
+    let mut pt = z;
+    if KODE == Scaling::Scaled {
+        pt.re = 0.0;
+    }
     // if (KODE == 2) PTR = ZEROR;
     // CALL ZLOG(RZR, RZI, STR, STI, IDUM);
     p1 = -FNF * rz.ln() + pt;

@@ -45,6 +45,7 @@ fn test_gamma_ln_negative() {
 // #[case(407.332478234955,-325.1302407029058, 635.2191950523381)] //not yet implemented
 // #[case(465.45726205167904,-867.9390777060459, -448.2782267806473)] //not yet implemented
 #[case(10.711871220659752, -6.89931119845653, -9.408182256887017)]
+#[case(8.544950848779838, -8.645033163963603, 18.976439189605003,)]
 fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     let z = Complex64::new(zr, zi);
     let actual = bessel_j(order, z);
