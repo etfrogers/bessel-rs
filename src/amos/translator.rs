@@ -2783,7 +2783,7 @@ fn ZBKNU(
                 // GO TO 140;
                 //   130 CONTINUE;
             } else {
-                (z.re / z.im).atan().abs()
+                (z.im / z.re).atan().abs()
                 // T1 = DATAN(ZI/ZR);
                 //       T1 = (T1).abs();
             };
@@ -2821,7 +2821,7 @@ fn ZBKNU(
                         FHS += FK + FK;
                         FK += 1.0;
                         //   STR = (P2R).abs()*FK;
-                        if (ETEST < p2.abs() * FK) {
+                        if ETEST < p2.abs() * FK {
                             converged = true;
                             break;
                         } //GO TO 160;
@@ -4227,12 +4227,13 @@ fn ZWRSK(
     // RACT = 1.0/ACT;
     // CTR = CTR*RACT;
     // CTI = -CTI*RACT;
-    ct = ct.conj() / ct.abs();
+    let ct_abs = ct.abs();
+    ct = ct.conj() / ct_abs;
     // PTR = CINUR*RACT;
     // PTI = CINUI*RACT;
     // CINUR = PTR*CTR - PTI*CTI;
     // CINUI = PTR*CTI + PTI*CTR;
-    cinu = (cinu / ct.abs()) * ct;
+    cinu = (cinu / ct_abs) * ct;
     y[0] = cinu * CSCLR;
     // YR(1) = CINUR*CSCLR;
     // YI(1) = CINUI*CSCLR;
@@ -4608,7 +4609,7 @@ fn ZBINU(
         } else {
             return Ok((vec![c_one(); NN], NN));
         }
-        */
+
         //       if (NW >= 0) GO TO 100
         //       NZ = NN
         //       DO 90 I=1,NN
