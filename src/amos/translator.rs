@@ -4580,7 +4580,7 @@ fn ZBINU(
         //-----------------------------------------------------------------------
         //       CALL ZUOIK(ZR, ZI, FNU, KODE, 2, 2, CWR, CWI, NW, TOL, ELIM,
         //      * ALIM)
-        /*
+
         if let Ok((cy, NW)) = zuoik(
             z,
             order,
