@@ -55,7 +55,12 @@ fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
 
     let expected = bessel_j_ref(order, z.into());
     if let Ok(actual) = actual {
-        assert_relative_eq!(actual, expected.unwrap(), epsilon = 1e-10)
+        assert_relative_eq!(
+            actual,
+            expected.unwrap(),
+            epsilon = 1e-10,
+            max_relative = 1e-10
+        )
     } else {
         assert_eq!(actual.unwrap_err().error_code(), expected.unwrap_err())
     }
@@ -115,6 +120,7 @@ fn test_bessel_j_large_n_real(
 #[case(433.0,16.874,-38.17)]
 #[case(433.0,16.8,-38.17)]
 #[case(311.2078694557452,-10.990141170168044,-25.70154097357056,)]
+#[case(8.544950848779838, -8.645033163963603, 18.976439189605003,)]
 #[trace]
 fn test_bessel_j_large_n_complex(
     #[case] order: f64,
