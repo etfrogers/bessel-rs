@@ -4234,7 +4234,8 @@ fn ZWRSK(
     // CINUR = PTR*CTR - PTI*CTI;
     // CINUI = PTR*CTI + PTI*CTR;
     cinu = (cinu / ct_abs) * ct;
-    y[0] = cinu * CSCLR;
+    let mut y2 = c_zeros(N);
+    y2[0] = cinu * CSCLR;
     // YR(1) = CINUR*CSCLR;
     // YI(1) = CINUI*CSCLR;
     // if (N == 1) RETURN;
@@ -4246,11 +4247,11 @@ fn ZWRSK(
         //   CINUR = PTR;
         //   STR = YR(I);
         //   STI = YI(I);
-        y[i] = cinu * CSCLR;
+        y2[i] = cinu * CSCLR;
         //   YR(I) = CINUR*CSCLR;
         //   YI(I) = CINUI*CSCLR;
     }
-    Ok((y, NZ))
+    Ok((y2, NZ))
     //    40 CONTINUE;
     //       RETURN;
     //    50 CONTINUE;
