@@ -76,6 +76,7 @@ fn test_bessel_j_random() {
         let zi = rand::random_range(-1000.0..1000.0);
         let z = Complex64::new(zr, zi);
         // dbg!(order, &z);
+        // println!("#[case({}, {}, {})]", order, z.re, z.im);
         let ans = bessel_j(order, z);
         let expected = bessel_j_ref(order, z);
         if let Ok(actual) = ans {
@@ -146,6 +147,7 @@ fn test_bessel_j_large_n_random() {
         let zi = rand::random_range(-1000.0..1000.0);
         let z = Complex64::new(zr, zi);
         // dbg!(order, &z);
+        // println!("#[case({}, {}, {})]", order, z.re, z.im);
         check_against_fortran(order, z, Scaling::Unscaled, n);
     }
 }
