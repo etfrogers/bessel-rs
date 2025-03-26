@@ -3674,7 +3674,7 @@ fn ZRATI(
     // P2R = CZEROR;
     // P2I = CZEROI;
     // DO 30 I=1,KK;
-    for i in 0..KK {
+    for _ in 0..KK {
         //   PTR = P1R;
         //   PTI = P1I;
         let pt = p1;
@@ -3714,7 +3714,7 @@ fn ZRATI(
     // CDFNUR = FNU*RZR;
     // CDFNUI = FNU*RZI;
     // DO 60 I=2,N;
-    for _ in 2..N {
+    for _ in 2..=N {
         let mut pt = cdfnu + t1 * rz + cy[K];
         //   PTR = CDFNUR + (T1R*RZR-T1I*RZI) + CYR(K+1);
         //   PTI = CDFNUI + (T1R*RZI+T1I*RZR) + CYI(K+1);
