@@ -3373,7 +3373,7 @@ fn ZSHCH(ZR, ZI, CSHR, CSHI, CCHR, CCHI)
       RETURN
       END
       */
-fn ZRATI(
+fn i_ratios(
     //ZR, ZI, FNU,
     z: Complex64,
     order: f64,
@@ -3392,53 +3392,25 @@ fn ZRATI(
     //
     // ***ROUTINES CALLED  ZABS,ZDIV
     // ***END PROLOGUE  ZRATI
-    //     COMPLEX Z,CY(1),CONE,CZERO,P1,P2,T1,RZ,PT,CDFNU
-    //       EXTERNAL ZABS
-    //       DOUBLE PRECISION AK, AMAGZ, AP1, AP2, ARG, AZ, CDFNUI, CDFNUR,
-    //      * CONEI, CONER, CYI, CYR, CZEROI, CZEROR, DFNU, FDNU, FLAM, FNU,
-    //      * FNUP, PTI, PTR, P1I, P1R, P2I, P2R, RAK, RAP1, RHO, RT2, RZI,
-    //      * RZR, TEST, TEST1, TOL, TTI, TTR, T1I, T1R, ZI, ZR, ZABS
-    //       INTEGER I, ID, IDNU, INU, ITIME, K, KK, MAGZ, N
-    //       DIMENSION CYR(N), CYI(N)
-    //       DATA CZEROR,CZEROI,CONER,CONEI,RT2/
-    //      1 0.0, 0.0, 1.0, 0.0, 1.41421356237309505 /
-    // AZ = ZABS(ZR,ZI);
     let AZ = z.abs();
     let INU = order as usize;
-    // INU = INT(SNGL(FNU));
     let IDNU = INU + N - 1;
-    // MAGZ = INT(SNGL(AZ));
     let MAGZ = AZ as isize;
-    // AMAGZ = DBLE(FLOAT(MAGZ+1));
     let AMAGZ = (MAGZ + 1) as f64;
     let FDNU = IDNU as f64;
     let FNUP = AMAGZ.max(FDNU);
     let mut ID = IDNU as isize - MAGZ - 1;
-    let mut ITIME = 1;
     let mut K = 1;
     let rz = 2.0 * z.conj() / AZ.powi(2);
-    // PTR = 1.0/AZ;
-    // RZR = PTR*(ZR+ZR)*PTR;
-    // RZI = -PTR*(ZI+ZI)*PTR;
     let mut t1 = rz * FNUP;
-    // T1R = RZR*FNUP;
-    // T1I = RZI*FNUP;
     let mut p2 = -t1;
-    // P2R = -T1R;
-    // P2I = -T1I;
     let mut p1 = c_one();
-    // P1R = CONER;
-    // P1I = CONEI;
     t1 += rz;
-    // T1R = T1R + RZR;
-    // T1I = T1I + RZI;
     if ID > 0 {
         ID = 0;
     }
     let mut AP2 = p2.abs();
     let mut AP1 = p1.abs();
-    // AP2 = ZABS(P2R,P2I);
-    // AP1 = ZABS(P1R,P1I);
     //-----------------------------------------------------------------------;
     //     THE OVERFLOW TEST ON K(FNU+I-1,Z) BEFORE THE CALL TO CBKNU
     //     GUARANTEES THAT P2 IS ON SCALE. SCALE TEST1 AND ALL SUBSEQUENT
@@ -3448,130 +3420,63 @@ fn ZRATI(
     let ARG = (AP2 + AP2) / (AP1 * machine_consts.tol);
     let TEST1 = ARG.sqrt();
     let mut TEST = TEST1;
-    // let RAP1 = 1.0/AP1;
     p1 /= AP1;
     p2 /= AP1;
-    // P1R = P1R*RAP1;
-    // P1I = P1I*RAP1;
-    // P2R = P2R*RAP1;
-    // P2I = P2I*RAP1;
     AP2 /= AP1;
-    // AP2 = AP2*RAP1;
-    //    10 CONTINUE;
+    let mut first_pass = true;
     'l10: loop {
         K += 1;
         AP1 = AP2;
         let pt = p2;
-        // PTR = P2R;
-        // PTI = P2I;
         p2 = p1 - (t1 * p2);
-        // P2R = P1R - (T1R*PTR-T1I*PTI);
-        // P2I = P1I - (T1R*PTI+T1I*PTR);
         p1 = pt;
-        // P1R = PTR;
-        // P1I = PTI;
         t1 += rz;
-        // T1R = T1R + RZR;
-        // T1I = T1I + RZI;
         AP2 = p2.abs();
-        // AP2 = ZABS(P2R,P2I);
         if AP1 <= TEST {
             continue;
-        } //GO TO 10;
-        if ITIME == 2 {
+        }
+        if !first_pass {
             break 'l10;
-        } //GO TO 20;
-        // AK = ZABS(T1R,T1I)*0.5;
+        }
         let ak = t1.abs() / 2.0;
         let FLAM = ak + (ak.powi(2) - 1.0).sqrt();
-        // FLAM = AK + DSQRT(AK*AK-1.0);
         let rho = AP2 / AP1.min(FLAM);
-        // RHO = DMIN1(AP2/AP1,FLAM);
-        // TEST = TEST1*DSQRT(RHO/(RHO*RHO-1.0));
         TEST = TEST1 * (rho / (rho.powi(2) - 1.0)).sqrt();
-        ITIME = 2;
-        // GO TO 10;
+        first_pass = false;
     }
-    //    20 CONTINUE;
     let KK: usize = (K as isize + 1 - ID).try_into().unwrap();
-    // let AK = (KK as f64);
     let mut t1 = Complex64::new(KK as f64, 0.0);
-    // T1R = AK;
-    // T1I = CZEROI;
     let DFNU = order + ((N - 1) as f64);
     p1 = Complex64::new(1.0 / AP2, 0.0);
-    // P1R = 1.0/AP2;
-    // P1I = CZEROI;
     p2 = c_zero();
-    // P2R = CZEROR;
-    // P2I = CZEROI;
-    // DO 30 I=1,KK;
     for _ in 0..KK {
-        //   PTR = P1R;
-        //   PTI = P1I;
         let pt = p1;
         let tt = rz * (DFNU + t1.re);
-        //   RAP1 = DFNU + T1R;
-        //   TTR = RZR*RAP1;
-        //   TTI = RZI*RAP1;
         p1 = p1 * tt + p2;
-        //   P1R = (PTR*TTR-PTI*TTI) + P2R;
-        //   P1I = (PTR*TTI+PTI*TTR) + P2I;
         p2 = pt;
-        //   P2R = PTR;
-        //   P2I = PTI;
-        //   T1R = T1R - CONER;
         t1.re -= 1.0;
     }
-    //    30 CONTINUE;
     if p1.re == 0.0 && p1.im == 0.0 {
-        //GO TO 40;
         p1 = Complex64::new(machine_consts.tol, machine_consts.tol);
-        // P1R = TOL;
-        // P1I = TOL;
     }
-    //    40 CONTINUE;
     let mut cy = c_zeros(N);
     cy[N - 1] = p2 / p1;
-    // CALL ZDIV(P2R, P2I, P1R, P1I, CYR(N), CYI(N));
     if N == 1 {
         return cy;
-    } //RETURN;
-    K = N - 1;
-    // AK = (K as f64);
-    // T1R = AK;
-    // T1I = CZEROI;
-    t1 = Complex64::new(K as f64, 0.0);
+    }
+    t1 = Complex64::new((N - 1) as f64, 0.0);
     let cdfnu = order * rz;
-    // CDFNUR = FNU*RZR;
-    // CDFNUI = FNU*RZI;
-    // DO 60 I=2,N;
-    for _ in 2..=N {
-        let mut pt = cdfnu + t1 * rz + cy[K];
-        //   PTR = CDFNUR + (T1R*RZR-T1I*RZI) + CYR(K+1);
-        //   PTI = CDFNUI + (T1R*RZI+T1I*RZR) + CYI(K+1);
-        let mut AK = pt.abs(); //ZABS(PTR,PTI);
-        //   if (AK == CZEROR) {//GO TO 50;
+    for k in (1..N).rev() {
+        let mut pt = cdfnu + t1 * rz + cy[k];
+        let mut AK = pt.abs();
         if AK == 0.0 {
             pt = Complex64::new(machine_consts.tol, machine_consts.tol);
             AK = pt.abs();
-            //   PTR = TOL;
-            //   PTI = TOL;
-            //   AK = TOL*RT2;
         }
-        //    50   CONTINUE;
-        //   RAK = CONER/AK;
-        cy[K - 1] = pt.conj() / AK.powi(2);
-        //   CYR(K) = RAK*PTR*RAK;
-        //   CYI(K) = -RAK*PTI*RAK;
+        cy[k - 1] = pt.conj() / AK.powi(2);
         t1 -= 1.0;
-        //   T1R = T1R - CONER;
-        K -= 1;
     }
     return cy;
-    //    60 CONTINUE;
-    // RETURN;
-    // END;
 }
 /*
 fn ZS1S2(ZRR, ZRI, S1R, S1I, S2R, S2I, NZ, ASCLE, ALIM,
@@ -3660,7 +3565,7 @@ fn ZBUNK(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
       RETURN
       END
       */
-fn ZMLRI(
+fn i_miller(
     z: Complex64,
     order: f64, //ZR, ZI, FNU,
     KODE: Scaling,
@@ -3852,7 +3757,7 @@ fn i_wronksian(
     //-----------------------------------------------------------------------
     let NZ = 0;
     let (cw, _) = ZBKNU(zr, order, KODE, 2, machine_consts)?;
-    let y_ratios = ZRATI(zr, order, N, machine_consts);
+    let y_ratios = i_ratios(zr, order, N, machine_consts);
     //-----------------------------------------------------------------------;
     //     RECUR FORWARD ON I(FNU+1,Z) = R(FNU,Z)*I(FNU,Z),;
     //     R(FNU+J-1,Z)=Y(J),  J=1,...,N;
