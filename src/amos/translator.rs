@@ -3964,12 +3964,11 @@ fn ZMLRI(
     //       END;
 }
 
-fn ZWRSK(
-    zr: Complex64, //ZRR, ZRI, FNU,
+fn i_wronksian(
+    zr: Complex64,
     order: f64,
     KODE: Scaling,
-    N: usize, //YR, YI, NZ, CWR, CWI,
-    //* TOL, ELIM, ALIM)
+    N: usize,
     machine_consts: &MachineConsts,
 ) -> BesselResult {
     // ***BEGIN PROLOGUE  ZWRSK
@@ -3980,38 +3979,22 @@ fn ZWRSK(
     //
     // ***ROUTINES CALLED  d1mach,ZBKNU,ZRATI,ZABS
     // ***END PROLOGUE  ZWRSK
-    //     COMPLEX CINU,CSCL,CT,CW,C1,C2,RCT,ST,Y,ZR
-    //       EXTERNAL ZABS
-    //       DOUBLE PRECISION ACT, ACW, ALIM, ASCLE, CINUI, CINUR, CSCLR, CTI,
-    //      * CTR, CWI, CWR, C1I, C1R, C2I, C2R, ELIM, FNU, PTI, PTR, RACT,
-    //      * STI, STR, TOL, YI, YR, ZRI, ZRR, ZABS, d1mach
-    //       INTEGER I, KODE, N, NW, NZ
-    //       DIMENSION YR(N), YI(N), CWR(2), CWI(2)
     //-----------------------------------------------------------------------
     //     I(FNU+I-1,Z) BY BACKWARD RECURRENCE FOR RATIOS
     //     Y(I)=I(FNU+I,Z)/I(FNU+I-1,Z) FROM CRATI NORMALIZED BY THE
     //     WRONSKIAN WITH K(FNU,Z) AND K(FNU+1,Z) FROM CBKNU.
     //-----------------------------------------------------------------------
     let NZ = 0;
-    // CALL ZBKNU(ZRR, ZRI, FNU, KODE, 2, CWR, CWI, NW, TOL, ELIM, ALIM)?;
     let (cw, _) = ZBKNU(zr, order, KODE, 2, machine_consts)?;
-    // if (NW != 0) GO TO 50;
-    let mut y = ZRATI(zr, order, N, machine_consts);
-    // CALL ZRATI(ZRR, ZRI, FNU, N, YR, YI, TOL);
+    let y_ratios = ZRATI(zr, order, N, machine_consts);
     //-----------------------------------------------------------------------;
     //     RECUR FORWARD ON I(FNU+1,Z) = R(FNU,Z)*I(FNU,Z),;
     //     R(FNU+J-1,Z)=Y(J),  J=1,...,N;
     //-----------------------------------------------------------------------;
     let mut cinu = c_one();
-    // CINUR = 1.0;
-    // CINUI = 0.0;
     if KODE == Scaling::Scaled {
-        //GO TO 10;
         cinu = Complex64::cis(zr.im);
-        // CINUR = DCOS(ZRI);
-        // CINUI = DSIN(ZRI);
     }
-    //    10 CONTINUE;
     //-----------------------------------------------------------------------;
     //     ON LOW EXPONENT MACHINES THE K FUNCTIONS CAN BE CLOSE TO BOTH;
     //     THE UNDER AND OVERFLOW LIMITS AND THE NORMALIZATION MUST BE;
@@ -4019,78 +4002,30 @@ fn ZWRSK(
     //     THE RESULT IS ON SCALE.;
     //-----------------------------------------------------------------------;
     let acw = cw[1].abs();
-    // ACW = ZABS(CWR(2),CWI(2));
-    // ASCLE = 1.0e+3*d1mach(1)/TOL;
     let CSCLR = if acw <= machine_consts.ascle {
-        //GO TO 20;
         1.0 / machine_consts.tol
-    // GO TO 30;
     } else if acw >= 1.0 / machine_consts.ascle {
-        //GO TO 30;
-
-        //    20 CONTINUE;
-        // ASCLE = 1.0/ASCLE;
         machine_consts.tol
     } else {
         1.0
     };
-
-    //    30 CONTINUE;
     let c1 = cw[0] * CSCLR;
     let c2 = cw[1] * CSCLR;
-    // C1R = CWR(1)*CSCLR;
-    // C1I = CWI(1)*CSCLR;
-    // C2R = CWR(2)*CSCLR;
-    // C2I = CWI(2)*CSCLR;
-    // STR = YR(1);
-    // STI = YI(1);
     //-----------------------------------------------------------------------;
     //     CINU=CINU*(CONJG(CT)/CABS(CT))*(1.0/CABS(CT) PREVENTS;
     //     UNDER- OR OVERFLOW PREMATURELY BY SQUARING CABS(CT);
     //-----------------------------------------------------------------------;
-    // PTR = STR*C1R - STI*C1I;
-    // PTI = STR*C1I + STI*C1R;
-    // PTR = PTR + C2R;
-    // PTI = PTI + C2I;
-    // CTR = ZRR*PTR - ZRI*PTI;
-    // CTI = ZRR*PTI + ZRI*PTR;
-    let mut ct = zr * (y[0] * c1 + c2);
-    // ACT = ZABS(CTR,CTI);
-    // RACT = 1.0/ACT;
-    // CTR = CTR*RACT;
-    // CTI = -CTI*RACT;
+    let mut ct = zr * (y_ratios[0] * c1 + c2);
     let ct_abs = ct.abs();
     ct = ct.conj() / ct_abs;
-    // PTR = CINUR*RACT;
-    // PTI = CINUI*RACT;
-    // CINUR = PTR*CTR - PTI*CTI;
-    // CINUI = PTR*CTI + PTI*CTR;
     cinu = (cinu / ct_abs) * ct;
-    let mut y2 = c_zeros(N);
-    y2[0] = cinu * CSCLR;
-    // YR(1) = CINUR*CSCLR;
-    // YI(1) = CINUI*CSCLR;
-    // if (N == 1) RETURN;
+    let mut y = c_zeros(N);
+    y[0] = cinu * CSCLR;
     for i in 1..N {
-        // DO 40 I=2,N;
-        cinu *= y[i - 1];
-        //   PTR = STR*CINUR - STI*CINUI;
-        //   CINUI = STR*CINUI + STI*CINUR;
-        //   CINUR = PTR;
-        //   STR = YR(I);
-        //   STI = YI(I);
-        y2[i] = cinu * CSCLR;
-        //   YR(I) = CINUR*CSCLR;
-        //   YI(I) = CINUI*CSCLR;
+        cinu *= y_ratios[i - 1];
+        y[i] = cinu * CSCLR;
     }
-    Ok((y2, NZ))
-    //    40 CONTINUE;
-    //       RETURN;
-    //    50 CONTINUE;
-    //       NZ = -1;
-    //       if(NW == (-2)) NZ=-2;
-    //       RETURN;
-    // END;
+    Ok((y, NZ))
 }
 
 /*
@@ -4431,7 +4366,7 @@ fn ZBINU(
                 //       * ELIM, ALIM)
                 //        if (NW < 0) GO TO 130
                 //        return Ok(cy, NZ);
-                return ZWRSK(
+                return i_wronksian(
                     z,
                     order,
                     KODE,
