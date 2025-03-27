@@ -10,6 +10,7 @@ use crate::amos::{BesselError::*, max_abs_component, z_asymptotic_i::z_asymptoti
 use num::{
     Zero,
     complex::{Complex64, ComplexFloat},
+    pow::Pow,
 };
 use std::{
     cmp::min,
@@ -2234,10 +2235,9 @@ fn ZBIRY(ZR, ZI, ID, KODE, BIR, BII, IERR)
 */
 fn ZBKNU(
     z: Complex64,
-    order: f64, //ZR, ZI, FNU,
+    order: f64,
     KODE: Scaling,
-    N: usize, //YR, YI, NZ, TOL, ELIM,
-    //* ALIM
+    N: usize,
     machine_consts: &MachineConsts,
 ) -> BesselResult {
     // ***BEGIN PROLOGUE  ZBKNU
@@ -2248,40 +2248,13 @@ fn ZBKNU(
     // ***ROUTINES CALLED  gamma_ln,i1mach,d1mach,ZKSCL,ZSHCH,ZUunderflowCHK,ZABS,ZDIV,
     //                    ZEXP,ZLOG,ZMLT,ZSQRT
     // ***END PROLOGUE  ZBKNU
-    //
-    //       EXTERNAL ZABS
-    //       DOUBLE PRECISION AA, AK, ALIM, ASCLE, A1, A2, BB, BK, BRY, CAZ,
-    //      * CBI, CBR, CC, CCHI, CCHR, CKI, CKR, COEFI, COEFR, CONEI, CONER,
-    //      * CRSCR, CSCLR, CSHI, CSHR, CSI, CSR, CSRR, CSSR, CTWOR,
-    //      * CZEROI, CZEROR, CZI, CZR, DNU, DNU2, DPI, ELIM, ETEST, FC, FHS,
-    //      * FI, FK, FKS, FMUI, FMUR, FNU, FPI, FR, G1, G2, FRAC_PI_2, PI, PR, PTI,
-    //      * PTR, P1I, P1R, P2I, P2M, P2R, QI, QR, RAK, RCAZ, RTFRAC_PI_2, RZI,
-    //      * RZR, R1, S, SMUI, SMUR, SPI, STI, STR, S1I, S1R, S2I, S2R, TM,
-    //      * TOL, TTH, T1, T2, YI, YR, ZI, ZR, gamma_ln, d1mach, ZABS, ELM,
-    //      * CELMR, ZDR, ZDI, AS, ALAS, HELIM, CYR, CYI
-    //       INTEGER I, IFLAG, INU, K, KFLAG, KK, KMAX, KODE, KODED, N, NZ,
-    //      * IDUM, i1mach, J, IC, INUB, NW
-    //       DIMENSION YR(N), YI(N), CC(8), CSSR(3), CSRR(3), BRY(3), CYR(2),
-    //      * CYI(2)
-    //     COMPLEX Z,Y,A,B,RZ,SMU,FU,FMU,F,FLRZ,CZ,S1,S2,CSH,CCH
-    //     COMPLEX CK,P,Q,COEF,P1,P2,CBK,PT,CZERO,CONE,CTWO,ST,EZ,CS,DK
-    //
     const CTWOR: f64 = 2.0;
     const R1: f64 = 2.0;
     const KMAX: usize = 30;
-    // DATA KMAX / 30 /
-    // DATA CZEROR,CZEROI,CONER,CONEI,CTWOR,R1/
-    //      1  0.0 , 0.0 , 1.0 , 0.0 , 2.0 , 2.0 /
-    //       DATA DPI, RTFRAC_PI_2, SPI ,FRAC_PI_2, FPI, TTH /
-    //      1     3.14159265358979324,       1.25331413731550025,
-    //      2     1.90985931710274403,       1.57079632679489662,
-    //      3     1.89769999331517738,       6.66666666666666666e-01/
     const RTFRAC_PI_2: f64 = 1.25331413731550025;
     const SPI: f64 = 1.90985931710274403;
     const FPI: f64 = 1.89769999331517738;
     const TTH: f64 = 6.66666666666666666e-01;
-
-    // DATA CC(1), CC(2), CC(3), CC(4), CC(5), CC(6), CC(7), CC(8)/
     const CC: [f64; 8] = [
         5.77215664901532861e-01,
         -4.20026350340952355e-02,
@@ -2292,32 +2265,22 @@ fn ZBKNU(
         1.13302723198169588e-06,
         6.11609510448141582e-09,
     ];
-    //
-    let CAZ = z.abs(); //ZABS(ZR,ZI);
-    let CSCLR = machine_consts.rtol; //1.0/TOL;
-    let CRSCR = machine_consts.tol; //TOL;
+
+    let CAZ = z.abs();
+    let CSCLR = machine_consts.rtol;
+    let CRSCR = machine_consts.tol;
     let CSSR = [CSCLR, 1.0, CRSCR];
-    // CSSR(1) = CSCLR;
-    // CSSR(2) = 1.0;
-    // CSSR(3) = CRSCR;
     let CSRR = [CRSCR, 1.0, CSCLR];
-    // CSRR(1) = CRSCR;
-    // CSRR(2) = 1.0;
-    // CSRR(3) = CSCLR;
-    let BRY = [machine_consts.ascle, 1.0 / machine_consts.ascle, d1mach(2)];
-    // BRY(1) = 1.0e+3*d1mach(1)/TOL;
-    // BRY(2) = 1.0/BRY(1);
-    // BRY(3) = d1mach(2);
+    let BRY = [
+        machine_consts.ascle,
+        1.0 / machine_consts.ascle,
+        f64::MAX / 2.0,
+    ];
     let mut NZ = 0;
     let mut underflow_occurred = false;
     let mut KFLAG;
     let mut KODED = KODE;
-    // let RCAZ = 1.0/CAZ;
     let rz = 2.0 * z.conj() / CAZ.powi(2);
-    // STR = ZR*RCAZ;
-    // STI = -ZI*RCAZ;
-    // RZR = (STR+STR)*RCAZ;
-    // RZI = (STI+STI)*RCAZ;
     let mut INU = (order + 0.5) as usize; // round to nearest int
     let DNU = order - (INU as f64); // signed fractional part (-0.5 < DNU < 0.5 )
     let DNU2 = if DNU.abs() > machine_consts.tol {
@@ -2325,67 +2288,42 @@ fn ZBKNU(
     } else {
         0.0
     };
-    // let skip_to_240 =false;
-    let mut skip_to_270 = false;
-    // let s1; let s2;
     let (mut s1, mut s2) = if (DNU.abs() != 0.5) && (CAZ <= R1) {
-        //GO TO 110;
-
-        // if !(CAZ > R1) {//GO TO 110;
         //-----------------------------------------------------------------------;
-        //     SERIES FOR CABS(Z) <= R1; Or half integer order
+        //     SERIES FOR CABS(Z) <= R1; and not half integer order
         //-----------------------------------------------------------------------;
         let mut FC = 1.0;
         let mut smu = rz.ln();
-        // CALL ZLOG(RZR, RZI, SMUR, SMUI, IDUM);
         let fmu = smu * DNU;
-        // FMUR = SMUR*DNU;
-        // FMUI = SMUI*DNU;
         let csh = fmu.sinh();
         let cch = fmu.cosh();
-        // CALL ZSHCH(FMUR, FMUI, CSHR, CSHI, CCHR, CCHI);
-
         if DNU != 0.0 {
-            //GO TO 10;
             FC = DNU * PI;
             FC /= FC.sin();
             smu = csh / DNU;
-            // SMUR = CSHR/DNU;
-            // SMUI = CSHI/DNU;
         }
-        //    10 CONTINUE;
-        // let A2 = 1.0 + DNU;
         //-----------------------------------------------------------------------;
         //     GAM(1-Z)*GAM(1+Z)=PI*Z/SIN(PI*Z), T1=1/GAM(1-DNU), T2=1/GAM(1+DNU);
         //-----------------------------------------------------------------------;
-        // T2 = DEXP(-gamma_ln(A2,IDUM));
-        // T1 = 1.0/(T2*FC);
         let T2 = (-gamma_ln(1.0 + DNU).unwrap()).exp();
         let T1 = 1.0 / (T2 * FC);
 
         let G1 = if (DNU).abs() <= 0.1 {
-            //GO TO 40;
             //-----------------------------------------------------------------------;
             //     SERIES FOR F0 TO RESOLVE INDETERMINACY FOR SMALL ABS(DNU);
             //-----------------------------------------------------------------------;
-            let mut AK = 1.0;
-            let mut S = CC[0];
-            // DO 20 K=2,8;
+            let mut ak = 1.0;
+            let mut sum = CC[0];
             for k in 1..8 {
-                AK *= DNU2;
-                let TM = CC[k] * AK;
-                S += TM;
+                ak *= DNU2;
+                let TM = CC[k] * ak;
+                sum += TM;
                 if TM.abs() < machine_consts.tol {
                     break;
-                } //GO TO 30;
+                }
             }
-            //    20 CONTINUE;
-            //    30 G1 = -S;
-            -S
-        // GO TO 50;
+            -sum
         } else {
-            //    40 CONTINUE;
-
             (T1 - T2) / (DNU + DNU)
         };
         //    50 CONTINUE;
@@ -2554,227 +2492,123 @@ fn ZBKNU(
         //     KODED=2 AND A TEST FOR ON SCALE VALUES IS MADE DURING FORWARD;
         //     RECURSION;
         //-----------------------------------------------------------------------;
-        //   110 CONTINUE;
         let mut coef = Complex64::new(RTFRAC_PI_2, 0.0) / z.sqrt();
-        // CALL ZSQRT(ZR, ZI, STR, STI);
-        // CALL ZDIV(RTFRAC_PI_2, CZEROI, STR, STI, COEFR, COEFI);
         KFLAG = 2;
         if KODED != Scaling::Scaled {
-            //GO TO 120;
             if z.re > machine_consts.alim {
                 KODED = Scaling::Scaled;
                 underflow_occurred = true;
                 KFLAG = 2;
-            }
-            //GO TO 290;
-            else {
-                //     BLANK LINE;
-                // let temp = (-z.re).exp() * CSSR[KFLAG-1];
-                // STR = DEXP(-ZR)*CSSR(KFLAG);
-                // let temp = temp * Complex64::cis(z.im).conj();
-                // STI = -STR*DSIN(ZI);
-                // STR = STR*DCOS(ZI);
+            } else {
                 coef *= (-z.re).exp() * CSSR[KFLAG - 1] * Complex64::cis(z.im).conj();
-                // CALL ZMLT(COEFR, COEFI, STR, STI, COEFR, COEFI);
             }
         }
-        //   120 CONTINUE;
         let mut AK = (DNU * PI).cos().abs();
         let mut FHS = (0.25 - DNU2).abs();
 
         if DNU.abs() == 0.5 || AK == 0.0 || FHS == 0.0 {
-            //  s1 = coef;
-            //  s2 =coef;
             (coef, coef)
         } else {
-            // if (DNU.abs() == 0.5) GO TO 300;
             //-----------------------------------------------------------------------;
             //     MILLER ALGORITHM FOR CABS(Z) > R1;
             //-----------------------------------------------------------------------;
-            // AK = DCOS(DPI*DNU);
-            // AK = (AK).abs();
-            // if (AK == CZEROR) GO TO 300;
-            // if (FHS == CZEROR) GO TO 300;
             //-----------------------------------------------------------------------;
             //     COMPUTE R2=F(E). if CABS(Z) >= R2, USE FORWARD RECURRENCE TO;
             //     DETERMINE THE BACKWARD INDEX K. R2=F(E) IS A STRAIGHT LINE ON;
             //     12 <= E <= 60. E IS COMPUTED FROM 2**(-E)=B**(1-i1mach(14))=;
             //     TOL WHERE B IS THE BASE OF THE ARITHMETIC.;
             //-----------------------------------------------------------------------;
-            let mut T1 = (i1mach(14) - 1) as f64;
-            // T1 = DBLE(FLOAT(i1mach(14)-1));
-            T1 *= d1mach(5) * 3.321928094;
-            T1 = T1.clamp(12.0, 60.0);
-            // T1 = DMAX1(T1,12.0);
-            // T1 = DMIN1(T1,60.0);
+            let mut T1 = (f64::MANTISSA_DIGITS as f64 * (f64::RADIX as f64).log10() * 3.321928094)
+                .clamp(12.0, 60.0);
             let T2 = TTH * T1 - 6.0;
             T1 = if z.re == 0.0 {
                 FRAC_PI_2
-                // if (ZR != 0.0) GO TO 130;
-                // T1 = FRAC_PI_2;
-                // GO TO 140;
-                //   130 CONTINUE;
             } else {
                 (z.im / z.re).atan().abs()
-                // T1 = DATAN(ZI/ZR);
-                //       T1 = (T1).abs();
             };
 
-            //   140 CONTINUE;
             let (FK, FHS) = if T2 <= CAZ {
-                //GO TO 170;
                 //-----------------------------------------------------------------------;
                 //     FORWARD RECURRENCE LOOP WHEN CABS(Z) >= R2;
                 //-----------------------------------------------------------------------;
                 let ETEST = AK / (PI * CAZ * machine_consts.tol);
-                // FK = CONER;
                 let mut FK = 1.0;
-                // if (ETEST < CONER) GO TO 180;
                 if ETEST >= 1.0 {
                     let mut FKS = CTWOR;
                     let mut CKR = CAZ + CAZ + CTWOR;
-                    // P1R = CZEROR;
                     let mut p1 = 0.0;
                     let mut p2 = 1.0;
-                    // P2R = CONER;
-                    // DO 150 I=1,KMAX;
                     let mut converged = false;
                     for _ in 0..KMAX {
                         let AK = FHS / FKS;
                         let CBR = CKR / (FK + 1.0);
-                        //   PTR = P2R;
                         let pt = p2;
                         p2 = CBR * p2 - AK * p1;
-                        //   P2R = CBR*P2R - P1R*AK;
                         p1 = pt;
-                        //   P1R = PTR;
                         CKR += CTWOR;
                         FKS += FK + FK + CTWOR;
                         FHS += FK + FK;
                         FK += 1.0;
-                        //   STR = (P2R).abs()*FK;
                         if ETEST < p2.abs() * FK {
                             converged = true;
                             break;
-                        } //GO TO 160;
-                        //   150 CONTINUE;
+                        }
                     }
                     if !converged {
                         return Err(DidNotConverge);
                     }
-                    // GO TO 310;
-                    //   160 CONTINUE;
                     FK = FK + SPI * T1 * (T2 / CAZ).sqrt();
                     FHS = (0.25 - DNU2).abs();
-                    // GO TO 180;
                 }
                 (FK, FHS)
             } else {
-                //   170 CONTINUE;
                 //-----------------------------------------------------------------------;
                 //     COMPUTE BACKWARD INDEX K FOR CABS(Z) < R2;
                 //-----------------------------------------------------------------------;
-                // let A2 = CAZ.sqrt().sqrt();
-                // A2 = DSQRT(CAZ);
                 AK *= FPI / (machine_consts.tol * CAZ.sqrt().sqrt());
-                // AK = FPI*AK/(TOL*DSQRT(A2));
                 let AA = 3.0 * T1 / (1.0 + CAZ);
                 let BB = 14.7 * T1 / (28.0 + CAZ);
                 AK = (AK.ln() + CAZ * AA.cos() / (1.0 + 0.008 * CAZ)) / BB.cos();
                 let FK = 0.12125 * AK * AK / CAZ + 1.5;
                 (FK, FHS)
             };
-            //   180 CONTINUE;
             //-----------------------------------------------------------------------;
             //     BACKWARD RECURRENCE LOOP FOR MILLER ALGORITHM;
             //-----------------------------------------------------------------------;
-            // K = INT(SNGL(FK));
-            // FK = (K as f64);
             let K = FK as usize;
-            let mut FK = K as f64;
-            let mut FKS = FK * FK;
+            let mut k_squared = FK.floor().pow(2);
             let mut p1 = Complex64::zero();
-            // P1R = CZEROR;
-            // P1I = CZEROI;
             let mut p2 = Complex64::new(machine_consts.tol, 0.0);
-            // P2R = TOL;
-            // P2I = CZEROI;
             let mut cs = p2;
-            // CSR = P2R;
-            // CSI = P2I;
-            // DO 190 I=1,K;
-            for _ in 0..K {
-                //   A1 = FKS - FK;
-                AK = (FKS + FK) / (FKS - FK + FHS);
-                let RAK = 2.0 / (FK + 1.0);
-                let cb = (z + FK) * RAK;
-                //   CBR = (FK+ZR)*RAK;
-                //   CBI = ZI*RAK;
-                //   PTR = P2R;
-                //   PTI = P2I;
+            for i in (1..=K).rev() {
+                let k_f64 = i as f64;
+                let cb = (z + k_f64) * 2.0 / (k_f64 + 1.0);
                 let pt = p2;
-                p2 = (p2 * cb - p1) * AK;
-                //   P2R = (PTR*CBR-PTI*CBI-P1R)*AK;
-                //   P2I = (PTI*CBR+PTR*CBI-P1I)*AK;
+                p2 = (p2 * cb - p1) * (k_squared + k_f64) / (k_squared - k_f64 + FHS);
                 p1 = pt;
-                //   P1R = PTR;
-                //   P1I = PTI;
                 cs += p2;
-                //   CSR = CSR + P2R;
-                //   CSI = CSI + P2I;
-                //   FKS = A1 - FK + CONER;
-                FKS -= (2.0 * FK) - 1.0;
-                FK -= 1.0;
+                k_squared -= (2.0 * k_f64) - 1.0;
             }
-            //   190 CONTINUE;
             //-----------------------------------------------------------------------;
             //     COMPUTE (P2/CS)=(P2/CABS(CS))*(CONJG(CS)/CABS(CS)) FOR BETTER;
             //     SCALING;
             //-----------------------------------------------------------------------;
-            // TM = ZABS(CSR,CSI);
-            // PTR = 1.0/cs.abs();
             let mut s1 = p2 / cs.abs();
             let mut s2 = Complex64::zero();
-            // S1R = P2R*PTR;
-            // S1I = P2I*PTR;
             cs = cs.conj() / cs.abs();
-            // CSR = CSR*PTR;
-            // CSI = -CSI*PTR;
-            // let st = coef*s1;
-            // CALL ZMLT(COEFR, COEFI, S1R, S1I, STR, STI);
             s1 *= coef * cs;
-            // CALL ZMLT(STR, STI, CSR, CSI, S1R, S1I);
             if INU <= 0 && N <= 1 {
-                //GO TO 200;
-                // let zd = z;
-                // ZDR = ZR;
-                // ZDI = ZI;
                 if underflow_occurred {
-                    skip_to_270 = true;
+                    // skip_to_270 = true;
                 } //GO TO 270;
             // GO TO 240;
             // skip_to_240 = true;
             } else {
-                //   200 CONTINUE;
                 //-----------------------------------------------------------------------;
                 //     COMPUTE P1/P2=(P1/CABS(P2)*CONJG(P2)/CABS(P2) FOR SCALING;
                 //-----------------------------------------------------------------------;
-                // TM = ZABS(P2R,P2I);
-                // PTR = 1.0/TM;
                 p1 /= p2.abs();
-                // P1R = P1R*PTR;
-                // P1I = P1I*PTR;
                 p2 = p2.conj() / p2.abs();
-                // P2R = P2R*PTR;
-                // P2I = -P2I*PTR;
-                // pt = p1*p2;
-                // CALL ZMLT(P1R, P1I, P2R, P2I, PTR, PTI);
-                // st = ((DNU + 0.5 - (p1*p2)) /z) + 1.0;
-                // STR = DNU + 0.5 - PTR;
-                // STI = -PTI;
-                // CALL ZDIV(STR, STI, ZR, ZI, STR, STI);
-                // STR = STR + 1.0;
-                // CALL ZMLT(STR, STI, S1R, S1I, S2R, S2I);
                 s2 = (((DNU + 0.5 - (p1 * p2)) / z) + 1.0) * s1;
             }
             (s1, s2)
@@ -2790,37 +2624,15 @@ fn ZBKNU(
     //     FORWARD RECURSION ON THE THREE TERM RECURSION WITH RELATION WITH
     //     SCALING NEAR EXPONENT EXTREMES ON KFLAG=1 OR KFLAG=3
     //-----------------------------------------------------------------------
-    //   210 CONTINUE;
-    // 'l270: loop{
-    // if skip_to_270{break 'l270;}
-    // 'l240: loop{
-    // if skip_to_240{break 'l240;}
-    // if !skip_to_240{
     let mut ck = (DNU + 1.0) * rz;
-    // STR = DNU + 1.0;
-    // CKR = STR*RZR;
-    // CKI = STR*RZI;
     if N == 1 {
         INU -= 1
     };
     if INU > 0 {
-        //GO TO 220;
-        // let INUB = 1;
         if underflow_occurred {} //GO TO 261;
-        // if N == 1 {//GO TO 215;
-        //       s1 = s2;
-        // // S1R = S2R;
-        // // S1I = S2I;
-        // }
     }
-    //   215 CONTINUE;
-    // let zd=z;
-    // ZDR = ZR;
-    // ZDI = ZI;
     if underflow_occurred {} //{break 'l270;}
-    // skip_to_240 = true;
 
-    // let skip_to_261 = false;
     'l225: loop {
         if !(INU <= 0 && N <= 1) {
             //   220 CONTINUE;
@@ -2830,56 +2642,26 @@ fn ZBKNU(
             //   225 CONTINUE;
             let mut P1R = CSRR[KFLAG - 1];
             let mut ASCLE = BRY[KFLAG - 1];
-            // DO 230 I=INUB,INU;
-            for I in INUB..=INU {
-                //   STR = S2R;
-                //   STI = S2I;
+            for _ in INUB..=INU {
                 let st = s2;
                 s2 = ck * s2 + s1;
-                //   S2R = CKR*STR - CKI*STI + S1R;
-                //   S2I = CKR*STI + CKI*STR + S1I;
                 s1 = st;
-                //   S1R = STR;
-                //   S1I = STI;
                 ck += rz;
-                //   CKR = CKR + RZR;
-                //   CKI = CKI + RZI;
                 if KFLAG >= 3 {
                     continue;
-                } //GO TO 230;
+                }
                 let p2 = s2 * P1R;
-                //   P2R = S2R*P1R;
-                //   P2I = S2I*P1R;
-
-                //   STR = (P2R).abs();
-                //   STI = (P2I).abs();
-                //   let p2_max_component = max_abs_component(p2);//DMAX1(STR,STI);
                 if max_abs_component(p2) <= ASCLE {
                     continue;
-                } //GO TO 230;
+                }
                 KFLAG += 1;
                 ASCLE = BRY[KFLAG - 1];
                 s1 *= P1R;
-                //   S1R = S1R*P1R;
-                //   S1I = S1I*P1R;
                 s2 = p2;
-                //   S2R = P2R;
-                //   S2I = P2I;
-                //   STR = CSSR[KFLAG-1];
                 s1 *= CSSR[KFLAG - 1];
-                //   S1R = S1R*STR;
-                //   S1I = S1I*STR;
                 s2 *= CSSR[KFLAG - 1];
-                //   S2R = S2R*STR;
-                //   S2I = S2I*STR;
                 P1R = CSRR[KFLAG - 1];
             }
-        //   230 CONTINUE;
-        // if N == 1 {//GO TO 240;
-        //       s1 = s2;
-        // // S1R = S2R;
-        // // S1I = S2I;
-        // }
         } else {
             //-----------------------------------------------------------------------;
             //     underflow_occured=1 CASES, FORWARD RECURRENCE ON SCALED VALUES ON UNDERFLOW;
@@ -2994,19 +2776,13 @@ fn ZBKNU(
             s1 = s2;
         }
         // ********* basic setup
-        // 240 CONTINUE;
         let (mut KK, mut y) = if !underflow_occurred {
             let mut y = c_zeros(N);
             y[0] = s1 * CSRR[KFLAG - 1];
-            // STR = CSRR(KFLAG);
-            // YR(1) = S1R*STR;
-            // YI(1) = S1I*STR;
             if N == 1 {
                 return Ok((y, NZ));
             }
             y[1] = s2 * CSRR[KFLAG - 1];
-            // YR(2) = S2R*STR;
-            // YI(2) = S2I*STR;
             if N == 2 {
                 return Ok((y, NZ));
             }
@@ -3032,7 +2808,7 @@ fn ZBKNU(
             ZKSCL(zd, order, N, &mut y, &mut NZ, rz, BRY[0], machine_consts);
             // CALL ZKSCL(ZDR,ZDI,FNU,N,YR,YI,NZ,RZR,RZI,ASCLE,TOL,ELIM);
             INU = N - NZ;
-            if (INU <= 0) {
+            if INU <= 0 {
                 return Ok((y, NZ));
             } //;RETURN;}
             let mut KK = NZ; // + 1;
@@ -3121,30 +2897,6 @@ fn ZBKNU(
         // RETURN;
         return Ok((y, NZ));
     }
-
-    //   290 CONTINUE;
-    //-----------------------------------------------------------------------;
-    //     SCALE BY DEXP(Z), underflow_occured = 1 CASES;
-    //-----------------------------------------------------------------------;
-    // KODED = 2;
-    // underflow_occured = 1;
-    // KFLAG = 2;
-    // GO TO 120;
-    //-----------------------------------------------------------------------;
-    //     FNU=HALF ODD INTEGER CASE, DNU=-0.5;
-    //-----------------------------------------------------------------------;
-    //   300 CONTINUE;
-    //       S1R = COEFR;
-    //       S1I = COEFI;
-    //       S2R = COEFR;
-    //       S2I = COEFI;
-    //       GO TO 210;
-    //;
-    //;
-    //   310 CONTINUE;
-    //       NZ=-2;
-    //       RETURN;
-    //       END;
 }
 
 fn ZKSCL(
