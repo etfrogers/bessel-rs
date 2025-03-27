@@ -3675,38 +3675,19 @@ fn ZMLRI(
     //
     // ***ROUTINES CALLED  gamma_ln,d1mach,ZABS,ZEXP,ZLOG,ZMLT
     // ***END PROLOGUE  ZMLRI
-    // //     COMPLEX CK,CNORM,CONE,CTWO,CZERO,PT,P1,P2,RZ,SUM,Y,Z
-    //       EXTERNAL ZABS
-    //       DOUBLE PRECISION ACK, AK, AP, AT, AZ, BK, CKI, CKR, CNORMI,
-    //      * CNORMR, CONEI, CONER, FKAP, FKK, FLAM, FNF, FNU, PTI, PTR, P1I,
-    //      * P1R, P2I, P2R, RAZ, RHO, RHO2, RZI, RZR, SCLE, STI, STR, SUMI,
-    //      * SUMR, TFNF, TOL, TST, YI, YR, ZEROI, ZEROR, ZI, ZR, gamma_ln,
-    //      * d1mach, ZABS
-    //       INTEGER I, IAZ, IDUM, IFNU, INU, ITIME, K, KK, KM, KODE, M, N, NZ
-    //       DIMENSION YR(N), YI(N)
-    //       DATA ZEROR,ZEROI,CONER,CONEI / 0.0, 0.0, 1.0, 0.0 /
+
     let SCLE: f64 = d1mach(1) / machine_consts.tol;
     let NZ = 0;
-    let AZ = z.abs(); //ZABS(ZR,ZI);
+    let AZ = z.abs();
     let IAZ = AZ as usize;
-    let IFNU = order as usize; //INT(SNGL(FNU));
+    let IFNU = order as usize;
     let INU = IFNU + N - 1;
     let AT = (IAZ as f64) + 1.0;
     let RAZ = 1.0 / AZ;
-    // STR = ZR*RAZ;
-    // STI = -ZI*RAZ;
-    // CKR = STR*AT*RAZ;
-    // CKI = STI*AT*RAZ;
     let mut ck = z.conj() * RAZ * RAZ * AT;
     let rz = z.conj() * 2.0 * RAZ * RAZ;
-    // RZR = (STR+STR)*RAZ;
-    // RZI = (STI+STI)*RAZ;
     let mut p1 = c_zero();
     let mut p2 = c_one();
-    // P1R = ZEROR;
-    // P1I = ZEROI;
-    // P2R = CONER;
-    // P2I = CONEI;
     let mut ACK = (AT + 1.0) * RAZ;
     let RHO = ACK + (ACK * ACK - 1.0).sqrt();
     let RHO2 = RHO * RHO;
@@ -3716,75 +3697,43 @@ fn ZMLRI(
     //     COMPUTE RELATIVE TRUNCATION ERROR INDEX FOR SERIES;
     //-----------------------------------------------------------------------;
     let mut AK = AT;
-    // DO 10 I=1,80;
     let mut converged = false;
     let mut I = 0;
     for i in 0..80 {
         I = i;
         let pt = p2;
-        //   PTR = P2R;
-        //   PTI = P2I;
         p2 = p1 - ck * p2;
-        //   P2R = P1R - (CKR*PTR-CKI*PTI);
-        //   P2I = P1I - (CKI*PTR+CKR*PTI);
         p1 = pt;
-        //   P1R = PTR;
-        //   P1I = PTI;
         ck += rz;
-        //   CKR = CKR + RZR;
-        //   CKI = CKI + RZI;
-        //   AP = ZABS(P2R,P2I);
         if p2.abs() > TST * AK * AK {
             converged = true;
             break;
         }
         AK += 1.0;
     }
-    //    10 CONTINUE;
     if !converged {
         return Err(DidNotConverge);
     }
-    // GO TO 110;
-    //    20 CONTINUE;
     I += 1;
     let mut K = 0;
     if INU >= IAZ {
-        //GO TO 40;
         //-----------------------------------------------------------------------;
         //     COMPUTE RELATIVE TRUNCATION ERROR FOR RATIOS;
         //-----------------------------------------------------------------------;
         p1 = c_zero();
         p2 = c_one();
-        // P1R = ZEROR;
-        // P1I = ZEROI;
-        // P2R = CONER;
-        // P2I = CONEI;
         let AT = (INU as f64) + 1.0;
-        // STR = ZR*RAZ;
-        // STI = -ZI*RAZ;
-        // CKR = STR*AT*RAZ;
-        // CKI = STI*AT*RAZ;
         ck = z.conj() * RAZ * RAZ * AT;
         ACK = AT * RAZ;
         TST = (ACK / machine_consts.tol).sqrt();
         let mut hit_loop_end = false;
-        // DO 30 K=1,80;
         converged = false;
         for k in 0..80 {
             K = k;
             let pt = p2;
-            //   PTR = P2R;
-            //   PTI = P2I;
             p2 = p1 - ck * pt;
-            //   P2R = P1R - (CKR*PTR-CKI*PTI);
-            //   P2I = P1I - (CKR*PTI+CKI*PTR);
             p1 = pt;
-            //   P1R = PTR;
-            //   P1I = PTI;
             ck += rz;
-            //   CKR = CKR + RZR;
-            //   CKI = CKI + RZI;
-            //   AP = ZABS(P2R,P2I);
             let AP = p2.abs();
             if AP < TST {
                 continue;
@@ -3793,175 +3742,92 @@ fn ZMLRI(
                 converged = true;
                 break;
             }
-            ACK = ck.abs(); //ZABS(CKR,CKI);
+            ACK = ck.abs();
             let FLAM = ACK + (ACK * ACK - 1.0).sqrt();
-            let FKAP = AP / p1.abs(); //ZABS(P1R,P1I);
-            let RHO = FLAM.min(FKAP); //DMIN1(FLAM,FKAP);
+            let FKAP = AP / p1.abs();
+            let RHO = FLAM.min(FKAP);
             TST *= (RHO / (RHO * RHO - 1.0)).sqrt();
             hit_loop_end = true;
         }
-        //    30 CONTINUE;
-
         if !converged {
             return Err(DidNotConverge);
         }
-
-        // GO TO 110;
     }
-    //    40 CONTINUE;
     //-----------------------------------------------------------------------;
     //     BACKWARD RECURRENCE AND SUM NORMALIZING RELATION;
     //-----------------------------------------------------------------------;
     K += 1;
-    // KK = MAX0(I+IAZ,K+INU);
     let KK = (I + IAZ).max(K + INU);
     let mut FKK = KK as f64;
     let mut p1 = c_zero();
-    // P1R = ZEROR;
-    // P1I = ZEROI;
     //-----------------------------------------------------------------------;
     //     SCALE P2 AND SUM BY SCLE;
     //-----------------------------------------------------------------------;
     let mut p2 = Complex64::new(SCLE, 0.0);
-    // P2R = SCLE;
-    // P2I = ZEROI;
     let FNF = order - (IFNU as f64);
     let TFNF = FNF + FNF;
     let mut BK = (gamma_ln(FKK + TFNF + 1.0).unwrap()
         - gamma_ln(FKK + 1.0).unwrap()
         - gamma_ln(TFNF + 1.0).unwrap())
     .exp();
-    // BK = DEXP(BK);
     let mut sumr = c_zero();
-    // SUMR = ZEROR;
-    // SUMI = ZEROI;
-    // let KM = (KK - INU);
-    // DO 50 I=1,KM;
     for _i in 0..(KK - INU) {
         let pt = p2;
-        //   PTR = P2R;
-        //   PTI = P2I;
         p2 = p1 + (FKK + FNF) * (rz * pt);
-        //   P2R = P1R + (FKK+FNF)*(RZR*PTR-RZI*PTI);
-        //   P2I = P1I + (FKK+FNF)*(RZI*PTR+RZR*PTI);
         p1 = pt;
-        //   P1R = PTR;
-        //   P1I = PTI;
         AK = 1.0 - TFNF / (FKK + TFNF);
         ACK = BK * AK;
         sumr += (ACK + BK) * p1;
-        //   SUMR = SUMR + (ACK+BK)*P1R;
-        //   SUMI = SUMI + (ACK+BK)*P1I;
         BK = ACK;
         FKK = FKK - 1.0;
     }
-    //    50 CONTINUE;
     let mut y = c_zeros(N);
     y[N - 1] = p2;
-    // YR(N) = P2R;
-    // YI(N) = P2I;
     if N != 1 {
-        //GO TO 70;
-        // DO 60 I=2,N;
         for i in 1..N {
             let pt = p2;
             p2 = p1 + (FKK + FNF) * (rz * pt);
-            //   PTR = P2R;
-            //   PTI = P2I;
-            //   P2R = P1R + (FKK+FNF)*(RZR*PTR-RZI*PTI);
-            //   P2I = P1I + (FKK+FNF)*(RZI*PTR+RZR*PTI);
             p1 = pt;
-            //   P1R = PTR;
-            //   P1I = PTI;
             AK = 1.0 - TFNF / (FKK + TFNF);
             ACK = BK * AK;
             sumr += (ACK + BK) * p1;
-            //   SUMR = SUMR + (ACK+BK)*P1R;
-            //   SUMI = SUMI + (ACK+BK)*P1I;
             BK = ACK;
             FKK = FKK - 1.0;
-            //   M = N - I + 1;
             y[N - (i + 1)] = p2;
-            //   YR(M) = P2R;
-            //   YI(M) = P2I;
         }
-        //    60 CONTINUE;
-        //    70 CONTINUE;
     }
     if IFNU > 0 {
-        //GO TO 90;
-        // DO 80 I=1,IFNU;
         for _i in 0..IFNU {
             let pt = p2;
-            //   PTR = P2R;
-            //   PTI = P2I;
             p2 = p1 + (FKK + FNF) * (rz * pt);
-
-            //   P2R = P1R + (FKK+FNF)*(RZR*PTR-RZI*PTI);
-            //   P2I = P1I + (FKK+FNF)*(RZR*PTI+RZI*PTR);
             p1 = pt;
-            //   P1R = PTR;
-            //   P1I = PTI;
             AK = 1.0 - TFNF / (FKK + TFNF);
             ACK = BK * AK;
             sumr += (ACK + BK) * p1;
-            //   SUMR = SUMR + (ACK+BK)*P1R;
-            //   SUMI = SUMI + (ACK+BK)*P1I;
             BK = ACK;
             FKK = FKK - 1.0;
         }
-        //    80 CONTINUE;
-        //    90 CONTINUE;
     }
 
-    // PTR = ZR;
-    // PTI = ZI;
     let mut pt = z;
     if KODE == Scaling::Scaled {
         pt.re = 0.0;
     }
-    // if (KODE == 2) PTR = ZEROR;
-    // CALL ZLOG(RZR, RZI, STR, STI, IDUM);
     p1 = -FNF * rz.ln() + pt;
-    // P1R = -FNF*STR + PTR;
-    // P1I = -FNF*STI + PTI;
     let AP = gamma_ln(1.0 + FNF).unwrap();
     p1 -= AP;
-    // let pt = p1 - AP;
-    // PTR = P1R - AP;
-    // PTI = P1I;
     //-----------------------------------------------------------------------;
     //     THE DIVISION CEXP(PT)/(SUM+P2) IS ALTERED TO AVOID OVERFLOW;
     //     IN THE DENOMINATOR BY SQUARING LARGE QUANTITIES;
     //-----------------------------------------------------------------------;
     p2 += sumr;
-    // P2R = P2R + SUMR;
-    // P2I = P2I + SUMI;
-    // AP = ZABS(P2R,P2I);
     let AP = p2.abs();
-    // P1R = 1.0/AP;
-    // CALL ZEXP(PTR, PTI, STR, STI);
     ck = p1.exp() / AP;
-    // CKR = STR*P1R;
-    // CKI = STI*P1R;
-    // PTR = P2R*P1R;
-    // PTI = -P2I*P1R;
-    // CALL ZMLT(CKR, CKI, PTR, PTI, CNORMR, CNORMI);
     let cnorm = ck * p2.conj() / AP;
-    // DO 100 I=1,N;
     for i in 0..N {
         y[i] *= cnorm;
-        //   STR = YR(I)*CNORMR - YI(I)*CNORMI;
-        //   YI(I) = YR(I)*CNORMI + YI(I)*CNORMR;
-        //   YR(I) = STR;
     }
-    //   100 CONTINUE;
-    // RETURN;
     return Ok((y, NZ));
-    //   110 CONTINUE;
-    //       NZ=-2; //falied to converge
-    //       RETURN;
-    //       END;
 }
 
 fn i_wronksian(
@@ -4328,7 +4194,7 @@ fn ZBINU(
             //-----------------------------------------------------------------------
             //     MILLER ALGORITHM NORMALIZED BY THE SERIES
             //-----------------------------------------------------------------------
-            let (cy, _) = ZMLRI(
+            let (cy, _) = i_miller(
                 //ZR, ZI, FNU,
                 z,
                 order,
