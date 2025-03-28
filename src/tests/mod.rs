@@ -7,6 +7,8 @@ use crate::amos::{gamma_ln, zbesj};
 use crate::{BesselError, GammaError, Scaling, bessel_j};
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_ref;
 
+const RANDOM_LIMIT: f64 = 10_000.0;
+
 #[test]
 fn test_gamma_ln_hard_coded() {
     for i in 1..=100 {
@@ -71,9 +73,9 @@ fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
 #[rstest]
 fn test_bessel_j_random() {
     for _ in 0..1000000 {
-        let order = rand::random_range(std::f64::EPSILON..1000.0);
-        let zr = rand::random_range(-1000.0..1000.0);
-        let zi = rand::random_range(-1000.0..1000.0);
+        let order = rand::random_range(std::f64::EPSILON..RANDOM_LIMIT);
+        let zr = rand::random_range(-RANDOM_LIMIT..RANDOM_LIMIT);
+        let zi = rand::random_range(-RANDOM_LIMIT..RANDOM_LIMIT);
         let z = Complex64::new(zr, zi);
         // dbg!(order, &z);
         // println!("#[case({}, {}, {})]", order, z.re, z.im);
@@ -142,9 +144,9 @@ fn test_bessel_j_large_n_complex(
 fn test_bessel_j_large_n_random() {
     let n = 9;
     for _ in 0..100000 {
-        let order = rand::random_range(std::f64::EPSILON..1000.0);
-        let zr = rand::random_range(-1000.0..1000.0);
-        let zi = rand::random_range(-1000.0..1000.0);
+        let order = rand::random_range(std::f64::EPSILON..RANDOM_LIMIT);
+        let zr = rand::random_range(-RANDOM_LIMIT..RANDOM_LIMIT);
+        let zi = rand::random_range(-RANDOM_LIMIT..RANDOM_LIMIT);
         let z = Complex64::new(zr, zi);
         // dbg!(order, &z);
         // println!("#[case({}, {}, {})]", order, z.re, z.im);
