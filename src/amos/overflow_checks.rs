@@ -1,4 +1,4 @@
-use std::f64::consts::FRAC_PI_2;
+use std::f64::consts::{FRAC_PI_2, PI};
 
 use num::complex::{Complex64, ComplexFloat};
 
@@ -570,7 +570,13 @@ fn zunhj(
         let azth = zth.abs();
         let mut ang = THREE_PI_BY_2;
         if !(zth.re >= 0.0 && zth.im < 0.0) {
-            ang = zth.arg();
+            ang = FRAC_PI_2;
+            if zth.re != 0.0 {
+                ang = zth.arg();
+            }
+            if zth.re < 0.0 {
+                ang += PI;
+            }
         }
         let mut pp = azth.powf(EX2);
         ang *= EX2;
