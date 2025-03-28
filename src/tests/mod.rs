@@ -128,6 +128,7 @@ fn test_bessel_j_large_n_real(
 #[case(8.544950848779838, -8.645033163963603, 18.976439189605003,)]
 #[case(17.556977911963312, 70.34021294440504, 37.416997183283456)]
 #[case(13.337522865795481, -29.8266399174247, 17.66323218839807)]
+#[case(5423.246927434604, -7915.1124370237285, -3113.950242590895)]
 #[trace]
 fn test_bessel_j_large_n_complex(
     #[case] order: f64,
@@ -137,11 +138,11 @@ fn test_bessel_j_large_n_complex(
     #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
 ) {
     let z = Complex64::new(zr, zi);
-    check_against_fortran(order, z.into(), scaling, n);
+    check_against_fortran(order, z, scaling, n);
 }
 
 #[rstest]
-fn test_bessel_j_large_n_random() {
+fn test_bessel_j_large_n_random(#[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling) {
     let n = 9;
     for _ in 0..100000 {
         let order = rand::random_range(std::f64::EPSILON..RANDOM_LIMIT);
@@ -150,7 +151,7 @@ fn test_bessel_j_large_n_random() {
         let z = Complex64::new(zr, zi);
         // dbg!(order, &z);
         // println!("#[case({}, {}, {})]", order, z.re, z.im);
-        check_against_fortran(order, z, Scaling::Unscaled, n);
+        check_against_fortran(order, z, scaling, n);
     }
 }
 
