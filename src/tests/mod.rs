@@ -74,8 +74,8 @@ fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
 fn test_bessel_j_random() {
     for _ in 0..1000000 {
         let order = rand::random_range(std::f64::EPSILON..RANDOM_LIMIT);
-        let zr = rand::random_range(-RANDOM_LIMIT..RANDOM_LIMIT);
-        let zi = rand::random_range(-RANDOM_LIMIT..RANDOM_LIMIT);
+        let zr = random_val();
+        let zi = random_val();
         let z = Complex64::new(zr, zi);
         // dbg!(order, &z);
         // println!("#[case({}, {}, {})]", order, z.re, z.im);
@@ -129,6 +129,7 @@ fn test_bessel_j_large_n_real(
 #[case(17.556977911963312, 70.34021294440504, 37.416997183283456)]
 #[case(13.337522865795481, -29.8266399174247, 17.66323218839807)]
 #[case(5423.246927434604, -7915.1124370237285, -3113.950242590895)]
+#[case(2213.61988214781, -1813.3484572476455, -1033.3403805479065)]
 #[trace]
 fn test_bessel_j_large_n_complex(
     #[case] order: f64,
@@ -141,13 +142,29 @@ fn test_bessel_j_large_n_complex(
     check_against_fortran(order, z, scaling, n);
 }
 
+enum NumType {
+    Real,
+    Imaginary,
+    Complex,
+}
+
+fn random_val() -> f64 {
+    rand::random_range(-RANDOM_LIMIT..RANDOM_LIMIT)
+}
+
 #[rstest]
-fn test_bessel_j_large_n_random(#[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling) {
+fn test_bessel_j_large_n_random(
+    #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
+    #[values(NumType::Real, NumType::Imaginary, NumType::Complex)] num_type: NumType,
+) {
     let n = 9;
     for _ in 0..100000 {
         let order = rand::random_range(std::f64::EPSILON..RANDOM_LIMIT);
-        let zr = rand::random_range(-RANDOM_LIMIT..RANDOM_LIMIT);
-        let zi = rand::random_range(-RANDOM_LIMIT..RANDOM_LIMIT);
+        let (zr, zi) = match num_type {
+            NumType::Real => (random_val(), 0.0),
+            NumType::Imaginary => (0.0, random_val()),
+            NumType::Complex => (random_val(), random_val()),
+        };
         let z = Complex64::new(zr, zi);
         // dbg!(order, &z);
         // println!("#[case({}, {}, {})]", order, z.re, z.im);
