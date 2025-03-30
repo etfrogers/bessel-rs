@@ -1,3 +1,5 @@
+use std::f64::consts::{FRAC_PI_2, PI};
+
 use approx::{assert_relative_eq, relative_eq};
 use num::complex::Complex64;
 use rstest::rstest;
@@ -130,6 +132,7 @@ fn test_bessel_j_large_n_real(
 #[case(13.337522865795481, -29.8266399174247, 17.66323218839807)]
 #[case(5423.246927434604, -7915.1124370237285, -3113.950242590895)]
 #[case(2213.61988214781, -1813.3484572476455, -1033.3403805479065)]
+#[case(5514.86274463943, -9489.650336481069, 4951.6909981261)]
 #[trace]
 fn test_bessel_j_large_n_complex(
     #[case] order: f64,
@@ -265,4 +268,42 @@ fn zbesj_fortran(
         .map(|(r, i)| Complex64::new(r, i))
         .collect();
     (cy, nz.try_into().unwrap(), ierr)
+}
+
+#[rstest]
+fn test_fortran_ang() {
+    const THREE_PI_BY_2: f64 = 4.71238898038468986e+00;
+
+    let fortran_ang = |zth: Complex64| -> f64 {
+        let mut ang = THREE_PI_BY_2;
+        if !(zth.re >= 0.0 && zth.im < 0.0) {
+            ang = FRAC_PI_2;
+            if zth.re != 0.0 {
+                // ang = zth.arg();
+                ang = (zth.im / zth.re).atan();
+            }
+            if zth.re < 0.0 {
+                ang += PI;
+            }
+        }
+        ang
+    };
+
+    let shift_arg = |zth: Complex64| -> f64 {
+        let mut ang = zth.arg();
+        if ang < 0.0 {
+            ang = (PI * 2.0) + ang;
+        }
+        ang.clamp(0.0, THREE_PI_BY_2)
+    };
+
+    for _ in 0..1000000 {
+        let z = Complex64::new(random_val(), random_val());
+        let z_re = Complex64::new(z.re, 0.0);
+        let z_im = Complex64::new(0.0, z.im);
+
+        assert_relative_eq!(fortran_ang(z), shift_arg(z));
+        assert_relative_eq!(fortran_ang(z_re), shift_arg(z_re));
+        assert_relative_eq!(fortran_ang(z_im), shift_arg(z_im));
+    }
 }
