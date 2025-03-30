@@ -1,6 +1,8 @@
+use std::f64::consts::PI;
+
 pub use gamma_ln::{GammaError, gamma_ln};
 use machine::{d1mach, i1mach};
-use num::{One, Zero, complex::Complex64};
+use num::{Complex, Float, One, Zero, complex::Complex64};
 use thiserror::Error;
 pub use translator::zbesj;
 pub use z_power_series::z_power_series;
@@ -146,20 +148,34 @@ impl MachineConsts {
     }
 }
 
-pub fn c_one() -> Complex64 {
+pub(crate) fn c_one() -> Complex64 {
     Complex64::one()
 }
 
 #[inline]
-pub fn c_zero() -> Complex64 {
+pub(crate) fn c_zero() -> Complex64 {
     Complex64::zero()
 }
 
 #[inline]
-pub fn c_zeros(n: usize) -> Vec<Complex64> {
+pub(crate) fn c_zeros(n: usize) -> Vec<Complex64> {
     vec![Complex64::zero(); n]
 }
 
-pub fn max_abs_component(c: Complex64) -> f64 {
+pub(crate) fn max_abs_component(c: Complex64) -> f64 {
     c.re.abs().max(c.im.abs())
+}
+
+pub(crate) trait PositiveArg {
+    fn parg(&self) -> f64;
+}
+
+impl PositiveArg for Complex<f64> {
+    fn parg(&self) -> f64 {
+        let mut ang = self.arg();
+        if ang < 0.0 {
+            ang = (PI * 2.0) + ang;
+        }
+        ang
+    }
 }
