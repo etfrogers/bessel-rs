@@ -2,7 +2,7 @@ use std::f64::consts::PI;
 
 pub use gamma_ln::{GammaError, gamma_ln};
 use machine::{d1mach, i1mach};
-use num::{Complex, Float, One, Zero, complex::Complex64};
+use num::{Complex, One, Zero, complex::Complex64};
 use thiserror::Error;
 pub use translator::zbesj;
 pub use z_power_series::z_power_series;
