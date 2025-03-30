@@ -1,8 +1,13 @@
+use f64;
 use std::f64::consts::{FRAC_PI_2, PI};
 
 use approx::{assert_relative_eq, relative_eq};
 use num::complex::Complex64;
-use rstest::rstest;
+use num::pow::Pow;
+use rand::rngs::SmallRng;
+use rand::seq::IndexedRandom;
+use rand::{SeedableRng, random_range};
+use rstest::{fixture, rstest};
 
 use crate::amos::bindings::zbesj_wrap;
 use crate::amos::{gamma_ln, zbesj};
@@ -75,7 +80,7 @@ fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
 #[rstest]
 fn test_bessel_j_random() {
     for _ in 0..1000000 {
-        let order = rand::random_range(std::f64::EPSILON..RANDOM_LIMIT);
+        let order = random_range(f64::EPSILON..RANDOM_LIMIT);
         let zr = random_val();
         let zi = random_val();
         let z = Complex64::new(zr, zi);
@@ -152,7 +157,7 @@ enum NumType {
 }
 
 fn random_val() -> f64 {
-    rand::random_range(-RANDOM_LIMIT..RANDOM_LIMIT)
+    random_range(-RANDOM_LIMIT..RANDOM_LIMIT)
 }
 
 #[rstest]
@@ -162,7 +167,7 @@ fn test_bessel_j_large_n_random(
 ) {
     let n = 9;
     for _ in 0..100000 {
-        let order = rand::random_range(std::f64::EPSILON..RANDOM_LIMIT);
+        let order = random_range(f64::EPSILON..RANDOM_LIMIT);
         let (zr, zi) = match num_type {
             NumType::Real => (random_val(), 0.0),
             NumType::Imaginary => (0.0, random_val()),
@@ -173,6 +178,73 @@ fn test_bessel_j_large_n_random(
         // println!("#[case({}, {}, {})]", order, z.re, z.im);
         check_against_fortran(order, z, scaling, n);
     }
+}
+
+#[fixture]
+fn rng() -> SmallRng {
+    SmallRng::seed_from_u64(42)
+}
+
+#[rstest]
+fn test_bessel_j_random_logspace(
+    #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
+    #[values(NumType::Real, NumType::Imaginary, NumType::Complex)] num_type: NumType,
+    mut rng: SmallRng,
+) {
+    let n = 9;
+    let mut random_val = |pos: bool| -> f64 {
+        let ll = f64::MIN_POSITIVE;
+        let ul = f64::MAX;
+        let r = random_range(ll.log10()..ul.log10());
+        let sign = if pos {
+            1.0
+        } else {
+            *([-1.0, 1.0].choose(&mut rng).unwrap())
+        };
+        sign * 10.0.pow(r)
+    };
+    for _ in 0..100000 {
+        let order = random_val(true);
+        let (zr, zi) = match num_type {
+            NumType::Real => (random_val(false), 0.0),
+            NumType::Imaginary => (0.0, random_val(false)),
+            NumType::Complex => (random_val(false), random_val(false)),
+        };
+        let z = Complex64::new(zr, zi);
+        check_against_fortran(order, z, scaling, n);
+    }
+}
+
+#[rstest]
+fn test_bessel_j_extremes(
+    #[values(f64::EPSILON, f64::MIN_POSITIVE, 1.0, f64::MAX)] order: f64,
+    #[values(
+        f64::MIN,
+        -f64::EPSILON,
+        -f64::MIN_POSITIVE,
+        0.0,
+        f64::MIN_POSITIVE,
+        f64::EPSILON,
+        1.0,
+        f64::MAX
+    )]
+    zr: f64,
+    #[values(
+        f64::MIN,
+        -f64::EPSILON,
+        -f64::MIN_POSITIVE,
+        0.0,
+        f64::MIN_POSITIVE,
+        f64::EPSILON,
+        1.0,
+        f64::MAX
+        )]
+    zi: f64,
+    #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
+) {
+    let n = 9;
+    let z = Complex64::new(zr, zi);
+    check_against_fortran(order, z, scaling, n);
 }
 
 fn check_against_fortran(order: f64, z: Complex64, scaling: Scaling, n: usize) {
