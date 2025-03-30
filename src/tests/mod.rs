@@ -258,8 +258,8 @@ fn check_against_fortran(order: f64, z: Complex64, scaling: Scaling, n: usize) {
     let (cy, nz, ierr) = zbesj_fortran(order, z, scaling, n);
 
     let fail = |reason: &str| -> () {
-        println!("Order: {order}\nz: {z}\nscaling: {scaling:?}\nn: {n}");
-        println!("#[case({}, {}, {})]\n", order, z.re, z.im);
+        println!("Order: {order:e}\nz: {z:e}\nscaling: {scaling:?}\nn: {n}");
+        println!("#[case({:e}, {:e}, {:e})]\n", order, z.re, z.im);
         match &actual {
             Ok(actual) => {
                 println!("Fortran Nz: {nz}, translator Nz: {}\n", actual.1);
