@@ -6,7 +6,7 @@ use num::complex::Complex64;
 use num::pow::Pow;
 use rand::rngs::SmallRng;
 use rand::seq::IndexedRandom;
-use rand::{SeedableRng, random_range};
+use rand::{Rng, SeedableRng, random_range};
 use rstest::{fixture, rstest};
 
 use crate::amos::bindings::zbesj_wrap;
@@ -78,7 +78,8 @@ fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
 }
 
 #[rstest]
-fn test_bessel_j_random() {
+fn test_bessel_j_random(mut rng: SmallRng) {
+    let mut random_val = || random_val_rng(&mut rng);
     for _ in 0..1000000 {
         let order = random_range(f64::EPSILON..RANDOM_LIMIT);
         let zr = random_val();
@@ -156,15 +157,17 @@ enum NumType {
     Complex,
 }
 
-fn random_val() -> f64 {
-    random_range(-RANDOM_LIMIT..RANDOM_LIMIT)
+fn random_val_rng(rng: &mut SmallRng) -> f64 {
+    rng.random_range(-RANDOM_LIMIT..RANDOM_LIMIT)
 }
 
 #[rstest]
 fn test_bessel_j_large_n_random(
     #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
     #[values(NumType::Real, NumType::Imaginary, NumType::Complex)] num_type: NumType,
+    mut rng: SmallRng,
 ) {
+    let mut random_val = || random_val_rng(&mut rng);
     let n = 9;
     for _ in 0..100000 {
         let order = random_range(f64::EPSILON..RANDOM_LIMIT);
@@ -343,7 +346,8 @@ fn zbesj_fortran(
 }
 
 #[rstest]
-fn test_fortran_ang() {
+fn test_fortran_ang(mut rng: SmallRng) {
+    let mut random_val = || random_val_rng(&mut rng);
     const THREE_PI_BY_2: f64 = 4.71238898038468986e+00;
 
     let fortran_ang = |zth: Complex64| -> f64 {
