@@ -3785,22 +3785,20 @@ fn ZBINU(
     let mut NN: usize = N;
     let mut DFNU = order + ((N - 1) as f64);
     let mut cy = c_zeros(N);
-    if !(AZ <= 2.0) {
-        if !(AZ * AZ * 0.25 > DFNU + 1.0) {
-            //-----------------------------------------------------------------------
-            //     POWER SERIES
-            //-----------------------------------------------------------------------
-            let NW;
-            (cy, NW) = z_power_series(z, order, KODE, NN, machine_consts)?;
-            let INW: usize = NW.abs().try_into().unwrap();
-            NZ = NZ + INW;
-            NN = NN - INW;
-            if NN == 0 || NW >= 0 {
-                return Ok((cy, NZ.try_into().unwrap()));
-            }
-
-            DFNU = order + ((NN as f64) - 1.0);
+    if AZ <= 2.0 || AZ * AZ * 0.25 <= DFNU + 1.0 {
+        //-----------------------------------------------------------------------
+        //     POWER SERIES
+        //-----------------------------------------------------------------------
+        let NW;
+        (cy, NW) = z_power_series(z, order, KODE, NN, machine_consts)?;
+        let INW: usize = NW.abs().try_into().unwrap();
+        NZ = NZ + INW;
+        NN = NN - INW;
+        if NN == 0 || NW >= 0 {
+            return Ok((cy, NZ.try_into().unwrap()));
         }
+
+        DFNU = order + ((NN as f64) - 1.0);
     }
 
     if !(AZ <  machine_consts.rl)
