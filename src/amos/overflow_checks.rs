@@ -288,64 +288,65 @@ fn zunik(
     //-----------------------------------------------------------------------;
     // FINISH INIT. Use OnceCell here later?
     //-----------------------------------------------------------------------;
-    return if ikflg == IKType::I {
-        //GO TO 60;
-        //-----------------------------------------------------------------------;
-        //     COMPUTE SUM FOR THE I FUNCTION;
-        //-----------------------------------------------------------------------;
-        // s=c_zero();
-        // SR = ZEROR;
-        // SI = ZEROI;
-        // DO 50 I=1,INIT;
-        // for i in 0..INIT{
-        //       s += working[i]
-        //   SR = SR + CWRKR(I);
-        //   SI = SI + CWRKI(I);
-        // }
-        //    50 CONTINUE;
-        // SUMR = SR;
-        // SUMI = SI;
-        let sum = working[..*init].iter().sum();
-        phi = working[15] * CON[0];
-        // PHIR = CWRKR(16)*CON(1);
-        // PHII = CWRKI(16)*CON(1);
-        // RETURN;
-        (phi, zeta1, zeta2, Some(sum))
-    } else if ikflg == IKType::K {
-        //    60 CONTINUE;
-        //-----------------------------------------------------------------------;
-        //     COMPUTE SUM FOR THE K FUNCTION;
-        //-----------------------------------------------------------------------;
-        let mut tr = 1.0;
-        let sum = working[..*init]
-            .iter()
-            .map(|v| {
-                let output = tr * v;
-                tr = -tr;
-                output
-            })
-            .sum();
+    match ikflg {
+        IKType::I => {
+            //GO TO 60;
+            //-----------------------------------------------------------------------;
+            //     COMPUTE SUM FOR THE I FUNCTION;
+            //-----------------------------------------------------------------------;
+            // s=c_zero();
+            // SR = ZEROR;
+            // SI = ZEROI;
+            // DO 50 I=1,INIT;
+            // for i in 0..INIT{
+            //       s += working[i]
+            //   SR = SR + CWRKR(I);
+            //   SI = SI + CWRKI(I);
+            // }
+            //    50 CONTINUE;
+            // SUMR = SR;
+            // SUMI = SI;
+            let sum = working[..*init].iter().sum();
+            phi = working[15] * CON[0];
+            // PHIR = CWRKR(16)*CON(1);
+            // PHII = CWRKI(16)*CON(1);
+            // RETURN;
+            (phi, zeta1, zeta2, Some(sum))
+        }
+        IKType::K => {
+            //    60 CONTINUE;
+            //-----------------------------------------------------------------------;
+            //     COMPUTE SUM FOR THE K FUNCTION;
+            //-----------------------------------------------------------------------;
+            let mut tr = 1.0;
+            let sum = working[..*init]
+                .iter()
+                .map(|v| {
+                    let output = tr * v;
+                    tr = -tr;
+                    output
+                })
+                .sum();
 
-        // SR = ZEROR;
-        // SI = ZEROI;
-        // TR = CONER;
-        // DO 70 I=1,INIT;
-        //   SR = SR + TR*CWRKR(I);
-        //   SI = SI + TR*CWRKI(I);
-        //   TR = -TR;
-        //    70 CONTINUE;
-        //       SUMR = SR;
-        //       SUMI = SI;
-        // PHIR = CWRKR(16)*CON(2);
-        // PHII = CWRKI(16)*CON(2);
-        phi = working[15] * CON[1];
-        (phi, zeta1, zeta2, Some(sum))
+            // SR = ZEROR;
+            // SI = ZEROI;
+            // TR = CONER;
+            // DO 70 I=1,INIT;
+            //   SR = SR + TR*CWRKR(I);
+            //   SI = SI + TR*CWRKI(I);
+            //   TR = -TR;
+            //    70 CONTINUE;
+            //       SUMR = SR;
+            //       SUMI = SI;
+            // PHIR = CWRKR(16)*CON(2);
+            // PHII = CWRKI(16)*CON(2);
+            phi = working[15] * CON[1];
+            (phi, zeta1, zeta2, Some(sum))
 
-    // RETURN;
-    // END;
-    } else {
-        panic!("Invalid value of IKFLG")
-    };
+            // RETURN;
+            // END;
+        }
+    }
 }
 
 fn zunhj(
