@@ -1,4 +1,4 @@
-use approx::assert_relative_eq;
+use approx::{assert_relative_eq, relative_eq};
 use num::complex::Complex64;
 use rstest::rstest;
 
@@ -182,15 +182,51 @@ fn check_against_fortran(order: f64, z: Complex64, scaling: Scaling, n: usize) {
 
     let (cy, nz, ierr) = zbesj_fortran(order, z, scaling, n);
 
-    if let Err(err) = actual {
-        assert_eq!(ierr, err.error_code());
-    } else {
-        let actual = actual.unwrap();
-        assert_eq!(nz, actual.1.try_into().unwrap());
+    let fail = |reason: &str| -> () {
+        println!("Order: {order}\nz: {z}\nscaling: {scaling:?}\nn: {n}");
+        println!("#[case({}, {}, {})]\n", order, z.re, z.im);
+        match &actual {
+            Ok(actual) => {
+                println!("Fortran Nz: {nz}, translator Nz: {}\n", actual.1);
+                println!("i\tFortran\t\t\t\tTranslator");
+                cy.clone()
+                    .into_iter()
+                    .zip(actual.0.clone())
+                    .enumerate()
+                    .for_each(|(i, (fort, trans))| {
+                        println!(
+                            "{i}\t{:>+1.5e} {:>+1.5e}i\t{:>+1.5e} {:>+1.5e}i",
+                            fort.re, fort.im, trans.re, trans.im
+                        );
+                    });
+            }
+            Err(err) => println!(
+                "Fortran error: {ierr}. Translation error: {err:?} ({})",
+                err.error_code()
+            ),
+        }
+        println!();
 
-        for (czi, zi) in cy.into_iter().zip(actual.0) {
-            assert_relative_eq!(czi, zi, epsilon = 1e-10, max_relative = 1e-10);
-            // assert_relative_eq!(im, zi.im, epsilon = 1e-10, max_relative = 1e-10);
+        panic!("{reason}")
+    };
+
+    match &actual {
+        Ok(actual) => {
+            if nz != actual.1.try_into().unwrap() {
+                fail("Failed for mismatched nz value");
+            }
+
+            for (i, (czi, zi)) in cy.iter().zip(actual.0.clone()).enumerate() {
+                if !relative_eq!(*czi, zi, epsilon = 1e-10, max_relative = 1e-10) {
+                    fail(&format!("Failed on matching values at index {i}"))
+                };
+                // assert_relative_eq!(im, zi.im, epsilon = 1e-10, max_relative = 1e-10);
+            }
+        }
+        Err(err) => {
+            if ierr != err.error_code() {
+                fail("Failed for mismatched error code")
+            };
         }
     }
 }
