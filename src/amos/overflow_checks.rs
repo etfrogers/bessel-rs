@@ -2,7 +2,7 @@ use std::f64::consts::{FRAC_PI_2, PI};
 
 use num::complex::{Complex64, ComplexFloat};
 
-use crate::amos::{c_zero, machine::d1mach, utils::will_z_underflow};
+use crate::amos::{PositiveArg, c_zero, machine::d1mach, utils::will_z_underflow};
 
 use super::{BesselError::*, BesselResult, IKType, MachineConsts, Scaling, c_one, c_zeros};
 
@@ -568,16 +568,8 @@ fn zunhj(
         let zeta1 = zc * order;
         let zeta2 = w * order;
         let azth = zth.abs();
-        let mut ang = THREE_PI_BY_2;
-        if !(zth.re >= 0.0 && zth.im < 0.0) {
-            ang = FRAC_PI_2;
-            if zth.re != 0.0 {
-                ang = zth.arg();
-            }
-            if zth.re < 0.0 {
-                ang += PI;
-            }
-        }
+        let mut ang = zth.parg();
+        ang = ang.clamp(0.0, THREE_PI_BY_2);
         let mut pp = azth.powf(EX2);
         ang *= EX2;
         let mut zeta = pp * Complex64::cis(ang);
