@@ -4,7 +4,7 @@ use super::{
     BesselResult, MachineConsts, Scaling, c_one, c_zero, c_zeros, gamma_ln, utils::will_z_underflow,
 };
 
-pub fn z_power_series(
+pub fn i_power_series(
     z: Complex64,
     order: f64,
     kode: Scaling,

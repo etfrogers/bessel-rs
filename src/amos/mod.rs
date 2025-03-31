@@ -1,19 +1,19 @@
 use std::f64::consts::PI;
 
 pub use gamma_ln::{GammaError, gamma_ln};
+pub use i_power_series::i_power_series;
 use machine::{d1mach, i1mach};
 use num::{Complex, One, Zero, complex::Complex64};
 use thiserror::Error;
 pub use translator::zbesj;
-pub use z_power_series::z_power_series;
 pub mod bindings;
 mod gamma_ln;
+mod i_power_series;
 mod machine;
 mod overflow_checks;
 mod translator;
 mod utils;
 mod z_asymptotic_i;
-mod z_power_series;
 // mod zbesh;
 
 #[derive(Error, Debug, PartialEq)]

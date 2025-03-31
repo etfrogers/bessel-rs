@@ -1,10 +1,10 @@
 #![allow(non_snake_case)]
 use super::{
     BesselError, BesselResult, IKType, MachineConsts, Scaling, c_one, c_zero, c_zeros, gamma_ln,
+    i_power_series,
     machine::{d1mach, i1mach},
     overflow_checks::zuoik,
     utils::will_z_underflow,
-    z_power_series,
 };
 use crate::amos::{BesselError::*, max_abs_component, z_asymptotic_i::z_asymptotic_i};
 use num::{
@@ -3787,7 +3787,7 @@ fn ZBINU(
         //     POWER SERIES
         //-----------------------------------------------------------------------
         let NW;
-        (cy, NW) = z_power_series(z, order, KODE, NN, machine_consts)?;
+        (cy, NW) = i_power_series(z, order, KODE, NN, machine_consts)?;
         let INW: usize = NW.abs().try_into().unwrap();
         NZ = NZ + INW;
         NN = NN - INW;
