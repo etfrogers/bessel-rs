@@ -852,7 +852,6 @@ pub fn zbesj(
     AA = AA.sqrt();
     if (az > AA) || (FN > AA) {
         significance_loss = true;
-        todo!("implement significance loss")
     }
     //-----------------------------------------------------------------------
     //     CALCULATE CSGN=EXP(FNU*FRAC_PI_2*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
@@ -882,9 +881,6 @@ pub fn zbesj(
     }
     let (mut cy, NZ) = ZBINU(Complex64::new(ZNR, ZNI), order, KODE, N, &machine_consts)?;
     let NL = N - NZ;
-    if NL == 0 {
-        return Ok((cy, NZ));
-    }
     for i in 0..NL {
         AA = cy[i].re;
         bb = cy[i].im;
@@ -901,7 +897,11 @@ pub fn zbesj(
         CSGNI = CSGNR * CII;
         CSGNR = STR;
     }
-    Ok((cy, NZ))
+    if significance_loss {
+        Err(PartialLossOfSignificance { y: cy, nz: NZ })
+    } else {
+        Ok((cy, NZ))
+    }
 }
 /*
 fn ZBESK(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, IERR)

@@ -16,7 +16,7 @@ mod z_asymptotic_i;
 mod z_power_series;
 // mod zbesh;
 
-#[derive(Error, Debug, PartialEq, Eq)]
+#[derive(Error, Debug, PartialEq)]
 #[repr(i32)]
 pub enum BesselError {
     // This correpsonds IERRR
@@ -25,6 +25,8 @@ pub enum BesselError {
     InvalidInput { details: String } = 1,
     #[error("Overflow: order TOO LARGE OR CABS(Z) TOO SMALL OR BOTH")]
     Overflow = 2, //{ too_large: bool },
+    #[error("Partial loss of significance in output. Losssy values returned.")]
+    PartialLossOfSignificance { y: Vec<Complex64>, nz: usize },
     // IERR = 3 is a warning (and hence some return value, I think) and needs handling elsewhere
     #[error("Loss of too much significance in output")]
     LossOfSignificance = 4,
@@ -54,6 +56,7 @@ impl BesselError {
         match self {
             BesselError::InvalidInput { .. } => 1,
             BesselError::Overflow => 2,
+            BesselError::PartialLossOfSignificance { .. } => 3,
             BesselError::LossOfSignificance => 4,
             BesselError::DidNotConverge => 5,
             BesselError::NotYetImplemented => 100,

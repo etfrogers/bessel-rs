@@ -148,6 +148,8 @@ fn test_bessel_j_large_n_complex(
     #[case] zi: f64,
     #[values(3, 4, 9, 100)] n: usize,
     #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
+    // #[values(9)] n: usize,
+    // #[values(Scaling::Unscaled)] scaling: Scaling,
 ) {
     let z = Complex64::new(zr, zi);
     check_against_fortran(order, z, scaling, n);
@@ -268,25 +270,24 @@ fn check_against_fortran(order: f64, z: Complex64, scaling: Scaling, n: usize) {
         match &actual {
             Ok(actual) => {
                 println!("Fortran Nz: {nz}, translator Nz: {}\n", actual.1);
-                println!("i\tFortran\t\t\t\tTranslator");
-                cy.clone()
-                    .into_iter()
-                    .zip(actual.0.clone())
-                    .enumerate()
-                    .for_each(|(i, (fort, trans))| {
-                        println!(
-                            "{i}\t{:>+1.5e} {:>+1.5e}i\t{:>+1.5e} {:>+1.5e}i",
-                            fort.re, fort.im, trans.re, trans.im
-                        );
-                    });
+                print_complex_arrays(&cy, &actual.0);
             }
-            Err(err) => println!(
-                "Fortran error: {ierr}. Translation error: {err:?} ({})",
-                err.error_code()
-            ),
+            Err(err) => {
+                println!(
+                    "Fortran error: {ierr}. Translation error: {err:?} ({})",
+                    err.error_code()
+                );
+                if let BesselError::PartialLossOfSignificance {
+                    y: ref actual_y,
+                    nz: actual_nz,
+                } = *err
+                {
+                    println!("Fortran Nz: {nz}, translator Nz: {}\n", actual_nz);
+                    print_complex_arrays(&cy, actual_y);
+                }
+            }
         }
         println!();
-
         panic!("{reason}")
     };
 
@@ -295,20 +296,49 @@ fn check_against_fortran(order: f64, z: Complex64, scaling: Scaling, n: usize) {
             if nz != actual.1.try_into().unwrap() {
                 fail("Failed for mismatched nz value");
             }
-
-            for (i, (czi, zi)) in cy.iter().zip(actual.0.clone()).enumerate() {
-                if !relative_eq!(*czi, zi, epsilon = 1e-10, max_relative = 1e-10) {
-                    fail(&format!("Failed on matching values at index {i}"))
-                };
-                // assert_relative_eq!(im, zi.im, epsilon = 1e-10, max_relative = 1e-10);
+            if let Some(reason) = check_complex_arrays_equal(&cy, &actual.0) {
+                fail(&reason)
             }
         }
         Err(err) => {
             if ierr != err.error_code() {
                 fail("Failed for mismatched error code")
             };
+            if let BesselError::PartialLossOfSignificance {
+                y: ref actual_y,
+                nz: actual_nz,
+            } = *err
+            {
+                if nz != actual_nz.try_into().unwrap() {
+                    fail("Failed for mismatched nz value");
+                }
+                if let Some(reason) = check_complex_arrays_equal(&cy, &actual_y) {
+                    fail(&reason)
+                }
+            }
         }
     }
+}
+
+fn check_complex_arrays_equal(c1: &[Complex64], c2: &[Complex64]) -> Option<String> {
+    for (i, (czi, zi)) in c1.iter().zip(c2).enumerate() {
+        if !relative_eq!(*czi, zi, epsilon = 1e-10, max_relative = 1e-10) {
+            return Some(format!("Failed on matching values at index {i}"));
+        };
+    }
+    None
+}
+fn print_complex_arrays(c1: &[Complex64], c2: &[Complex64]) {
+    println!("i\tFortran\t\t\t\tTranslator");
+    c1.iter()
+        .zip(c2)
+        .enumerate()
+        .for_each(|(i, (fort, trans))| {
+            println!(
+                "{i}\t{:>+1.5e} {:>+1.5e}i\t{:>+1.5e} {:>+1.5e}i",
+                fort.re, fort.im, trans.re, trans.im
+            );
+        });
 }
 
 fn zbesj_fortran(
