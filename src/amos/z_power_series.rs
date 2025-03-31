@@ -139,7 +139,7 @@ pub fn z_power_series(
                 let m = nn - i - 1;
                 y[m] = s2 * crscr;
                 if i != (il - 1) {
-                    coef *= dfnu / hz;
+                    coef = coef.fdiv(hz) * dfnu; //normal div underflows, fdiv more accurate
                 }
             }
             break 'l30;
