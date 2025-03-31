@@ -60,92 +60,96 @@ pub fn z_power_series(
     let mut nn = n;
     let ck = hz.ln();
 
-    let mut ak1;
+    let mut ak1 = c_zero();
     let mut fnup;
     let mut ak;
+    let mut sent_to_30 = false;
+    let mut skip_to_40 = false;
     'l20: loop {
         let mut dfnu = order + ((nn - 1) as f64);
         fnup = dfnu + 1.0;
-        //-----------------------------------------------------------------------;
-        //     UNDERFLOW TEST
-        //     recur down (setting y to zero) from N until underflow no longer found, then skip to 40
-        //-----------------------------------------------------------------------;
-        ak1 = ck * dfnu;
-        ak = gamma_ln(fnup).unwrap();
-        ak1.re -= ak;
-        if kode == Scaling::Scaled {
-            ak1.re -= z.re;
+        if !sent_to_30 {
+            //-----------------------------------------------------------------------;
+            //     UNDERFLOW TEST
+            //     recur down (setting y to zero) from N until underflow no longer found, then skip to 40
+            //-----------------------------------------------------------------------;
+            ak1 = ck * dfnu;
+            ak = gamma_ln(fnup).unwrap();
+            ak1.re -= ak;
+            if kode == Scaling::Scaled {
+                ak1.re -= z.re;
+            }
+            skip_to_40 = ak1.re > (-machine_consts.elim);
+        } else {
+            sent_to_30 = false;
         }
-        let mut skip_to_40 = ak1.re > (-machine_consts.elim);
-        'l30: loop {
-            if !skip_to_40 {
-                nz += 1;
-                y[nn - 1] = c_zero();
-                if acz > dfnu {
-                    return Ok((y, -nz));
-                    // Feels like this should return an error, but the amos code effectively
-                    // ignores the negative return value anyway. Treating it like an error
-                    // changes the behavior of the code
-                    // if nz == 2 {
-                    //     return Err(DidNotConverge);
-                    // } else {
-                    //     return Err(Overflow);
-                    // };
-                }
-                nn -= 1;
-                if nn == 0 {
-                    return Ok((y, nz));
-                }
-                continue 'l20;
-            } else {
-                skip_to_40 = false; // should only skip once until sent back to 'l20
+        if !skip_to_40 {
+            nz += 1;
+            y[nn - 1] = c_zero();
+            if acz > dfnu {
+                return Ok((y, -nz));
+                // Feels like this should return an error, but the amos code effectively
+                // ignores the negative return value anyway. Treating it like an error
+                // changes the behavior of the code
+                // if nz == 2 {
+                //     return Err(DidNotConverge);
+                // } else {
+                //     return Err(Overflow);
+                // };
             }
-            if ak1.re <= (-machine_consts.alim) {
-                underflow_would_occur = true;
-                crscr = machine_consts.tol;
+            nn -= 1;
+            if nn == 0 {
+                return Ok((y, nz));
             }
-            let mut aa = ak1.re.exp();
-            if underflow_would_occur {
-                aa *= machine_consts.rtol
-            };
-            let mut coef = aa * Complex64::new(ak1.im.cos(), ak1.im.sin());
-            let atol = machine_consts.tol * acz / fnup;
-            let il = 2.min(nn);
-            for i in 0..il {
-                dfnu = order + ((nn - (i + 1)) as f64);
-                fnup = dfnu + 1.0;
-                let mut s1 = c_one();
-                if acz >= machine_consts.tol * fnup {
-                    ak1 = c_one();
-                    ak = fnup + 2.0;
-                    let mut s = fnup;
-                    aa = 2.0;
-                    '_l60: loop {
-                        let rs = 1.0 / s;
-                        ak1 = ak1 * cz * rs;
-                        s1 += ak1;
-                        s += ak;
-                        ak += 2.0;
-                        aa = aa * acz * rs;
-                        if aa <= atol {
-                            break;
-                        }
+            continue 'l20;
+        } else {
+            skip_to_40 = false; // should only skip once until sent back to 'l20
+        }
+        if ak1.re <= (-machine_consts.alim) {
+            underflow_would_occur = true;
+            crscr = machine_consts.tol;
+        }
+        let mut aa = ak1.re.exp();
+        if underflow_would_occur {
+            aa *= machine_consts.rtol
+        };
+        let mut coef = aa * Complex64::new(ak1.im.cos(), ak1.im.sin());
+        let atol = machine_consts.tol * acz / fnup;
+        let il = 2.min(nn);
+        for i in 0..il {
+            dfnu = order + ((nn - (i + 1)) as f64);
+            fnup = dfnu + 1.0;
+            let mut s1 = c_one();
+            if acz >= machine_consts.tol * fnup {
+                ak1 = c_one();
+                ak = fnup + 2.0;
+                let mut s = fnup;
+                aa = 2.0;
+                '_l60: loop {
+                    let rs = 1.0 / s;
+                    ak1 = ak1 * cz * rs;
+                    s1 += ak1;
+                    s += ak;
+                    ak += 2.0;
+                    aa = aa * acz * rs;
+                    if aa <= atol {
+                        break;
                     }
                 }
-                let s2 = s1 * coef;
-                w[i] = s2;
-                if underflow_would_occur
-                    && will_z_underflow(s2, machine_consts.ascle, machine_consts.tol)
-                {
-                    continue 'l30;
-                }
-                let m = nn - i - 1;
-                y[m] = s2 * crscr;
-                if i != (il - 1) {
-                    coef = coef.fdiv(hz) * dfnu; //normal div underflows, fdiv more accurate
-                }
             }
-            break 'l30;
+            let s2 = s1 * coef;
+            w[i] = s2;
+            if underflow_would_occur
+                && will_z_underflow(s2, machine_consts.ascle, machine_consts.tol)
+            {
+                sent_to_30 = true;
+                continue 'l20;
+            }
+            let m = nn - i - 1;
+            y[m] = s2 * crscr;
+            if i != (il - 1) {
+                coef = coef.fdiv(hz) * dfnu; //normal div underflows, fdiv more accurate
+            }
         }
         break 'l20;
     }
