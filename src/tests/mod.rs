@@ -224,7 +224,7 @@ fn test_bessel_j_random_logspace(
 
 #[rstest]
 fn test_bessel_j_extremes(
-    #[values(f64::EPSILON, f64::MIN_POSITIVE, 1.0, f64::MAX)] order: f64,
+    #[values(0.0, f64::EPSILON, f64::MIN_POSITIVE, 1.0, f64::MAX)] order: f64,
     #[values(
         f64::MIN,
         -f64::EPSILON,

@@ -812,9 +812,6 @@ pub fn zbesj(
     if order < 0.0_f64 {
         err = Some("order must be positive")
     };
-    if order == 0.0_f64 {
-        err = Some("order cannot be zero")
-    };
     if N < 1 {
         err = Some("N must be >= 1")
     };

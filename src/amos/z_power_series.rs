@@ -31,7 +31,7 @@ pub fn z_power_series(
     if az == 0.0 {
         // Not setting zero below, as was set in initialisation of y above
         if order == 0.0 {
-            y[1] = c_one();
+            y[0] = c_one();
         }
         return Ok((y, nz));
     }
@@ -45,7 +45,7 @@ pub fn z_power_series(
         }
         // Not setting zero below, as was set in initialisation of y above
         if order == 0.0 {
-            y[1] = c_one();
+            y[0] = c_one();
         }
         // Not setting zero below, as was set in initialisation of y above
         return Ok((y, nz));
