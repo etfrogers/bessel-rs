@@ -152,21 +152,10 @@ pub fn z_power_series(
     let mut k = nn - 2;
     ak = k as f64;
     let rz = 2.0 * z.conj() / (az.powi(2));
-    let mut ib;
-    '_l100: loop {
-        if !iflag {
-            ib = 3;
-            '_l110: for _ in ib..=nn {
-                y[k - 1] = (ak + order) * (rz * y[k]) + y[k + 1];
-                ak -= 1.0;
-                k -= 1;
-            }
-            return Ok((y, nz));
-        }
+    let ib = if iflag {
         //-----------------------------------------------------------------------;
         //     RECUR BACKWARD WITH SCALED VALUES;
         //-----------------------------------------------------------------------;
-        //   120 CONTINUE;
         //-----------------------------------------------------------------------;
         //     EXP(-ALIM)=EXP(-ELIM)/TOL=APPROX. ONE PRECISION ABOVE THE;
         //     UNDERFLOW LIMIT = ASCLE = d1mach(1)*SS*1.0D+3;
@@ -195,9 +184,17 @@ pub fn z_power_series(
         if to_return {
             return Ok((y, nz));
         }
-        ib = l + 1;
-        if ib > nn {
+        if l + 1 > nn {
             return Ok((y, nz));
         };
+        l + 1
+    } else {
+        3
+    };
+    for _ in ib..=nn {
+        y[k - 1] = (ak + order) * (rz * y[k]) + y[k + 1];
+        ak -= 1.0;
+        k -= 1;
     }
+    return Ok((y, nz));
 }
