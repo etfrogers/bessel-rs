@@ -37,7 +37,7 @@ pub fn z_power_series(
     }
     let rtr1 = machine_consts.arm.sqrt();
     let mut crscr = 1.0;
-    let mut iflag = false;
+    let mut underflow_would_occur = false;
     if az < machine_consts.arm {
         nz = n.try_into().unwrap();
         if order == 0.0 {
@@ -68,6 +68,7 @@ pub fn z_power_series(
         fnup = dfnu + 1.0;
         //-----------------------------------------------------------------------;
         //     UNDERFLOW TEST
+        //     recur down (setting y to zero) from N until underflow no longer found, then skip to 40
         //-----------------------------------------------------------------------;
         ak1 = ck * dfnu;
         ak = gamma_ln(fnup).unwrap();
@@ -100,11 +101,11 @@ pub fn z_power_series(
                 skip_to_40 = false; // should only skip once until sent back to 'l20
             }
             if ak1.re <= (-machine_consts.alim) {
-                iflag = true;
+                underflow_would_occur = true;
                 crscr = machine_consts.tol;
             }
             let mut aa = ak1.re.exp();
-            if iflag {
+            if underflow_would_occur {
                 aa *= machine_consts.rtol
             };
             let mut coef = aa * Complex64::new(ak1.im.cos(), ak1.im.sin());
@@ -133,7 +134,9 @@ pub fn z_power_series(
                 }
                 let s2 = s1 * coef;
                 w[i] = s2;
-                if iflag && will_z_underflow(s2, machine_consts.ascle, machine_consts.tol) {
+                if underflow_would_occur
+                    && will_z_underflow(s2, machine_consts.ascle, machine_consts.tol)
+                {
                     continue 'l30;
                 }
                 let m = nn - i - 1;
@@ -152,7 +155,7 @@ pub fn z_power_series(
     let mut k = nn - 2;
     ak = k as f64;
     let rz = 2.0 * z.conj() / (az.powi(2));
-    let ib = if iflag {
+    let ib = if underflow_would_occur {
         //-----------------------------------------------------------------------;
         //     RECUR BACKWARD WITH SCALED VALUES;
         //-----------------------------------------------------------------------;
@@ -170,7 +173,7 @@ pub fn z_power_series(
             s2 = s1 + (ak + order) * (rz * ck);
             s1 = ck;
             let ck = s2 * crscr;
-            y[k] = ck;
+            y[k - 1] = ck;
             ak -= 1.0;
             if k > 0 {
                 k -= 1;
