@@ -598,7 +598,7 @@ pub fn zunhj(
         let rzth = zth.conj() * razth * razth * rfnu;
         // RZTHR = STR*RAZTH*RFNU;
         // RZTHI = STI*RAZTH*RFNU;
-        let zc = razth * AR[1];
+        let zc = rzth * AR[1];
         // ZCR = RZTHR*AR(2);
         // ZCI = RZTHI*AR(2);
         let raw2 = 1.0 / aw2;
@@ -638,6 +638,8 @@ pub fn zunhj(
             let mut l = 2; //3;
             let mut ias = false;
             let mut ibs = false;
+            let mut cr = c_zeros(14);
+            let mut dr = c_zeros(14);
             // DO 210 LR=2,12,2;
             for lr in (2..=12).step_by(2) {
                 let lrp1 = lr + 1;
@@ -646,22 +648,20 @@ pub fn zunhj(
                 //     NEXT SUMA AND SUMB;
                 //-----------------------------------------------------------------------;
                 //   DO 160 K=LR,LRP1;
-                let mut cr = c_zeros(14);
-                let mut dr = c_zeros(14);
                 for _k in lr..=lrp1 {
-                    ks = ks + 1;
-                    kp1 = kp1 + 1;
-                    l = l + 1;
-                    let mut za = Complex64::new(C_ZUNHJ[l - 1], 0.0);
+                    ks += 1;
+                    kp1 += 1;
+                    l += 1;
+                    let mut za = Complex64::new(C_ZUNHJ[l], 0.0);
                     //     ZAR = C(L);
                     //     ZAI = ZEROI;
                     //     DO 150 J=2,KP1;
                     for _j in 2..=kp1 {
-                        l = l + 1;
+                        l += 1;
                         // STR = ZAR*T2R - T2I*ZAI + C(L);
                         // ZAI = ZAR*T2I + ZAI*T2R;
                         // ZAR = STR;
-                        za = za * t2 + C_ZUNHJ[l - 1];
+                        za = za * t2 + C_ZUNHJ[l];
                     }
                     //   150     CONTINUE;
                     ptfn *= tfn;
@@ -692,7 +692,7 @@ pub fn zunhj(
                     let mut ju = lrp1;
                     //   DO 170 JR=1,LR;
                     for jr in 0..lr {
-                        ju = ju - 1;
+                        ju -= 1;
                         suma += cr[jr] * up[ju - 1];
                         //     SUMAR = SUMAR + CRR(JR)*UPR(JU) - CRI(JR)*UPI(JU);
                         //     SUMAI = SUMAI + CRR(JR)*UPI(JU) + CRI(JR)*UPR(JU);
@@ -709,7 +709,7 @@ pub fn zunhj(
                 //   180   CONTINUE;
                 if !ibs {
                     //GO TO 200;
-                    let mut sumb = up[lr - 2] + up[lrp1 - 1] * zc;
+                    let mut sumb = up[lr + 1] + up[lrp1 - 1] * zc;
                     //   SUMBR = UPR(LR+2) + UPR(LRP1)*ZCR - UPI(LRP1)*ZCI;
                     //   SUMBI = UPI(LR+2) + UPR(LRP1)*ZCI + UPI(LRP1)*ZCR;
                     let mut ju = lrp1;
@@ -744,7 +744,7 @@ pub fn zunhj(
         // STI = -BSUMI*RFN13;
         // CALL ZDIV(STR, STI, RTZTR, RTZTI, BSUMR, BSUMI);
         // GO TO 120;
-        return (phi, arg, zeta1, zeta2, Some(bsum), Some(bsum));
+        return (phi, arg, zeta1, zeta2, Some(asum), Some(bsum));
 
         // END;
     }
