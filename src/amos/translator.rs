@@ -3683,7 +3683,6 @@ fn i_wronksian(
     let ct_abs = ct.abs();
     ct = ct.conj() / ct_abs;
     cinu = (cinu / ct_abs) * ct;
-    let mut y = c_zeros(N);
     y[0] = cinu * CSCLR;
     for i in 1..N {
         cinu *= y_ratios[i - 1];
@@ -3983,8 +3982,8 @@ fn ZBINU(
         //-----------------------------------------------------------------------
         //     INCREMENT FNU+NN-1 UP TO FNUL, COMPUTE AND RECUR BACKWARD
         //-----------------------------------------------------------------------
-        let mut NUI = (machine_consts.fnul - DFNU) as usize + 1;
-        NUI = NUI.max(0);
+        let NUI_isize = (machine_consts.fnul - DFNU) as isize + 1;
+        let NUI = NUI_isize.max(0) as usize;
         let ( NW, NLAST) = ZBUNI(
             //ZR, ZI, FNU,
             z,

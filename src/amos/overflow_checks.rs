@@ -241,7 +241,7 @@ pub fn zunik(
     //-----------------------------------------------------------------------;
     //     OVERFLOW TEST (ZR/FNU TOO SMALL);
     //-----------------------------------------------------------------------;
-    let test = d1mach(1) * 1.0e+3;
+    let test = machine_consts.arm;
     let ac = order * test;
     if !(zr.re.abs() > ac || zr.im.abs() > ac) {
         let zeta1 = Complex64::new(2.0 * test.ln().abs() + order, 0.0);
@@ -266,12 +266,12 @@ pub fn zunik(
     working[0] = c_one();
     let mut crfn = c_one();
     let mut ac = 1.0;
-    let mut l = 1;
+    let mut l = 0;
     let mut k = 0;
     'l20: for k_ in 1..15 {
         k = k_;
         let mut s = c_zero();
-        '_l10: for _ in 0..k_ {
+        '_l10: for _ in 0..=k_ {
             l += 1;
             s = s * t2 + C_ZUNIK[l];
         }
