@@ -1,7 +1,8 @@
 use num::complex::{Complex64, ComplexFloat};
 
 use super::{
-    BesselResult, MachineConsts, Scaling, c_one, c_zero, c_zeros, gamma_ln, utils::will_z_underflow,
+    BesselResult, BesselValues, MachineConsts, Scaling, c_one, c_zero, c_zeros, gamma_ln,
+    utils::will_z_underflow,
 };
 
 pub fn i_power_series(
@@ -10,7 +11,7 @@ pub fn i_power_series(
     kode: Scaling,
     n: usize,
     machine_consts: &MachineConsts,
-) -> BesselResult<isize> {
+) -> BesselResult<BesselValues<isize>> {
     // ***BEGIN PROLOGUE  z_power_series - was ZSERI
     // ***REFER TO  ZBESI,ZBESK
     //

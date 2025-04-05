@@ -27,8 +27,7 @@ pub fn z_asymptotic_i(
     let nz = 0;
     let mut y = c_zeros(n);
     let az = z.abs();
-    let arm = 1.0e+3 * d1mach(1);
-    let rtr1 = arm.sqrt();
+    let rtr1 = machine_consts.arm.sqrt();
     let il = 2.min(n);
     let dfnu = order + ((n - il) as f64);
     //-----------------------------------------------------------------------;

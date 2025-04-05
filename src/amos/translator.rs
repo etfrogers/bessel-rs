@@ -3,10 +3,12 @@ use super::{
     BesselError, BesselResult, IKType, MachineConsts, Scaling, c_one, c_zero, c_zeros, gamma_ln,
     i_power_series,
     machine::{d1mach, i1mach},
-    overflow_checks::zuoik,
+    overflow_checks::{zunik, zuoik},
     utils::will_z_underflow,
 };
-use crate::amos::{BesselError::*, max_abs_component, z_asymptotic_i::z_asymptotic_i};
+use crate::amos::{
+    BesselError::*, max_abs_component, overflow_checks::zunhj, z_asymptotic_i::z_asymptotic_i,
+};
 use num::{
     Zero,
     complex::{Complex64, ComplexFloat},
@@ -19,6 +21,8 @@ use std::{
         consts::{FRAC_PI_2, PI},
     },
 };
+
+const TWO_THIRDS: f64 = 6.66666666666666666e-01;
 
 /*
 fn ZBESH(ZR, ZI, FNU, KODE, M, N, CYR, CYI, NZ, IERR)
@@ -1469,7 +1473,10 @@ fn ZBESY(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, CWRKR,
       NZ = 0
       RETURN
       END
-fn ZAIRY(ZR, ZI, ID, KODE, AIR, AII, NZ, IERR)
+      */
+
+fn ZAIRY(//ZR, ZI, ID, KODE, AIR, AII, NZ, IERR){
+    z:Complex64, return_derivative: bool, KODE: Scaling) -> BesselResult<(Complex64, usize)> {
 // ***BEGIN PROLOGUE  ZAIRY
 // ***DATE WRITTEN   830501   (YYMMDD)
 // ***REVISION DATE  890801, 930101   (YYMMDD)
@@ -1599,271 +1606,385 @@ fn ZAIRY(ZR, ZI, ID, KODE, AIR, AII, NZ, IERR)
 // ***ROUTINES CALLED  ZACAI,ZBKNU,ZEXP,ZSQRT,ZABS,i1mach,d1mach
 // ***END PROLOGUE  ZAIRY
 //     COMPLEX AI,CONE,CSQ,CY,S1,S2,TRM1,TRM2,Z,ZTA,Z3
-      EXTERNAL ZABS
-      DOUBLE PRECISION AA, AD, AII, AIR, AK, ALIM, ATRM, AZ, AZ3, BK,
-     * CC, CK, COEF, CONEI, CONER, CSQI, CSQR, CYI, CYR, C1, C2, DIG,
-     * DK, D1, D2, ELIM, FID, FNU, PTR, RL, R1M5, SFAC, STI, STR,
-     * S1I, S1R, S2I, S2R, TOL, TRM1I, TRM1R, TRM2I, TRM2R, TTH, ZEROI,
-     * ZEROR, ZI, ZR, ZTAI, ZTAR, Z3I, Z3R, d1mach, ZABS, ALAZ, BB
-      INTEGER ID, IERR, IFLAG, K, KODE, K1, K2, MR, NN, NZ, i1mach
-      DIMENSION CYR(1), CYI(1)
-      DATA TTH, C1, C2, COEF /6.66666666666666667e-01,
-     * 3.55028053887817240e-01,2.58819403792806799e-01,
-     * 1.83776298473930683e-01/
-      DATA ZEROR, ZEROI, CONER, CONEI /0.0,0.0,1.0,0.0/
+    //   EXTERNAL ZABS
+    //   DOUBLE PRECISION AA, AD, AII, AIR, AK, ALIM, ATRM, AZ, AZ3, BK,
+    //  * CC, CK, COEF, CONEI, CONER, CSQI, CSQR, CYI, CYR, C1, C2, DIG,
+    //  * DK, D1, D2, ELIM, FID, FNU, PTR, RL, R1M5, SFAC, STI, STR,
+    //  * S1I, S1R, S2I, S2R, TOL, TRM1I, TRM1R, TRM2I, TRM2R, TWO_THIRDS, ZEROI,
+    //  * ZEROR, ZI, ZR, ZTAI, ZTAR, Z3I, Z3R, d1mach, ZABS, ALAZ, BB
+    //   INTEGER ID, IERR, IFLAG, K, KODE, K1, K2, MR, NN, NZ, i1mach
+    //   DIMENSION CYR(1), CYI(1)
+    //   DATA TWO_THIRDS, C1, C2, COEF /6.66666666666666667e-01,
+     const C1:f64= 3.55028053887817240e-01;
+     const C2:f64 = 2.58819403792806799e-01;
+     const COEFF:f64 = 1.83776298473930683e-01;
+    //   DATA ZEROR, ZEROI, CONER, CONEI /0.0,0.0,1.0,0.0/
 // ***FIRST EXECUTABLE STATEMENT  ZAIRY
-      IERR = 0
-      NZ=0
-      if (ID < 0 || ID > 1) IERR=1
-      if (KODE < 1 || KODE > 2) IERR=1
-      if (IERR != 0) RETURN
-      AZ = ZABS(ZR,ZI)
-      TOL = DMAX1(d1mach(4),1.0e-18)
-      FID = (ID as f64)
-      if (AZ > 1.0) GO TO 70
-//-----------------------------------------------------------------------
-//     POWER SERIES FOR CABS(Z) <= 1.
-//-----------------------------------------------------------------------
-      S1R = CONER
-      S1I = CONEI
-      S2R = CONER
-      S2I = CONEI
-      if (AZ < TOL) GO TO 170
-      AA = AZ*AZ
-      if (AA < TOL/AZ) GO TO 40
-      TRM1R = CONER
-      TRM1I = CONEI
-      TRM2R = CONER
-      TRM2I = CONEI
-      ATRM = 1.0
-      STR = ZR*ZR - ZI*ZI
-      STI = ZR*ZI + ZI*ZR
-      Z3R = STR*ZR - STI*ZI
-      Z3I = STR*ZI + STI*ZR
-      AZ3 = AZ*AA
-      AK = 2.0 + FID
-      BK = 3.0 - FID - FID
-      CK = 4.0 - FID
-      DK = 3.0 + FID + FID
-      D1 = AK*DK
-      D2 = BK*CK
-      AD = DMIN1(D1,D2)
-      AK = 24.0 + 9.0*FID
-      BK = 30.0 - 9.0*FID
-      DO 30 K=1,25
-        STR = (TRM1R*Z3R-TRM1I*Z3I)/D1
-        TRM1I = (TRM1R*Z3I+TRM1I*Z3R)/D1
-        TRM1R = STR
-        S1R = S1R + TRM1R
-        S1I = S1I + TRM1I
-        STR = (TRM2R*Z3R-TRM2I*Z3I)/D2
-        TRM2I = (TRM2R*Z3I+TRM2I*Z3R)/D2
-        TRM2R = STR
-        S2R = S2R + TRM2R
-        S2I = S2I + TRM2I
-        ATRM = ATRM*AZ3/AD
-        D1 = D1 + AK
-        D2 = D2 + BK
-        AD = DMIN1(D1,D2)
-        if (ATRM < TOL*AD) GO TO 40
-        AK = AK + 18.0
-        BK = BK + 18.0
-   30 CONTINUE
-   40 CONTINUE
-      if (ID == 1) GO TO 50
-      AIR = S1R*C1 - C2*(ZR*S2R-ZI*S2I)
-      AII = S1I*C1 - C2*(ZR*S2I+ZI*S2R)
-      if (KODE == 1) RETURN
-      CALL ZSQRT(ZR, ZI, STR, STI)
-      ZTAR = TTH*(ZR*STR-ZI*STI)
-      ZTAI = TTH*(ZR*STI+ZI*STR)
-      CALL ZEXP(ZTAR, ZTAI, STR, STI)
-      PTR = AIR*STR - AII*STI
-      AII = AIR*STI + AII*STR
-      AIR = PTR
-      RETURN
-   50 CONTINUE
-      AIR = -S2R*C2
-      AII = -S2I*C2
-      if (AZ <= TOL) GO TO 60
-      STR = ZR*S1R - ZI*S1I
-      STI = ZR*S1I + ZI*S1R
-      CC = C1/(1.0+FID)
-      AIR = AIR + CC*(STR*ZR-STI*ZI)
-      AII = AII + CC*(STR*ZI+STI*ZR)
-   60 CONTINUE
-      if (KODE == 1) RETURN
-      CALL ZSQRT(ZR, ZI, STR, STI)
-      ZTAR = TTH*(ZR*STR-ZI*STI)
-      ZTAI = TTH*(ZR*STI+ZI*STR)
-      CALL ZEXP(ZTAR, ZTAI, STR, STI)
-      PTR = STR*AIR - STI*AII
-      AII = STR*AII + STI*AIR
-      AIR = PTR
-      RETURN
-//-----------------------------------------------------------------------
-//     CASE FOR CABS(Z) > 1.0
-//-----------------------------------------------------------------------
-   70 CONTINUE
-      FNU = (1.0+FID)/3.0
-//-----------------------------------------------------------------------
-//     SET PARAMETERS RELATED TO MACHINE CONSTANTS.
-//     TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0e-18.
-//     ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.
-//     EXP(-ELIM) < EXP(-ALIM)=EXP(-ELIM)/TOL    AND
-//     EXP(ELIM) > EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR
-//     UNDERFLOW AND OVERFLOW LIMITS WHERE SCALED ARITHMETIC IS DONE.
-//     RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.
-//     DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).
-//-----------------------------------------------------------------------
-      K1 = i1mach(15)
-      K2 = i1mach(16)
-      R1M5 = d1mach(5)
-      K = MIN0(K1.abs(),K2.abs())
-      ELIM = 2.303*(K as f64)*R1M5-3.0)
-      K1 = i1mach(14) - 1
-      AA = R1M5*(K1 as f64)
-      DIG = DMIN1(AA,18.0)
-      AA = AA*2.303
-      ALIM = ELIM + DMAX1(-AA,-41.45)
-      RL = 1.2*DIG + 3.0
-      ALAZ = DLOG(AZ)
-//--------------------------------------------------------------------------
-//     TEST FOR PROPER RANGE
-//-----------------------------------------------------------------------
-      AA=0.5/TOL
-      BB=DBLE(FLOAT(i1mach(9)))*0.5
-      AA=DMIN1(AA,BB)
-      AA=AA**TTH
-      if (AZ > AA) {return Err(LossOfSignificance);}
-      AA=DSQRT(AA)
-      if (AZ > AA) IERR=3
-      CALL ZSQRT(ZR, ZI, CSQR, CSQI)
-      ZTAR = TTH*(ZR*CSQR-ZI*CSQI)
-      ZTAI = TTH*(ZR*CSQI+ZI*CSQR)
-//-----------------------------------------------------------------------
-//     RE(ZTA) <= 0 WHEN RE(Z) < 0, ESPECIALLY WHEN IM(Z) IS SMALL
-//-----------------------------------------------------------------------
-      IFLAG = 0
-      SFAC = 1.0
-      AK = ZTAI
-      if (ZR >= 0.0) GO TO 80
-      BK = ZTAR
-      CK = -(BK).abs()
-      ZTAR = CK
-      ZTAI = AK
-   80 CONTINUE
-      if (ZI != 0.0) GO TO 90
-      if (ZR > 0.0) GO TO 90
-      ZTAR = 0.0
-      ZTAI = AK
-   90 CONTINUE
-      AA = ZTAR
-      if (AA >= 0.0 && ZR > 0.0) GO TO 110
-      if (KODE == 2) GO TO 100
-//-----------------------------------------------------------------------
-//     OVERFLOW TEST
-//-----------------------------------------------------------------------
-      if (AA > (-ALIM)) GO TO 100
-      AA = -AA + 0.25*ALAZ
-      IFLAG = 1
-      SFAC = TOL
-      if (AA > ELIM) GO TO 270
-  100 CONTINUE
-//-----------------------------------------------------------------------
-//     CBKNU AND CACON RETURN EXP(ZTA)*K(FNU,ZTA) ON KODE=2
-//-----------------------------------------------------------------------
-      MR = 1
-      if (ZI < 0.0) MR = -1
-      CALL ZACAI(ZTAR, ZTAI, FNU, KODE, MR, 1, CYR, CYI, NN, RL, TOL,
-     * ELIM, ALIM)
-      if (NN < 0) GO TO 280
-      NZ = NZ + NN
-      GO TO 130
-  110 CONTINUE
-      if (KODE == 2) GO TO 120
-//-----------------------------------------------------------------------
-//     UNDERFLOW TEST
-//-----------------------------------------------------------------------
-      if (AA < ALIM) GO TO 120
-      AA = -AA - 0.25*ALAZ
-      IFLAG = 2
-      SFAC = 1.0/TOL
-      if (AA < (-ELIM)) GO TO 210
-  120 CONTINUE
-      CALL ZBKNU(ZTAR, ZTAI, FNU, KODE, 1, CYR, CYI, NZ, TOL, ELIM,
-     * ALIM)
-  130 CONTINUE
-      S1R = CYR(1)*COEF
-      S1I = CYI(1)*COEF
-      if (IFLAG != 0) GO TO 150
-      if (ID == 1) GO TO 140
-      AIR = CSQR*S1R - CSQI*S1I
-      AII = CSQR*S1I + CSQI*S1R
-      RETURN
-  140 CONTINUE
-      AIR = -(ZR*S1R-ZI*S1I)
-      AII = -(ZR*S1I+ZI*S1R)
-      RETURN
-  150 CONTINUE
-      S1R = S1R*SFAC
-      S1I = S1I*SFAC
-      if (ID == 1) GO TO 160
-      STR = S1R*CSQR - S1I*CSQI
-      S1I = S1R*CSQI + S1I*CSQR
-      S1R = STR
-      AIR = S1R/SFAC
-      AII = S1I/SFAC
-      RETURN
-  160 CONTINUE
-      STR = -(S1R*ZR-S1I*ZI)
-      S1I = -(S1R*ZI+S1I*ZR)
-      S1R = STR
-      AIR = S1R/SFAC
-      AII = S1I/SFAC
-      RETURN
-  170 CONTINUE
-      AA = 1.0e+3*d1mach(1)
-      S1R = ZEROR
-      S1I = ZEROI
-      if (ID == 1) GO TO 190
-      if (AZ <= AA) GO TO 180
-      S1R = C2*ZR
-      S1I = C2*ZI
-  180 CONTINUE
-      AIR = C1 - S1R
-      AII = -S1I
-      RETURN
-  190 CONTINUE
-      AIR = -C2
-      AII = 0.0
-      AA = DSQRT(AA)
-      if (AZ <= AA) GO TO 200
-      S1R = 0.5*(ZR*ZR-ZI*ZI)
-      S1I = ZR*ZI
-  200 CONTINUE
-      AIR = AIR + C1*S1R
-      AII = AII + C1*S1I
-      RETURN
-  210 CONTINUE
-      NZ = 1
-      AIR = ZEROR
-      AII = ZEROI
-      RETURN
-  270 CONTINUE
-      NZ = 0
-      IERR=2
-      RETURN
-  280 CONTINUE
-      if(NN == (-1)) GO TO 270
-      NZ=0
-      IERR=5
-      RETURN
-  260 CONTINUE
-      IERR=4
-      NZ=0
-      RETURN
-      END
+    //   IERR = 0;
+    //   let NZ=0;
+    //   if (ID < 0 || ID > 1) IERR=1;
+    //   if (KODE < 1 || KODE > 2) IERR=1;
+    //   if (IERR != 0) RETURN;
+      let AZ = z.abs();//ZABS(ZR,ZI);
+    //   TOL = DMAX1(d1mach(4),1.0e-18);
+    let machine_consts = MachineConsts::new();
+      let FID = if return_derivative{1.0} else{0.0};//(ID as f64);
+      if AZ <= 1.0 {//GO TO 70;
+//-----------------------------------------------------------------------;
+//     POWER SERIES FOR CABS(Z) <= 1.;
+//-----------------------------------------------------------------------;
+let mut s1 = c_one();
+let mut s2 = c_one();
+    //   S1R = CONER;
+    //   S1I = CONEI;
+    //   S2R = CONER;
+    //   S2I = CONEI;
+      if AZ < machine_consts.tol {//GO TO 170;
+        // 170 CONTINUE;
+        // AA = 1.0e+3*d1mach(1);
+        // S1R = ZEROR;
+        // S1I = ZEROI;
+        s1 = c_zero();
+        return if return_derivative {//GO TO 190;
+            // 190 CONTINUE;
+            let mut ai = Complex64::new(-C2, 0.0);
+        // AIR = -C2;
+        // AII = 0.0;
+        // AA = DSQRT(AA);
+
+        if AZ > machine_consts.arm.sqrt() {//GO TO 200;
+            s1 = z.pow(2.0)/2.0;
+        // S1R = 0.5*(ZR*ZR-ZI*ZI);
+        // S1I = ZR*ZI;
+        }
+    // 200 CONTINUE;
+    ai+= C1 * s1;
+        // AIR = AIR + C1*S1R;
+        // AII = AII + C1*S1I;
+        // RETURN;
+        Ok((ai, 0))
+    }else{
+        if AZ > machine_consts.arm {//GO TO 180;
+            s1 = C2*z;
+        // S1R = C2*ZR;
+        // S1I = C2*ZI;
+        }
+    // 180 CONTINUE;
+    let ai = C1-s1;
+        // AIR = C1 - S1R;
+        // AII = -S1I;
+        // RETURN;
+        Ok((ai, 0))
+
+    }
+      }
+      let AA = AZ*AZ;
+      if AA >= machine_consts.tol/AZ {//GO TO 40;
+        let mut term1 = c_one();
+        let mut term2 = c_one();
+    //   TRM1R = CONER;
+    //   TRM1I = CONEI;
+    //   TRM2R = CONER;
+    //   TRM2I = CONEI;
+      let mut a_term = 1.0;
+      let z3 = z.pow(3.0);
+    //   STR = ZR*ZR - ZI*ZI;
+    //   STI = ZR*ZI + ZI*ZR;
+    //   Z3R = STR*ZR - STI*ZI;
+    //   Z3I = STR*ZI + STI*ZR;
+      let AZ3 = AZ*AA;
+      let (mut AK, mut BK,CK, DK) = (2.0+FID, 3.0-2.0*FID, 4.0-FID,3.0-2.0*FID);
+    //   AK = 2.0 + FID;
+    //   BK = 3.0 - FID - FID;
+    //   CK = 4.0 - FID;
+    //   DK = 3.0 + FID + FID;
+      let mut D1:f64 = AK*DK;
+      let mut D2 = BK*CK;
+      let mut AD = D1.min(D2);//DMIN1(D1,D2);
+      AK = 24.0 + 9.0*FID;
+      BK = 30.0 - 9.0*FID;
+    //   DO 30 K=1,25;
+      for _ in 0..25{
+        // STR = (TRM1R*Z3R-TRM1I*Z3I)/D1;
+        // TRM1I = (TRM1R*Z3I+TRM1I*Z3R)/D1;
+        // TRM1R = STR;
+        term1 = term1*z3/D1;
+        s1 += term1;
+        // S1R = S1R + TRM1R;
+        // S1I = S1I + TRM1I;
+        term2 = term2*z3 /D2;
+        // STR = (TRM2R*Z3R-TRM2I*Z3I)/D2;
+        // TRM2I = (TRM2R*Z3I+TRM2I*Z3R)/D2;
+        // TRM2R = STR;
+        s2 += term2;
+        // S2R = S2R + TRM2R;
+        // S2I = S2I + TRM2I;
+        a_term = a_term*AZ3/AD;
+        D1 += AK;
+        D2 += BK;
+        AD = D1.min(D2);
+        // AD = DMIN1(D1,D2);
+        if a_term < machine_consts.tol*AD {break;}//GO TO 40;
+        AK = AK + 18.0;
+        BK = BK + 18.0;
+//    30 CONTINUE;
+      }
+    }
+      return if return_derivative {//GO TO 50;
+        // 50 CONTINUE;
+        let mut ai = -s2*C2;
+        // AIR = -S2R*C2;
+        // AII = -S2I*C2;
+        if AZ > machine_consts.tol {//GO TO 60;
+        // STR = ZR*S1R - ZI*S1I;
+        // STI = ZR*S1I + ZI*S1R;
+        let CC = C1/(1.0+FID);
+        ai += CC * z.pow(2.0)*s1;
+        // AIR = AIR + CC*(STR*ZR-STI*ZI);
+        // AII = AII + CC*(STR*ZI+STI*ZR);
+        Ok((ai, 0))
+        }else{
+    //  60 CONTINUE;
+        if KODE == Scaling::Scaled
+        {
+            ai *= (TWO_THIRDS*z*z.sqrt()).exp();
+        // CALL ZSQRT(ZR, ZI, STR, STI);
+        // ZTAR = TWO_THIRDS*(ZR*STR-ZI*STI);
+        // ZTAI = TWO_THIRDS*(ZR*STI+ZI*STR);
+        // CALL ZEXP(ZTAR, ZTAI, STR, STI);
+        // PTR = STR*AIR - STI*AII;
+        // AII = STR*AII + STI*AIR;
+        // AIR = PTR;
+        }
+        Ok((ai, 0))
+
+    }
+        // RETURN;
+
+      }else{
+//    40 CONTINUE;
+        let mut ai = s1*C1 - C2*z*s2;
+//      AIR = S1R*C1 - C2*(ZR*S2R-ZI*S2I);
+//       AII = S1I*C1 - C2*(ZR*S2I+ZI*S2R);
+      if KODE == Scaling::Scaled {//RETURN;
+
+        ai *= (TWO_THIRDS*z*z.sqrt()).exp();
+    //   CALL ZSQRT(ZR, ZI, STR, STI);
+    //   ZTAR = TWO_THIRDS*(ZR*STR-ZI*STI);
+    //   ZTAI = TWO_THIRDS*(ZR*STI+ZI*STR);
+    //   CALL ZEXP(ZTAR, ZTAI, STR, STI);
+    //   PTR = AIR*STR - AII*STI;
+    //   AII = AIR*STI + AII*STR;
+    //   AIR = PTR;
+    //   RETURN;
+      }
+      Ok((ai, 0))
+      }
+    }else{
+//-----------------------------------------------------------------------;
+//     CASE FOR CABS(Z) > 1.0;
+//-----------------------------------------------------------------------;
+//    70 CONTINUE;
+      let FNU = (1.0+FID)/3.0;
+//-----------------------------------------------------------------------;
+//     SET PARAMETERS RELATED TO MACHINE CONSTANTS.;
+//     TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0e-18.;
+//     ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.;
+//     EXP(-ELIM) < EXP(-ALIM)=EXP(-ELIM)/TOL    AND;
+//     EXP(ELIM) > EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR;
+//     UNDERFLOW AND OVERFLOW LIMITS WHERE SCALED ARITHMETIC IS DONE.;
+//     RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.;
+//     DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).;
+//-----------------------------------------------------------------------;
+    //   K1 = i1mach(15);
+    //   K2 = i1mach(16);
+    //   R1M5 = d1mach(5);
+    //   K = MIN0(K1.abs(),K2.abs());
+    //   ELIM = 2.303*(K as f64)*R1M5-3.0);
+    //   K1 = i1mach(14) - 1;
+    //   AA = R1M5*(K1 as f64);
+    //   DIG = DMIN1(AA,18.0);
+    //   AA = AA*2.303;
+    //   ALIM = ELIM + DMAX1(-AA,-41.45);
+    //   RL = 1.2*DIG + 3.0;
+    //   ALAZ = DLOG(AZ);
+    let ALAZ = AZ.ln();
+//--------------------------------------------------------------------------;
+//     TEST FOR PROPER RANGE;
+//-----------------------------------------------------------------------;
+      let mut AA= 0.5/machine_consts.tol;
+    //   BB=DBLE(FLOAT(i1mach(9)))*0.5;
+     AA=AA.min(i32::MAX as f64/2.0);
+      AA=AA.pow(TWO_THIRDS);
+      if AZ > AA {return Err(LossOfSignificance);};
+    //   AA=DSQRT(AA);
+        AA = AA.sqrt();
+        let significance_loss = AZ>AA;
+    //   if (AZ > AA) IERR=3;
+    let csq = z.sqrt();
+    //   CALL ZSQRT(ZR, ZI, CSQR, CSQI);
+    let mut zta = TWO_THIRDS*z*csq;
+    //   ZTAR = TWO_THIRDS*(ZR*CSQR-ZI*CSQI);
+    //   ZTAI = TWO_THIRDS*(ZR*CSQI+ZI*CSQR);
+//-----------------------------------------------------------------------;
+//     RE(ZTA) <= 0 WHEN RE(Z) < 0, ESPECIALLY WHEN IM(Z) IS SMALL;
+//-----------------------------------------------------------------------;
+      let mut IFLAG = 0;
+      let mut SFAC = 1.0;
+      let AK = zta.im;//ZTAI;
+      if z.re < 0.0 {//GO TO 80;
+    //   BK = ZTAR;
+    //   CK = -(BK).abs();
+    //   ZTAR = CK;
+    //   ZTAI = AK;
+        zta.re = -zta.re.abs();
+      }
+//    80 CONTINUE;
+    if z.im ==0.0 && z.re<=0.0{
+    //   if (ZI != 0.0) GO TO 90;
+    //   if (ZR > 0.0) GO TO 90;
+    //   ZTAR = 0.0;
+    //   ZTAI = AK;
+    zta.re = 0.0;
+    }
+//    90 CONTINUE;
+      let mut AA = zta.re;//ZTAR;
+      let (cy, NZ) = if !(AA >= 0.0 && z.re > 0.0) {//GO TO 110;
+    //   if (KODE == 2) GO TO 100;
+//-----------------------------------------------------------------------;
+//     OVERFLOW TEST;
+//-----------------------------------------------------------------------;
+        if KODE == Scaling::Unscaled && AA<= -machine_consts.alim{
+    //   if (AA > (-ALIM)) GO TO 100;
+      AA = -AA + 0.25*ALAZ;
+      IFLAG = 1;
+      SFAC = machine_consts.tol;
+      if AA > machine_consts.elim {return Err(Overflow);}//GO TO 270;
+        }
+//   100 CONTINUE;
+//-----------------------------------------------------------------------;
+//     CBKNU AND CACON RETURN EXP(ZTA)*K(FNU,ZTA) ON KODE=2;
+//-----------------------------------------------------------------------;
+      let MR = if z.im < 0.0 { -1} else{1};
+      ZACAI(zta, FNU, KODE, MR, 1, &machine_consts)?
+    //    ZACAI(ZTAR, ZTAI, FNU, KODE, MR, 1, CYR, CYI, NN, RL, TOL,
+    //   ELIM, ALIM)?;
+    //   if (NN < 0) GO TO 280;
+    //   NZ = NZ + NN;
+    //   GO TO 130;
+    }else{
+//   110 CONTINUE;
+    //   if (KODE == 2) GO TO 120;
+//-----------------------------------------------------------------------;
+//     UNDERFLOW TEST;
+//-----------------------------------------------------------------------;
+    //   if (AA < ALIM) GO TO 120;
+    if KODE == Scaling::Unscaled && AA>machine_consts.alim{
+      AA = -AA - 0.25*ALAZ;
+      IFLAG = 2;
+      SFAC = 1.0/machine_consts.tol;
+      if AA < -machine_consts.elim {return Ok((c_zero(), 1));} //GO TO 210;
+    }
+//   120 CONTINUE;
+    ZBKNU(z, FNU, KODE, 1, &machine_consts)?
+    //   CALL ZBKNU(ZTAR, ZTAI, FNU, KODE, 1, CYR, CYI, NZ, TOL, ELIM,
+    //  * ALIM);
+      };
+//   130 CONTINUE;
+      let mut s1 = cy[0]*COEFF;
+    //   S1R = CYR(1)*COEF;
+    //   S1I = CYI(1)*COEF;
+    return if IFLAG == 0 {//GO TO 150;
+      let ai = if (return_derivative) //GO TO 140;
+      {
+        // 140 CONTINUE;
+    //   AIR = -(ZR*S1R-ZI*S1I);
+    //   AII = -(ZR*S1I+ZI*S1R);
+        -z*s1
+      }else{
+        csq*s1
+    //   AIR = CSQR*S1R - CSQI*S1I;
+    //   AII = CSQR*S1I + CSQI*S1R;
+      };
+ Ok((ai, NZ))
+    //   RETURN;
+
+    //   RETURN;
+    }else{
+
+//   150 CONTINUE;
+        s1 *=SFAC;
+    //   S1R = S1R*SFAC;
+    //   S1I = S1I*SFAC;
+    s1 *= if return_derivative{
+        // 160 CONTINUE;
+        -z
+        // STR = -(S1R*ZR-S1I*ZI);
+        // S1I = -(S1R*ZI+S1I*ZR);
+        // S1R = STR;
+        // AIR = S1R/SFAC;
+        // AII = S1I/SFAC;
+        // RETURN;
+
+    }else{
+    //   if (ID == 1) GO TO 160;
+    //   STR = S1R*CSQR - S1I*CSQI;
+    //   S1I = S1R*CSQI + S1I*CSQR;
+    //   S1R = STR;
+    //   AIR = S1R/SFAC;
+    //   AII = S1I/SFAC;
+    //   RETURN;
+        csq
+    };
+    // ai = s1/SFAC;
+    Ok((s1/SFAC, NZ))
+
+};
+//   170 CONTINUE;
+//       AA = 1.0e+3*d1mach(1);
+//       S1R = ZEROR;
+//       S1I = ZEROI;
+//       if (ID == 1) GO TO 190;
+//       if (AZ <= AA) GO TO 180;
+//       S1R = C2*ZR;
+//       S1I = C2*ZI;
+//   180 CONTINUE;
+//       AIR = C1 - S1R;
+//       AII = -S1I;
+//       RETURN;
+//   190 CONTINUE;
+//       AIR = -C2;
+//       AII = 0.0;
+//       AA = DSQRT(AA);
+//       if (AZ <= AA) GO TO 200;
+//       S1R = 0.5*(ZR*ZR-ZI*ZI);
+//       S1I = ZR*ZI;
+//   200 CONTINUE;
+//       AIR = AIR + C1*S1R;
+//       AII = AII + C1*S1I;
+//       RETURN;
+//   210 CONTINUE;
+//       NZ = 1;
+//       AIR = ZEROR;
+//       AII = ZEROI;
+//       RETURN;
+//   270 CONTINUE;
+//       NZ = 0;
+//       IERR=2;
+//       RETURN;
+//   280 CONTINUE;
+//       if(NN == (-1)) GO TO 270;
+//       NZ=0;
+//       IERR=5;
+//       RETURN;
+//   260 CONTINUE;
+//       IERR=4;
+//       NZ=0;
+//       RETURN;
+//       END;
+}
+    }
+      /*
 fn ZBIRY(ZR, ZI, ID, KODE, BIR, BII, IERR)
 // ***BEGIN PROLOGUE  ZBIRY
 // ***DATE WRITTEN   830501   (YYMMDD)
@@ -1993,10 +2114,10 @@ fn ZBIRY(ZR, ZI, ID, KODE, BIR, BII, IERR)
      * BK, CC, CK, COEF, CONEI, CONER, CSQI, CSQR, CYI, CYR, C1, C2,
      * DIG, DK, D1, D2, EAA, ELIM, FID, FMR, FNU, FNUL, PI, RL, R1M5,
      * SFAC, STI, STR, S1I, S1R, S2I, S2R, TOL, TRM1I, TRM1R, TRM2I,
-     * TRM2R, TTH, ZI, ZR, ZTAI, ZTAR, Z3I, Z3R, d1mach, ZABS
+     * TRM2R, TWO_THIRDS, ZI, ZR, ZTAI, ZTAR, Z3I, Z3R, d1mach, ZABS
       INTEGER ID, IERR, K, KODE, K1, K2, NZ, i1mach
       DIMENSION CYR(2), CYI(2)
-      DATA TTH, C1, C2, COEF, PI /6.66666666666666667e-01,
+      DATA TWO_THIRDS, C1, C2, COEF, PI /6.66666666666666667e-01,
      * 6.14926627446000736e-01,4.48288357353826359e-01,
      * 5.77350269189625765e-01,3.14159265358979324e+00/
       DATA CONER, CONEI /1.0,0.0/
@@ -2064,8 +2185,8 @@ fn ZBIRY(ZR, ZI, ID, KODE, BIR, BII, IERR)
       BII = C1*S1I + C2*(ZR*S2I+ZI*S2R)
       if (KODE == 1) RETURN
       CALL ZSQRT(ZR, ZI, STR, STI)
-      ZTAR = TTH*(ZR*STR-ZI*STI)
-      ZTAI = TTH*(ZR*STI+ZI*STR)
+      ZTAR = TWO_THIRDS*(ZR*STR-ZI*STI)
+      ZTAI = TWO_THIRDS*(ZR*STI+ZI*STR)
       AA = ZTAR
       AA = -(AA).abs()
       EAA = DEXP(AA)
@@ -2084,8 +2205,8 @@ fn ZBIRY(ZR, ZI, ID, KODE, BIR, BII, IERR)
    60 CONTINUE
       if (KODE == 1) RETURN
       CALL ZSQRT(ZR, ZI, STR, STI)
-      ZTAR = TTH*(ZR*STR-ZI*STI)
-      ZTAI = TTH*(ZR*STI+ZI*STR)
+      ZTAR = TWO_THIRDS*(ZR*STR-ZI*STI)
+      ZTAI = TWO_THIRDS*(ZR*STI+ZI*STR)
       AA = ZTAR
       AA = -(AA).abs()
       EAA = DEXP(AA)
@@ -2126,13 +2247,13 @@ fn ZBIRY(ZR, ZI, ID, KODE, BIR, BII, IERR)
       AA=0.5/TOL
       BB=DBLE(FLOAT(i1mach(9)))*0.5
       AA=DMIN1(AA,BB)
-      AA=AA**TTH
+      AA=AA**TWO_THIRDS
       if (AZ > AA) {return Err(LossOfSignificance);}
       AA=DSQRT(AA)
       if (AZ > AA) IERR=3
       CALL ZSQRT(ZR, ZI, CSQR, CSQI)
-      ZTAR = TTH*(ZR*CSQR-ZI*CSQI)
-      ZTAI = TTH*(ZR*CSQI+ZI*CSQR)
+      ZTAR = TWO_THIRDS*(ZR*CSQR-ZI*CSQI)
+      ZTAI = TWO_THIRDS*(ZR*CSQI+ZI*CSQR)
 //-----------------------------------------------------------------------
 //     RE(ZTA) <= 0 WHEN RE(Z) < 0, ESPECIALLY WHEN IM(Z) IS SMALL
 //-----------------------------------------------------------------------
@@ -2252,7 +2373,6 @@ fn ZBKNU(
     const RTFRAC_PI_2: f64 = 1.25331413731550025;
     const SPI: f64 = 1.90985931710274403;
     const FPI: f64 = 1.89769999331517738;
-    const TTH: f64 = 6.66666666666666666e-01;
     const CC: [f64; 8] = [
         5.77215664901532861e-01,
         -4.20026350340952355e-02,
@@ -2279,7 +2399,7 @@ fn ZBKNU(
     let mut KFLAG;
     let mut KODED = KODE;
     let rz = 2.0 * z.conj() / CAZ.powi(2);
-    let mut INU = (order + 0.5) as usize; // round to nearest int
+    let mut INU = (order + 0.5) as isize; // round to nearest int
     let DNU = order - (INU as f64); // signed fractional part (-0.5 < DNU < 0.5 )
     let DNU2 = if DNU.abs() > machine_consts.tol {
         DNU * DNU
@@ -2518,7 +2638,7 @@ fn ZBKNU(
             //-----------------------------------------------------------------------;
             let mut T1 = (f64::MANTISSA_DIGITS as f64 * (f64::RADIX as f64).log10() * 3.321928094)
                 .clamp(12.0, 60.0);
-            let T2 = TTH * T1 - 6.0;
+            let T2 = TWO_THIRDS * T1 - 6.0;
             T1 = if z.re == 0.0 {
                 FRAC_PI_2
             } else {
@@ -2626,10 +2746,10 @@ fn ZBKNU(
     if N == 1 {
         INU -= 1
     };
-    if INU > 0 {
-        if underflow_occurred {} //GO TO 261;
-    }
-    if underflow_occurred {} //{break 'l270;}
+    // if INU > 0 {
+    //     if underflow_occurred {} //GO TO 261;
+    // }
+    // if underflow_occurred {} //{break 'l270;}
 
     'l225: loop {
         if !(INU <= 0 && N <= 1) {
@@ -2755,7 +2875,7 @@ fn ZBKNU(
             s1 = cy[J - 1];
             // S1R = CYR(J);
             // S1I = CYI(J);
-            if (INUB <= INU) {
+            if INUB <= INU {
                 continue 'l225;
             } //GO TO 225;
             // }
@@ -2805,7 +2925,7 @@ fn ZBKNU(
             // ASCLE = BRY[0];
             ZKSCL(zd, order, N, &mut y, &mut NZ, rz, BRY[0], machine_consts);
             // CALL ZKSCL(ZDR,ZDI,FNU,N,YR,YI,NZ,RZR,RZI,ASCLE,TOL,ELIM);
-            INU = N - NZ;
+            INU = (N - NZ) as isize;
             if INU <= 0 {
                 return Ok((y, NZ));
             } //;RETURN;}
@@ -2843,7 +2963,7 @@ fn ZBKNU(
         let mut P1R = CSRR[KFLAG - 1];
         let mut ASCLE = BRY[KFLAG - 1];
         // DO 260 I=KK,N;
-        let mut I = 0;
+        let mut I;
         for i in KK..N {
             I = i;
             let mut p2 = s2;
@@ -3228,9 +3348,11 @@ fn i_ratios(
     }
     return cy;
 }
-/*
-fn ZS1S2(ZRR, ZRI, S1R, S1I, S2R, S2I, NZ, ASCLE, ALIM,
-     * IUF)
+
+fn ZS1S2(//ZRR, ZRI, S1R, S1I, S2R, S2I, NZ, ASCLE, ALIM,
+     //* IUF)
+     zr: Complex64, s1:&mut Complex64, s2:&mut Complex64,  IUF:&mut usize, machine_consts: &MachineConsts
+)-> usize{
 // ***BEGIN PROLOGUE  ZS1S2
 // ***REFER TO  ZBESK,ZAIRY
 //
@@ -3245,40 +3367,60 @@ fn ZS1S2(ZRR, ZRI, S1R, S1I, S2R, S2I, NZ, ASCLE, ALIM,
 // ***ROUTINES CALLED  ZABS,ZEXP,ZLOG
 // ***END PROLOGUE  ZS1S2
 //     COMPLEX CZERO,C1,S1,S1D,S2,ZR
-      EXTERNAL ZABS
-      DOUBLE PRECISION AA, ALIM, ALN, ASCLE, AS1, AS2, C1I, C1R, S1DI,
-     * S1DR, S1I, S1R, S2I, S2R, ZEROI, ZEROR, ZRI, ZRR, ZABS
-      INTEGER IUF, IDUM, NZ
-      DATA ZEROR,ZEROI  / 0.0 , 0.0 /
-      NZ = 0
-      AS1 = ZABS(S1R,S1I)
-      AS2 = ZABS(S2R,S2I)
-      if (S1R == 0.0 && S1I == 0.0) GO TO 10
-      if (AS1 == 0.0) GO TO 10
-      ALN = -ZRR - ZRR + DLOG(AS1)
-      S1DR = S1R
-      S1DI = S1I
-      S1R = ZEROR
-      S1I = ZEROI
-      AS1 = ZEROR
-      if (ALN < (-ALIM)) GO TO 10
-      CALL ZLOG(S1DR, S1DI, C1R, C1I, IDUM)
-      C1R = C1R - ZRR - ZRR
-      C1I = C1I - ZRI - ZRI
-      CALL ZEXP(C1R, C1I, S1R, S1I)
-      AS1 = ZABS(S1R,S1I)
-      IUF = IUF + 1
-   10 CONTINUE
-      AA = DMAX1(AS1,AS2)
-      if (AA > ASCLE) RETURN
-      S1R = ZEROR
-      S1I = ZEROI
-      S2R = ZEROR
-      S2I = ZEROI
-      NZ = 1
-      IUF = 0
-      RETURN
-      END
+    //   EXTERNAL ZABS
+    //   DOUBLE PRECISION AA, ALIM, ALN, ASCLE, AS1, AS2, C1I, C1R, S1DI,
+    //  * S1DR, S1I, S1R, S2I, S2R, ZEROI, ZEROR, ZRI, ZRR, ZABS
+    //   INTEGER IUF, IDUM, NZ
+    //   DATA ZEROR,ZEROI  / 0.0 , 0.0 /
+      let NZ = 0;
+      let mut abs_s1 = s1.abs();
+      let abs_s2  =s2.abs();
+    //   AS1 = ZABS(S1R,S1I);
+    //   AS2 = ZABS(S2R,S2I);
+    if (s1.re != 0.0 || s1.im != 0.0) && (abs_s1 !=0.0){
+
+
+    //   if (S1R == 0.0 && S1I == 0.0) GO TO 10;
+    //   if (AS1 == 0.0) GO TO 10;
+      let ALN = (-2.0*zr.re) + abs_s1.ln();//-ZRR - ZRR + DLOG(AS1);
+        let s1d = *s1;
+        *s1 = c_zero();
+        abs_s1 = 0.0;
+    //   S1DR = S1R;
+    //   S1DI = S1I;
+    //   S1R = ZEROR;
+    //   S1I = ZEROI;
+    //   AS1 = ZEROR;
+      if ALN >= (-machine_consts.alim) {//} GO TO 10;
+        *s1 = (s1d.ln() - 2.0*zr).exp();
+        abs_s1 = s1.abs();
+    //   CALL ZLOG(S1DR, S1DI, C1R, C1I, IDUM);
+    //   C1R = C1R - ZRR - ZRR;
+    //   C1I = C1I - ZRI - ZRI;
+    //   CALL ZEXP(C1R, C1I, S1R, S1I);
+    //   AS1 = ZABS(S1R,S1I);
+      *IUF += 1;
+      }
+    }
+//    10 CONTINUE;
+
+    //   AA = DMAX1(AS1,AS2);
+      if abs_s1.max(abs_s2) > machine_consts.ascle { NZ} //RETURN;
+      else{
+        *s1 = c_zero();
+        *s2 = c_zero();
+    //   S1R = ZEROR;
+    //   S1I = ZEROI;
+    //   S2R = ZEROR;
+    //   S2I = ZEROI;
+    //   NZ = 1;
+      *IUF = 0;
+    //   RETURN;
+    //   END;
+      1
+    }
+}
+      /*
 fn ZBUNK(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
      * ALIM)
 // ***BEGIN PROLOGUE  ZBUNK
@@ -3331,7 +3473,7 @@ fn i_miller(
     // ***ROUTINES CALLED  gamma_ln,d1mach,ZABS,ZEXP,ZLOG,ZMLT
     // ***END PROLOGUE  ZMLRI
 
-    let SCLE: f64 = d1mach(1) / machine_consts.tol;
+    let SCLE: f64 = 2.0 * f64::MIN_POSITIVE / machine_consts.tol;
     let NZ = 0;
     let AZ = z.abs();
     let IAZ = AZ as usize;
@@ -3490,8 +3632,9 @@ fn i_wronksian(
     order: f64,
     KODE: Scaling,
     N: usize,
+    y: &mut Vec<Complex64>,
     machine_consts: &MachineConsts,
-) -> BesselResult {
+) -> BesselResult<usize> {
     // ***BEGIN PROLOGUE  ZWRSK
     // ***REFER TO  ZBESI,ZBESK
     //
@@ -3546,7 +3689,7 @@ fn i_wronksian(
         cinu *= y_ratios[i - 1];
         y[i] = cinu * CSCLR;
     }
-    Ok((y, NZ))
+    Ok(NZ)
 }
 
 /*
@@ -3825,7 +3968,7 @@ fn ZBINU(
         //-----------------------------------------------------------------------
         //     OVERFLOW AND UNDERFLOW TEST ON I SEQUENCE FOR MILLER ALGORITHM
         //-----------------------------------------------------------------------
-        let (cy, nw) = zuoik(z, order, KODE, IKType::I, NN, cy, machine_consts)?;
+        let nw = zuoik(z, order, KODE, IKType::I, NN, &mut cy, machine_consts)?;
 
         NZ = NZ + nw;
         NN = NN - nw;
@@ -3836,96 +3979,83 @@ fn ZBINU(
         //     if (DFNU > FNUL) GO TO 110
         //     if (AZ > FNUL) GO TO 110
     }
-    if !((DFNU > machine_consts.fnul) || (AZ > machine_consts.fnul))
-    //GO TO 110
-    {
-        //  60 CONTINUE
-        // 'l60: loop{
-        if !skip_az_rl_check && !(AZ > machine_consts.rl) {
-            // GO TO 80
-            //  70 CONTINUE
-            //-----------------------------------------------------------------------
-            //     MILLER ALGORITHM NORMALIZED BY THE SERIES
-            //-----------------------------------------------------------------------
-            let (cy, _) = i_miller(
-                //ZR, ZI, FNU,
-                z,
-                order,
-                KODE,
-                NN,
-                /*CYR, CYI, NW,*/ machine_consts,
-            )?;
-            //      return{if(NW < 0) { if(NW == (-2)) { Err(DidNotConverge);}// NZ=-2
-            //     else{Err(Overflow)}}}else{
-            return Ok((cy, NZ)); //}
-        }
-        //    80 CONTINUE
+    if (DFNU > machine_consts.fnul) || (AZ > machine_consts.fnul) {
         //-----------------------------------------------------------------------
-        //     MILLER ALGORITHM NORMALIZED BY THE WRONSKIAN
+        //     INCREMENT FNU+NN-1 UP TO FNUL, COMPUTE AND RECUR BACKWARD
         //-----------------------------------------------------------------------
-        //-----------------------------------------------------------------------
-        //     OVERFLOW TEST ON K FUNCTIONS USED IN WRONSKIAN
-        //-----------------------------------------------------------------------
-        //       CALL ZUOIK(ZR, ZI, FNU, KODE, 2, 2, CWR, CWI, NW, TOL, ELIM,
-        //      * ALIM)
-
-        if let Ok((cy, NW)) = zuoik(
+        let mut NUI = (machine_consts.fnul - DFNU) as usize + 1;
+        NUI = NUI.max(0);
+        let ( NW, NLAST) = ZBUNI(
+            //ZR, ZI, FNU,
             z,
             order,
             KODE,
-            IKType::K,
-            2,
-            vec![c_one(); 2],
+            NN,
+            NUI, //CYR, CYI, NW, NUI, NLAST, FNUL,
+            &mut cy,
             machine_consts,
-        ) {
-            if NW > 0 {
-                return Err(Overflow);
-            } else {
-                // CALL ZWRSK(ZR, ZI, FNU, KODE, NN, CYR, CYI, NW, CWR, CWI, TOL,
-                //       * ELIM, ALIM)
-                //        if (NW < 0) GO TO 130
-                //        return Ok(cy, NZ);
-                return i_wronksian(
-                    z,
-                    order,
-                    KODE,
-                    NN,             /*CYR, CYI, NW, CWR, CWI,*/
-                    machine_consts, //TOL, ELIM, ALIM,
-                );
-            }
-        } else {
-            return Ok((vec![c_one(); NN], NN));
+        )?;
+        //    * TOL, ELIM, ALIM)?
+        // if (NW < 0) GO TO 130
+        NZ = NZ + NW;
+        if NLAST == 0 {
+            return Ok((cy, NZ));
         }
-
-        //       if (NW >= 0) GO TO 100
-        //       NZ = NN
-        //       DO 90 I=1,NN
-        //         CYR(I) = ZEROR
-        //         CYI(I) = ZEROI
-        //    90 CONTINUE
-        //       RETURN
-        //   100 CONTINUE
-        // if (NW > 0) GO TO 130
-        // CALL ZWRSK(ZR, ZI, FNU, KODE, NN, CYR, CYI, NW, CWR, CWI, TOL,
-        //       * ELIM, ALIM)
-        //        if (NW < 0) GO TO 130
-        //        return Ok(cy, NZ);
+        NN = NLAST;
+        // GO TO 60
     }
+    //  60 CONTINUE
+    // 'l60: loop{
+    if !skip_az_rl_check && !(AZ > machine_consts.rl) {
+        // GO TO 80
+        //  70 CONTINUE
+        //-----------------------------------------------------------------------
+        //     MILLER ALGORITHM NORMALIZED BY THE SERIES
+        //-----------------------------------------------------------------------
+        let (cy, _) = i_miller(
+            //ZR, ZI, FNU,
+            z,
+            order,
+            KODE,
+            NN,
+            /*CYR, CYI, NW,*/ machine_consts,
+        )?;
+        //      return{if(NW < 0) { if(NW == (-2)) { Err(DidNotConverge);}// NZ=-2
+        //     else{Err(Overflow)}}}else{
+        return Ok((cy, NZ)); //}
+    }
+    //    80 CONTINUE
+    //-----------------------------------------------------------------------
+    //     MILLER ALGORITHM NORMALIZED BY THE WRONSKIAN
+    //-----------------------------------------------------------------------
+    //-----------------------------------------------------------------------
+    //     OVERFLOW TEST ON K FUNCTIONS USED IN WRONSKIAN
+    //-----------------------------------------------------------------------
+    //       CALL ZUOIK(ZR, ZI, FNU, KODE, 2, 2, CWR, CWI, NW, TOL, ELIM,
+    //      * ALIM)
+
+    if let Ok( NW) = zuoik(
+        z,
+        order,
+        KODE,
+        IKType::K,
+        2,
+        &mut vec![c_one(); 2],
+        machine_consts,
+    ) {
+        if NW > 0 {
+            return Err(Overflow);
+        } else {
+            let nz= i_wronksian(z, order, KODE, NN, &mut cy, machine_consts)?;
+            return Ok((cy, nz));
+        }
+    } else {
+        return Ok((vec![c_one(); NN], NN));
+    }
+
     /*
     // 110 CONTINUE
 
-    //-----------------------------------------------------------------------
-    //     INCREMENT FNU+NN-1 UP TO FNUL, COMPUTE AND RECUR BACKWARD
-    //-----------------------------------------------------------------------
-          NUI = INT(SNGL(FNUL-DFNU)) + 1
-          NUI = MAX0(NUI,0)
-          CALL ZBUNI(ZR, ZI, FNU, KODE, NN, CYR, CYI, NW, NUI, NLAST, FNUL,
-         * TOL, ELIM, ALIM)
-          if (NW < 0) GO TO 130
-          NZ = NZ + NW
-          if (NLAST == 0) {return Ok(cy, NZ);}
-          NN = NLAST
-          GO TO 60
     //   120 CONTINUE
     //       RETURN
       130 CONTINUE
@@ -3936,13 +4066,12 @@ fn ZBINU(
           RETURN
           // END
           */
-
-    return Err(NotYetImplemented);
 }
 
-/*
-fn ZACAI(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, RL, TOL,
-     * ELIM, ALIM)
+
+fn ZACAI(//ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, RL, TOL,
+     //* ELIM, ALIM)
+     z: Complex64, order: f64, KODE: Scaling, MR: i32, N:usize, machine_consts: &MachineConsts)-> BesselResult{
 // ***BEGIN PROLOGUE  ZACAI
 // ***REFER TO  ZAIRY
 //
@@ -3960,88 +4089,114 @@ fn ZACAI(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, RL, TOL,
 // ***ROUTINES CALLED  ZASYI,ZBKNU,ZMLRI,z_power_series,ZS1S2,d1mach,ZABS
 // ***END PROLOGUE  ZACAI
 //     COMPLEX CSGN,CSPN,C1,C2,Y,Z,ZN,CY
-      EXTERNAL ZABS
-      DOUBLE PRECISION ALIM, ARG, ASCLE, AZ, CSGNR, CSGNI, CSPNR,
-     * CSPNI, C1R, C1I, C2R, C2I, CYR, CYI, DFNU, ELIM, FMR, FNU, PI,
-     * RL, SGN, TOL, YY, YR, YI, ZR, ZI, ZNR, ZNI, d1mach, ZABS
-      INTEGER INU, IUF, KODE, MR, N, NN, NW, NZ
-      DIMENSION YR(N), YI(N), CYR(2), CYI(2)
-      DATA PI / 3.14159265358979324 /
-      NZ = 0
-      ZNR = -ZR
-      ZNI = -ZI
-      AZ = ZABS(ZR,ZI)
-      NN = N
-      DFNU = FNU + ((N-1) as f64)
-      if (AZ <= 2.0) GO TO 10
-      if (AZ*AZ*0.25 > DFNU+1.0) GO TO 20
-   10 CONTINUE
-//-----------------------------------------------------------------------
-//     POWER SERIES FOR THE I FUNCTION
-//-----------------------------------------------------------------------
-      CALL z_power_series(ZNR, ZNI, FNU, KODE, NN, YR, YI, NW, TOL, ELIM, ALIM)
-      GO TO 40
-   20 CONTINUE
-      if (AZ < RL) GO TO 30
-//-----------------------------------------------------------------------
-//     ASYMPTOTIC EXPANSION FOR LARGE Z FOR THE I FUNCTION
-//-----------------------------------------------------------------------
-      CALL ZASYI(ZNR, ZNI, FNU, KODE, NN, YR, YI, NW, RL, TOL, ELIM,
-     * ALIM)
-      if (NW < 0) GO TO 80
-      GO TO 40
-   30 CONTINUE
-//-----------------------------------------------------------------------
-//     MILLER ALGORITHM NORMALIZED BY THE SERIES FOR THE I FUNCTION
-//-----------------------------------------------------------------------
-      CALL ZMLRI(ZNR, ZNI, FNU, KODE, NN, YR, YI, NW, TOL)
-      if(NW < 0) GO TO 80
-   40 CONTINUE
-//-----------------------------------------------------------------------
-//     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE FOR THE K FUNCTION
-//-----------------------------------------------------------------------
-      CALL ZBKNU(ZNR, ZNI, FNU, KODE, 1, CYR, CYI, NW, TOL, ELIM, ALIM)
-      if (NW != 0) GO TO 80
-      FMR = (MR as f64)
-      SGN = -DSIGN(PI,FMR)
-      CSGNR = 0.0
-      CSGNI = SGN
-      if (KODE == 1) GO TO 50
-      YY = -ZNI
-      CSGNR = -CSGNI*DSIN(YY)
-      CSGNI = CSGNI*DCOS(YY)
-   50 CONTINUE
-//-----------------------------------------------------------------------
-//     CALCULATE CSPN=EXP(FNU*PI*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
-//     WHEN FNU IS LARGE
-//-----------------------------------------------------------------------
-      INU = INT(SNGL(FNU))
-      ARG = (FNU-(INU as f64))*SGN
-      CSPNR = DCOS(ARG)
-      CSPNI = DSIN(ARG)
-      if (MOD(INU,2) == 0) GO TO 60
-      CSPNR = -CSPNR
-      CSPNI = -CSPNI
-   60 CONTINUE
-      C1R = CYR(1)
-      C1I = CYI(1)
-      C2R = YR(1)
-      C2I = YI(1)
-      if (KODE == 1) GO TO 70
-      IUF = 0
-      ASCLE = 1.0e+3*d1mach(1)/TOL
-      CALL ZS1S2(ZNR, ZNI, C1R, C1I, C2R, C2I, NW, ASCLE, ALIM, IUF)
-      NZ = NZ + NW
-   70 CONTINUE
-      YR(1) = CSPNR*C1R - CSPNI*C1I + CSGNR*C2R - CSGNI*C2I
-      YI(1) = CSPNR*C1I + CSPNI*C1R + CSGNR*C2I + CSGNI*C2R
-      RETURN
-   80 CONTINUE
-      NZ = -1
-      if(NW == (-2)) NZ=-2
-      RETURN
-      END
-      */
+    //   EXTERNAL ZABS
+    //   DOUBLE PRECISION ALIM, ARG, ASCLE, AZ, CSGNR, CSGNI, CSPNR,
+    //  * CSPNI, C1R, C1I, C2R, C2I, CYR, CYI, DFNU, ELIM, FMR, FNU, PI,
+    //  * RL, SGN, TOL, YY, YR, YI, ZR, ZI, ZNR, ZNI, d1mach, ZABS
+    //   INTEGER INU, IUF, KODE, MR, N, NN, NW, NZ
+    //   DIMENSION YR(N), YI(N), CYR(2), CYI(2)
+    //   DATA PI / 3.14159265358979324 /
+      let mut NZ = 0;
+      let zn = -z;
+    //   ZNR = -ZR;
+    //   ZNI = -ZI;
+    let AZ = z.abs();
+    //   AZ = ZABS(ZR,ZI);
+      let NN = N;
+      let DFNU = order + ((N-1) as f64);
+    //   if (AZ <= 2.0) GO TO 10;
+    let (mut y, _) = if (AZ*AZ*0.25 <= DFNU+1.0) || (AZ <= 2.0) {//GO TO 20;
+//    10 CONTINUE;
+//-----------------------------------------------------------------------;
+//     POWER SERIES FOR THE I FUNCTION;
+//-----------------------------------------------------------------------;
+let (y, NW_signed) = i_power_series(zn, order, KODE, NN, machine_consts)?;
+debug_assert!(NW_signed>=0);
+(y, NW_signed.abs() as usize)
+    //   CALL z_power_series(ZNR, ZNI, FNU, KODE, NN, YR, YI, NW, TOL, ELIM, ALIM);
+      }else if AZ >=machine_consts.rl{
+    //   GO TO 40;
+//    20 CONTINUE;
+    //   if (AZ < RL) GO TO 30;
+//-----------------------------------------------------------------------;
+//     ASYMPTOTIC EXPANSION FOR LARGE Z FOR THE I FUNCTION;
+//-----------------------------------------------------------------------;
+    //   CALL ZASYI(ZNR, ZNI, FNU, KODE, NN, YR, YI, NW, RL, TOL, ELIM,;
+    //  * ALIM);
+     z_asymptotic_i(zn, order, KODE,NN, machine_consts)?
+    //   if (NW < 0) GO TO 80;
+    //   GO TO 40;
+//    30 CONTINUE;
+//-----------------------------------------------------------------------;
+//     MILLER ALGORITHM NORMALIZED BY THE SERIES FOR THE I FUNCTION;
+//-----------------------------------------------------------------------;
+      }else{
+        i_miller(z, order, KODE, NN, machine_consts)?
+    //   CALL ZMLRI(ZNR, ZNI, FNU, KODE, NN, YR, YI, NW, TOL);
+    //   if(NW < 0) GO TO 80;
+     };
+//    40 CONTINUE;
+//-----------------------------------------------------------------------;
+//     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE FOR THE K FUNCTION;
+//-----------------------------------------------------------------------;
+     let (cy, _) = ZBKNU(zn, order, KODE, 1, machine_consts)?;
+    //   CALL ZBKNU(ZNR, ZNI, FNU, KODE, 1, CYR, CYI, NW, TOL, ELIM, ALIM);
+    //   if (NW != 0) GO TO 80;
+    //   let FMR = (MR as f64);s
+      let SGN = PI * (MR as f64).signum();//-DSIGN(PI,FMR);
+      let mut csgn = Complex64::new(0.0, SGN);
+    //   CSGNR = 0.0;
+    //   CSGNI = SGN;
+      if KODE == Scaling::Scaled {// GO TO 50;
+        csgn = csgn.im * Complex64::cis(-zn.im);
+        csgn.re = -csgn.re;
+    //   YY = -ZNI;
+    //   CSGNR = -CSGNI*DSIN(YY);
+    //   CSGNI = CSGNI*DCOS(YY);
+      }
+//    50 CONTINUE;
+//-----------------------------------------------------------------------;
+//     CALCULATE CSPN=EXP(FNU*PI*I) TO MINIMIZE LOSSES OF SIGNIFICANCE;
+//     WHEN FNU IS LARGE;
+//-----------------------------------------------------------------------;
+    //   INU = INT(SNGL(FNU));
+      let INU = order as usize;
+    //   ARG = (FNU-(INU as f64))*SGN;
+    // let ARG = order.fract() * SGN;
+      let mut cspn = Complex64::cis(order.fract()*SGN);
+    //   CSPNR = DCOS(ARG);
+    //   CSPNI = DSIN(ARG);
+      if INU%2 != 0 {//GO TO 60;
+        cspn = - cspn;
+    //   CSPNR = -CSPNR;
+    //   CSPNI = -CSPNI;
+      }
+//    60 CONTINUE;
+      let mut c1 = cy[0];
+      let mut c2 = y[0];
+    //   C1R = CYR(1);
+    //   C1I = CYI(1);
+    //   C2R = YR(1);
+    //   C2I = YI(1);
+      if KODE == Scaling::Scaled {//GO TO 70;
+      let mut IUF = 0;
+    //   ASCLE = 1.0e+3*d1mach(1)/TOL;
+        let NW = ZS1S2(zn, &mut c1, &mut c2, &mut IUF, machine_consts);
+    //   CALL ZS1S2(ZNR, ZNI, C1R, C1I, C2R, C2I, NW, ASCLE, ALIM, IUF);
+      NZ +=  NW;
+      }
+//    70 CONTINUE;
+      y[0] = cspn*c1 + csgn*c2;
+    //   YR(1) = CSPNR*C1R - CSPNI*C1I + CSGNR*C2R - CSGNI*C2I;
+    //   YI(1) = CSPNR*C1I + CSPNI*C1R + CSGNR*C2I + CSGNI*C2R;
+      Ok((y, NZ))
+    //   RETURN;
+//    80 CONTINUE;
+//       NZ = -1;
+//       if(NW == (-2)) NZ=-2;
+//       RETURN;
+//       END;
+     }
 
 /*
 fn ZUNK1(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
@@ -4977,654 +5132,1131 @@ fn ZUNK2(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
       NZ = -1
       RETURN
       END
-fn ZBUNI(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NUI, NLAST,
-     * FNUL, TOL, ELIM, ALIM)
-// ***BEGIN PROLOGUE  ZBUNI
-// ***REFER TO  ZBESI,ZBESK
-//
-//     ZBUNI COMPUTES THE I BESSEL FUNCTION FOR LARGE CABS(Z) >
-//     FNUL AND FNU+N-1 < FNUL. THE ORDER IS INCREASED FROM
-//     FNU+N-1 GREATER THAN FNUL BY ADDING NUI AND COMPUTING
-//     ACCORDING TO THE UNIFORM ASYMPTOTIC EXPANSION FOR I(FNU,Z)
-//     ON IFORM=1 AND THE EXPANSION FOR J(FNU,Z) ON IFORM=2
-//
-// ***ROUTINES CALLED  ZUNI1,ZUNI2,ZABS,d1mach
-// ***END PROLOGUE  ZBUNI
-//     COMPLEX CSCL,CSCR,CY,RZ,ST,S1,S2,Y,Z
-      EXTERNAL ZABS
-      DOUBLE PRECISION ALIM, AX, AY, CSCLR, CSCRR, CYI, CYR, DFNU,
-     * ELIM, FNU, FNUI, FNUL, GNU, RAZ, RZI, RZR, STI, STR, S1I, S1R,
-     * S2I, S2R, TOL, YI, YR, ZI, ZR, ZABS, ASCLE, BRY, C1R, C1I, C1M,
-     * d1mach
-      INTEGER I, IFLAG, IFORM, K, KODE, N, NL, NLAST, NUI, NW, NZ
-      DIMENSION YR(N), YI(N), CYR(2), CYI(2), BRY(3)
-      NZ = 0
-      AX = (ZR).abs()*1.7321
-      AY = (ZI).abs()
-      IFORM = 1
-      if (AY > AX) IFORM = 2
-      if (NUI == 0) GO TO 60
-      FNUI = (NUI as f64)
-      DFNU = FNU + ((N-1) as f64)
-      GNU = DFNU + FNUI
-      if (IFORM == 2) GO TO 10
-//-----------------------------------------------------------------------
-//     ASYMPTOTIC EXPANSION FOR I(FNU,Z) FOR LARGE FNU APPLIED IN
-//     -PI/3 <= ARG(Z) <= PI/3
-//-----------------------------------------------------------------------
-      CALL ZUNI1(ZR, ZI, GNU, KODE, 2, CYR, CYI, NW, NLAST, FNUL, TOL,
-     * ELIM, ALIM)
-      GO TO 20
-   10 CONTINUE
-//-----------------------------------------------------------------------
-//     ASYMPTOTIC EXPANSION FOR J(FNU,Z*EXP(M*FRAC_PI_2)) FOR LARGE FNU
-//     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I
-//     AND FRAC_PI_2=PI/2
-//-----------------------------------------------------------------------
-      CALL ZUNI2(ZR, ZI, GNU, KODE, 2, CYR, CYI, NW, NLAST, FNUL, TOL,
-     * ELIM, ALIM)
-   20 CONTINUE
-      if (NW < 0) GO TO 50
-      if (NW != 0) GO TO 90
-      STR = ZABS(CYR(1),CYI(1))
-//----------------------------------------------------------------------
-//     SCALE BACKWARD RECURRENCE, BRY(3) IS DEFINED BUT NEVER USED
-//----------------------------------------------------------------------
-      BRY(1)=1.0e+3*d1mach(1)/TOL
-      BRY(2) = 1.0/BRY(1)
-      BRY(3) = BRY(2)
-      IFLAG = 2
-      ASCLE = BRY(2)
-      CSCLR = 1.0
-      if (STR > BRY(1)) GO TO 21
-      IFLAG = 1
-      ASCLE = BRY(1)
-      CSCLR = 1.0/TOL
-      GO TO 25
-   21 CONTINUE
-      if (STR < BRY(2)) GO TO 25
-      IFLAG = 3
-      ASCLE=BRY(3)
-      CSCLR = TOL
-   25 CONTINUE
-      CSCRR = 1.0/CSCLR
-      S1R = CYR(2)*CSCLR
-      S1I = CYI(2)*CSCLR
-      S2R = CYR(1)*CSCLR
-      S2I = CYI(1)*CSCLR
-      RAZ = 1.0/ZABS(ZR,ZI)
-      STR = ZR*RAZ
-      STI = -ZI*RAZ
-      RZR = (STR+STR)*RAZ
-      RZI = (STI+STI)*RAZ
-      DO 30 I=1,NUI
-        STR = S2R
-        STI = S2I
-        S2R = (DFNU+FNUI)*(RZR*STR-RZI*STI) + S1R
-        S2I = (DFNU+FNUI)*(RZR*STI+RZI*STR) + S1I
-        S1R = STR
-        S1I = STI
-        FNUI = FNUI - 1.0
-        if (IFLAG >= 3) GO TO 30
-        STR = S2R*CSCRR
-        STI = S2I*CSCRR
-        C1R = (STR).abs()
-        C1I = (STI).abs()
-        C1M = DMAX1(C1R,C1I)
-        if (C1M <= ASCLE) GO TO 30
-        IFLAG = IFLAG+1
-        ASCLE = BRY(IFLAG)
-        S1R = S1R*CSCRR
-        S1I = S1I*CSCRR
-        S2R = STR
-        S2I = STI
-        CSCLR = CSCLR*TOL
-        CSCRR = 1.0/CSCLR
-        S1R = S1R*CSCLR
-        S1I = S1I*CSCLR
-        S2R = S2R*CSCLR
-        S2I = S2I*CSCLR
-   30 CONTINUE
-      YR(N) = S2R*CSCRR
-      YI(N) = S2I*CSCRR
-      if (N == 1) RETURN
-      NL = N - 1
-      FNUI = (NL as f64)
-      K = NL
-      DO 40 I=1,NL
-        STR = S2R
-        STI = S2I
-        S2R = (FNU+FNUI)*(RZR*STR-RZI*STI) + S1R
-        S2I = (FNU+FNUI)*(RZR*STI+RZI*STR) + S1I
-        S1R = STR
-        S1I = STI
-        STR = S2R*CSCRR
-        STI = S2I*CSCRR
-        YR(K) = STR
-        YI(K) = STI
-        FNUI = FNUI - 1.0
-        K = K - 1
-        if (IFLAG >= 3) GO TO 40
-        C1R = (STR).abs()
-        C1I = (STI).abs()
-        C1M = DMAX1(C1R,C1I)
-        if (C1M <= ASCLE) GO TO 40
-        IFLAG = IFLAG+1
-        ASCLE = BRY(IFLAG)
-        S1R = S1R*CSCRR
-        S1I = S1I*CSCRR
-        S2R = STR
-        S2I = STI
-        CSCLR = CSCLR*TOL
-        CSCRR = 1.0/CSCLR
-        S1R = S1R*CSCLR
-        S1I = S1I*CSCLR
-        S2R = S2R*CSCLR
-        S2I = S2I*CSCLR
-   40 CONTINUE
-      RETURN
-   50 CONTINUE
-      NZ = -1
-      if(NW == (-2)) NZ=-2
-      RETURN
-   60 CONTINUE
-      if (IFORM == 2) GO TO 70
-//-----------------------------------------------------------------------
-//     ASYMPTOTIC EXPANSION FOR I(FNU,Z) FOR LARGE FNU APPLIED IN
-//     -PI/3 <= ARG(Z) <= PI/3
-//-----------------------------------------------------------------------
-      CALL ZUNI1(ZR, ZI, FNU, KODE, N, YR, YI, NW, NLAST, FNUL, TOL,
-     * ELIM, ALIM)
-      GO TO 80
-   70 CONTINUE
-//-----------------------------------------------------------------------
-//     ASYMPTOTIC EXPANSION FOR J(FNU,Z*EXP(M*FRAC_PI_2)) FOR LARGE FNU
-//     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I
-//     AND FRAC_PI_2=PI/2
-//-----------------------------------------------------------------------
-      CALL ZUNI2(ZR, ZI, FNU, KODE, N, YR, YI, NW, NLAST, FNUL, TOL,
-     * ELIM, ALIM)
-   80 CONTINUE
-      if (NW < 0) GO TO 50
-      NZ = NW
-      RETURN
-   90 CONTINUE
-      NLAST = N
-      RETURN
-      END
-fn ZUNI1(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NLAST, FNUL,
-     * TOL, ELIM, ALIM)
-// ***BEGIN PROLOGUE  ZUNI1
-// ***REFER TO  ZBESI,ZBESK
-//
-//     ZUNI1 COMPUTES I(FNU,Z)  BY MEANS OF THE UNIFORM ASYMPTOTIC
-//     EXPANSION FOR I(FNU,Z) IN -PI/3 <= ARG Z <= PI/3.
-//
-//     FNUL IS THE SMALLEST ORDER PERMITTED FOR THE ASYMPTOTIC
-//     EXPANSION. NLAST=0 MEANS ALL OF THE Y VALUES WERE SET.
-//     NLAST != 0 IS THE NUMBER LEFT TO BE COMPUTED BY ANOTHER
-//     FORMULA FOR ORDERS FNU TO FNU+NLAST-1 BECAUSE FNU+NLAST-1 < FNUL.
-//     Y(I)=CZERO FOR I=NLAST+1,N
-//
-// ***ROUTINES CALLED  ZUunderflowCHK,ZUNIK,ZUOIK,d1mach,ZABS
-// ***END PROLOGUE  ZUNI1
-//     COMPLEX CFN,CONE,CRSC,CSCL,CSR,CSS,CWRK,CZERO,C1,C2,PHI,RZ,SUM,S1,
-//    *S2,Y,Z,ZETA1,ZETA2
-      EXTERNAL ZABS
-      DOUBLE PRECISION ALIM, APHI, ASCLE, BRY, CONER, CRSC,
-     * CSCL, CSRR, CSSR, CWRKI, CWRKR, C1R, C2I, C2M, C2R, ELIM, FN,
-     * FNU, FNUL, PHII, PHIR, RAST, RS1, RZI, RZR, STI, STR, SUMI,
-     * SUMR, S1I, S1R, S2I, S2R, TOL, YI, YR, ZEROI, ZEROR, ZETA1I,
-     * ZETA1R, ZETA2I, ZETA2R, ZI, ZR, CYR, CYI, d1mach, ZABS
-      INTEGER I, IFLAG, INIT, K, KODE, M, N, ND, NLAST, NN, NUF, NW, NZ
-      DIMENSION BRY(3), YR(N), YI(N), CWRKR(16), CWRKI(16), CSSR(3),
-     * CSRR(3), CYR(2), CYI(2)
-      DATA ZEROR,ZEROI,CONER / 0.0, 0.0, 1.0 /
-//
-      NZ = 0
-      ND = N
-      NLAST = 0
-//-----------------------------------------------------------------------
-//     COMPUTED VALUES WITH EXPONENTS BETWEEN ALIM AND ELIM IN MAG-
-//     NITUDE ARE SCALED TO KEEP INTERMEDIATE ARITHMETIC ON SCALE,
-//     EXP(ALIM)=EXP(ELIM)*TOL
-//-----------------------------------------------------------------------
-      CSCL = 1.0/TOL
-      CRSC = TOL
-      CSSR(1) = CSCL
-      CSSR(2) = CONER
-      CSSR(3) = CRSC
-      CSRR(1) = CRSC
-      CSRR(2) = CONER
-      CSRR(3) = CSCL
-      BRY(1) = 1.0e+3*d1mach(1)/TOL
-//-----------------------------------------------------------------------
-//     CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER
-//-----------------------------------------------------------------------
-      FN = DMAX1(FNU,1.0)
-      INIT = 0
-      CALL ZUNIK(ZR, ZI, FN, 1, 1, TOL, INIT, PHIR, PHII, ZETA1R,
-     * ZETA1I, ZETA2R, ZETA2I, SUMR, SUMI, CWRKR, CWRKI)
-      if (KODE == 1) GO TO 10
-      STR = ZR + ZETA2R
-      STI = ZI + ZETA2I
-      RAST = FN/ZABS(STR,STI)
-      STR = STR*RAST*RAST
-      STI = -STI*RAST*RAST
-      S1R = -ZETA1R + STR
-      S1I = -ZETA1I + STI
-      GO TO 20
-   10 CONTINUE
-      S1R = -ZETA1R + ZETA2R
-      S1I = -ZETA1I + ZETA2I
-   20 CONTINUE
-      RS1 = S1R
-      if ((RS1).abs() > ELIM) GO TO 130
-   30 CONTINUE
-      NN = MIN0(2,ND)
-      DO 80 I=1,NN
-        FN = FNU + ((ND-I) as f64)
-        INIT = 0
-        CALL ZUNIK(ZR, ZI, FN, 1, 0, TOL, INIT, PHIR, PHII, ZETA1R,
-     *   ZETA1I, ZETA2R, ZETA2I, SUMR, SUMI, CWRKR, CWRKI)
-        if (KODE == 1) GO TO 40
-        STR = ZR + ZETA2R
-        STI = ZI + ZETA2I
-        RAST = FN/ZABS(STR,STI)
-        STR = STR*RAST*RAST
-        STI = -STI*RAST*RAST
-        S1R = -ZETA1R + STR
-        S1I = -ZETA1I + STI + ZI
-        GO TO 50
-   40   CONTINUE
-        S1R = -ZETA1R + ZETA2R
-        S1I = -ZETA1I + ZETA2I
-   50   CONTINUE
-//-----------------------------------------------------------------------
-//     TEST FOR UNDERFLOW AND OVERFLOW
-//-----------------------------------------------------------------------
-        RS1 = S1R
-        if ((RS1).abs() > ELIM) GO TO 110
-        if (I == 1) IFLAG = 2
-        if ((RS1).abs() < ALIM) GO TO 60
-//-----------------------------------------------------------------------
-//     REFINE  TEST AND SCALE
-//-----------------------------------------------------------------------
-        APHI = ZABS(PHIR,PHII)
-        RS1 = RS1 + DLOG(APHI)
-        if ((RS1).abs() > ELIM) GO TO 110
-        if (I == 1) IFLAG = 1
-        if (RS1 < 0.0) GO TO 60
-        if (I == 1) IFLAG = 3
-   60   CONTINUE
-//-----------------------------------------------------------------------
-//     SCALE S1 if CABS(S1) < ASCLE
-//-----------------------------------------------------------------------
-        S2R = PHIR*SUMR - PHII*SUMI
-        S2I = PHIR*SUMI + PHII*SUMR
-        STR = DEXP(S1R)*CSSR(IFLAG)
-        S1R = STR*DCOS(S1I)
-        S1I = STR*DSIN(S1I)
-        STR = S2R*S1R - S2I*S1I
-        S2I = S2R*S1I + S2I*S1R
-        S2R = STR
-        if (IFLAG != 1) GO TO 70
-        CALL ZUunderflowCHK(S2R, S2I, NW, BRY(1), TOL)
-        if (NW != 0) GO TO 110
-   70   CONTINUE
-        CYR(I) = S2R
-        CYI(I) = S2I
-        M = ND - I + 1
-        YR(M) = S2R*CSRR(IFLAG)
-        YI(M) = S2I*CSRR(IFLAG)
-   80 CONTINUE
-      if (ND <= 2) GO TO 100
-      RAST = 1.0/ZABS(ZR,ZI)
-      STR = ZR*RAST
-      STI = -ZI*RAST
-      RZR = (STR+STR)*RAST
-      RZI = (STI+STI)*RAST
-      BRY(2) = 1.0/BRY(1)
-      BRY(3) = d1mach(2)
-      S1R = CYR(1)
-      S1I = CYI(1)
-      S2R = CYR(2)
-      S2I = CYI(2)
-      C1R = CSRR(IFLAG)
-      ASCLE = BRY(IFLAG)
-      K = ND - 2
-      FN = (K as f64)
-      DO 90 I=3,ND
-        C2R = S2R
-        C2I = S2I
-        S2R = S1R + (FNU+FN)*(RZR*C2R-RZI*C2I)
-        S2I = S1I + (FNU+FN)*(RZR*C2I+RZI*C2R)
-        S1R = C2R
-        S1I = C2I
-        C2R = S2R*C1R
-        C2I = S2I*C1R
-        YR(K) = C2R
-        YI(K) = C2I
-        K = K - 1
-        FN = FN - 1.0
-        if (IFLAG >= 3) GO TO 90
-        STR = (C2R).abs()
-        STI = (C2I).abs()
-        C2M = DMAX1(STR,STI)
-        if (C2M <= ASCLE) GO TO 90
-        IFLAG = IFLAG + 1
-        ASCLE = BRY(IFLAG)
-        S1R = S1R*C1R
-        S1I = S1I*C1R
-        S2R = C2R
-        S2I = C2I
-        S1R = S1R*CSSR(IFLAG)
-        S1I = S1I*CSSR(IFLAG)
-        S2R = S2R*CSSR(IFLAG)
-        S2I = S2I*CSSR(IFLAG)
-        C1R = CSRR(IFLAG)
-   90 CONTINUE
-  100 CONTINUE
-      RETURN
-//-----------------------------------------------------------------------
-//     SET UNDERFLOW AND UPDATE PARAMETERS
-//-----------------------------------------------------------------------
-  110 CONTINUE
-      if (RS1 > 0.0) GO TO 120
-      YR(ND) = ZEROR
-      YI(ND) = ZEROI
-      NZ = NZ + 1
-      ND = ND - 1
-      if (ND == 0) GO TO 100
-      CALL ZUOIK(ZR, ZI, FNU, KODE, 1, ND, YR, YI, NUF, TOL, ELIM, ALIM)
-      if (NUF < 0) GO TO 120
-      ND = ND - NUF
-      NZ = NZ + NUF
-      if (ND == 0) GO TO 100
-      FN = FNU + ((ND-1) as f64)
-      if (FN >= FNUL) GO TO 30
-      NLAST = ND
-      RETURN
-  120 CONTINUE
-      NZ = -1
-      RETURN
-  130 CONTINUE
-      if (RS1 > 0.0) GO TO 120
-      NZ = N
-      DO 140 I=1,N
-        YR(I) = ZEROR
-        YI(I) = ZEROI
-  140 CONTINUE
-      RETURN
-      END
-fn ZUNI2(ZR, ZI, FNU, KODE, N, YR, YI, NZ, NLAST, FNUL,
-     * TOL, ELIM, ALIM)
-// ***BEGIN PROLOGUE  ZUNI2
-// ***REFER TO  ZBESI,ZBESK
-//
-//     ZUNI2 COMPUTES I(FNU,Z) IN THE RIGHT HALF PLANE BY MEANS OF
-//     UNIFORM ASYMPTOTIC EXPANSION FOR J(FNU,ZN) WHERE ZN IS Z*I
-//     OR -Z*I AND ZN IS IN THE RIGHT HALF PLANE ALSO.
-//
-//     FNUL IS THE SMALLEST ORDER PERMITTED FOR THE ASYMPTOTIC
-//     EXPANSION. NLAST=0 MEANS ALL OF THE Y VALUES WERE SET.
-//     NLAST != 0 IS THE NUMBER LEFT TO BE COMPUTED BY ANOTHER
-//     FORMULA FOR ORDERS FNU TO FNU+NLAST-1 BECAUSE FNU+NLAST-1 < FNUL.
-//     Y(I)=CZERO FOR I=NLAST+1,N
-//
-// ***ROUTINES CALLED  ZAIRY,ZUunderflowCHK,ZUNHJ,ZUOIK,d1mach,ZABS
-// ***END PROLOGUE  ZUNI2
-//     COMPLEX AI,ARG,ASUM,BSUM,CFN,CI,CID,CIP,CONE,CRSC,CSCL,CSR,CSS,
-//    *CZERO,C1,C2,DAI,PHI,RZ,S1,S2,Y,Z,ZB,ZETA1,ZETA2,ZN
-      EXTERNAL ZABS
-      DOUBLE PRECISION AARG, AIC, AII, AIR, ALIM, ANG, APHI, ARGI,
-     * ARGR, ASCLE, ASUMI, ASUMR, BRY, BSUMI, BSUMR, CIDI, CIPI, CIPR,
-     * CONER, CRSC, CSCL, CSRR, CSSR, C1R, C2I, C2M, C2R, DAII,
-     * DAIR, ELIM, FN, FNU, FNUL, FRAC_PI_2, PHII, PHIR, RAST, RAZ, RS1, RZI,
-     * RZR, STI, STR, S1I, S1R, S2I, S2R, TOL, YI, YR, ZBI, ZBR, ZEROI,
-     * ZEROR, ZETA1I, ZETA1R, ZETA2I, ZETA2R, ZI, ZNI, ZNR, ZR, CYR,
-     * CYI, d1mach, ZABS, CAR, SAR
-      INTEGER I, IFLAG, IN, INU, J, K, KODE, N, NAI, ND, NDAI, NLAST,
-     * NN, NUF, NW, NZ, IDUM
-      DIMENSION BRY(3), YR(N), YI(N), CIPR(4), CIPI(4), CSSR(3),
-     * CSRR(3), CYR(2), CYI(2)
-      DATA ZEROR,ZEROI,CONER / 0.0, 0.0, 1.0 /
-      DATA CIPR(1),CIPI(1),CIPR(2),CIPI(2),CIPR(3),CIPI(3),CIPR(4),
-     * CIPI(4)/ 1.0,0.0, 0.0,1.0, -1.0,0.0, 0.0,-1.0/
-      DATA FRAC_PI_2, AIC  /
-     1      1.57079632679489662e+00,     1.265512123484645396e+00/
-//
-      NZ = 0
-      ND = N
-      NLAST = 0
-//-----------------------------------------------------------------------
-//     COMPUTED VALUES WITH EXPONENTS BETWEEN ALIM AND ELIM IN MAG-
-//     NITUDE ARE SCALED TO KEEP INTERMEDIATE ARITHMETIC ON SCALE,
-//     EXP(ALIM)=EXP(ELIM)*TOL
-//-----------------------------------------------------------------------
-      CSCL = 1.0/TOL
-      CRSC = TOL
-      CSSR(1) = CSCL
-      CSSR(2) = CONER
-      CSSR(3) = CRSC
-      CSRR(1) = CRSC
-      CSRR(2) = CONER
-      CSRR(3) = CSCL
-      BRY(1) = 1.0e+3*d1mach(1)/TOL
-//-----------------------------------------------------------------------
-//     ZN IS IN THE RIGHT HALF PLANE AFTER ROTATION BY CI OR -CI
-//-----------------------------------------------------------------------
-      ZNR = ZI
-      ZNI = -ZR
-      ZBR = ZR
-      ZBI = ZI
-      CIDI = -CONER
-      INU = INT(SNGL(FNU))
-      ANG = FRAC_PI_2*(FNU-(INU as f64))
-      C2R = DCOS(ANG)
-      C2I = DSIN(ANG)
-      CAR = C2R
-      SAR = C2I
-      IN = INU + N - 1
-      IN = MOD(IN,4) + 1
-      STR = C2R*CIPR(IN) - C2I*CIPI(IN)
-      C2I = C2R*CIPI(IN) + C2I*CIPR(IN)
-      C2R = STR
-      if (ZI > 0.0) GO TO 10
-      ZNR = -ZNR
-      ZBI = -ZBI
-      CIDI = -CIDI
-      C2I = -C2I
-   10 CONTINUE
-//-----------------------------------------------------------------------
-//     CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER
-//-----------------------------------------------------------------------
-      FN = DMAX1(FNU,1.0)
-      CALL ZUNHJ(ZNR, ZNI, FN, 1, TOL, PHIR, PHII, ARGR, ARGI, ZETA1R,
-     * ZETA1I, ZETA2R, ZETA2I, ASUMR, ASUMI, BSUMR, BSUMI)
-      if (KODE == 1) GO TO 20
-      STR = ZBR + ZETA2R
-      STI = ZBI + ZETA2I
-      RAST = FN/ZABS(STR,STI)
-      STR = STR*RAST*RAST
-      STI = -STI*RAST*RAST
-      S1R = -ZETA1R + STR
-      S1I = -ZETA1I + STI
-      GO TO 30
-   20 CONTINUE
-      S1R = -ZETA1R + ZETA2R
-      S1I = -ZETA1I + ZETA2I
-   30 CONTINUE
-      RS1 = S1R
-      if ((RS1).abs() > ELIM) GO TO 150
-   40 CONTINUE
-      NN = MIN0(2,ND)
-      DO 90 I=1,NN
-        FN = FNU + ((ND-I) as f64)
-        CALL ZUNHJ(ZNR, ZNI, FN, 0, TOL, PHIR, PHII, ARGR, ARGI,
-     *   ZETA1R, ZETA1I, ZETA2R, ZETA2I, ASUMR, ASUMI, BSUMR, BSUMI)
-        if (KODE == 1) GO TO 50
-        STR = ZBR + ZETA2R
-        STI = ZBI + ZETA2I
-        RAST = FN/ZABS(STR,STI)
-        STR = STR*RAST*RAST
-        STI = -STI*RAST*RAST
-        S1R = -ZETA1R + STR
-        S1I = -ZETA1I + STI + (ZI).abs()
-        GO TO 60
-   50   CONTINUE
-        S1R = -ZETA1R + ZETA2R
-        S1I = -ZETA1I + ZETA2I
-   60   CONTINUE
-//-----------------------------------------------------------------------
-//     TEST FOR UNDERFLOW AND OVERFLOW
-//-----------------------------------------------------------------------
-        RS1 = S1R
-        if ((RS1).abs() > ELIM) GO TO 120
-        if (I == 1) IFLAG = 2
-        if ((RS1).abs() < ALIM) GO TO 70
-//-----------------------------------------------------------------------
-//     REFINE  TEST AND SCALE
-//-----------------------------------------------------------------------
-//-----------------------------------------------------------------------
-        APHI = ZABS(PHIR,PHII)
-        AARG = ZABS(ARGR,ARGI)
-        RS1 = RS1 + DLOG(APHI) - 0.25*DLOG(AARG) - AIC
-        if ((RS1).abs() > ELIM) GO TO 120
-        if (I == 1) IFLAG = 1
-        if (RS1 < 0.0) GO TO 70
-        if (I == 1) IFLAG = 3
-   70   CONTINUE
-//-----------------------------------------------------------------------
-//     SCALE S1 TO KEEP INTERMEDIATE ARITHMETIC ON SCALE NEAR
-//     EXPONENT EXTREMES
-//-----------------------------------------------------------------------
-        CALL ZAIRY(ARGR, ARGI, 0, 2, AIR, AII, NAI, IDUM)
-        CALL ZAIRY(ARGR, ARGI, 1, 2, DAIR, DAII, NDAI, IDUM)
-        STR = DAIR*BSUMR - DAII*BSUMI
-        STI = DAIR*BSUMI + DAII*BSUMR
-        STR = STR + (AIR*ASUMR-AII*ASUMI)
-        STI = STI + (AIR*ASUMI+AII*ASUMR)
-        S2R = PHIR*STR - PHII*STI
-        S2I = PHIR*STI + PHII*STR
-        STR = DEXP(S1R)*CSSR(IFLAG)
-        S1R = STR*DCOS(S1I)
-        S1I = STR*DSIN(S1I)
-        STR = S2R*S1R - S2I*S1I
-        S2I = S2R*S1I + S2I*S1R
-        S2R = STR
-        if (IFLAG != 1) GO TO 80
-        CALL ZUunderflowCHK(S2R, S2I, NW, BRY(1), TOL)
-        if (NW != 0) GO TO 120
-   80   CONTINUE
-        if (ZI <= 0.0) S2I = -S2I
-        STR = S2R*C2R - S2I*C2I
-        S2I = S2R*C2I + S2I*C2R
-        S2R = STR
-        CYR(I) = S2R
-        CYI(I) = S2I
-        J = ND - I + 1
-        YR(J) = S2R*CSRR(IFLAG)
-        YI(J) = S2I*CSRR(IFLAG)
-        STR = -C2I*CIDI
-        C2I = C2R*CIDI
-        C2R = STR
-   90 CONTINUE
-      if (ND <= 2) GO TO 110
-      RAZ = 1.0/ZABS(ZR,ZI)
-      STR = ZR*RAZ
-      STI = -ZI*RAZ
-      RZR = (STR+STR)*RAZ
-      RZI = (STI+STI)*RAZ
-      BRY(2) = 1.0/BRY(1)
-      BRY(3) = d1mach(2)
-      S1R = CYR(1)
-      S1I = CYI(1)
-      S2R = CYR(2)
-      S2I = CYI(2)
-      C1R = CSRR(IFLAG)
-      ASCLE = BRY(IFLAG)
-      K = ND - 2
-      FN = (K as f64)
-      DO 100 I=3,ND
-        C2R = S2R
-        C2I = S2I
-        S2R = S1R + (FNU+FN)*(RZR*C2R-RZI*C2I)
-        S2I = S1I + (FNU+FN)*(RZR*C2I+RZI*C2R)
-        S1R = C2R
-        S1I = C2I
-        C2R = S2R*C1R
-        C2I = S2I*C1R
-        YR(K) = C2R
-        YI(K) = C2I
-        K = K - 1
-        FN = FN - 1.0
-        if (IFLAG >= 3) GO TO 100
-        STR = (C2R).abs()
-        STI = (C2I).abs()
-        C2M = DMAX1(STR,STI)
-        if (C2M <= ASCLE) GO TO 100
-        IFLAG = IFLAG + 1
-        ASCLE = BRY(IFLAG)
-        S1R = S1R*C1R
-        S1I = S1I*C1R
-        S2R = C2R
-        S2I = C2I
-        S1R = S1R*CSSR(IFLAG)
-        S1I = S1I*CSSR(IFLAG)
-        S2R = S2R*CSSR(IFLAG)
-        S2I = S2I*CSSR(IFLAG)
-        C1R = CSRR(IFLAG)
-  100 CONTINUE
-  110 CONTINUE
-      RETURN
-  120 CONTINUE
-      if (RS1 > 0.0) GO TO 140
-//-----------------------------------------------------------------------
-//     SET UNDERFLOW AND UPDATE PARAMETERS
-//-----------------------------------------------------------------------
-      YR(ND) = ZEROR
-      YI(ND) = ZEROI
-      NZ = NZ + 1
-      ND = ND - 1
-      if (ND == 0) GO TO 110
-      CALL ZUOIK(ZR, ZI, FNU, KODE, 1, ND, YR, YI, NUF, TOL, ELIM, ALIM)
-      if (NUF < 0) GO TO 140
-      ND = ND - NUF
-      NZ = NZ + NUF
-      if (ND == 0) GO TO 110
-      FN = FNU + ((ND-1) as f64)
-      if (FN < FNUL) GO TO 130
-//      FN = CIDI
-//      J = NUF + 1
-//      K = MOD(J,4) + 1
-//      S1R = CIPR(K)
-//      S1I = CIPI(K)
-//      if (FN < 0.0) S1I = -S1I
-//      STR = C2R*S1R - C2I*S1I
-//      C2I = C2R*S1I + C2I*S1R
-//      C2R = STR
-      IN = INU + ND - 1
-      IN = MOD(IN,4) + 1
-      C2R = CAR*CIPR(IN) - SAR*CIPI(IN)
-      C2I = CAR*CIPI(IN) + SAR*CIPR(IN)
-      if (ZI <= 0.0) C2I = -C2I
-      GO TO 40
-  130 CONTINUE
-      NLAST = ND
-      RETURN
-  140 CONTINUE
-      NZ = -1
-      RETURN
-  150 CONTINUE
-      if (RS1 > 0.0) GO TO 140
-      NZ = N
-      DO 160 I=1,N
-        YR(I) = ZEROR
-        YI(I) = ZEROI
-  160 CONTINUE
-      RETURN
-      END
+      */
+fn ZBUNI(
+    //ZR, ZI, FNU, KODE, N,
+    z: Complex64,
+    order: f64,
+    KODE: Scaling,
+    N: usize,
+    NUI: usize,
+    y: &mut Vec<Complex64>,
+    // YR, YI, NZ, NUI, NLAST,
+    machine_consts: &MachineConsts,
+) -> Result<(usize, usize), BesselError> {
+    // * FNUL, TOL, ELIM, ALIM)
+    // ***BEGIN PROLOGUE  ZBUNI
+    // ***REFER TO  ZBESI,ZBESK
+    //
+    //     ZBUNI COMPUTES THE I BESSEL FUNCTION FOR LARGE CABS(Z) >
+    //     FNUL AND FNU+N-1 < FNUL. THE ORDER IS INCREASED FROM
+    //     FNU+N-1 GREATER THAN FNUL BY ADDING NUI AND COMPUTING
+    //     ACCORDING TO THE UNIFORM ASYMPTOTIC EXPANSION FOR I(FNU,Z)
+    //     ON IFORM=1 AND THE EXPANSION FOR J(FNU,Z) ON IFORM=2
+    //
+    // ***ROUTINES CALLED  ZUNI1,ZUNI2,ZABS,d1mach
+    // ***END PROLOGUE  ZBUNI
+    //     COMPLEX CSCL,CSCR,CY,RZ,ST,S1,S2,Y,Z
+    //   EXTERNAL ZABS
+    //   DOUBLE PRECISION ALIM, AX, AY, CSCLR, CSCRR, CYI, CYR, DFNU,
+    //  * ELIM, FNU, FNUI, FNUL, GNU, RAZ, RZI, RZR, STI, STR, S1I, S1R,
+    //  * S2I, S2R, TOL, YI, YR, ZI, ZR, ZABS, ASCLE, BRY, C1R, C1I, C1M,
+    //  * d1mach
+    //   INTEGER I, IFLAG, IFORM, K, KODE, N, NL, NLAST, NUI, NW, NZ
+    //   DIMENSION YR(N), YI(N), CYR(2), CYI(2), BRY(3)
+    let mut NZ = 0;
+    let AX = z.re.abs() * 1.7321;
+    let AY = z.im.abs();
+    //   let mut IFORM = 1;
+    let IFORM = if AY > AX { 2 } else { 1 };
+    if NUI != 0 {
+        //GO TO 60;
+        let mut FNUI = NUI as f64;
+        let DFNU = order + ((N - 1) as f64);
+        let GNU = DFNU + FNUI;
+        let mut cy = c_zeros(2);
+        let ( NW, NLAST) = if IFORM != 2 {
+            //GO TO 10;
+            //-----------------------------------------------------------------------;
+            //     ASYMPTOTIC EXPANSION FOR I(FNU,Z) FOR LARGE FNU APPLIED IN;
+            //     -PI/3 <= ARG(Z) <= PI/3;
+            //-----------------------------------------------------------------------;
+            ZUNI1(
+                //ZR, ZI, GNU, KODE, 2,
+                z,
+                GNU,
+                KODE,
+                2,
+                &mut cy,
+                machine_consts,
+            )?
+            //CYR, CYI, NW, NLAST, machine_consts)
+            //FNUL, TOL, ELIM, ALIM);
+        } else {
+            //   GO TO 20;
+            //    10 CONTINUE;
+            //-----------------------------------------------------------------------;
+            //     ASYMPTOTIC EXPANSION FOR J(FNU,Z*EXP(M*FRAC_PI_2)) FOR LARGE FNU;
+            //     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I;
+            //     AND FRAC_PI_2=PI/2;
+            //-----------------------------------------------------------------------;
+            ZUNI2(
+                //ZR, ZI, GNU, KODE, 2,
+                z,
+                GNU,
+                KODE,
+                2,
+                &mut cy,
+                machine_consts,
+            )?
+            //CYR, CYI, NW, NLAST, machine_consts)
+            //FNUL, TOL, ELIM, ALIM);
+        };
+        //    20 CONTINUE;
+        //   if (NW < 0) GO TO 50;
+        if NW != 0 {
+            return Ok((NZ, N /*NLAST=N*/));
+        } //GO TO 90;
+        //   STR = ZABS(CYR(1),CYI(1));
+        //----------------------------------------------------------------------;
+        //     SCALE BACKWARD RECURRENCE, BRY(3) IS DEFINED BUT NEVER USED;
+        //----------------------------------------------------------------------;
+        //   BRY(1)= machine_consts.ascle//1.0e+3*d1mach(1)/TOL;
+        //   BRY(2) = 1.0/BRY(1);
+        //   BRY(3) = BRY(2);
+        let BRY = [
+            machine_consts.ascle,
+            1.0 / machine_consts.ascle,
+            1.0 / machine_consts.ascle,
+        ];
+        let (mut IFLAG, mut ASCLE, mut CSCLR) = if cy[0].abs() <= BRY[0] {
+            // GO TO 21;
+            (1, BRY[0], 1.0 / machine_consts.tol)
+        //   IFLAG = 1;
+        //   ASCLE = BRY(1);
+        //   CSCLR = 1.0/TOL;
+        } else if cy[0].abs() >= BRY[1] {
+            //   GO TO 25;
+            //    21 CONTINUE{// GO TO 25;
+            (3, BRY[2], machine_consts.tol)
+        //   IFLAG = 3;
+        //   ASCLE=BRY(3);
+        //   CSCLR = TOL;
+        } else {
+            (2, BRY[1], 1.0)
+        };
+
+        //    25 CONTINUE;
+        let mut CSCRR = 1.0 / CSCLR;
+        let mut s1 = cy[1] * CSCLR;
+        let mut s2 = cy[0] * CSCLR;
+        //   S1R = CYR(2)*CSCLR;
+        //   S1I = CYI(2)*CSCLR;
+        //   S2R = CYR(1)*CSCLR;
+        //   S2I = CYI(1)*CSCLR;
+        let RAZ = 1.0 / z.abs(); //ZABS(ZR,ZI);
+        //   STR = ZR*RAZ;
+        //   STI = -ZI*RAZ;
+        //   RZR = (STR+STR)*RAZ;
+        //   RZI = (STI+STI)*RAZ;
+        let rz = 2.0 * z.conj() * RAZ.pow(2);
+        //   DO 30 I=1,NUI;
+        for _ in 0..NUI {
+            let st = s2;
+            // STR = S2R;
+            // STI = S2I;
+            s2 = (DFNU + FNUI) * rz * s2 + s1;
+            // S2R = (DFNU+FNUI)*(RZR*STR-RZI*STI) + S1R;
+            // S2I = (DFNU+FNUI)*(RZR*STI+RZI*STR) + S1I;
+            s1 = st;
+            // S1R = STR;
+            // S1I = STI;
+            FNUI -= 1.0;
+            if IFLAG >= 3 {
+                continue;
+            } //GO TO 30;
+            // let c1 = (s2*CSCRR).abs();
+            // STR = S2R*CSCRR;
+            // STI = S2I*CSCRR;
+            // C1R = (STR).abs();
+            // C1I = (STI).abs();
+            // let c1m = max_abs_component(s2*CSCRR);
+            // C1M = DMAX1(C1R,C1I);
+            let st = s2 * CSCRR;
+            if max_abs_component(st) <= ASCLE {
+                continue;
+            } //GO TO 30;
+            IFLAG += 1;
+            ASCLE = BRY[IFLAG - 1];
+            s1 *= CSCRR;
+            // S1R = S1R*CSCRR;
+            // S1I = S1I*CSCRR;
+            // S2R = STR;
+            // S2I = STI;
+            s2 = st;
+            CSCLR *= machine_consts.tol;
+            CSCRR = 1.0 / CSCLR;
+            s1 *= CSCLR;
+            s2 *= CSCLR;
+            // S1R = S1R*CSCLR;
+            // S1I = S1I*CSCLR;
+            // S2R = S2R*CSCLR;
+            // S2I = S2I*CSCLR;
+        }
+        //    30 CONTINUE;
+        y[N - 1] = s2 * CSCRR;
+        //   YR(N) = S2R*CSCRR;
+        //   YI(N) = S2I*CSCRR;
+        if N == 1 {
+            return Ok(( NZ, NLAST));
+        } //RETURN;
+        let NL = N - 1;
+        FNUI = NL as f64;
+        let mut K = NL;
+        //   DO 40 I=1,NL;
+        for _ in 0..NL {
+            let st = s2;
+            // STR = S2R;
+            // STI = S2I;
+            s2 = (order + FNUI) * (rz * s2) + s1;
+            // S2R = (FNU+FNUI)*(RZR*STR-RZI*STI) + S1R;
+            // S2I = (FNU+FNUI)*(RZR*STI+RZI*STR) + S1I;
+            s1 = st;
+            // S1R = STR;
+            // S1I = STI;
+            y[K - 1] = s2 * CSCRR;
+            // STR = S2R*CSCRR;
+            // STI = S2I*CSCRR;
+            // YR(K) = STR;
+            // YI(K) = STI;
+            FNUI = 1.0;
+            K -= 1;
+            if IFLAG >= 3 {
+                continue;
+            } //GO TO 40;
+            // C1R = (STR).abs();
+            // C1I = (STI).abs();
+            // C1M = DMAX1(C1R,C1I);
+
+            // using K (rather than K-1) below as Amos "saved" the y value before K was decremented
+            if max_abs_component(y[K]) <= ASCLE {
+                continue;
+            } //GO TO 40;
+            IFLAG += 1;
+            ASCLE = BRY[IFLAG - 1];
+            s1 *= CSCRR;
+            // S1R = S1R*CSCRR;
+            // S1I = S1I*CSCRR;
+            s2 = y[K - 1];
+            // S2R = STR;
+            // S2I = STI;
+            CSCLR *= machine_consts.tol;
+            CSCRR = 1.0 / CSCLR;
+            s1 *= CSCLR;
+            s2 *= CSCLR;
+            // S1R = S1R*CSCLR;
+            // S1I = S1I*CSCLR;
+            // S2R = S2R*CSCLR;
+            // S2I = S2I*CSCLR;
+        }
+        //    40 CONTINUE;
+        //   RETURN;
+        return Ok((NZ, NLAST));
+        //    50 CONTINUE;
+        //       NZ = -1;
+        //       if(NW == (-2)) NZ=-2;
+        //       RETURN;
+    }
+    //    60 CONTINUE;
+    let ( NW, NLAST) = if IFORM != 2 {
+        //GO TO 70;
+        //-----------------------------------------------------------------------;
+        //     ASYMPTOTIC EXPANSION FOR I(FNU,Z) FOR LARGE FNU APPLIED IN;
+        //     -PI/3 <= ARG(Z) <= PI/3;
+        //-----------------------------------------------------------------------;
+        ZUNI1(z, order, KODE, N, y, machine_consts)?
+    //    ZUNI1(ZR, ZI, FNU, KODE, N, YR, YI, NW, NLAST, FNUL, TOL,
+    //  * ELIM, ALIM)?;
+    } else {
+        //   GO TO 80;
+        //    70 CONTINUE;
+        //-----------------------------------------------------------------------;
+        //     ASYMPTOTIC EXPANSION FOR J(FNU,Z*EXP(M*FRAC_PI_2)) FOR LARGE FNU;
+        //     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I;
+        //     AND FRAC_PI_2=PI/2;
+        //-----------------------------------------------------------------------;
+        ZUNI2(z, order, KODE,  N, y, machine_consts)?
+        //    ZUNI2(ZR, ZI, FNU, KODE, N, YR, YI, NW, NLAST, FNUL, TOL,
+        //  * ELIM, ALIM)?;
+    };
+    //    80 CONTINUE;
+    //   if (NW < 0) GO TO 50;
+    NZ = NW;
+    //   RETURN;
+    {
+        return Ok((NZ, NLAST));
+    }
+    //    90 CONTINUE;
+    //       NLAST = N;
+    //       RETURN;
+    //       END;
+}
+
+// enum UpdateAction {
+//     Return(usize),
+//     Overflow,
+//     Break,
+// }
+
+fn ZUNI1(
+    //ZR, ZI, FNU, KODE, N,
+    z: Complex64,
+    order: f64,
+    KODE: Scaling,
+    N: usize, //YR, YI, NZ, NLAST, FNUL,
+    y: &mut Vec<Complex64>,
+    machine_consts: &MachineConsts,
+) -> BesselResult<(usize, usize)> {
+    //* TOL, ELIM, ALIM)
+    // ***BEGIN PROLOGUE  ZUNI1
+    // ***REFER TO  ZBESI,ZBESK
+    //
+    //     ZUNI1 COMPUTES I(FNU,Z)  BY MEANS OF THE UNIFORM ASYMPTOTIC
+    //     EXPANSION FOR I(FNU,Z) IN -PI/3 <= ARG Z <= PI/3.
+    //
+    //     FNUL IS THE SMALLEST ORDER PERMITTED FOR THE ASYMPTOTIC
+    //     EXPANSION. NLAST=0 MEANS ALL OF THE Y VALUES WERE SET.
+    //     NLAST != 0 IS THE NUMBER LEFT TO BE COMPUTED BY ANOTHER
+    //     FORMULA FOR ORDERS FNU TO FNU+NLAST-1 BECAUSE FNU+NLAST-1 < FNUL.
+    //     Y(I)=CZERO FOR I=NLAST+1,N
+    //
+    // ***ROUTINES CALLED  ZUunderflowCHK,ZUNIK,ZUOIK,d1mach,ZABS
+    // ***END PROLOGUE  ZUNI1
+    //     COMPLEX CFN,CONE,CRSC,CSCL,CSR,CSS,CWRK,CZERO,C1,C2,PHI,RZ,SUM,S1,
+    //    *S2,Y,Z,ZETA1,ZETA2
+    //   EXTERNAL ZABS
+    //   DOUBLE PRECISION ALIM, APHI, ASCLE, BRY, CONER, CRSC,
+    //  * CSCL, CSRR, CSSR, CWRKI, CWRKR, C1R, C2I, C2M, C2R, ELIM, FN,
+    //  * FNU, FNUL, PHII, PHIR, RAST, RS1, RZI, RZR, STI, STR, SUMI,
+    //  * SUMR, S1I, S1R, S2I, S2R, TOL, YI, YR, ZEROI, ZEROR, ZETA1I,
+    //  * ZETA1R, ZETA2I, ZETA2R, ZI, ZR, CYR, CYI, d1mach, ZABS
+    //   INTEGER I, IFLAG, INIT, K, KODE, M, N, ND, NLAST, NN, NUF, NW, NZ
+    //   DIMENSION BRY(3), YR(N), YI(N), CWRKR(16), CWRKI(16), CSSR(3),
+    //  * CSRR(3), CYR(2), CYI(2)
+    //   DATA ZEROR,ZEROI,CONER / 0.0, 0.0, 1.0 /
+    //
+    let mut NZ = 0;
+    let mut ND = N;
+    let NLAST = 0;
+    //-----------------------------------------------------------------------;
+    //     COMPUTED VALUES WITH EXPONENTS BETWEEN ALIM AND ELIM IN MAG-;
+    //     NITUDE ARE SCALED TO KEEP INTERMEDIATE ARITHMETIC ON SCALE,;
+    //     EXP(ALIM)=EXP(ELIM)*TOL;
+    //-----------------------------------------------------------------------;
+    let CSCL = machine_consts.rtol;
+    let CRSC = machine_consts.tol;
+    //   CSSR(1) = CSCL;
+    //   CSSR(2) = CONER;
+    //   CSSR(3) = CRSC;
+    let CSSR = [CSCL, 1.0, CRSC];
+    let CSRR = [CRSC, 1.0, CSCL];
+    //   CSRR(1) = CRSC;
+    //   CSRR(2) = CONER;
+    //   CSRR(3) = CSCL;
+    let BRY = [
+        machine_consts.ascle,
+        1.0 / machine_consts.ascle,
+        f64::MAX / 2.0,
+    ];
+    //   BRY(1) = 1.0e+3*d1mach(1)/TOL;
+    //   BRY(2) = 1.0/BRY(1);
+    //   BRY(3) = d1mach(2);
+    //-----------------------------------------------------------------------;
+    //     CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER;
+    //-----------------------------------------------------------------------;
+    //   FN = DMAX1(FNU,1.0);
+    let mut FN = order.max(1.0);
+    let mut INIT = 0;
+    let (_, zeta1, zeta2, _) = zunik(z, FN, IKType::I, true, machine_consts, &mut INIT);
+    //   CALL ZUNIK(ZR, ZI, FN, 1, 1, TOL, INIT, PHIR, PHII, ZETA1R,;
+    //  * ZETA1I, ZETA2R, ZETA2I, SUMR, SUMI, CWRKR, CWRKI);
+    let s1 = if KODE == Scaling::Scaled {
+        //GO TO 10;
+        let mut st = z + zeta2;
+        //   STR = ZR + ZETA2R;
+        //   STI = ZI + ZETA2I;
+        let rast = FN / st.abs();
+        //   RAST = FN/ZABS(STR,STI);
+        st = st.conj() / (rast.pow(2));
+        //   STR = STR*RAST*RAST;
+        //   STI = -STI*RAST*RAST;
+        -zeta1 + st
+    //   S1R = -ZETA1R + STR;
+    //   S1I = -ZETA1I + STI;
+    } else {
+        //   GO TO 20;
+        //    10 CONTINUE;
+        -zeta1 + zeta2
+        //   S1R = -ZETA1R + ZETA2R;
+        //   S1I = -ZETA1I + ZETA2I;
+    };
+    //    20 CONTINUE;
+    //   RS1 = S1R;
+    let rs1 = s1.re;
+    if rs1.abs() > machine_consts.elim
+    //GO TO 130;
+    {
+        if rs1 > 0.0 {
+            return Err(Overflow);
+        } //GO TO 120;
+        return Ok((N, NLAST));
+        // NZ = N;
+        // DO 140 I=1,N;
+        //   YR(I) = ZEROR;
+        //   YI(I) = ZEROI;
+    }
+    //    30 CONTINUE;
+    let mut IFLAG = 0; // this value should never be used
+    let mut cy = [c_zero(); 2];
+    // let mut y = c_zeros(N);
+    let mut set_underflow_and_update = false;
+    'l30: loop {
+
+        if set_underflow_and_update{
+            // set_underflow_and_update = false;
+            if rs1 > 0.0 {
+                return Err(Overflow)
+            } //GO TO 120;
+            y[ND-1] = c_zero();
+            //   YR(ND) = ZEROR;
+            //   YI(ND) = ZEROI;
+            NZ += 1;
+            ND -= 1;
+            if ND == 0 {
+                return Ok((NZ, NLAST));
+            } //GO TO 100;
+            //   CALL ZUOIK(ZR, ZI, FNU, KODE, 1, ND, YR, YI, NUF, TOL, ELIM, ALIM);
+            let NUF =  zuoik(z, order, KODE, IKType::I, ND, y, machine_consts)? ;
+
+            // if NUF < 0 {
+            //     return Err(Overflow);
+            // } //GO TO 120;
+            ND -= NUF;
+            NZ += NUF;
+            if ND == 0 {
+                return  Ok((NZ, NLAST));
+            } //GO TO 100;
+        FN = order + ((ND - 1) as f64);
+            if FN < machine_consts.fnul {
+
+                // continue 'l30;
+             //GO TO 30;
+            //   NLAST = ND;
+            return Ok((NZ, ND));
+            // UpdateAction::Return(*ND)
+            }
+        }
+
+        let NN = 2.min(ND);
+        //   DO 80 I=1,NN;
+
+        for i in 0..NN {
+            FN = order + ((ND - (i + 1)) as f64);
+            INIT = 0;
+            let (phi, zeta1, zeta2, sum) =
+                zunik(z, FN, IKType::I, false, machine_consts, &mut INIT);
+            let sum = sum.unwrap();
+            //     CALL ZUNIK(ZR, ZI, FN, 1, 0, TOL, INIT, PHIR, PHII, ZETA1R,;
+            //  *   ZETA1I, ZETA2R, ZETA2I, SUMR, SUMI, CWRKR, CWRKI);
+            let mut s1 = if KODE == Scaling::Scaled {
+                //GO TO 40;
+                let mut st = z + zeta2;
+                let rast = FN / st.abs();
+                st = st.conj() * rast.pow(2);
+                -zeta1 + st + Complex64::new(0.0, z.im)
+
+            // STR = ZR + ZETA2R;
+            // STI = ZI + ZETA2I;
+            // RAST = FN/ZABS(STR,STI);
+            // STR = STR*RAST*RAST;
+            // STI = -STI*RAST*RAST;
+            // S1R = -ZETA1R + STR;
+            // S1I = -ZETA1I + STI + ZI;
+            // GO TO 50;
+            //    40   CONTINUE;
+            } else {
+                -zeta1 + zeta2
+                // S1R = -ZETA1R + ZETA2R;
+                // S1I = -ZETA1I + ZETA2I;
+            };
+            //    50   CONTINUE;
+            //-----------------------------------------------------------------------;
+            //     TEST FOR UNDERFLOW AND OVERFLOW;
+            //-----------------------------------------------------------------------;
+            // RS1 = S1R;
+            let mut rs1 = s1.re;
+            if rs1.abs() > machine_consts.elim {
+                set_underflow_and_update = true; continue 'l30;
+                // match set_underflow_and_update_params(
+                //     z,
+                //     order,
+                //     KODE,
+                //     machine_consts,
+                //     rs1,
+                //     &mut y,
+                //     &mut ND,
+                //     &mut NZ,
+                //     &mut FN,
+                //     NLAST,
+                // ) {
+                //     UpdateAction::Return(NLAST_) => return Ok((y, N, NLAST_)),
+                //     UpdateAction::Overflow => return Err(Overflow),
+                //     UpdateAction::Break => break 'l30,
+                // }
+            } // GO TO 110;
+            if i == 0 {
+                IFLAG = 2;
+            }
+            if rs1.abs() > machine_consts.alim {
+                //GO TO 60;
+                //-----------------------------------------------------------------------;
+                //     REFINE  TEST AND SCALE;
+                //-----------------------------------------------------------------------;
+                // APHI = ZABS(PHIR,PHII);
+                // RS1 = RS1 + DLOG(APHI);
+                rs1 += phi.abs().ln();
+                if rs1.abs() > machine_consts.elim {
+                set_underflow_and_update = true; continue 'l30;
+
+                    // match set_underflow_and_update_params(
+                    //     z,
+                    //     order,
+                    //     KODE,
+                    //     machine_consts,
+                    //     rs1,
+                    //     &mut y,
+                    //     &mut ND,
+                    //     &mut NZ,
+                    //     &mut FN,
+                    //     NLAST,
+                    // ) {
+                    //     UpdateAction::Return(NLAST_) => return Ok((y, N, NLAST_)),
+                    //     UpdateAction::Overflow => return Err(Overflow),
+                    //     UpdateAction::Break => break 'l30,
+                    // }
+                } //GO TO 110;
+                if i == 0 {
+                    IFLAG = 1;
+                }
+                if rs1 >= 0.0 {
+                    //GO TO 60;
+                    if i == 0 {
+                        IFLAG = 3;
+                    }
+                }
+                //    60   CONTINUE;
+            }
+            //-----------------------------------------------------------------------;
+            //     SCALE S1 if CABS(S1) < ASCLE;
+            //-----------------------------------------------------------------------;
+            let mut s2 = phi * sum;
+            // S2R = PHIR*SUMR - PHII*SUMI;
+            // S2I = PHIR*SUMI + PHII*SUMR;
+            s1 = s1.re.exp() * CSRR[IFLAG - 1] * Complex64::cis(s1.im);
+            // STR = DEXP(S1R)*CSSR(IFLAG);
+            // S1R = STR*DCOS(S1I);
+            // S1I = STR*DSIN(S1I);
+            s2 *= s1;
+            // STR = S2R*S1R - S2I*S1I;
+            // S2I = S2R*S1I + S2I*S1R;
+            // S2R = STR;
+            if IFLAG == 1 {
+                //GO TO 70;
+                // CALL ZUunderflowCHK(S2R, S2I, NW, BRY(1), TOL);
+                if will_z_underflow(s2, BRY[0], machine_consts.tol) {
+                set_underflow_and_update = true; continue 'l30;
+
+                    // match set_underflow_and_update_params(
+                    //     z,
+                    //     order,
+                    //     KODE,
+                    //     machine_consts,
+                    //     rs1,
+                    //     &mut y,
+                    //     &mut ND,
+                    //     &mut NZ,
+                    //     &mut FN,
+                    //     NLAST,
+                    // ) {
+                    //     UpdateAction::Return(NLAST_) => return Ok((y, N, NLAST_)),
+                    //     UpdateAction::Overflow => return Err(Overflow),
+                    //     UpdateAction::Break => break 'l30,
+                    // }
+                } //GO TO 110;
+            }
+            //    70   CONTINUE;
+
+            cy[i] = s2;
+            // CYR(I) = S2R;
+            // CYI(I) = S2I;
+            // M = ND - I + 1;
+            y[ND - i - 1] = s2 * CSRR[IFLAG - 1];
+            // YR(M) = S2R*CSRR(IFLAG);
+            // YI(M) = S2I*CSRR(IFLAG);
+        }
+        break 'l30;
+    }
+    //    80 CONTINUE;
+    if ND <= 2 {
+        return Ok((NZ, NLAST));
+    } //GO TO 100;
+    //   RAST = 1.0/ZABS(ZR,ZI);
+    //   STR = ZR*RAST;
+    //   STI = -ZI*RAST;
+    //   RZR = (STR+STR)*RAST;
+    //   RZI = (STI+STI)*RAST;
+    let rz = 2.0 * z.conj() / z.abs().pow(2);
+    //   BRY(2) = 1.0/BRY(1);
+    //   BRY(3) = d1mach(2);
+    let [s1, s2] = cy[..] else { panic!("Fa") };
+    //   S1R = CYR(1);
+    //   S1I = CYI(1);
+    //   S2R = CYR(2);
+    //   S2I = CYI(2);
+    let mut C1R = CSRR[IFLAG - 1];
+    let mut ASCLE = BRY[IFLAG - 1];
+    let mut K = ND - 2;
+    FN = K as f64;
+    //   DO 90 I=3,ND;
+    for _ in 2..ND {
+        let mut c2 = s2;
+        // C2R = S2R;
+        // C2I = S2I;
+        let mut s2 = s1 + order + FN * rz * c2;
+        // S2R = S1R + (FNU+FN)*(RZR*C2R-RZI*C2I);
+        // S2I = S1I + (FNU+FN)*(RZR*C2I+RZI*C2R);
+        let mut s1 = c2;
+        // S1R = C2R;
+        // S1I = C2I;
+        c2 = s2 * C1R;
+        // C2R = S2R*C1R;
+        // C2I = S2I*C1R;
+        y[K - 1] = c2;
+        // YR(K) = C2R;
+        // YI(K) = C2I;
+        // K = K - 1;
+        K -= 1;
+        // FN = FN - 1.0;
+        FN -= 1.0;
+        if IFLAG >= 3 {
+            continue;
+        } //GO TO 90;
+        // STR = (C2R).abs();
+        // STI = (C2I).abs();
+        // C2M = DMAX1(STR,STI);
+        if max_abs_component(c2) <= ASCLE {
+            continue;
+        } //GO TO 90;
+        IFLAG += 1; //IFLAG + 1;
+        ASCLE = BRY[IFLAG - 1];
+        s1 *= C1R;
+        // S1R = S1R*C1R;
+        // S1I = S1I*C1R;
+        s2 = c2;
+        // S2R = C2R;
+        // S2I = C2I;
+        s1 *= CSSR[IFLAG - 1];
+        // S1R = S1R*CSSR(IFLAG);
+        // S1I = S1I*CSSR(IFLAG);
+        s2 *= CSSR[IFLAG - 1];
+        // S2R = S2R*CSSR(IFLAG);
+        // S2I = S2I*CSSR(IFLAG);
+        C1R = CSRR[IFLAG - 1];
+    }
+    //    90 CONTINUE;
+    //   100 CONTINUE;
+    //   RETURN;
+    return Ok((NZ, NLAST));
+    //-----------------------------------------------------------------------;
+    //     SET UNDERFLOW AND UPDATE PARAMETERS;
+    //-----------------------------------------------------------------------;
+    //   120 CONTINUE;
+    //       NZ = -1;
+    //       RETURN;
+    //   130 CONTINUE;
+    //       if (RS1 > 0.0) GO TO 120;
+    //       NZ = N;
+    //       DO 140 I=1,N;
+    //         YR(I) = ZEROR;
+    //         YI(I) = ZEROI;
+    //   140 CONTINUE;
+    //       RETURN;
+    //       END;
+    // fn set_underflow_and_update_params(
+    //     z: Complex64,
+    //     order: f64,
+    //     KODE: Scaling,
+    //     machine_consts: &MachineConsts,
+    //     rs1: f64,
+    //     y: &mut Vec<Complex64>,
+    //     ND: &mut usize,
+    //     NZ: &mut usize,
+    //     FN: &mut f64,
+    //     NLAST: usize,
+    // ) -> UpdateAction {
+    //     //   110 CONTINUE;
+    //     if rs1 > 0.0 {
+    //         return UpdateAction::Overflow;
+    //     } //GO TO 120;
+    //     y[*ND] = c_zero();
+    //     //   YR(ND) = ZEROR;
+    //     //   YI(ND) = ZEROI;
+    //     *NZ += 1;
+    //     *ND -= 1;
+    //     if *ND == 0 {
+    //         return UpdateAction::Return(NLAST);
+    //     } //GO TO 100;
+    //     //   CALL ZUOIK(ZR, ZI, FNU, KODE, 1, ND, YR, YI, NUF, TOL, ELIM, ALIM);
+    //     let NUF = match zuoik(z, order, KODE, IKType::I, *ND, y.to_vec(), machine_consts) {
+    //         Ok((_, NUF_)) => NUF_,
+    //         Err(Overflow) => return UpdateAction::Overflow,
+    //         _ => panic!("Unexpected error in zuoik"),
+    //     };
+
+    //     if NUF < 0 {
+    //         return UpdateAction::Overflow;
+    //     } //GO TO 120;
+    //     *ND -= NUF;
+    //     *NZ += NUF;
+    //     if *ND == 0 {
+    //         return UpdateAction::Return(NLAST);
+    //     } //GO TO 100;
+    //     *FN = order + ((*ND - 1) as f64);
+    //     if *FN >= machine_consts.fnul {
+    //         return UpdateAction::Break;
+    //     } //GO TO 30;
+    //     //   NLAST = ND;
+    //     UpdateAction::Return(*ND)
+    //     //   RETURN;
+    // }
+}
+
+fn ZUNI2(
+    //ZR, ZI, FNU, KODE, N,
+    z: Complex64,
+    order: f64,
+    KODE: Scaling,
+    N: usize, //YR, YI, NZ, NLAST, FNUL,
+    y: &mut Vec<Complex64>,
+    machine_consts: &MachineConsts,
+) -> BesselResult<(usize, usize)> {
+    // ***BEGIN PROLOGUE  ZUNI2
+    // ***REFER TO  ZBESI,ZBESK
+    //
+    //     ZUNI2 COMPUTES I(FNU,Z) IN THE RIGHT HALF PLANE BY MEANS OF
+    //     UNIFORM ASYMPTOTIC EXPANSION FOR J(FNU,ZN) WHERE ZN IS Z*I
+    //     OR -Z*I AND ZN IS IN THE RIGHT HALF PLANE ALSO.
+    //
+    //     FNUL IS THE SMALLEST ORDER PERMITTED FOR THE ASYMPTOTIC
+    //     EXPANSION. NLAST=0 MEANS ALL OF THE Y VALUES WERE SET.
+    //     NLAST != 0 IS THE NUMBER LEFT TO BE COMPUTED BY ANOTHER
+    //     FORMULA FOR ORDERS FNU TO FNU+NLAST-1 BECAUSE FNU+NLAST-1 < FNUL.
+    //     Y(I)=CZERO FOR I=NLAST+1,N
+    //
+    // ***ROUTINES CALLED  ZAIRY,ZUunderflowCHK,ZUNHJ,ZUOIK,d1mach,ZABS
+    // ***END PROLOGUE  ZUNI2
+    //     COMPLEX AI,ARG,ASUM,BSUM,CFN,CI,CID,CIP,CONE,CRSC,CSCL,CSR,CSS,
+    //    *CZERO,C1,C2,DAI,PHI,RZ,S1,S2,Y,Z,ZB,ZETA1,ZETA2,ZN
+    //   EXTERNAL ZABS
+    //   DOUBLE PRECISION AARG, AIC, AII, AIR, ALIM, ANG, APHI, ARGI,
+    //  * ARGR, ASCLE, ASUMI, ASUMR, BRY, BSUMI, BSUMR, CIDI, CIPI, CIPR,
+    //  * CONER, CRSC, CSCL, CSRR, CSSR, C1R, C2I, C2M, C2R, DAII,
+    //  * DAIR, ELIM, FN, FNU, FNUL, FRAC_PI_2, PHII, PHIR, RAST, RAZ, RS1, RZI,
+    //  * RZR, STI, STR, S1I, S1R, S2I, S2R, TOL, YI, YR, ZBI, ZBR, ZEROI,
+    //  * ZEROR, ZETA1I, ZETA1R, ZETA2I, ZETA2R, ZI, ZNI, ZNR, ZR, CYR,
+    //  * CYI, d1mach, ZABS, CAR, SAR
+    //   INTEGER I, IFLAG, IN, INU, J, K, KODE, N, NAI, ND, NDAI, NLAST,
+    //  * NN, NUF, NW, NZ, IDUM
+    //   DIMENSION BRY(3), YR(N), YI(N), CIPR(4), CIPI(4), CSSR(3),
+    //  * CSRR(3), CYR(2), CYI(2)
+    //   DATA ZEROR,ZEROI,CONER / 0.0, 0.0, 1.0 /
+    //   DATA CIPR(1),CIPI(1),CIPR(2),CIPI(2),CIPR(3),CIPI(3),CIPR(4),
+    //  * CIPI(4)/
+    let CIP = [
+        Complex64::new(1.0, 0.0),
+        Complex64::new(0.0, 1.0),
+        Complex64::new(-1.0, 0.0),
+        Complex64::new(0.0, -1.0),
+    ];
+    //   DATA FRAC_PI_2, AIC  /
+    //  1      1.57079632679489662e+00,     1.265512123484645396e+00/
+    const AIC: f64 = 1.265512123484645396;
+    //
+    let mut NZ = 0;
+    let mut ND = N;
+    let NLAST = 0;
+    //-----------------------------------------------------------------------;
+    //     COMPUTED VALUES WITH EXPONENTS BETWEEN ALIM AND ELIM IN MAG-;
+    //     NITUDE ARE SCALED TO KEEP INTERMEDIATE ARITHMETIC ON SCALE,;
+    //     EXP(ALIM)=EXP(ELIM)*TOL;
+    //-----------------------------------------------------------------------;
+    let CSCL = 1.0 / machine_consts.tol;
+    let CRSC = machine_consts.tol;
+    let CSSR = [CSCL, 1.0, CRSC];
+    let CSRR = [CRSC, 1.0, CSCL];
+    //   CSSR(1) = CSCL;
+    //   CSSR(2) = CONER;
+    //   CSSR(3) = CRSC;
+    //   CSRR(1) = CRSC;
+    //   CSRR(2) = CONER;
+    //   CSRR(3) = CSCL;
+    //   BRY(1) = 1.0e+3*d1mach(1)/TOL;
+    let BRY = [
+        machine_consts.ascle,
+        1.0 / machine_consts.ascle,
+        f64::MAX / 2.0,
+    ];
+    //-----------------------------------------------------------------------;
+    //     ZN IS IN THE RIGHT HALF PLANE AFTER ROTATION BY CI OR -CI;
+    //-----------------------------------------------------------------------;
+    let mut zn = Complex64::new(z.im, -z.re);
+    //   ZNR = ZI;
+    //   ZNI = -ZR;
+    let mut zb = z;
+    //   ZBR = ZR;
+    //   ZBI = ZI;
+    let mut CIDI = -1.0;
+    //   INU = INT(SNGL(FNU));
+    let INU = order as usize;
+    let ANG = FRAC_PI_2 * (order - (INU as f64));
+    let mut c2 = Complex64::cis(ANG);
+    //   C2R = DCOS(ANG);
+    //   C2I = DSIN(ANG);
+    let CAR = c2.re;
+    let SAR = c2.im;
+    //   CAR = C2R;
+    //   SAR = C2I;
+    let index = (INU + N - 1) % 4;
+    //   let IN = (IN%4);
+    c2 *= CIP[index];
+    //   STR = C2R*CIPR(IN) - C2I*CIPI(IN);
+    //   C2I = C2R*CIPI(IN) + C2I*CIPR(IN);
+    //   C2R = STR;
+    if z.im <= 0.0 {
+        //GO TO 10;
+        //   ZNR = -ZNR;
+        zn.re = -zn.re;
+        zb.im = -zb.im;
+        //   ZBI = -ZBI;
+        CIDI = -CIDI;
+        c2.im = -c2.im;
+        //   C2I = -C2I;
+    }
+    //    10 CONTINUE;
+    //-----------------------------------------------------------------------;
+    //     CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER;
+    //-----------------------------------------------------------------------;
+    let mut FN = order.max(1.0); //DMAX1(FNU,1.0);
+    let (phi, arg, zeta1, zeta2, _, _) = zunhj(zn, FN, true, machine_consts.tol);
+
+    //   CALL ZUNHJ(ZNR, ZNI, FN, 1, TOL, PHIR, PHII, ARGR, ARGI, ZETA1R,;
+    //  * ZETA1I, ZETA2R, ZETA2I, ASUMR, ASUMI, BSUMR, BSUMI);
+    let s1 = if KODE == Scaling::Scaled {
+        //GO TO 20;
+        let mut st = zb + zeta2;
+        //   STR = ZBR + ZETA2R;
+        //   STI = ZBI + ZETA2I;
+        let RAST = FN / st.abs();
+        //   RAST = FN/ZABS(STR,STI);
+        st = st.conj() * RAST.pow(2);
+        //   STR = STR*RAST*RAST;
+        //   STI = -STI*RAST*RAST;
+        -zeta1 + st
+    //   S1R = -ZETA1R + STR;
+    //   S1I = -ZETA1I + STI;
+    //   GO TO 30;
+    } else {
+        //    20 CONTINUE;}
+        -zeta1 + zeta2
+        //   S1R = -ZETA1R + ZETA2R;
+        //   S1I = -ZETA1I + ZETA2I;
+    };
+    //    30 CONTINUE;
+    //   RS1 = S1R;
+    let mut rs1 = s1.re.abs();
+    if rs1.abs() > machine_consts.elim {
+        //GO TO 150;
+        return if s1.re > 0.0 {
+            Err(Overflow)
+        } else {
+            Ok((N, NLAST))
+        };
+    }
+    //    40 CONTINUE;
+    let mut set_underflow_and_update = false;
+    'l40: loop {
+        if set_underflow_and_update {
+            // 120 CONTINUE;
+            if rs1 > 0.0 {
+                return Err(Overflow);
+            } //GO TO 140;
+            //-----------------------------------------------------------------------;
+            //     SET UNDERFLOW AND UPDATE PARAMETERS;
+            //-----------------------------------------------------------------------;
+            y[ND-1] = c_zero();
+            //   YR(ND) = ZEROR;
+            //   YI(ND) = ZEROI;
+            NZ += 1;
+            ND -= 1;
+            if ND == 0 {
+                return Ok(( NZ, NLAST));
+            } //GO TO 110;
+            //   CALL ZUOIK(ZR, ZI, FNU, KODE, 1, ND, YR, YI, NUF, TOL, ELIM, ALIM);
+            let  NUF = zuoik(z, order, KODE, IKType::I, ND, y, machine_consts)?;
+
+            ND -= NUF;
+            NZ += NUF;
+            if ND == 0 {
+                return Ok(( NZ, NLAST));
+            } //GO TO 110;
+            FN = order + ((ND - 1) as f64);
+            if FN < machine_consts.fnul {
+                return Ok((NZ, ND));
+            } //GO TO 130;
+            //      FN = CIDI;
+            //      J = NUF + 1;
+            //      K = MOD(J,4) + 1;
+            //      S1R = CIPR(K);
+            //      S1I = CIPI(K);
+            //      if (FN < 0.0) S1I = -S1I;
+            //      STR = C2R*S1R - C2I*S1I;
+            //      C2I = C2R*S1I + C2I*S1R;
+            //      C2R = STR;
+            let index = (INU + ND - 1) % 4;
+            //   IN = INU + ND - 1;
+            //   IN = MOD(IN,4) + 1;
+            c2 = Complex64::new(CAR, SAR) * CIP[index];
+            //   C2R = CAR*CIPR(IN) - SAR*CIPI(IN);
+            //   C2I = CAR*CIPI(IN) + SAR*CIPR(IN);
+            if z.im <= 0.0 {
+                c2 = c2.conj();
+            } //C2I = -C2I;
+            //   GO TO 40;
+        }
+
+        //   NN = MIN0(2,ND);
+        let NN = ND.min(2);
+        let mut IFLAG = 0;
+        //   DO 90 I=1,NN;
+        let mut cy = [c_zero(); 2];
+        for i in 0..NN {
+            FN = order + ((ND - (i + 1)) as f64);
+            let (phi, arg, zeta1, zeta2, asum, bsum) = zunhj(zn, FN, false, machine_consts.tol);
+            let asum = asum.unwrap();
+            let bsum = bsum.unwrap();
+            //     CALL ZUNHJ(ZNR, ZNI, FN, 0, TOL, PHIR, PHII, ARGR, ARGI,;
+            //  *   ZETA1R, ZETA1I, ZETA2R, ZETA2I, ASUMR, ASUMI, BSUMR, BSUMI);
+            let s1 = if KODE == Scaling::Scaled {
+                //GO TO 50;
+                let mut st = zb + zeta2;
+                //   STR = ZBR + ZETA2R;
+                //   STI = ZBI + ZETA2I;
+                let RAST = FN / st.abs();
+                //   RAST = FN/ZABS(STR,STI);
+                st = st.conj() * RAST.pow(2);
+                //   STR = STR*RAST*RAST;
+                //   STI = -STI*RAST*RAST;
+                -zeta1 + st + Complex64::I * z.im
+            // S1R = -ZETA1R + STR;
+            // S1I = -ZETA1I + STI + (ZI).abs();
+            // GO TO 60;
+            } else {
+                //    50   CONTINUE;
+                -zeta1 + zeta2
+
+                // S1R = -ZETA1R + ZETA2R;
+                // S1I = -ZETA1I + ZETA2I;
+            };
+            //    60   CONTINUE;
+            //-----------------------------------------------------------------------;
+            //     TEST FOR UNDERFLOW AND OVERFLOW;
+            //-----------------------------------------------------------------------;
+            rs1 = s1.re;
+            if rs1.abs() > machine_consts.elim {
+                set_underflow_and_update = true;
+                continue 'l40;
+            } //GO TO 120;
+            if i == 0 {
+                IFLAG = 2
+            };
+            if (rs1).abs() >= machine_consts.alim {
+                //GO TO 70;
+                //-----------------------------------------------------------------------;
+                //     REFINE  TEST AND SCALE;
+                //-----------------------------------------------------------------------;
+                //-----------------------------------------------------------------------;
+                rs1 += phi.abs().ln() - 0.25 * arg.abs().ln() - AIC;
+                // APHI = ZABS(PHIR,PHII);
+                // AARG = ZABS(ARGR,ARGI);
+                // RS1 = RS1 + DLOG(APHI) - 0.25*DLOG(AARG) - AIC;
+                if rs1.abs() > machine_consts.elim {
+                    set_underflow_and_update = true;
+                    continue 'l40;
+                } //GO TO 120;
+                if i == 0 {
+                    IFLAG = 1;
+                }
+                if rs1 >= 0.0 {
+                    //GO TO 70;
+                    if i == 0 {
+                        IFLAG = 3;
+                    }
+                }
+            }
+            //    70   CONTINUE;
+            //-----------------------------------------------------------------------;
+            //     SCALE S1 TO KEEP INTERMEDIATE ARITHMETIC ON SCALE NEAR;
+            //     EXPONENT EXTREMES;
+            //-----------------------------------------------------------------------;
+            //note that ZAIRY calls in fortran code ignore IERR (using IDUM)
+            let (a_airy, _) = ZAIRY(arg, false, Scaling::Scaled).unwrap();
+            let (d_airy, _) = ZAIRY(arg, true, Scaling::Scaled).unwrap();
+            // CALL ZAIRY(ARGR, ARGI, 0, 2, AIR, AII, NAI, IDUM);
+            // CALL ZAIRY(ARGR, ARGI, 1, 2, DAIR, DAII, NDAI, IDUM);
+            // STR = DAIR*BSUMR - DAII*BSUMI;
+            // STI = DAIR*BSUMI + DAII*BSUMR;
+            // STR = STR + (AIR*ASUMR-AII*ASUMI);
+            // STI = STI + (AIR*ASUMI+AII*ASUMR);
+
+             let mut s2 = phi * (d_airy * bsum + a_airy * asum);
+            // S2R = PHIR*STR - PHII*STI;
+            // S2I = PHIR*STI + PHII*STR;
+            // STR = DEXP(S1R)*CSSR(IFLAG);
+            // S1R = STR*DCOS(S1I);
+            // S1I = STR*DSIN(S1I);
+            let s1 = s1.re.exp() * CSSR[IFLAG - 1] * Complex64::cis(s1.im);
+            s2 *= s1;
+            // STR = S2R*S1R - S2I*S1I;
+            // S2I = S2R*S1I + S2I*S1R;
+            // S2R = STR;
+            if IFLAG == 1 {
+                //GO TO 80;
+                // CALL ZUunderflowCHK(S2R, S2I, NW, BRY(1), TOL);
+                if will_z_underflow(s2, BRY[0], machine_consts.tol) {
+                    set_underflow_and_update = true;
+                    continue 'l40;
+                }
+                // if (NW != 0) GO TO 120;
+            }
+            //    80   CONTINUE;
+            if z.im <= 0.0 {
+                s2 = s2.conj();
+            } //S2I = -S2I;
+            s2 *= c2;
+            // STR = S2R*C2R - S2I*C2I;
+            // S2I = S2R*C2I + S2I*C2R;
+            // S2R = STR;
+            cy[i] = s2;
+            // CYR(I) = S2R;
+            // CYI(I) = S2I;
+            // let J = ND - I + 1;
+            y[ND - i - 1] = s2 * CSRR[IFLAG - 1];
+            // YR(J) = S2R*CSRR(IFLAG);
+            // YI(J) = S2I*CSRR(IFLAG);
+            c2 = c2.conj() * CIDI;
+            // STR = -C2I*CIDI;
+            // C2I = C2R*CIDI;
+            // C2R = STR;
+        }
+        //    90 CONTINUE;
+        if ND <= 2 {
+            break 'l40;
+        } //GO TO 110;
+        //   RAZ = 1.0/ZABS(ZR,ZI);
+        //   STR = ZR*RAZ;
+        //   STI = -ZI*RAZ;
+        //   RZR = (STR+STR)*RAZ;
+        //   RZI = (STI+STI)*RAZ;
+        let rz = 2.0 * z.conj() / z.abs().pow(2);
+        //   BRY(2) = 1.0/BRY(1);
+        //   BRY(3) = d1mach(2);
+        let [mut s1, mut s2] = cy;
+        //   S1R = CYR(1);
+        //   S1I = CYI(1);
+        //   S2R = CYR(2);
+        //   S2I = CYI(2);
+        let mut C1R = CSRR[IFLAG - 1];
+        let mut ASCLE = BRY[IFLAG - 1];
+        let mut K = ND - 2;
+        FN = K as f64;
+        //   DO 100 I=3,ND;
+        for _ in 2..ND {
+            let st = s2;
+            // C2R = S2R;
+            // C2I = S2I;
+            s2 = s1 + (order + FN) * rz*c2;
+            // S2R = S1R + (FNU + FN) * (RZR * C2R - RZI * C2I);
+            // S2I = S1I + (FNU + FN) * (RZR * C2I + RZI * C2R);
+            s1 = st;
+            // S1R = C2R;
+            // S1I = C2I;
+            // c2 = s2 *c1;
+            // C2R = S2R * C1R;
+            // C2I = S2I * C1R;
+            y[K-1] = s2*C1R;
+            // YR(K) = C2R;
+            // YI(K) = C2I;
+            K  -= 1;
+            FN -= 1.0;
+            if IFLAG >= 3 {
+                break 'l40;
+            } //GO TO 100;
+            // STR = (C2R).abs();
+            // STI = (C2I).abs();
+            // C2M = DMAX1(STR, STI);
+            if max_abs_component(y[K-1]) <= ASCLE {
+                break 'l40;
+            } //GO TO 100;
+            IFLAG += 1;
+            ASCLE = BRY[IFLAG-1];
+            s1 *= C1R;
+            // S1R = S1R * C1R;
+            // S1I = S1I * C1R;
+            s2 = y[K-1];
+            // S2R = C2R;
+            // S2I = C2I;
+            s1 *= CSSR[IFLAG-1];
+            // S1R = S1R * CSSR(IFLAG);
+            // S1I = S1I * CSSR(IFLAG);
+            s2*=CSSR[IFLAG-1];
+            // S2R = S2R * CSSR(IFLAG);
+            // S2I = S2I * CSSR(IFLAG);
+            C1R = CSRR[IFLAG-1];
+        }
+        break 'l40;
+        //   100 CONTINUE;
+        //   110 CONTINUE;
+        //   RETURN;
+    }
+    Ok((NZ, NLAST))
+    //   130 CONTINUE;
+    //       NLAST = ND;
+    //       RETURN;
+    //   140 CONTINUE;
+    //       NZ = -1;
+    //       RETURN;
+    //   150 CONTINUE;
+    //       if (RS1 > 0.0) GO TO 140;
+    //       NZ = D;
+    //       DO 160 I=1,N;
+    //         YR(I) = ZEROR;
+    //         YI(I) = ZEROI;
+    //   160 CONTINUE;
+    //       RETURN;
+    //       END;
+}
+/*
+
 fn XERROR(MESS,NMESS,L1,L2)
 //
 //     THIS IS A DUMMY XERROR ROUTINE TO PRINT ERROR MESSAGES WITH NMESS

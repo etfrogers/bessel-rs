@@ -104,7 +104,8 @@ pub enum Scaling {
     Scaled = 2,
 }
 
-pub type BesselResult<T = usize> = Result<(Vec<Complex64>, T), BesselError>;
+pub(crate) type BesselValues<T = usize> = (Vec<Complex64>, T);
+pub(crate) type BesselResult<T = BesselValues> = Result<T, BesselError>;
 
 pub(crate) struct MachineConsts {
     arm: f64,

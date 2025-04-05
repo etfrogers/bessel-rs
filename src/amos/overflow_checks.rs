@@ -12,9 +12,9 @@ pub fn zuoik(
     kode: Scaling,
     ikflg: IKType,
     n: usize, //YR, YI, NUF,
-    mut y: Vec<Complex64>,
+    y: &mut Vec<Complex64>,
     machine_consts: &MachineConsts,
-) -> BesselResult {
+) -> BesselResult<usize> {
     // ***BEGIN PROLOGUE  ZUOIK
     // ***REFER TO  ZBESI,ZBESK,ZBESH
     //
@@ -103,7 +103,7 @@ pub fn zuoik(
         //-----------------------------------------------------------------------;
         if rcz < (-machine_consts.elim) {
             y[0..nn].iter_mut().for_each(|v| *v = c_zero());
-            return Ok((y, nn));
+            return Ok(nn);
         }
         if rcz <= (-machine_consts.alim) {
             rcz += aphi.ln();
@@ -111,7 +111,7 @@ pub fn zuoik(
                 rcz = rcz - 0.25 * aarg.ln() - AIC
             };
             if !(rcz > (-machine_consts.elim)) {
-                return Ok((y, nn));
+                return Ok(nn);
             }
             cz += phi.ln();
             if iform != 1 {
@@ -122,12 +122,12 @@ pub fn zuoik(
             cz = ax * Complex64::cis(ay);
             if will_z_underflow(cz, machine_consts.ascle, machine_consts.tol) {
                 y[0..nn].iter_mut().for_each(|v| *v = c_zero());
-                return Ok((y, nn));
+                return Ok(nn);
             }
         }
     }
     if ikflg == IKType::K || n == 1 {
-        return Ok((y, nuf));
+        return Ok(nuf);
     }
     //-----------------------------------------------------------------------;
     //     SET UNDERFLOWS ON I SEQUENCE;
@@ -159,7 +159,7 @@ pub fn zuoik(
                 rcz = cz.re;
                 if !(rcz < (-machine_consts.elim)) {
                     if rcz > (-machine_consts.alim) {
-                        return Ok((y, nuf));
+                        return Ok(nuf);
                     };
                     rcz += aphi.ln();
                     if iform == 2 {
@@ -176,7 +176,7 @@ pub fn zuoik(
                 nn = nn - 1;
                 nuf = nuf + 1;
                 if nn == 0 {
-                    return Ok((y, nuf));
+                    return Ok(nuf);
                 }
             } else {
                 break 'l140;
@@ -196,10 +196,10 @@ pub fn zuoik(
             break 'outer;
         }
     }
-    return Ok((y, nuf));
+    return Ok(nuf);
 }
 
-fn zunik(
+pub fn zunik(
     zr: Complex64,
     order: f64,
     ikflg: IKType,
@@ -349,7 +349,7 @@ fn zunik(
     }
 }
 
-fn zunhj(
+pub fn zunhj(
     z: Complex64,
     order: f64,
     only_phi_zeta: bool,
