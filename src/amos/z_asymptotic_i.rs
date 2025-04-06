@@ -3,8 +3,7 @@ use std::f64::consts::PI;
 use num::complex::{Complex64, ComplexFloat};
 
 use super::{
-    BesselError::*, BesselResult, MachineConsts, Scaling, c_one, c_zero, c_zeros, machine::d1mach,
-    utils::RTPI,
+    BesselError::*, BesselResult, MachineConsts, Scaling, c_one, c_zero, c_zeros, utils::RTPI,
 };
 
 pub fn z_asymptotic_i(
@@ -139,17 +138,18 @@ pub fn z_asymptotic_i(
     let mut ak = k as f64;
     let rz = z.conj() * 2.0 * raz.powi(2);
     let ib = 3;
-    '_l80: for _ in ib..nn {
-        y[k] = (ak + order) * (rz * y[k + 1]) + y[k + 2];
+    '_l80: for _ in ib..=nn {
+        y[k - 1] = (ak + order) * (rz * y[k]) + y[k + 1];
         ak -= 1.0;
-        k -= 1;
+        if k > 0 {
+            k -= 1;
+        }
     }
-    if !koded {
-        return Ok((y, nz));
-    }
-    let ck = cz.exp();
-    '_l90: for i in 0..nn {
-        y[i] *= ck;
+    if koded {
+        let ck = cz.exp();
+        '_l90: for i in 0..nn {
+            y[i] *= ck;
+        }
     }
     Ok((y, nz))
 }
