@@ -45,9 +45,11 @@ pub fn zuoik(
     let mut nn = n;
     let zr = if z.re < 0.0 { -z } else { z };
     let zb = zr;
-    let ax = z.re.abs() * 1.7321;
-    let ay = z.im.abs();
-    let iform = if ay > ax { 2 } else { 1 };
+    let iform = if z.im.abs() > z.re.abs() * 1.7321 {
+        2
+    } else {
+        1
+    };
     let mut gnu = order.max(1.0);
     if ikflg == IKType::K {
         let fnn = nn as f64;
@@ -60,7 +62,7 @@ pub fn zuoik(
     //     THE SIGN OF THE IMAGINARY PART CORRECT.;
     //-----------------------------------------------------------------------;
     let mut zn = None;
-    let (mut cz, phi, arg, aarg) = if iform != 2 {
+    let (mut cz, phi, arg, aarg) = if iform == 1 {
         let mut init = 0;
         let (phi, zeta1, zeta2, _) = zunik(zr, gnu, ikflg, true, machine_consts, &mut init);
         (-zeta1 + zeta2, phi, c_zero(), 0.0)
@@ -101,25 +103,23 @@ pub fn zuoik(
         //-----------------------------------------------------------------------;
         //     UNDERFLOW TEST;
         //-----------------------------------------------------------------------;
-        if rcz < (-machine_consts.elim) {
+        if rcz < -machine_consts.elim {
             y[0..nn].iter_mut().for_each(|v| *v = c_zero());
             return Ok(nn);
         }
-        if rcz <= (-machine_consts.alim) {
+        if rcz <= -machine_consts.alim {
             rcz += aphi.ln();
             if iform == 2 {
                 rcz = rcz - 0.25 * aarg.ln() - AIC
             };
-            if !(rcz > (-machine_consts.elim)) {
+            if rcz <= -machine_consts.elim {
                 return Ok(nn);
             }
             cz += phi.ln();
-            if iform != 1 {
+            if iform == 2 {
                 cz -= 0.25 * arg.ln() + AIC
             }
-            let ax = rcz.exp() / machine_consts.tol;
-            let ay = cz.im;
-            cz = ax * Complex64::cis(ay);
+            cz = rcz.exp() * Complex64::cis(cz.im) / machine_consts.tol;
             if will_z_underflow(cz, machine_consts.ascle, machine_consts.tol) {
                 y[0..nn].iter_mut().for_each(|v| *v = c_zero());
                 return Ok(nn);
@@ -135,37 +135,39 @@ pub fn zuoik(
     let mut go_to_180 = false;
     let mut skip_to_190;
     'outer: loop {
+        let mut cz: Complex64 = c_zero(); // value cannot be used TODO fix loop logic to show this.
         'l140: loop {
             skip_to_190 = false;
             if !go_to_180 {
                 gnu = order + ((nn - 1) as f64);
-                let (phi, mut cz, aarg) = if iform != 2 {
+                let (phi, cz_, aarg) = if iform == 1 {
                     let mut init = 0;
                     let (phi, zeta1, zeta2, _) =
                         zunik(zr, gnu, ikflg, true, machine_consts, &mut init);
-                    cz = -zeta1 + zeta2;
-                    (phi, cz, 0.0)
+                    let cz_inner = -zeta1 + zeta2;
+                    (phi, cz_inner, 0.0)
                 } else {
                     let (phi, arg, zeta1, zeta2, _, _) =
                         zunhj(zn.unwrap(), gnu, true, machine_consts.tol);
-                    cz = -zeta1 + zeta2;
+                    let cz_inner = -zeta1 + zeta2;
                     let aarg = arg.abs();
-                    (phi, cz, aarg)
+                    (phi, cz_inner, aarg)
                 };
+                cz = cz_;
                 if kode == Scaling::Scaled {
                     cz -= zb;
                 }
                 let aphi = phi.abs();
                 rcz = cz.re;
-                if !(rcz < (-machine_consts.elim)) {
-                    if rcz > (-machine_consts.alim) {
+                if rcz >= -machine_consts.elim {
+                    if rcz > -machine_consts.alim {
                         return Ok(nuf);
                     };
                     rcz += aphi.ln();
                     if iform == 2 {
                         rcz = rcz - 0.25 * aarg.ln() - AIC;
                     }
-                    if rcz > (-machine_consts.elim) {
+                    if rcz > -machine_consts.elim {
                         skip_to_190 = true
                     }
                 }
@@ -182,7 +184,6 @@ pub fn zuoik(
                 break 'l140;
             }
         }
-        let ascle = 1.0e+3 * d1mach(1) / machine_consts.tol;
         cz += phi.ln();
         if iform != 1 {
             cz -= 0.25 * arg.ln() + AIC
@@ -190,7 +191,7 @@ pub fn zuoik(
         let ax = rcz.exp() / machine_consts.tol;
         let ay = cz.im;
         cz = ax * Complex64::cis(ay);
-        if will_z_underflow(cz, ascle, machine_consts.tol) {
+        if will_z_underflow(cz, machine_consts.ascle, machine_consts.tol) {
             go_to_180 = true;
         } else {
             break 'outer;

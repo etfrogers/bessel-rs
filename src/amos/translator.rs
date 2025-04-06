@@ -6068,7 +6068,7 @@ fn ZUNI2(
                 st = st.conj() * RAST.pow(2);
                 //   STR = STR*RAST*RAST;
                 //   STI = -STI*RAST*RAST;
-                -zeta1 + st + Complex64::I * z.im
+                -zeta1 + st + Complex64::I * z.im.abs()
             // S1R = -ZETA1R + STR;
             // S1I = -ZETA1I + STI + (ZI).abs();
             // GO TO 60;
