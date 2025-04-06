@@ -3952,9 +3952,9 @@ fn ZBINU(
         DFNU = order + ((NN as f64) - 1.0);
     }
 
-    if !(AZ <  machine_consts.rl)
-          && (DFNU <= 1.0) //GO TO 30
-          && !(AZ+AZ < DFNU*DFNU)
+    if (AZ >=  machine_consts.rl)
+          && ((DFNU <= 1.0) //GO TO 30
+          || (AZ+AZ >= DFNU*DFNU))
     //GO TO 50 //equiv to go to 40 as (DFNU <= 1.0) is not true to get here
     {
         //     if (AZ < RL) //GO TO 40
@@ -4017,7 +4017,7 @@ fn ZBINU(
     }
     //  60 CONTINUE
     // 'l60: loop{
-    if !skip_az_rl_check && !(AZ > machine_consts.rl) {
+    if !skip_az_rl_check & !(AZ > machine_consts.rl) {
         // GO TO 80
         //  70 CONTINUE
         //-----------------------------------------------------------------------
