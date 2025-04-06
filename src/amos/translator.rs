@@ -5729,7 +5729,7 @@ fn ZUNI1(
     let rz = 2.0 * z.conj() / z.abs().pow(2);
     //   BRY(2) = 1.0/BRY(1);
     //   BRY(3) = d1mach(2);
-    let [s1, s2] = cy[..] else { panic!("Fa") };
+    let [mut s1, mut s2] = cy[..] else { panic!("Failed to match cy pattern") };
     //   S1R = CYR(1);
     //   S1I = CYI(1);
     //   S2R = CYR(2);
@@ -5743,10 +5743,10 @@ fn ZUNI1(
         let mut c2 = s2;
         // C2R = S2R;
         // C2I = S2I;
-        let mut s2 = s1 + order + FN * rz * c2;
+        s2 = s1 + order + FN * rz * c2;
         // S2R = S1R + (FNU+FN)*(RZR*C2R-RZI*C2I);
         // S2I = S1I + (FNU+FN)*(RZR*C2I+RZI*C2R);
-        let mut s1 = c2;
+        s1 = c2;
         // S1R = C2R;
         // S1I = C2I;
         c2 = s2 * C1R;
