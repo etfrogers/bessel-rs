@@ -2,7 +2,7 @@
 use super::{
     BesselError, BesselResult, IKType, MachineConsts, Scaling, c_one, c_zero, c_zeros, gamma_ln,
     i_power_series,
-    machine::{d1mach, i1mach},
+    machine::i1mach,
     overflow_checks::{zunik, zuoik},
     utils::will_z_underflow,
 };
@@ -1629,6 +1629,7 @@ fn ZAIRY(//ZR, ZI, ID, KODE, AIR, AII, NZ, IERR){
     //   TOL = DMAX1(d1mach(4),1.0e-18);
     let machine_consts = MachineConsts::new();
       let FID = if return_derivative{1.0} else{0.0};//(ID as f64);
+      let mut significance_loss = false;
       if AZ <= 1.0 {//GO TO 70;
 //-----------------------------------------------------------------------;
 //     POWER SERIES FOR CABS(Z) <= 1.;
@@ -1816,10 +1817,12 @@ let mut s2 = c_one();
     //   BB=DBLE(FLOAT(i1mach(9)))*0.5;
      AA=AA.min(i32::MAX as f64/2.0);
       AA=AA.pow(TWO_THIRDS);
-      if AZ > AA {return Err(LossOfSignificance);};
+      if AZ > AA {
+        return Err(LossOfSignificance);
+    };
     //   AA=DSQRT(AA);
         AA = AA.sqrt();
-        let significance_loss = AZ>AA;
+        significance_loss = AZ>AA;
     //   if (AZ > AA) IERR=3;
     let csq = z.sqrt();
     //   CALL ZSQRT(ZR, ZI, CSQR, CSQI);
@@ -1894,7 +1897,7 @@ let mut s2 = c_one();
       let mut s1 = cy[0]*COEFF;
     //   S1R = CYR(1)*COEF;
     //   S1I = CYI(1)*COEF;
-    return if IFLAG == 0 {//GO TO 150;
+    let retval = if IFLAG == 0 {//GO TO 150;
       let ai = if return_derivative //GO TO 140;
       {
         // 140 CONTINUE;
@@ -1906,7 +1909,7 @@ let mut s2 = c_one();
     //   AIR = CSQR*S1R - CSQI*S1I;
     //   AII = CSQR*S1I + CSQI*S1R;
       };
- Ok((ai, NZ))
+ (ai, NZ)
     //   RETURN;
 
     //   RETURN;
@@ -1937,9 +1940,15 @@ let mut s2 = c_one();
         csq
     };
     // ai = s1/SFAC;
-    Ok((s1/SFAC, NZ))
+    (s1/SFAC, NZ)
 
 };
+if significance_loss{
+    Err(PartialLossOfSignificance { y: vec![retval.0], nz: retval.1 })
+
+}else {
+    Ok(retval)
+}
 //   170 CONTINUE;
 //       AA = 1.0e+3*d1mach(1);
 //       S1R = ZEROR;
