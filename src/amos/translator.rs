@@ -1831,7 +1831,7 @@ let mut s2 = c_one();
 //-----------------------------------------------------------------------;
       let mut IFLAG = 0;
       let mut SFAC = 1.0;
-      let AK = zta.im;//ZTAI;
+    //   let AK = zta.im;//ZTAI;
       if z.re < 0.0 {//GO TO 80;
     //   BK = ZTAR;
     //   CK = -(BK).abs();
@@ -1895,7 +1895,7 @@ let mut s2 = c_one();
     //   S1R = CYR(1)*COEF;
     //   S1I = CYI(1)*COEF;
     return if IFLAG == 0 {//GO TO 150;
-      let ai = if (return_derivative) //GO TO 140;
+      let ai = if return_derivative //GO TO 140;
       {
         // 140 CONTINUE;
     //   AIR = -(ZR*S1R-ZI*S1I);
@@ -2406,6 +2406,7 @@ fn ZBKNU(
     } else {
         0.0
     };
+    let mut skip_to_240= false;
     let (mut s1, mut s2) = if (DNU.abs() != 0.5) && (CAZ <= R1) {
         //-----------------------------------------------------------------------;
         //     SERIES FOR CABS(Z) <= R1; and not half integer order
@@ -2612,7 +2613,7 @@ fn ZBKNU(
         //-----------------------------------------------------------------------;
         let mut coef = Complex64::new(RTFRAC_PI_2, 0.0) / z.sqrt();
         KFLAG = 2;
-        if KODED != Scaling::Scaled {
+        if KODED == Scaling::Unscaled {
             if z.re > machine_consts.alim {
                 KODED = Scaling::Scaled;
                 underflow_occurred = true;
@@ -2636,7 +2637,7 @@ fn ZBKNU(
             //     12 <= E <= 60. E IS COMPUTED FROM 2**(-E)=B**(1-i1mach(14))=;
             //     TOL WHERE B IS THE BASE OF THE ARITHMETIC.;
             //-----------------------------------------------------------------------;
-            let mut T1 = (f64::MANTISSA_DIGITS as f64 * (f64::RADIX as f64).log10() * 3.321928094)
+            let mut T1 = ((f64::MANTISSA_DIGITS - 1) as f64 * (f64::RADIX as f64).log10() * 3.321928094)
                 .clamp(12.0, 60.0);
             let T2 = TWO_THIRDS * T1 - 6.0;
             T1 = if z.re == 0.0 {
@@ -2675,7 +2676,7 @@ fn ZBKNU(
                     if !converged {
                         return Err(DidNotConverge);
                     }
-                    FK = FK + SPI * T1 * (T2 / CAZ).sqrt();
+                    FK +=  SPI * T1 * (T2 / CAZ).sqrt();
                     FHS = (0.25 - DNU2).abs();
                 }
                 (FK, FHS)
@@ -2720,7 +2721,7 @@ fn ZBKNU(
                     // skip_to_270 = true;
                 } //GO TO 270;
             // GO TO 240;
-            // skip_to_240 = true;
+            skip_to_240 = true;
             } else {
                 //-----------------------------------------------------------------------;
                 //     COMPUTE P1/P2=(P1/CABS(P2)*CONJG(P2)/CABS(P2) FOR SCALING;
@@ -2752,6 +2753,7 @@ fn ZBKNU(
     // if underflow_occurred {} //{break 'l270;}
 
     'l225: loop {
+        if !skip_to_240{
         if !(INU <= 0 && N <= 1) {
             //   220 CONTINUE;
             // let INUB = 1;
@@ -2893,6 +2895,7 @@ fn ZBKNU(
         if N == 1 {
             s1 = s2;
         }
+    }
         // ********* basic setup
         let (mut KK, mut y) = if !underflow_occurred {
             let mut y = c_zeros(N);
@@ -4142,13 +4145,13 @@ debug_assert!(NW_signed>=0);
     //   CALL ZBKNU(ZNR, ZNI, FNU, KODE, 1, CYR, CYI, NW, TOL, ELIM, ALIM);
     //   if (NW != 0) GO TO 80;
     //   let FMR = (MR as f64);s
-      let SGN = PI * (MR as f64).signum();//-DSIGN(PI,FMR);
+      let SGN = -PI * (MR as f64).signum();//-DSIGN(PI,FMR);
       let mut csgn = Complex64::new(0.0, SGN);
     //   CSGNR = 0.0;
     //   CSGNI = SGN;
       if KODE == Scaling::Scaled {// GO TO 50;
-        csgn = csgn.im * Complex64::cis(-zn.im);
-        csgn.re = -csgn.re;
+        csgn = Complex64::I * csgn.im * Complex64::cis(-zn.im);
+        // csgn.re = -csgn.re;
     //   YY = -ZNI;
     //   CSGNR = -CSGNI*DSIN(YY);
     //   CSGNI = CSGNI*DCOS(YY);
@@ -5956,7 +5959,7 @@ fn ZUNI2(
     //     CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER;
     //-----------------------------------------------------------------------;
     let mut FN = order.max(1.0); //DMAX1(FNU,1.0);
-    let (phi, arg, zeta1, zeta2, _, _) = zunhj(zn, FN, true, machine_consts.tol);
+    let (_, _, zeta1, zeta2, _, _) = zunhj(zn, FN, true, machine_consts.tol);
 
     //   CALL ZUNHJ(ZNR, ZNI, FN, 1, TOL, PHIR, PHII, ARGR, ARGI, ZETA1R,;
     //  * ZETA1I, ZETA2R, ZETA2I, ASUMR, ASUMI, BSUMR, BSUMI);
@@ -6088,7 +6091,7 @@ fn ZUNI2(
             if i == 0 {
                 IFLAG = 2
             };
-            if (rs1).abs() >= machine_consts.alim {
+            if rs1.abs() >= machine_consts.alim {
                 //GO TO 70;
                 //-----------------------------------------------------------------------;
                 //     REFINE  TEST AND SCALE;
