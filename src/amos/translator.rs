@@ -5729,7 +5729,7 @@ fn ZUNI1(
     let rz = 2.0 * z.conj() / z.abs().pow(2);
     //   BRY(2) = 1.0/BRY(1);
     //   BRY(3) = d1mach(2);
-    let [mut s1, mut s2] = cy[..] else { panic!("Failed to match cy pattern") };
+    let [mut s1, mut s2] = cy;
     //   S1R = CYR(1);
     //   S1I = CYI(1);
     //   S2R = CYR(2);
@@ -5743,7 +5743,7 @@ fn ZUNI1(
         let mut c2 = s2;
         // C2R = S2R;
         // C2I = S2I;
-        s2 = s1 + order + FN * rz * c2;
+        s2 = s1 + (order + FN) * (rz * c2);
         // S2R = S1R + (FNU+FN)*(RZR*C2R-RZI*C2I);
         // S2I = S1I + (FNU+FN)*(RZR*C2I+RZI*C2R);
         s1 = c2;
@@ -6056,11 +6056,10 @@ fn ZUNI2(
         }
 
         //   NN = MIN0(2,ND);
-        let NN = ND.min(2);
         let mut IFLAG = 0;
         //   DO 90 I=1,NN;
         let mut cy = [c_zero(); 2];
-        for i in 0..NN {
+        for i in 0..ND.min(2) {
             FN = order + ((ND - (i + 1)) as f64);
             let (phi, arg, zeta1, zeta2, asum, bsum) = zunhj(zn, FN, false, machine_consts.tol);
             let asum = asum.unwrap();
@@ -6174,7 +6173,7 @@ fn ZUNI2(
             y[ND - i - 1] = s2 * CSRR[IFLAG - 1];
             // YR(J) = S2R*CSRR(IFLAG);
             // YI(J) = S2I*CSRR(IFLAG);
-            c2 = c2.conj() * CIDI;
+            c2 *=  CIDI * Complex64::I;
             // STR = -C2I*CIDI;
             // C2I = C2R*CIDI;
             // C2R = STR;
@@ -6198,14 +6197,14 @@ fn ZUNI2(
         //   S2I = CYI(2);
         let mut C1R = CSRR[IFLAG - 1];
         let mut ASCLE = BRY[IFLAG - 1];
-        let mut K = ND - 2;
-        FN = K as f64;
+        // let mut K = ND - 2;
+        // FN = K as f64;
         //   DO 100 I=3,ND;
-        for _ in 2..ND {
+        for K in (0..(ND-2)).rev() {
             let st = s2;
             // C2R = S2R;
             // C2I = S2I;
-            s2 = s1 + (order + FN) * rz*c2;
+            s2 = s1 + (order + ((K+1) as f64)) * rz*s2;
             // S2R = S1R + (FNU + FN) * (RZR * C2R - RZI * C2I);
             // S2I = S1I + (FNU + FN) * (RZR * C2I + RZI * C2R);
             s1 = st;
@@ -6214,26 +6213,26 @@ fn ZUNI2(
             // c2 = s2 *c1;
             // C2R = S2R * C1R;
             // C2I = S2I * C1R;
-            y[K-1] = s2*C1R;
+            y[K] = s2*C1R;
             // YR(K) = C2R;
             // YI(K) = C2I;
-            K  -= 1;
-            FN -= 1.0;
+            // K  -= 1;
+            // FN -= 1.0;
             if IFLAG >= 3 {
-                break 'l40;
+                continue;
             } //GO TO 100;
             // STR = (C2R).abs();
             // STI = (C2I).abs();
             // C2M = DMAX1(STR, STI);
-            if max_abs_component(y[K-1]) <= ASCLE {
-                break 'l40;
+            if max_abs_component(y[K]) <= ASCLE {
+                continue;
             } //GO TO 100;
             IFLAG += 1;
             ASCLE = BRY[IFLAG-1];
             s1 *= C1R;
             // S1R = S1R * C1R;
             // S1I = S1I * C1R;
-            s2 = y[K-1];
+            s2 = y[K];
             // S2R = C2R;
             // S2I = C2I;
             s1 *= CSSR[IFLAG-1];
