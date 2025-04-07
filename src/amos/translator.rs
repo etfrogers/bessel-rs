@@ -5568,10 +5568,10 @@ fn ZUNI1(
             }
         }
 
-        let NN = 2.min(ND);
+        // let NN = 2.min(ND);
         //   DO 80 I=1,NN;
 
-        for i in 0..NN {
+        for i in 0..2.min(ND) {
             FN = order + ((ND - (i + 1)) as f64);
             INIT = 0;
             let (phi, zeta1, zeta2, sum) =
@@ -5673,7 +5673,7 @@ fn ZUNI1(
             let mut s2 = phi * sum;
             // S2R = PHIR*SUMR - PHII*SUMI;
             // S2I = PHIR*SUMI + PHII*SUMR;
-            s1 = s1.re.exp() * CSRR[IFLAG - 1] * Complex64::cis(s1.im);
+            s1 = s1.re.exp() * CSSR[IFLAG - 1] * Complex64::cis(s1.im);
             // STR = DEXP(S1R)*CSSR(IFLAG);
             // S1R = STR*DCOS(S1I);
             // S1I = STR*DSIN(S1I);
