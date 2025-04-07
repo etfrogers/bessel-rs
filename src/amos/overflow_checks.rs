@@ -466,15 +466,15 @@ pub fn zunhj(
         let btol = tol * (bsum.re.abs() + bsum.im.abs());
         let mut atol = tol;
         let mut pp = 1.0;
-        let mut ias = false;
-        let mut ibs = false;
-        if !(rfnu2 < tol) {
+        let mut a_converged = false;
+        let mut b_converged = false;
+        if rfnu2 >= tol {
             //GO TO 110;
             // DO 100 IS=2,7;
-            for _is in 1..7 {
+            for _ in 1..7 {
                 atol /= rfnu2;
                 pp *= rfnu2;
-                if !ias {
+                if !a_converged {
                     //GO TO 60;
                     let mut suma = c_zero();
                     //   SUMAR = ZEROR;
@@ -495,11 +495,11 @@ pub fn zunhj(
                     //   ASUMR = ASUMR + SUMAR*PP;
                     //   ASUMI = ASUMI + SUMAI*PP;
                     if pp < tol {
-                        ias = true
+                        a_converged = true
                     };
                 }
                 //    60   CONTINUE;
-                if !ibs {
+                if !b_converged {
                     //GO TO 90;
                     let mut sumb = c_zero();
                     //   SUMBR = ZEROR;
@@ -520,15 +520,15 @@ pub fn zunhj(
                     //   BSUMR = BSUMR + SUMBR*PP;
                     //   BSUMI = BSUMI + SUMBI*PP;
                     if pp < btol {
-                        ibs = true;
+                        b_converged = true;
                     }
                 }
                 //    90   CONTINUE;
-                if ias && ibs {
+                if a_converged && b_converged {
                     break;
                 } //GO TO 110;
-                l1 = l1 + 30;
-                l2 = l2 + 30;
+                l1 += 30;
+                l2 += 30;
             }
             //   100 CONTINUE;
         }
@@ -541,7 +541,7 @@ pub fn zunhj(
         // BSUMI = BSUMI*PP;
         //   120 CONTINUE;
         //       RETURN;
-        return (phi, arg, zeta1, zeta2, Some(bsum), Some(bsum));
+        return (phi, arg, zeta1, zeta2, Some(asum), Some(bsum));
     } else {
         //-----------------------------------------------------------------------;
         //     CABS(W2) > 0.25;

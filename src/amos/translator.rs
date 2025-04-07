@@ -3509,7 +3509,7 @@ fn i_miller(
     let mut converged = false;
     let mut I = 0;
     for i in 0..80 {
-        I = i;
+        I = i+1;
         let pt = p2;
         p2 = p1 - ck * p2;
         p1 = pt;
@@ -3580,9 +3580,9 @@ fn i_miller(
         - gamma_ln(TFNF + 1.0).unwrap())
     .exp();
     let mut sumr = c_zero();
-    for _i in 0..(KK - INU) {
+    for _ in 0..(KK - INU) {
         let pt = p2;
-        p2 = p1 + (FKK + FNF) * (rz * pt);
+        p2 = p1 + (FKK + FNF) * (rz * p2);
         p1 = pt;
         AK = 1.0 - TFNF / (FKK + TFNF);
         ACK = BK * AK;
@@ -4142,7 +4142,7 @@ debug_assert!(NW_signed>=0);
 //     MILLER ALGORITHM NORMALIZED BY THE SERIES FOR THE I FUNCTION;
 //-----------------------------------------------------------------------;
       }else{
-        i_miller(z, order, KODE, NN, machine_consts)?
+        i_miller(zn, order, KODE, NN, machine_consts)?
     //   CALL ZMLRI(ZNR, ZNI, FNU, KODE, NN, YR, YI, NW, TOL);
     //   if(NW < 0) GO TO 80;
      };
