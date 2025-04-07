@@ -1889,7 +1889,7 @@ let mut s2 = c_one();
       if AA < -machine_consts.elim {return Ok((c_zero(), 1));} //GO TO 210;
     }
 //   120 CONTINUE;
-    ZBKNU(z, FNU, KODE, 1, &machine_consts)?
+    ZBKNU(zta, FNU, KODE, 1, &machine_consts)?
     //   CALL ZBKNU(ZTAR, ZTAI, FNU, KODE, 1, CYR, CYI, NZ, TOL, ELIM,
     //  * ALIM);
       };
@@ -2791,7 +2791,7 @@ fn ZBKNU(
                 s2 *= CSSR[KFLAG - 1];
                 P1R = CSRR[KFLAG - 1];
             }
-        } else {
+        } else if underflow_occurred{
             //-----------------------------------------------------------------------;
             //     underflow_occured=1 CASES, FORWARD RECURRENCE ON SCALED VALUES ON UNDERFLOW;
             //-----------------------------------------------------------------------;
