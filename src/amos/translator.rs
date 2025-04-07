@@ -5498,7 +5498,7 @@ fn ZUNI1(
         //   STI = ZI + ZETA2I;
         let rast = FN / st.abs();
         //   RAST = FN/ZABS(STR,STI);
-        st = st.conj() / (rast.pow(2));
+        st = st.conj() * (rast.pow(2));
         //   STR = STR*RAST*RAST;
         //   STI = -STI*RAST*RAST;
         -zeta1 + st
