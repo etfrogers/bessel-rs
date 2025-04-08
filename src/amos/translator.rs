@@ -5265,12 +5265,17 @@ fn ZBUNI(
         //   S1I = CYI(2)*CSCLR;
         //   S2R = CYR(1)*CSCLR;
         //   S2I = CYI(1)*CSCLR;
-        let RAZ = 1.0 / z.abs(); //ZABS(ZR,ZI);
+        // working out rz in multiple steps seems to give different floating point answer.
+        // TODO confirm this is important when rest of code is fixed.
+        // let RAZ = 1.0 / z.abs(); //ZABS(ZR,ZI);
         //   STR = ZR*RAZ;
         //   STI = -ZI*RAZ;
+        // let st = z.conj()*RAZ;
         //   RZR = (STR+STR)*RAZ;
         //   RZI = (STI+STI)*RAZ;
-        let rz = 2.0 * z.conj() * RAZ.pow(2);
+        // let rz = (st+st)*RAZ;
+        let rz = 2.0 * z.conj() / z.abs().pow(2);
+
         //   DO 30 I=1,NUI;
         for _ in 0..NUI {
             let st = s2;
@@ -5340,7 +5345,7 @@ fn ZBUNI(
             // STI = S2I*CSCRR;
             // YR(K) = STR;
             // YI(K) = STI;
-            FNUI = 1.0;
+            FNUI -= 1.0;
             K -= 1;
             if IFLAG >= 3 {
                 continue;
