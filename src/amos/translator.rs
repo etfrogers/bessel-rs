@@ -2456,7 +2456,7 @@ fn ZBKNU(
         };
         //    50 CONTINUE;
         let G2 = (T1 + T2) * 0.5;
-        let f = FC * (G1 * cch + G2 * smu);
+        let mut f = FC * (G1 * cch + G2 * smu);
         // FR = FC*(CCHR*G1+SMUR*G2);
         // FI = FC*(CCHI*G1+SMUI*G2);
         let mut p = 0.5 * fmu.exp() / T2;
@@ -2495,7 +2495,7 @@ fn ZBKNU(
                 let T1 = 0.25 * CAZ * CAZ;
                 //    60 CONTINUE;
                 '_l60: loop {
-                    let f = (f * AK + p + q) / BK;
+                    f = (f * AK + p + q) / BK;
                     // FR = (FR*AK+PR+QR)/BK;
                     // FI = (FI*AK+PI+QI)/BK;
                     p /= AK - DNU;
@@ -2552,7 +2552,7 @@ fn ZBKNU(
             let T1 = 0.25 * CAZ * CAZ;
             //    90 CONTINUE;
             '_l90: loop {
-                let f = (f * AK + p + q) / BK;
+                f = (f * AK + p + q) / BK;
                 // FR = (FR*AK+PR+QR)/BK;
                 // FI = (FI*AK+PI+QI)/BK;
                 p /= AK - DNU;
