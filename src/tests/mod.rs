@@ -145,6 +145,7 @@ fn test_bessel_j_large_n_real(
 #[case(4.0e-132, 0e0, 445.0)]
 #[case(8714.0, 8904.0, -10.0)]
 #[case(60.9, 246.2, -982.5)]
+#[case(40.5, 1673.3, -4.0)]
 fn test_bessel_j_large_n_complex(
     #[case] order: f64,
     #[case] zr: f64,

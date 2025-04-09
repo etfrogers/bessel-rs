@@ -75,7 +75,7 @@ pub fn z_asymptotic_i(
             bk = -bk
         };
         p1 = Complex64::new(ak, bk);
-        if !(inu % 2) == 0 {
+        if inu % 2 != 0 {
             p1 = -p1;
         }
     }
@@ -122,8 +122,7 @@ pub fn z_asymptotic_i(
         }
         let mut s2 = cs1;
         if z.re * 2.0 < machine_consts.elim {
-            let tz = z * 2.0;
-            s2 += (-tz).exp() * p1 * cs2;
+            s2 += (-z * 2.0).exp() * p1 * cs2;
         }
         fdn = fdn + 8.0 * dfnu + 4.0;
         p1 = -p1;
