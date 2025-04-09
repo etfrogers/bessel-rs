@@ -270,7 +270,8 @@ fn check_against_fortran(order: f64, z: Complex64, scaling: Scaling, n: usize) {
 
     let fail = |reason: &str| -> () {
         println!("Order: {order:e}\nz: {z:e}\nscaling: {scaling:?}\nn: {n}");
-        println!("#[case({:e}, {:e}, {:e})]\n", order, z.re, z.im);
+        println!("#[case({:e}, {:e}, {:e})]", order, z.re, z.im);
+        println!("#[case({:.1}, {:.1}, {:.1})]\n", order, z.re, z.im);
         match &actual {
             Ok(actual) => {
                 println!("Fortran Nz: {nz}, translator Nz: {}\n", actual.1);
