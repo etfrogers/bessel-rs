@@ -1,4 +1,5 @@
 use f64;
+use num::Zero;
 use std::f64::consts::{FRAC_PI_2, PI};
 
 use approx::{assert_relative_eq, relative_eq};
@@ -10,7 +11,7 @@ use rand::{Rng, SeedableRng, random_range};
 use rstest::{fixture, rstest};
 
 use crate::amos::bindings::zbesj_wrap;
-use crate::amos::{gamma_ln, zbesj};
+use crate::amos::{BesselResult, gamma_ln, zbesj};
 use crate::{BesselError, GammaError, Scaling, bessel_j};
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_ref;
 
@@ -269,13 +270,15 @@ fn check_against_fortran(order: f64, z: Complex64, scaling: Scaling, n: usize) {
     let (cy, nz, ierr) = zbesj_fortran(order, z, scaling, n);
 
     let fail = |reason: &str| -> () {
+        let (cy_loop_fort, _, _) = zbesj_fortran_loop(order, z, scaling, n);
+        let (cy_loop_rust, _) = zbesj_loop(order, z, scaling, n).unwrap();
         println!("Order: {order:e}\nz: {z:e}\nscaling: {scaling:?}\nn: {n}");
         println!("#[case({:e}, {:e}, {:e})]", order, z.re, z.im);
         println!("#[case({:.1}, {:.1}, {:.1})]\n", order, z.re, z.im);
         match &actual {
             Ok(actual) => {
                 println!("Fortran Nz: {nz}, translator Nz: {}\n", actual.1);
-                print_complex_arrays(&cy, &actual.0);
+                print_complex_arrays(&cy, &actual.0, &cy_loop_fort, &cy_loop_rust);
             }
             Err(err) => {
                 println!(
@@ -288,7 +291,7 @@ fn check_against_fortran(order: f64, z: Complex64, scaling: Scaling, n: usize) {
                 } = *err
                 {
                     println!("Fortran Nz: {nz}, translator Nz: {}\n", actual_nz);
-                    print_complex_arrays(&cy, actual_y);
+                    print_complex_arrays(&cy, actual_y, &cy_loop_fort, &cy_loop_rust);
                 }
             }
         }
@@ -333,17 +336,51 @@ fn check_complex_arrays_equal(c1: &[Complex64], c2: &[Complex64]) -> Option<Stri
     }
     None
 }
-fn print_complex_arrays(c1: &[Complex64], c2: &[Complex64]) {
-    println!("i\tFortran\t\t\t\tTranslator");
-    c1.iter()
-        .zip(c2)
-        .enumerate()
-        .for_each(|(i, (fort, trans))| {
-            println!(
-                "{i}\t{:>+1.5e} {:>+1.5e}i\t{:>+1.5e} {:>+1.5e}i",
-                fort.re, fort.im, trans.re, trans.im
-            );
-        });
+fn print_complex_arrays(c1: &[Complex64], c2: &[Complex64], c3: &[Complex64], c4: &[Complex64]) {
+    println!("i\tFortran\t\t\t\tTranslator\t\t\t\tFortran looped\t\t\t\tRust looped");
+    c1.iter().enumerate().for_each(|(i, fort)| {
+        println!(
+            "{i}\t{}\t{}\t{}\t{}",
+            to_str(fort),
+            to_str(&c2[i]),
+            to_str(&c3[i]),
+            to_str(&c4[i]),
+        );
+    });
+}
+
+fn to_str(c: &Complex64) -> String {
+    format!("{:>+1.5e} {:>+1.5e}i", c.re, c.im)
+}
+
+fn zbesj_loop(order: f64, z: Complex64, scaling: Scaling, n: usize) -> BesselResult {
+    let mut y = vec![Complex64::zero(); n];
+    let mut nz = 0;
+    for i in 0..n {
+        let (yi, nzi) = zbesj(z, order + i as f64, scaling, 1)?;
+        y[i] = yi[0];
+        nz += nzi;
+    }
+    return Ok((y, nz));
+}
+
+fn zbesj_fortran_loop(
+    order: f64,
+    z: Complex64,
+    scaling: Scaling,
+    n: usize,
+) -> (Vec<Complex64>, usize, i32) {
+    let mut y = vec![Complex64::zero(); n];
+    let mut nz = 0;
+    for i in 0..n {
+        let (yi, nzi, ierr) = zbesj_fortran(order + i as f64, z, scaling, 1);
+        if ierr != 0 {
+            return (y, nz, ierr);
+        }
+        y[i] = yi[0];
+        nz += nzi;
+    }
+    (y, nz, 0)
 }
 
 fn zbesj_fortran(
