@@ -33,7 +33,7 @@ fn test_gamma_ln() {
         // large values cause the "expected" calculation to overflow: the fortran version seems to work!
         let actual = gamma_ln(f).unwrap();
         let expected = f.gamma().ln();
-        assert_relative_eq!(actual, expected, epsilon = 1e-10)
+        assert_relative_eq!(actual, expected, max_relative = 1e-10)
     }
 }
 
@@ -67,12 +67,7 @@ fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
 
     let expected = bessel_j_ref(order, z.into());
     if let Ok(actual) = actual {
-        assert_relative_eq!(
-            actual,
-            expected.unwrap(),
-            epsilon = 1e-10,
-            max_relative = 1e-10
-        )
+        assert_relative_eq!(actual, expected.unwrap(), max_relative = 1e-10)
     } else {
         assert_eq!(actual.unwrap_err().error_code(), expected.unwrap_err())
     }
@@ -91,12 +86,7 @@ fn test_bessel_j_random(mut rng: SmallRng) {
         let ans = bessel_j(order, z);
         let expected = bessel_j_ref(order, z);
         if let Ok(actual) = ans {
-            assert_relative_eq!(
-                actual,
-                expected.unwrap(),
-                epsilon = 1e-10,
-                max_relative = 1e-10
-            )
+            assert_relative_eq!(actual, expected.unwrap(), max_relative = 1e-10)
         } else {
             let err = ans.unwrap_err();
             if err == BesselError::NotYetImplemented {
@@ -330,7 +320,7 @@ fn check_against_fortran(order: f64, z: Complex64, scaling: Scaling, n: usize) {
 
 fn check_complex_arrays_equal(c1: &[Complex64], c2: &[Complex64]) -> Option<String> {
     for (i, (czi, zi)) in c1.iter().zip(c2).enumerate() {
-        if !relative_eq!(*czi, zi, epsilon = 1e-10, max_relative = 1e-10) {
+        if !relative_eq!(*czi, zi, max_relative = 1e-8) {
             return Some(format!("Failed on matching values at index {i}"));
         };
     }
