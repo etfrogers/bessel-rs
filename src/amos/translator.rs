@@ -3973,11 +3973,11 @@ fn ZBINU(
         //     if (DFNU > FNUL) GO TO 110
         //     if (AZ > FNUL) GO TO 110
     }
-    if (DFNU > machine_consts.fnul) || (AZ > machine_consts.fnul) {
+    if (DFNU > machine_consts.asymptotic_order_limit) || (AZ > machine_consts.asymptotic_order_limit) {
         //-----------------------------------------------------------------------
         //     INCREMENT FNU+NN-1 UP TO FNUL, COMPUTE AND RECUR BACKWARD
         //-----------------------------------------------------------------------
-        let NUI_isize = (machine_consts.fnul - DFNU) as isize + 1;
+        let NUI_isize = (machine_consts.asymptotic_order_limit - DFNU) as isize + 1;
         let NUI = NUI_isize.max(0) as usize;
         let ( NW, NLAST) = ZBUNI(
             //ZR, ZI, FNU,
@@ -5546,7 +5546,7 @@ fn ZUNI1(
                 return  Ok((NZ, NLAST));
             } //GO TO 100;
         FN = order + ((ND - 1) as f64);
-            if FN < machine_consts.fnul {
+            if FN < machine_consts.asymptotic_order_limit {
 
                 // continue 'l30;
              //GO TO 30;
@@ -6019,7 +6019,7 @@ fn ZUNI2(
                 return Ok(( NZ, NLAST));
             } //GO TO 110;
             FN = order + ((ND - 1) as f64);
-            if FN < machine_consts.fnul {
+            if FN < machine_consts.asymptotic_order_limit {
                 return Ok((NZ, ND));
             } //GO TO 130;
             //      FN = CIDI;

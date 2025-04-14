@@ -108,15 +108,16 @@ pub(crate) type BesselValues<T = usize> = (Vec<Complex64>, T);
 pub(crate) type BesselResult<T = BesselValues> = Result<T, BesselError>;
 
 pub(crate) struct MachineConsts {
-    arm: f64,
-    ascle: f64,
-    tol: f64,
-    elim: f64,
-    alim: f64,
-    dig: f64,
-    rl: f64,
-    fnul: f64,
-    rtol: f64,
+    pub arm: f64,
+    pub ascle: f64,
+    pub tol: f64,
+    pub elim: f64,
+    pub alim: f64,
+    pub dig: f64,
+    pub rl: f64,
+    ///FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU.
+    pub asymptotic_order_limit: f64, //FNUL
+    pub rtol: f64,
 }
 
 impl MachineConsts {
@@ -146,7 +147,7 @@ impl MachineConsts {
             alim,
             dig,
             rl,
-            fnul,
+            asymptotic_order_limit: fnul,
             rtol: 1.0 / tol,
         }
     }
