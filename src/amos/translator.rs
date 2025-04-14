@@ -2,7 +2,6 @@
 use super::{
     BesselError, BesselResult, IKType, MachineConsts, Scaling, c_one, c_zero, c_zeros, gamma_ln,
     i_power_series,
-    machine::i1mach,
     overflow_checks::{zunik, zuoik},
     utils::will_z_underflow,
 };
@@ -651,7 +650,7 @@ pub fn zbesj(
     z: Complex64, //ZR, ZI,
     order: f64,   //FNU,
     KODE: Scaling,
-    N: usize,
+    n: usize,
 ) -> BesselResult {
     // ouputs: CYR, CYI, NZ, IERR)
     // ***BEGIN PROLOGUE  ZBESJ
@@ -811,12 +810,11 @@ pub fn zbesj(
     //
     // ***FIRST EXECUTABLE STATEMENT  ZBESJ
     // IERR = 0
-    let mut significance_loss = false;
     let mut err = None;
     if order < 0.0_f64 {
         err = Some("order must be positive")
     };
-    if N < 1 {
+    if n < 1 {
         err = Some("N must be >= 1")
     };
     if let Some(details) = err {
@@ -839,69 +837,54 @@ pub fn zbesj(
     //-----------------------------------------------------------------------
     //     TEST FOR PROPER RANGE
     //-----------------------------------------------------------------------
-    let az = z.abs(); //ZABS(ZR, ZI);
-    let FN = order + ((N - 1) as f64);
-    let mut AA = 0.5 / machine_consts.tol;
-    let mut bb = (i1mach(9) as f64) * 0.5;
-    AA = AA.min(bb);
-    if az > AA {
+    let z_abs = z.abs(); //ZABS(ZR, ZI);
+    let reduced_order = order + ((n - 1) as f64);
+    let f64_precision_limit = 0.5 / machine_consts.tol;
+    // TODO the below is limited to i32: could push to 64 later, but would change compare to fortran
+    let integer_size_limit = (i32::MAX as f64) * 0.5;
+    let upper_size_limit = f64_precision_limit.min(integer_size_limit);
+    if z_abs > upper_size_limit || reduced_order > upper_size_limit{
         return Err(LossOfSignificance);
     }
-    if FN > AA {
-        return Err(LossOfSignificance);
-    }
-    AA = AA.sqrt();
-    if (az > AA) || (FN > AA) {
-        significance_loss = true;
-    }
+    let scaling_limit = upper_size_limit.sqrt();
     //-----------------------------------------------------------------------
     //     CALCULATE CSGN=EXP(FNU*FRAC_PI_2*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
     //     WHEN FNU IS LARGE
     //-----------------------------------------------------------------------
-    let mut CII = 1.0;
-    let INU = order as i64;
-    let INUH = INU / 2;
-    let IR = INU - 2 * INUH;
-    let ARG = (order - ((INU - IR) as f64)) * FRAC_PI_2;
-    let mut CSGNR = ARG.cos();
-    let mut CSGNI = ARG.sin();
-    if (INUH % 2) != 0 {
-        CSGNR = -CSGNR;
-        CSGNI = -CSGNI;
+    let order_int = order as i64;
+    let half_order_int = order_int / 2;
+    let order_rounded_down_to_even = 2 * half_order_int;
+    let arg = (order - (order_rounded_down_to_even as f64)) * FRAC_PI_2;
+    let mut csgn = Complex64::cis(arg);
+    if (half_order_int % 2) != 0 {
+        csgn = -csgn;
     }
     //-----------------------------------------------------------------------
     //     ZN IS IN THE RIGHT HALF PLANE
     //-----------------------------------------------------------------------
-    let mut ZNR = z.im;
-    let mut ZNI = -z.re;
-    if !(z.im >= 0.0) {
-        ZNR = -ZNR;
-        ZNI = -ZNI;
-        CSGNI = -CSGNI;
-        CII = -CII;
+    let mut sign_selector = 1.0;
+    let mut zn = -Complex64::I * z;
+    if z.im < 0.0 {
+        zn = -zn;
+        csgn.im = -csgn.im;
+        sign_selector = -sign_selector;
     }
-    let (mut cy, NZ) = ZBINU(Complex64::new(ZNR, ZNI), order, KODE, N, &machine_consts)?;
-    let NL = N - NZ;
-    for i in 0..NL {
-        AA = cy[i].re;
-        bb = cy[i].im;
+    let (mut cy, nz) = ZBINU(zn, order, KODE, n, &machine_consts)?;
+    for i in 0..n - nz {
+        let  mut cyi = cy[i];
         let mut ATOL = 1.0;
-        if !((AA.abs().max(bb.abs())) > machine_consts.ascle) {
-            AA = AA * machine_consts.rtol;
-            bb = bb * machine_consts.rtol;
+        if (max_abs_component(cyi)) <= machine_consts.ascle {
+            cyi *= machine_consts.rtol;
             ATOL = machine_consts.tol;
         }
-        let mut STR = AA * CSGNR - bb * CSGNI;
-        let STI = AA * CSGNI + bb * CSGNR;
-        cy[i] = Complex64::new(STR * ATOL, STI * ATOL);
-        STR = -CSGNI * CII;
-        CSGNI = CSGNR * CII;
-        CSGNR = STR;
-    }
-    if significance_loss {
-        Err(PartialLossOfSignificance { y: cy, nz: NZ })
+        let st = cyi*csgn;
+        cy[i] = st*ATOL;
+        csgn *= sign_selector*Complex64::I;
+        }
+    if (z_abs > scaling_limit) || (reduced_order > scaling_limit) {
+        Err(PartialLossOfSignificance { y: cy, nz })
     } else {
-        Ok((cy, NZ))
+        Ok((cy, nz))
     }
 }
 /*
