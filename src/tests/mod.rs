@@ -3,7 +3,7 @@ use num::Zero;
 use std::f64::consts::{FRAC_PI_2, PI};
 
 use approx::{assert_relative_eq, relative_eq};
-use num::complex::Complex64;
+use num::complex::{Complex64, ComplexFloat};
 use num::pow::Pow;
 use rand::rngs::SmallRng;
 use rand::seq::IndexedRandom;
@@ -11,7 +11,7 @@ use rand::{Rng, SeedableRng, random_range};
 use rstest::{fixture, rstest};
 
 use crate::amos::bindings::zbesj_wrap;
-use crate::amos::{BesselResult, gamma_ln, zbesj};
+use crate::amos::{BesselResult, MachineConsts, gamma_ln, zbesj};
 use crate::{BesselError, GammaError, Scaling, bessel_j};
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_ref;
 
@@ -67,7 +67,7 @@ fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
 
     let expected = bessel_j_ref(order, z.into());
     if let Ok(actual) = actual {
-        assert_relative_eq!(actual, expected.unwrap(), max_relative = 1e-10)
+        check_complex_arrays_equal(&actual, &expected.unwrap(), expected_error(order, z));
     } else {
         assert_eq!(actual.unwrap_err().error_code(), expected.unwrap_err())
     }
@@ -86,7 +86,7 @@ fn test_bessel_j_random(mut rng: SmallRng) {
         let ans = bessel_j(order, z);
         let expected = bessel_j_ref(order, z);
         if let Ok(actual) = ans {
-            assert_relative_eq!(actual, expected.unwrap(), max_relative = 1e-10)
+            check_complex_arrays_equal(&actual, &expected.unwrap(), expected_error(order, z));
         } else {
             let err = ans.unwrap_err();
             if err == BesselError::NotYetImplemented {
@@ -253,6 +253,7 @@ fn test_bessel_j_extremes(
 
 fn check_against_fortran(order: f64, z: Complex64, scaling: Scaling, n: usize) {
     let actual = zbesj(z, order, scaling, n);
+    let tolerance = expected_error(order, z);
     if let Err(ref err) = actual {
         if *err == BesselError::NotYetImplemented {
             return;
@@ -296,7 +297,7 @@ fn check_against_fortran(order: f64, z: Complex64, scaling: Scaling, n: usize) {
             if nz != actual.1.try_into().unwrap() {
                 fail("Failed for mismatched nz value");
             }
-            if let Some(reason) = check_complex_arrays_equal(&cy, &actual.0) {
+            if let Some(reason) = check_complex_arrays_equal(&cy, &actual.0, tolerance) {
                 fail(&reason)
             }
         }
@@ -312,22 +313,74 @@ fn check_against_fortran(order: f64, z: Complex64, scaling: Scaling, n: usize) {
                 if nz != actual_nz.try_into().unwrap() {
                     fail("Failed for mismatched nz value");
                 }
-                if let Some(reason) = check_complex_arrays_equal(&cy, &actual_y) {
+                if let Some(reason) = check_complex_arrays_equal(&cy, actual_y, tolerance) {
                     fail(&reason)
                 }
             }
         }
     }
 }
+trait IntoComplexVec: Clone {
+    fn into_vec(self) -> Vec<Complex64>;
+}
+impl IntoComplexVec for Complex64 {
+    fn into_vec(self) -> Vec<Complex64> {
+        vec![self]
+    }
+}
 
-fn check_complex_arrays_equal(c1: &[Complex64], c2: &[Complex64]) -> Option<String> {
-    for (i, (czi, zi)) in c1.iter().zip(c2).enumerate() {
-        if !relative_eq!(*czi, zi, max_relative = 1e-8) {
-            return Some(format!("Failed on matching values at index {i}"));
+impl IntoComplexVec for Vec<Complex64> {
+    fn into_vec(self) -> Vec<Complex64> {
+        self
+    }
+}
+
+fn check_complex_arrays_equal(
+    actual: &impl IntoComplexVec,
+    expected: &impl IntoComplexVec,
+    tolerance: f64,
+) -> Option<String> {
+    let actual = actual.clone().into_vec();
+    let expected = expected.clone().into_vec();
+    let n = actual.len() as f64;
+    for (i, (act, exp)) in actual.iter().zip(expected).enumerate() {
+        let magnitude_diff = (act.re / act.im).log10().abs();
+        let mut tol = 10.0.powf((tolerance.log10() + magnitude_diff).min(0.0));
+        tol *= n;
+        if !relative_eq!(*act, exp, max_relative = tol) {
+            let (actual_error, relative_error) = abs_rel_errors_cmplx(act, &exp);
+            return Some(format!(
+                "Failed on matching values at index {i}\n\
+                z1: {:e}\n\
+                z2: {exp:e}\n\
+                Magnitude difference in actual: {magnitude_diff}\n\
+                Relative tolerance: {tol:e}\n\
+                Actual absolute error - real: {:e}\n\
+                Actual relative error - real: {:e}\n\
+                Actual absolute error - imag: {:e}\n\
+                Actual relative error - imag: {:e}",
+                *act, actual_error.re, relative_error.re, actual_error.im, relative_error.im,
+            ));
         };
     }
     None
 }
+
+fn abs_rel_errors(a: f64, b: f64) -> (f64, f64) {
+    let abs_e = (a - b).abs();
+    let rel_e = abs_e / a.abs();
+    (abs_e, rel_e)
+}
+
+fn abs_rel_errors_cmplx(a: &Complex64, b: &Complex64) -> (Complex64, Complex64) {
+    let (abs_e_r, rel_e_r) = abs_rel_errors(a.re, b.re);
+    let (abs_e_i, rel_e_i) = abs_rel_errors(a.im, b.im);
+    (
+        Complex64::new(abs_e_r, abs_e_i),
+        Complex64::new(rel_e_r, rel_e_i),
+    )
+}
+
 fn print_complex_arrays(c1: &[Complex64], c2: &[Complex64], c3: &[Complex64], c4: &[Complex64]) {
     println!("i\tFortran\t\t\t\tTranslator\t\t\t\tFortran looped\t\t\t\tRust looped");
     c1.iter().enumerate().for_each(|(i, fort)| {
@@ -337,6 +390,40 @@ fn print_complex_arrays(c1: &[Complex64], c2: &[Complex64], c3: &[Complex64], c4
             to_str(&c2[i]),
             to_str(&c3[i]),
             to_str(&c4[i]),
+        );
+    });
+
+    let errors: Vec<_> = c1
+        .iter()
+        .enumerate()
+        .map(|(i, fort)| {
+            (
+                abs_rel_errors_cmplx(fort, &c2[i]),
+                abs_rel_errors_cmplx(fort, &c3[i]),
+                abs_rel_errors_cmplx(fort, &c4[i]),
+            )
+        })
+        .collect();
+
+    println!("\nAbsolute Errors");
+    println!("i\tTranslator\t\t\t\tFortran looped\t\t\t\tRust looped");
+    errors.iter().enumerate().for_each(|(i, errs)| {
+        println!(
+            "{i}\t{}\t{}\t{}",
+            to_str(&errs.0.0),
+            to_str(&errs.1.0),
+            to_str(&errs.2.0),
+        );
+    });
+
+    println!("\nRelative Errors");
+    println!("i\tTranslator\t\t\t\tFortran looped\t\t\t\tRust looped");
+    errors.iter().enumerate().for_each(|(i, errs)| {
+        println!(
+            "{i}\t{}\t{}\t{}",
+            to_str(&errs.0.1),
+            to_str(&errs.1.1),
+            to_str(&errs.2.1),
         );
     });
 }
@@ -354,6 +441,12 @@ fn zbesj_loop(order: f64, z: Complex64, scaling: Scaling, n: usize) -> BesselRes
         nz += nzi;
     }
     return Ok((y, nz));
+}
+
+fn expected_error(order: f64, z: Complex64) -> f64 {
+    let machine_consts = MachineConsts::new();
+    let s = 1_f64.max(z.abs().log10()).max(order.log10());
+    machine_consts.tol * 10.0.pow(s)
 }
 
 fn zbesj_fortran_loop(
