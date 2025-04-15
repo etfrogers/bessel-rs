@@ -67,7 +67,7 @@ pub fn i_power_series(
     let mut sent_to_30 = false;
     let mut skip_to_40 = false;
     'l20: loop {
-        let mut dfnu = order + ((nn - 1) as f64);
+        let mut dfnu = order + ((nn - 1) as f64); // TODO can this and the line below be deleted? check when tests pass
         fnup = dfnu + 1.0;
         if !sent_to_30 {
             //-----------------------------------------------------------------------;
@@ -80,7 +80,7 @@ pub fn i_power_series(
             if kode == Scaling::Scaled {
                 ak1.re -= z.re;
             }
-            skip_to_40 = ak1.re > (-machine_consts.elim);
+            skip_to_40 = ak1.re > -machine_consts.elim;
         } else {
             sent_to_30 = false;
         }
@@ -114,7 +114,7 @@ pub fn i_power_series(
         if underflow_would_occur {
             aa *= machine_consts.rtol
         };
-        let mut coef = aa * Complex64::new(ak1.im.cos(), ak1.im.sin());
+        let mut coef = Complex64::from_polar(aa, ak1.im);
         let atol = machine_consts.tol * acz / fnup;
         let il = 2.min(nn);
         for i in 0..il {
