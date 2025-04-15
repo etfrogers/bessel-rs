@@ -6093,7 +6093,7 @@ fn ZUNI2(
                 //     REFINE  TEST AND SCALE;
                 //-----------------------------------------------------------------------;
                 //-----------------------------------------------------------------------;
-                rs1 += phi.abs().log10() - 0.25 * arg.abs().log10() - AIC;
+                rs1 += phi.abs().ln() - 0.25 * arg.abs().ln() - AIC;
                 // APHI = ZABS(PHIR,PHII);
                 // AARG = ZABS(ARGR,ARGI);
                 // RS1 = RS1 + DLOG(APHI) - 0.25*DLOG(AARG) - AIC;
