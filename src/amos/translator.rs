@@ -6117,8 +6117,16 @@ fn ZUNI2(
             //     EXPONENT EXTREMES;
             //-----------------------------------------------------------------------;
             //note that ZAIRY calls in fortran code ignore IERR (using IDUM)
-            let (a_airy, _) = ZAIRY(arg, false, Scaling::Scaled).unwrap();
-            let (d_airy, _) = ZAIRY(arg, true, Scaling::Scaled).unwrap();
+            let a_airy = match ZAIRY(arg, false, Scaling::Scaled){
+                Ok((y, _)) => y,
+                Err(PartialLossOfSignificance { y, nz: _ }) => y[0],
+                _ => panic!("This case is not handled by the Amos code")
+            };
+            let d_airy = match ZAIRY(arg, true, Scaling::Scaled){
+            Ok((y, _)) => y,
+            Err(PartialLossOfSignificance { y, nz: _ }) => y[0],
+            _ => panic!("This case is not handled by the Amos code")
+        };
             // CALL ZAIRY(ARGR, ARGI, 0, 2, AIR, AII, NAI, IDUM);
             // CALL ZAIRY(ARGR, ARGI, 1, 2, DAIR, DAII, NDAI, IDUM);
             // STR = DAIR*BSUMR - DAII*BSUMI;
