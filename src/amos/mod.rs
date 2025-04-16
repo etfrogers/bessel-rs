@@ -2,7 +2,6 @@ use std::f64::consts::PI;
 
 pub use gamma_ln::{GammaError, gamma_ln};
 pub use i_power_series::i_power_series;
-use machine::{d1mach, i1mach};
 use num::{Complex, One, Zero, complex::Complex64};
 use thiserror::Error;
 pub use translator::zbesj;
@@ -14,7 +13,6 @@ mod overflow_checks;
 mod translator;
 mod utils;
 mod z_asymptotic_i;
-// mod zbesh;
 
 #[derive(Error, Debug, PartialEq)]
 #[repr(i32)]
@@ -107,48 +105,78 @@ pub enum Scaling {
 pub(crate) type BesselValues<T = usize> = (Vec<Complex64>, T);
 pub(crate) type BesselResult<T = BesselValues> = Result<T, BesselError>;
 
+/// `elim` is a nunber such that if you take `elim.exp()` or `(-elim).exp()`, you will create a
+/// number that is at risk of overflowing `f64`. In this case "at risk of overflow" means
+/// within a factor of 1000.0 of `f64::MAX_POSITIVE` for `elim.exp()` or
+/// `f64::MIN_POSITIVE` for `(-elim).exp()`.
+///
+/// As the two conditions (positive and negative) above are not exactly the same, the code chooses
+/// the most conservative (which as standard is the MIN_POSITIVE version)
+///
+/// `approximation_limit` is a number a bit smaller than `elim` above which scaled calculations are used to
+/// ensure that over/underflow is mitigated. Here "a bit smaller" means "reduced by a factor of
+/// the smaller of 18 digits or the number of (decimal) digits stored in the mantissa of `f64`
+/// (which as standard is ~15.6). For `x > approximation_limit`, e^x will start to lose precision.
+///
+/// # See also
+/// tests in `test_machine_consts.rs`
+#[derive(Debug, Clone)]
 pub(crate) struct MachineConsts {
-    pub arm: f64,
-    pub ascle: f64,
-    pub tol: f64,
-    pub elim: f64,
-    pub alim: f64,
-    pub dig: f64,
-    pub rl: f64,
-    ///FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU.
-    pub asymptotic_order_limit: f64, //FNUL
+    pub underflow_limit: f64,              // ARM
+    pub absolute_approximation_limit: f64, // ASCLE
+    /// TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0E-18.
+    pub abs_error_tolerance: f64, // TOL
+    pub exponent_limit: f64,               // ELIM
+    pub approximation_limit: f64,          // ALIM
+    /// DIG NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).
+    pub _significant_digits: f64, // DIG
+    /// RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.
+    pub asymptotic_z_limit: f64, // RL
+    /// FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU.
+    pub asymptotic_order_limit: f64, // FNUL
     pub rtol: f64,
 }
 
 impl MachineConsts {
-    fn new() -> Self {
-        let arm = 1.0e+3 * d1mach(1);
-        let tol = d1mach(4).max(1.0e-18);
-        let ascle = arm / tol;
+    pub fn new() -> Self {
+        // Here we use approximate value, rather than calculating `10.0_f64.ln()`, as
+        // this matches the the Fotran code, and the exact value causes subtle differences
+        // in output (should just be what values are accpeted, but cause tetst to fail)
+        let ln_10: f64 = 2.303;
 
-        let k1 = i1mach(15);
-        let k2 = i1mach(16);
-        let r1m5 = d1mach(5);
-        let k = k1.abs().min(k2.abs());
-        let elim = 2.303 * ((k as f64) * r1m5 - 3.0);
-        let k1 = i1mach(14) - 1;
-        let mut aa = r1m5 * (k1 as f64);
-        let dig = aa.min(18.0);
-        aa *= 2.303;
-        let alim = elim + (-aa).max(-41.45);
-        let rl = 1.2 * dig + 3.0;
-        let fnul = 10.0 + 6.0 * (dig - 3.0);
+        let underflow_limit = 1.0e+3 * 2.0 * f64::MIN_POSITIVE;
+        let abs_error_tolerance = f64::EPSILON.max(1.0e-18);
+        // absolute_approximation_limit == (-approximation_limit).exp() -- see test
+        let absolute_approximation_limit = underflow_limit / abs_error_tolerance;
+
+        let digits_per_bit = (f64::RADIX as f64).log10();
+        let exponent_bit_limit = f64::MIN_EXP.abs().min(f64::MAX_EXP.abs());
+
+        // Subtract 3.0 (digits) to give a number above which 10^decimal_exponent_limit would
+        // be close to overflowing (i.e. within 1000 == 10^3.0 of the actual limit)
+        let decimal_exponent_limit = (exponent_bit_limit as f64) * digits_per_bit - 3.0;
+        // Multiplying by ln_10 converts from 10^x overflowing to e^x overflowing
+        let exponent_limit = ln_10 * decimal_exponent_limit;
+
+        let f64_siginficant_digits = digits_per_bit * ((f64::MANTISSA_DIGITS - 1) as f64);
+        // siginficant_digits == abs_error_tolerance.log10() -- see test
+        let significant_digits = f64_siginficant_digits.min(18.0);
+        // Again, multiply number of base 10 digits by ln_10 to convert to e^x
+        let approximation_limit = exponent_limit - (significant_digits * ln_10);
+
+        let asymptotic_z_limit = 1.2 * significant_digits + 3.0;
+        let asymptotic_order_limit = 10.0 + 6.0 * (significant_digits - 3.0);
 
         Self {
-            arm,
-            ascle,
-            tol,
-            elim,
-            alim,
-            dig,
-            rl,
-            asymptotic_order_limit: fnul,
-            rtol: 1.0 / tol,
+            underflow_limit,
+            absolute_approximation_limit,
+            abs_error_tolerance,
+            exponent_limit,
+            approximation_limit,
+            _significant_digits: significant_digits,
+            asymptotic_z_limit,
+            asymptotic_order_limit,
+            rtol: 1.0 / abs_error_tolerance,
         }
     }
 }

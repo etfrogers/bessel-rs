@@ -71,7 +71,8 @@ pub fn zuoik(
         if z.im <= 0.0 {
             zn_.re = -zn_.re;
         }
-        let (phi, arg, zeta1, zeta2, _, _) = zunhj(zn_, gnu, true, machine_consts.tol);
+        let (phi, arg, zeta1, zeta2, _, _) =
+            zunhj(zn_, gnu, true, machine_consts.abs_error_tolerance);
         zn = Some(zn_);
         let cz = -zeta1 + zeta2;
         let aarg = arg.abs();
@@ -88,39 +89,43 @@ pub fn zuoik(
     //-----------------------------------------------------------------------;
     //     OVERFLOW TEST;
     //-----------------------------------------------------------------------;
-    if rcz > machine_consts.elim {
+    if rcz > machine_consts.exponent_limit {
         return Err(Overflow);
     }
-    if rcz >= machine_consts.alim {
+    if rcz >= machine_consts.approximation_limit {
         rcz += aphi.ln();
         if iform == 2 {
             rcz = rcz - 0.25 * aarg.ln() - AIC
         };
-        if rcz > machine_consts.elim {
+        if rcz > machine_consts.exponent_limit {
             return Err(Overflow);
         }
     } else {
         //-----------------------------------------------------------------------;
         //     UNDERFLOW TEST;
         //-----------------------------------------------------------------------;
-        if rcz < -machine_consts.elim {
+        if rcz < -machine_consts.exponent_limit {
             y[0..nn].iter_mut().for_each(|v| *v = c_zero());
             return Ok(nn);
         }
-        if rcz <= -machine_consts.alim {
+        if rcz <= -machine_consts.approximation_limit {
             rcz += aphi.ln();
             if iform == 2 {
                 rcz = rcz - 0.25 * aarg.ln() - AIC
             };
-            if rcz <= -machine_consts.elim {
+            if rcz <= -machine_consts.exponent_limit {
                 return Ok(nn);
             }
             cz += phi.ln();
             if iform == 2 {
                 cz -= 0.25 * arg.ln() + AIC
             }
-            cz = rcz.exp() * Complex64::cis(cz.im) / machine_consts.tol;
-            if will_z_underflow(cz, machine_consts.ascle, machine_consts.tol) {
+            cz = rcz.exp() * Complex64::cis(cz.im) / machine_consts.abs_error_tolerance; 
+            if will_z_underflow(
+                cz,
+                machine_consts.absolute_approximation_limit,
+                machine_consts.abs_error_tolerance,
+            ) {
                 y[0..nn].iter_mut().for_each(|v| *v = c_zero());
                 return Ok(nn);
             }
@@ -148,7 +153,7 @@ pub fn zuoik(
                     (phi, cz_inner, 0.0)
                 } else {
                     let (phi, arg, zeta1, zeta2, _, _) =
-                        zunhj(zn.unwrap(), gnu, true, machine_consts.tol);
+                        zunhj(zn.unwrap(), gnu, true, machine_consts.abs_error_tolerance);
                     let cz_inner = -zeta1 + zeta2;
                     let aarg = arg.abs();
                     (phi, cz_inner, aarg)
@@ -159,15 +164,15 @@ pub fn zuoik(
                 }
                 let aphi = phi.abs();
                 rcz = cz.re;
-                if rcz >= -machine_consts.elim {
-                    if rcz > -machine_consts.alim {
+                if rcz >= -machine_consts.exponent_limit {
+                    if rcz > -machine_consts.approximation_limit {
                         return Ok(nuf);
                     };
                     rcz += aphi.ln();
                     if iform == 2 {
                         rcz = rcz - 0.25 * aarg.ln() - AIC;
                     }
-                    if rcz > -machine_consts.elim {
+                    if rcz > -machine_consts.exponent_limit {
                         skip_to_190 = true
                     }
                 }
@@ -188,10 +193,14 @@ pub fn zuoik(
         if iform != 1 {
             cz -= 0.25 * arg.ln() + AIC
         }
-        let ax = rcz.exp() / machine_consts.tol;
+        let ax = rcz.exp() / machine_consts.abs_error_tolerance;
         let ay = cz.im;
         cz = ax * Complex64::cis(ay);
-        if will_z_underflow(cz, machine_consts.ascle, machine_consts.tol) {
+        if will_z_underflow(
+            cz,
+            machine_consts.absolute_approximation_limit,
+            machine_consts.abs_error_tolerance,
+        ) {
             go_to_180 = true;
         } else {
             break 'outer;
@@ -242,7 +251,7 @@ pub fn zunik(
     //-----------------------------------------------------------------------;
     //     OVERFLOW TEST (ZR/FNU TOO SMALL);
     //-----------------------------------------------------------------------;
-    let test = machine_consts.arm;
+    let test = machine_consts.underflow_limit;
     let ac = order * test;
     if !(zr.re.abs() > ac || zr.im.abs() > ac) {
         let zeta1 = Complex64::new(2.0 * test.ln().abs() + order, 0.0);
@@ -280,7 +289,7 @@ pub fn zunik(
         working[k_] = crfn * s;
         ac *= rfn;
         let test = working[k_].re.abs() + working[k_].im.abs();
-        if ac < machine_consts.tol && test < machine_consts.tol {
+        if ac < machine_consts.abs_error_tolerance && test < machine_consts.abs_error_tolerance {
             break 'l20;
         } //GO TO 30;
     }

@@ -16,6 +16,7 @@ use crate::{BesselError, Scaling, bessel_j};
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_ref;
 
 mod test_gamma_ln;
+mod test_machine_consts;
 
 const RANDOM_LIMIT: f64 = 10_000.0;
 
@@ -419,7 +420,7 @@ fn zbesj_loop(order: f64, z: Complex64, scaling: Scaling, n: usize) -> BesselRes
 fn expected_error(order: f64, z: Complex64) -> f64 {
     let machine_consts = MachineConsts::new();
     let s = 1_f64.max(z.abs().log10()).max(order.log10());
-    machine_consts.tol * 10.0.pow(s)
+    machine_consts.abs_error_tolerance * 10.0.pow(s)
 }
 
 fn zbesj_fortran_loop(

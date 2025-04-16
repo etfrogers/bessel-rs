@@ -36,10 +36,10 @@ pub fn i_power_series(
         }
         return Ok((y, nz));
     }
-    let rtr1 = machine_consts.arm.sqrt();
+    let rtr1 = machine_consts.underflow_limit.sqrt();
     let mut crscr = 1.0;
     let mut underflow_would_occur = false;
-    if az < machine_consts.arm {
+    if az < machine_consts.underflow_limit {
         nz = n.try_into().unwrap();
         if order == 0.0 {
             nz -= 1;
@@ -80,7 +80,7 @@ pub fn i_power_series(
             if kode == Scaling::Scaled {
                 ak1.re -= z.re;
             }
-            skip_to_40 = ak1.re > -machine_consts.elim;
+            skip_to_40 = ak1.re > -machine_consts.exponent_limit;
         } else {
             sent_to_30 = false;
         }
@@ -106,22 +106,22 @@ pub fn i_power_series(
         } else {
             skip_to_40 = false; // should only skip once until sent back to 'l20
         }
-        if ak1.re <= (-machine_consts.alim) {
+        if ak1.re <= (-machine_consts.approximation_limit) {
             underflow_would_occur = true;
-            crscr = machine_consts.tol;
+            crscr = machine_consts.abs_error_tolerance;
         }
         let mut aa = ak1.re.exp();
         if underflow_would_occur {
             aa *= machine_consts.rtol
         };
         let mut coef = Complex64::from_polar(aa, ak1.im);
-        let atol = machine_consts.tol * acz / fnup;
+        let atol = machine_consts.abs_error_tolerance * acz / fnup;
         let il = 2.min(nn);
         for i in 0..il {
             dfnu = order + ((nn - (i + 1)) as f64);
             fnup = dfnu + 1.0;
             let mut s1 = c_one();
-            if acz >= machine_consts.tol * fnup {
+            if acz >= machine_consts.abs_error_tolerance * fnup {
                 ak1 = c_one();
                 ak = fnup + 2.0;
                 let mut s = fnup;
@@ -141,7 +141,11 @@ pub fn i_power_series(
             let s2 = s1 * coef;
             w[i] = s2;
             if underflow_would_occur
-                && will_z_underflow(s2, machine_consts.ascle, machine_consts.tol)
+                && will_z_underflow(
+                    s2,
+                    machine_consts.absolute_approximation_limit,
+                    machine_consts.abs_error_tolerance,
+                )
             {
                 sent_to_30 = true;
                 continue 'l20;
@@ -184,7 +188,7 @@ pub fn i_power_series(
                 k -= 1;
             }
             l = l_inner + 1;
-            if ck.abs() > machine_consts.ascle {
+            if ck.abs() > machine_consts.absolute_approximation_limit {
                 to_return = false;
                 break;
             }

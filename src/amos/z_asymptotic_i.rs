@@ -26,7 +26,7 @@ pub fn z_asymptotic_i(
     let nz = 0;
     let mut y = c_zeros(n);
     let az = z.abs();
-    let rtr1 = machine_consts.arm.sqrt();
+    let rtr1 = machine_consts.underflow_limit.sqrt();
     let il = 2.min(n);
     let dfnu = order + ((n - il) as f64);
     //-----------------------------------------------------------------------;
@@ -38,12 +38,12 @@ pub fn z_asymptotic_i(
     if kode == Scaling::Scaled {
         cz.re = 0.0;
     }
-    if cz.re.abs() > machine_consts.elim {
+    if cz.re.abs() > machine_consts.exponent_limit {
         return Err(Overflow);
     }
     let dnu2 = dfnu + dfnu;
     let mut koded = true;
-    if !((cz.re.abs() > machine_consts.alim) && (n > 2)) {
+    if !((cz.re.abs() > machine_consts.approximation_limit) && (n > 2)) {
         koded = false;
         ak1 *= cz.exp();
     }
@@ -58,8 +58,8 @@ pub fn z_asymptotic_i(
     //     EXPANSION FOR THE IMAGINARY PART.;
     //-----------------------------------------------------------------------;
     let aez = 8.0 * az;
-    let s = machine_consts.tol / aez;
-    let jl = (machine_consts.rl * 2.0) as i32 + 2;
+    let s = machine_consts.abs_error_tolerance / aez;
+    let jl = (machine_consts.asymptotic_z_limit * 2.0) as i32 + 2;
     let mut p1 = c_zero();
     if z.im != 0.0 {
         //-----------------------------------------------------------------------;
@@ -121,7 +121,7 @@ pub fn z_asymptotic_i(
             return Err(DidNotConverge);
         }
         let mut s2 = cs1;
-        if z.re * 2.0 < machine_consts.elim {
+        if z.re * 2.0 < machine_consts.exponent_limit {
             s2 += (-z * 2.0).exp() * p1 * cs2;
         }
         fdn = fdn + 8.0 * dfnu + 4.0;
