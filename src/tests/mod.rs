@@ -11,40 +11,13 @@ use rand::{Rng, SeedableRng, random_range};
 use rstest::{fixture, rstest};
 
 use crate::amos::bindings::zbesj_wrap;
-use crate::amos::{BesselResult, MachineConsts, gamma_ln, zbesj};
-use crate::{BesselError, GammaError, Scaling, bessel_j};
+use crate::amos::{BesselResult, MachineConsts, zbesj};
+use crate::{BesselError, Scaling, bessel_j};
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_ref;
 
+mod test_gamma_ln;
+
 const RANDOM_LIMIT: f64 = 10_000.0;
-
-#[test]
-fn test_gamma_ln_hard_coded() {
-    for i in 1..=100 {
-        let f = i as f64;
-        let actual = gamma_ln(f).unwrap();
-        let expected = f.gamma().ln();
-        assert_relative_eq!(actual, expected)
-    }
-}
-
-#[test]
-fn test_gamma_ln() {
-    for f in [0.00000000001, 2.2, 0.5, 2.0_f64.sqrt(), 101.0] {
-        // large values cause the "expected" calculation to overflow: the fortran version seems to work!
-        let actual = gamma_ln(f).unwrap();
-        let expected = f.gamma().ln();
-        assert_relative_eq!(actual, expected, max_relative = 1e-10)
-    }
-}
-
-#[rstest]
-fn test_gamma_ln_negative() {
-    for f in [0.00000000001, 2.2, 0.5, 2.0_f64.sqrt(), 101.0] {
-        // large values cause the "expected" calculation to overflow: the fortran version seems to work!
-        let actual = gamma_ln(-f);
-        assert_eq!(actual, Err(GammaError::ZLessThanZero))
-    }
-}
 
 #[rstest]
 #[trace]

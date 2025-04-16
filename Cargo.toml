@@ -12,3 +12,4 @@ approx = { version = "0.5.1", features = ["num-complex"] }
 complex-bessel-rs = "1.2.1"
 rand = "0.9.0"
 rstest = "0.25.0"
+rstest_reuse = "0.7.0"
