@@ -1,5 +1,7 @@
 use num::complex::Complex64;
 
+use super::{BesselError, BesselResult, MachineConsts};
+
 pub const RTPI: f64 = 0.159154943091895336;
 
 pub fn will_z_underflow(
@@ -34,4 +36,20 @@ pub fn will_z_underflow(
         let max_abs_component = re_abs.max(im_abs);
         max_abs_component < min_abs_component / tol
     }
+}
+
+pub fn is_sigificance_lost(
+    z_abs: f64,
+    reduced_order: f64,
+    machine_consts: &MachineConsts,
+) -> BesselResult<bool> {
+    let f64_precision_limit = 0.5 / machine_consts.abs_error_tolerance;
+    // TODO the below is limited to i32: could push to 64 later, but would change compare to fortran
+    let integer_size_limit = (i32::MAX as f64) * 0.5;
+    let upper_size_limit = f64_precision_limit.min(integer_size_limit);
+    if z_abs > upper_size_limit || reduced_order > upper_size_limit {
+        return Err(BesselError::LossOfSignificance);
+    }
+    let scaling_limit = upper_size_limit.sqrt();
+    Ok((z_abs > scaling_limit) || (reduced_order > scaling_limit))
 }

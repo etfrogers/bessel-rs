@@ -1,9 +1,6 @@
 #![allow(non_snake_case)]
 use super::{
-    BesselError, BesselResult, IKType, MachineConsts, Scaling, c_one, c_zero, c_zeros, gamma_ln,
-    i_power_series,
-    overflow_checks::{zunik, zuoik},
-    utils::will_z_underflow,
+    c_one, c_zero, c_zeros, gamma_ln, i_power_series, overflow_checks::{zunik, zuoik}, utils::{is_sigificance_lost, will_z_underflow}, BesselError, BesselResult, IKType, MachineConsts, Scaling
 };
 use crate::amos::{
     BesselError::*, max_abs_component, overflow_checks::zunhj, z_asymptotic_i::z_asymptotic_i,
@@ -374,7 +371,10 @@ fn ZBESH(ZR, ZI, FNU, KODE, M, N, CYR, CYI, NZ, IERR)
       IERR=4
       RETURN
       END
-fn ZBESI(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, IERR)
+      */
+
+pub fn ZBESI(z: Complex64, order:f64, KODE: Scaling, N: usize)->BesselResult {
+    //ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, IERR)
 // ***BEGIN PROLOGUE  ZBESI
 // ***DATE WRITTEN   830501   (YYMMDD)
 // ***REVISION DATE  890801, 930101   (YYMMDD)
@@ -527,125 +527,175 @@ fn ZBESI(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, IERR)
 // ***ROUTINES CALLED  ZBINU,ZABS,i1mach,d1mach
 // ***END PROLOGUE  ZBESI
 //     COMPLEX CONE,CSGN,CW,CY,CZERO,Z,ZN
-      EXTERNAL ZABS
-      DOUBLE PRECISION AA, ALIM, ARG, CONEI, CONER, CSGNI, CSGNR, CYI,
-     * CYR, DIG, ELIM, FNU, FNUL, PI, RL, R1M5, STR, TOL, ZI, ZNI, ZNR,
-     * ZR, d1mach, AZ, BB, FN, ZABS, ASCLE, RTOL, ATOL, STI
-      INTEGER I, IERR, INU, K, KODE, K1,K2,N,NZ,NN, i1mach
-      DIMENSION CYR(N), CYI(N)
-      DATA PI /3.14159265358979324/
-      DATA CONER, CONEI /1.0,0.0/
+    //   EXTERNAL ZABS
+    //   DOUBLE PRECISION AA, ALIM, ARG, CONEI, CONER, CSGNI, CSGNR, CYI,
+    //  * CYR, DIG, ELIM, FNU, FNUL, PI, RL, R1M5, STR, TOL, ZI, ZNI, ZNR,
+    //  * ZR, d1mach, AZ, BB, FN, ZABS, ASCLE, RTOL, ATOL, STI
+    //   INTEGER I, IERR, INU, K, KODE, K1,K2,N,NZ,NN, i1mach
+    //   DIMENSION CYR(N), CYI(N)
+    //   DATA PI /3.14159265358979324/
+    //   DATA CONER, CONEI /1.0,0.0/
 //
 // ***FIRST EXECUTABLE STATEMENT  ZBESI
-      IERR = 0
-      NZ=0
-      if (FNU < 0.0) IERR=1
-      if (KODE < 1 || KODE > 2) IERR=1
-      if (N < 1) IERR=1
-      if (IERR != 0) RETURN
-//-----------------------------------------------------------------------
-//     SET PARAMETERS RELATED TO MACHINE CONSTANTS.
-//     TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0E-18.
-//     ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.
-//     EXP(-ELIM) < EXP(-ALIM)=EXP(-ELIM)/TOL    AND
-//     EXP(ELIM) > EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR
-//     UNDERFLOW AND OVERFLOW LIMITS WHERE SCALED ARITHMETIC IS DONE.
-//     RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.
-//     DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).
-//     FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU.
-//-----------------------------------------------------------------------
-      TOL = DMAX1(d1mach(4),1.0e-18)
-      K1 = i1mach(15)
-      K2 = i1mach(16)
-      R1M5 = d1mach(5)
-      K = MIN0(K1.abs(),K2.abs())
-      ELIM = 2.303*(K as f64)*R1M5-3.0)
-      K1 = i1mach(14) - 1
-      AA = R1M5*(K1 as f64)
-      DIG = DMIN1(AA,18.0)
-      AA = AA*2.303
-      ALIM = ELIM + DMAX1(-AA,-41.45)
-      RL = 1.2*DIG + 3.0
-      FNUL = 10.0 + 6.0*(DIG-3.0)
-//-----------------------------------------------------------------------------
-//     TEST FOR PROPER RANGE
-//-----------------------------------------------------------------------
-      AZ = ZABS(ZR,ZI)
-      FN = FNU+((N-1) as f64)
-      AA = 0.5/TOL
-      BB=DBLE(FLOAT(i1mach(9)))*0.5
-      AA = DMIN1(AA,BB)
-      if (AZ > AA) {return Err(LossOfSignificance);}
-      if (FN > AA) {return Err(LossOfSignificance);}
-      AA = DSQRT(AA)
-      if (AZ > AA) IERR=3
-      if (FN > AA) IERR=3
-      ZNR = ZR
-      ZNI = ZI
-      CSGNR = CONER
-      CSGNI = CONEI
-      if (ZR >= 0.0) GO TO 40
-      ZNR = -ZR
-      ZNI = -ZI
-//-----------------------------------------------------------------------
-//     CALCULATE CSGN=EXP(FNU*PI*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
-//     WHEN FNU IS LARGE
-//-----------------------------------------------------------------------
-      INU = INT(SNGL(FNU))
-      ARG = (FNU-(INU as f64))*PI
-      if (ZI < 0.0) ARG = -ARG
-      CSGNR = DCOS(ARG)
-      CSGNI = DSIN(ARG)
-      if (MOD(INU,2) == 0) GO TO 40
-      CSGNR = -CSGNR
-      CSGNI = -CSGNI
-   40 CONTINUE
-      CALL ZBINU(ZNR, ZNI, FNU, KODE, N, CYR, CYI, NZ, RL, FNUL, TOL,
-     * ELIM, ALIM)
-      if (NZ < 0) GO TO 120
-      if (ZR >= 0.0) RETURN
-//-----------------------------------------------------------------------
-//     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE
-//-----------------------------------------------------------------------
-      NN = N - NZ
-      if (NN == 0) RETURN
-      RTOL = 1.0/TOL
-      ASCLE = d1mach(1)*RTOL*1.0e+3
-      DO 50 I=1,NN
-//       STR = CYR(I)*CSGNR - CYI(I)*CSGNI
-//       CYI(I) = CYR(I)*CSGNI + CYI(I)*CSGNR
-//       CYR(I) = STR
-        AA = CYR(I)
-        BB = CYI(I)
-        ATOL = 1.0
-        if (DMAX1((AA).abs(),(BB).abs()) > ASCLE) GO TO 55
-          AA = AA*RTOL
-          BB = BB*RTOL
-          ATOL = TOL
-   55   CONTINUE
-        STR = AA*CSGNR - BB*CSGNI
-        STI = AA*CSGNI + BB*CSGNR
-        CYR(I) = STR*ATOL
-        CYI(I) = STI*ATOL
-        CSGNR = -CSGNR
-        CSGNI = -CSGNI
-   50 CONTINUE
-      RETURN
-  120 CONTINUE
-      if(NZ == (-2)) GO TO 130
-      NZ = 0
-      IERR=2
-      RETURN
-  130 CONTINUE
-      NZ=0
-      IERR=5
-      RETURN
-  260 CONTINUE
-      NZ=0
-      IERR=4
-      RETURN
-      END
-*/
+let mut err = None;
+    if order < 0.0_f64 {
+        err = Some("order must be positive")
+    };
+    if N < 1 {
+        err = Some("N must be >= 1")
+    };
+    if let Some(details) = err {
+        return Err(BesselError::InvalidInput {
+            details: details.to_owned(),
+        });
+    }
+
+    //   IERR = 0;
+    //   NZ=0;
+    //   if (FNU < 0.0) IERR=1;
+    //   if (KODE < 1 || KODE > 2) IERR=1;
+    //   if (N < 1) IERR=1;
+    //   if (IERR != 0) RETURN;
+//-----------------------------------------------------------------------;
+//     SET PARAMETERS RELATED TO MACHINE CONSTANTS.;
+//     TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0E-18.;
+//     ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.;
+//     EXP(-ELIM) < EXP(-ALIM)=EXP(-ELIM)/TOL    AND;
+//     EXP(ELIM) > EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR;
+//     UNDERFLOW AND OVERFLOW LIMITS WHERE SCALED ARITHMETIC IS DONE.;
+//     RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.;
+//     DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).;
+//     FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU.;
+//-----------------------------------------------------------------------;
+    //   TOL = DMAX1(d1mach(4),1.0e-18);
+    //   K1 = i1mach(15);
+    //   K2 = i1mach(16);
+    //   R1M5 = d1mach(5);
+    //   K = MIN0(K1.abs(),K2.abs());
+    //   ELIM = 2.303*(K as f64)*R1M5-3.0);
+    //   K1 = i1mach(14) - 1;
+    //   AA = R1M5*(K1 as f64);
+    //   DIG = DMIN1(AA,18.0);
+    //   AA = AA*2.303;
+    //   ALIM = ELIM + DMAX1(-AA,-41.45);
+    //   RL = 1.2*DIG + 3.0;
+    //   FNUL = 10.0 + 6.0*(DIG-3.0);
+    let machine_consts = MachineConsts::new();
+//-----------------------------------------------------------------------------;
+//     TEST FOR PROPER RANGE;
+//-----------------------------------------------------------------------;
+      let AZ = z.abs();//ZABS(ZR,ZI);
+      let FN = order+((N-1) as f64);
+    let partial_significance_loss = is_sigificance_lost(AZ, FN, &machine_consts)?;
+
+    //   AA = 0.5/TOL;
+    //   BB=DBLE(FLOAT(i1mach(9)))*0.5;
+    //   AA = DMIN1(AA,BB);
+    //   if (AZ > AA) {return Err(LossOfSignificance);};
+    //   if (FN > AA) {return Err(LossOfSignificance);};
+    //   AA = DSQRT(AA);
+    //   if (AZ > AA) IERR=3;
+    //   if (FN > AA) IERR=3;
+    //   ZNR = ZR;
+    //   ZNI = ZI;
+    //   CSGNR = CONER;
+    //   CSGNI = CONEI;
+    let (zn, mut csgn) = if z.re >= 0.0{
+        (z, c_one())
+    }else{
+        // zn = -z;
+    //   if (ZR >= 0.0) GO TO 40;
+    //   ZNR = -ZR;
+    //   ZNI = -ZI;
+//-----------------------------------------------------------------------;
+//     CALCULATE CSGN=EXP(FNU*PI*I) TO MINIMIZE LOSSES OF SIGNIFICANCE;
+//     WHEN FNU IS LARGE;
+//-----------------------------------------------------------------------;
+    let INU = order as usize;
+    //   INU = INT(SNGL(FNU));
+    //   ARG = (FNU-(INU as f64))*PI;
+    let  ARG = order.fract() * PI * if z.im<0.0{-1.0}else{1.0};
+    // if z.im <0.0{ARG = -ARG}
+    //   if (ZI < 0.0) ARG = -ARG;
+    let mut  csgn = Complex64::cis(ARG);
+    //   CSGNR = DCOS(ARG);
+    //   CSGNI = DSIN(ARG);
+    //   if (MOD(INU,2) == 0) GO TO 40;
+    if INU%2 != 0 {csgn = -csgn;}
+    (-z, csgn)
+    //   CSGNR = -CSGNR;
+    //   CSGNI = -CSGNI;
+    };
+//    40 CONTINUE;
+    //   CALL ZBINU(ZNR, ZNI, FNU, KODE, N, CYR, CYI, NZ, RL, FNUL, TOL,;
+    //  * ELIM, ALIM);
+    let (mut cy, nz) = ZBINU(zn, order, KODE, N, &machine_consts)?;
+    //   if (NZ < 0) GO TO 120;
+    let remaining_n = N - nz;
+    //   if (ZR >= 0.0) RETURN;
+      if z.re < 0.0 && remaining_n > 0{
+
+//-----------------------------------------------------------------------;
+//     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE;
+//-----------------------------------------------------------------------;
+    //   NN = N - NZ;
+    //   if (NN == 0) RETURN;
+    //   RTOL = 1.0/TOL;
+    //   ASCLE = d1mach(1)*RTOL*1.0e+3;
+    //   DO 50 I=1,remaining_n;
+    for i in 0..remaining_n{
+//       STR = CYR(I)*CSGNR - CYI(I)*CSGNI;
+//       CYI(I) = CYR(I)*CSGNI + CYI(I)*CSGNR;
+//       CYR(I) = STR;
+        // AA = CYR(I);
+        // BB = CYI(I);
+        // ATOL = 1.0;
+        let correction = if max_abs_component(cy[i]) <= machine_consts.absolute_approximation_limit{
+            cy[i] *= machine_consts.rtol;
+            machine_consts.abs_error_tolerance
+        }else{
+            1.0
+        };
+//         if (DMAX1((AA).abs(),(BB).abs()) > ASCLE) GO TO 55;
+//           AA = AA*RTOL;
+//           BB = BB*RTOL;
+//           ATOL = TOL;
+//    55   CONTINUE;
+        cy[i] *= csgn;
+        cy[i] *= correction;
+        // STR = AA*CSGNR - BB*CSGNI;
+        // STI = AA*CSGNI + BB*CSGNR;
+        // CYR(I) = STR*ATOL;
+        // CYI(I) = STI*ATOL;
+        csgn = -csgn;
+        // CSGNR = -CSGNR;
+        // CSGNI = -CSGNI;
+    }
+}
+
+if partial_significance_loss {
+    Err(PartialLossOfSignificance { y: cy, nz })
+} else {
+    Ok((cy, nz))
+}
+//    50 CONTINUE;
+//       RETURN;
+//   120 CONTINUE;
+//       if(NZ == (-2)) GO TO 130;
+//       NZ = 0;
+//       IERR=2;
+//       RETURN;
+//   130 CONTINUE;
+//       NZ=0;
+//       IERR=5;
+//       RETURN;
+//   260 CONTINUE;
+//       NZ=0;
+//       IERR=4;
+//       RETURN;
+//       END;
+      }
+
 pub fn zbesj(
     z: Complex64, //ZR, ZI,
     order: f64,   //FNU,
@@ -839,14 +889,7 @@ pub fn zbesj(
     //-----------------------------------------------------------------------
     let z_abs = z.abs(); //ZABS(ZR, ZI);
     let reduced_order = order + ((n - 1) as f64);
-    let f64_precision_limit = 0.5 / machine_consts.abs_error_tolerance;
-    // TODO the below is limited to i32: could push to 64 later, but would change compare to fortran
-    let integer_size_limit = (i32::MAX as f64) * 0.5;
-    let upper_size_limit = f64_precision_limit.min(integer_size_limit);
-    if z_abs > upper_size_limit || reduced_order > upper_size_limit{
-        return Err(LossOfSignificance);
-    }
-    let scaling_limit = upper_size_limit.sqrt();
+    let partial_significance_loss = is_sigificance_lost(z_abs, reduced_order, &machine_consts)?;
     //-----------------------------------------------------------------------
     //     CALCULATE CSGN=EXP(FNU*FRAC_PI_2*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
     //     WHEN FNU IS LARGE
@@ -881,12 +924,13 @@ pub fn zbesj(
         cy[i] = st*ATOL;
         csgn *= sign_selector*Complex64::I;
         }
-    if (z_abs > scaling_limit) || (reduced_order > scaling_limit) {
+    if partial_significance_loss {
         Err(PartialLossOfSignificance { y: cy, nz })
     } else {
         Ok((cy, nz))
     }
 }
+
 /*
 fn ZBESK(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, IERR)
 // ***BEGIN PROLOGUE  ZBESK
