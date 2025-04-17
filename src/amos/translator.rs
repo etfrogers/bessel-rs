@@ -3072,7 +3072,7 @@ fn ZKSCL(
         //   CALL ZLOG(S1R, S1I, CSR, CSI, IDUM);
         //   CSR = CSR - ZRR;
         //   CSI = CSI - ZRI;
-        cs = (cs.re.exp() / machine_consts.abs_error_tolerance) * Complex64::cis(cs.im);
+        cs = Complex64::from_polar(cs.re.exp() / machine_consts.abs_error_tolerance, cs.im);
         //   STR = DEXP(CSR)/TOL;
         //   CSR = STR*DCOS(CSI);
         //   CSI = STR*DSIN(CSI);
@@ -3156,7 +3156,7 @@ fn ZKSCL(
             cs = s2.ln() - zd;
             //   CSR = CSR - ZDR;
             //   CSI = CSI - ZDI;
-            cs = (cs.exp() / machine_consts.abs_error_tolerance) * Complex64::cis(cs.im);
+            cs = Complex64::from_polar(cs.re.exp() / machine_consts.abs_error_tolerance, cs.im);
             //   STR = DEXP(CSR)/TOL;
             //   CSR = STR*DCOS(CSI);
             //   CSI = STR*DSIN(CSI);

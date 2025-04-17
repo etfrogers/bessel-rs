@@ -120,7 +120,7 @@ pub fn zuoik(
             if iform == 2 {
                 cz -= 0.25 * arg.ln() + AIC
             }
-            cz = rcz.exp() * Complex64::cis(cz.im) / machine_consts.abs_error_tolerance; 
+            cz = Complex64::from_polar(rcz.exp() / machine_consts.abs_error_tolerance, cz.im);
             if will_z_underflow(
                 cz,
                 machine_consts.absolute_approximation_limit,
@@ -193,9 +193,7 @@ pub fn zuoik(
         if iform != 1 {
             cz -= 0.25 * arg.ln() + AIC
         }
-        let ax = rcz.exp() / machine_consts.abs_error_tolerance;
-        let ay = cz.im;
-        cz = ax * Complex64::cis(ay);
+        cz = Complex64::from_polar(rcz.exp() / machine_consts.abs_error_tolerance, cz.im);
         if will_z_underflow(
             cz,
             machine_consts.absolute_approximation_limit,
