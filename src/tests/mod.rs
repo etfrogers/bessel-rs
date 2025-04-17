@@ -173,7 +173,7 @@ fn test_bessel_j_random_logspace(
     let mut random_val = |pos: bool| -> f64 {
         let ll = f64::MIN_POSITIVE;
         let ul = f64::MAX;
-        let r = random_range(ll.log10()..ul.log10());
+        let r = rng.random_range(ll.log10()..ul.log10());
         let sign = if pos {
             1.0
         } else {
@@ -181,7 +181,7 @@ fn test_bessel_j_random_logspace(
         };
         sign * 10.0.pow(r)
     };
-    for _ in 0..100000 {
+    for _ in 0..500000 {
         let order = random_val(true);
         let (zr, zi) = match num_type {
             NumType::Real => (random_val(false), 0.0),
