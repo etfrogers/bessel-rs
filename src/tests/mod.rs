@@ -7,7 +7,7 @@ use num::complex::{Complex64, ComplexFloat};
 use num::pow::Pow;
 use rand::rngs::SmallRng;
 use rand::seq::IndexedRandom;
-use rand::{Rng, SeedableRng, random_range};
+use rand::{Rng, SeedableRng};
 use rstest::{fixture, rstest};
 
 use crate::amos::bindings::zbesj_wrap;
@@ -49,11 +49,10 @@ fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
 
 #[rstest]
 fn test_bessel_j_random(mut rng: SmallRng) {
-    let mut random_val = || random_val_rng(&mut rng);
     for _ in 0..1000000 {
-        let order = random_range(f64::EPSILON..RANDOM_LIMIT);
-        let zr = random_val();
-        let zi = random_val();
+        let order = rng.random_range(f64::EPSILON..RANDOM_LIMIT);
+        let zr = random_val_rng(&mut rng);
+        let zi = random_val_rng(&mut rng);
         let z = Complex64::new(zr, zi);
         // dbg!(order, &z);
         // println!("#[case({}, {}, {})]", order, z.re, z.im);
@@ -142,14 +141,13 @@ fn test_bessel_j_large_n_random(
     #[values(NumType::Real, NumType::Imaginary, NumType::Complex)] num_type: NumType,
     mut rng: SmallRng,
 ) {
-    let mut random_val = || random_val_rng(&mut rng);
     let n = 9;
     for _ in 0..100000 {
-        let order = random_range(f64::EPSILON..RANDOM_LIMIT);
+        let order = rng.random_range(f64::EPSILON..RANDOM_LIMIT);
         let (zr, zi) = match num_type {
-            NumType::Real => (random_val(), 0.0),
-            NumType::Imaginary => (0.0, random_val()),
-            NumType::Complex => (random_val(), random_val()),
+            NumType::Real => (random_val_rng(&mut rng), 0.0),
+            NumType::Imaginary => (0.0, random_val_rng(&mut rng)),
+            NumType::Complex => (random_val_rng(&mut rng), random_val_rng(&mut rng)),
         };
         let z = Complex64::new(zr, zi);
         // dbg!(order, &z);
