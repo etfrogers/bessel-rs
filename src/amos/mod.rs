@@ -122,12 +122,16 @@ pub(crate) type BesselResult<T = BesselValues> = Result<T, BesselError>;
 /// tests in `test_machine_consts.rs`
 #[derive(Debug, Clone)]
 pub(crate) struct MachineConsts {
-    pub underflow_limit: f64,              // ARM
-    pub absolute_approximation_limit: f64, // ASCLE
+    // Originally ARM
+    pub underflow_limit: f64,
+    /// Originally ASCLE
+    pub absolute_approximation_limit: f64,
     /// TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0E-18.
     pub abs_error_tolerance: f64, // TOL
-    pub exponent_limit: f64,               // ELIM
-    pub approximation_limit: f64,          // ALIM
+    /// Originally ELIM
+    pub exponent_limit: f64,
+    /// Originally ALIM
+    pub approximation_limit: f64,
     /// DIG NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).
     pub _significant_digits: f64, // DIG
     /// RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.
