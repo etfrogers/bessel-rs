@@ -1,5 +1,6 @@
 use f64;
 use num::Zero;
+use rstest_reuse::{apply, template};
 use std::f64::consts::{FRAC_PI_2, PI};
 
 use approx::{assert_relative_eq, relative_eq};
@@ -20,17 +21,46 @@ mod test_machine_consts;
 
 const RANDOM_LIMIT: f64 = 10_000.0;
 
+#[template]
 #[rstest]
-#[trace]
 #[case(4.0, 2.1, 0.0)] // z_power_series
 #[case(5.0, 2.0001, 0.0)] // z_power_series
 #[case(340.0, 35.0001, 0.0)]
 // z_power_series, iflag = true
-#[case(407.3,-325.1, 635.2)] //not yet implemented
-#[case(465.0,-867.0, -448.0)] //not yet implemented
+#[case(407.3,-325.1, 635.2)]
+#[case(465.0,-867.0, -448.0)]
 #[case(10.711871220659752, -6.89931119845653, -9.408182256887017)]
 #[case(8.544950848779838, -8.645033163963603, 18.976439189605003,)]
 #[case(21.04, 53.19, -40.77)]
+#[case(4.0, 2.1, 0.0)] // z_power_series
+#[case(5.0, 2.0001, 0.0)] // z_power_series
+#[case(340.0, 35.0001, 0.0)] // z_power_series, iflag = true
+#[case(899.6,-35.7,317.8)]
+#[case(531.0,-106.7,-16.0)]
+#[case(531.0,-106.0,-16.0)]
+#[case(433.0,16.874,-38.17)]
+#[case(433.0,16.8,-38.17)]
+#[case(311.2078694557452,-10.990141170168044,-25.70154097357056,)]
+#[case(8.544950848779838, -8.645033163963603, 18.976439189605003,)]
+#[case(17.5, 70.3, 37.4)]
+#[case(13.337522865795481, -29.8266399174247, 17.66323218839807)]
+#[case(5423.24, -7915.11, -3113.95)]
+#[case(2213.0, -1813.0, -1033.0)]
+#[case(5514.86274463943, -9489.650336481069, 4951.6909981261)]
+#[case(2.74e-288, 6.33e-166, 7.53e-275)]
+#[case(1.51e-150, -3.07e-118, 3.51e-42)]
+#[case(2.637e-27, -4.01e-50, 0.0)]
+#[case(4.0e-132, 0e0, 445.0)]
+#[case(8714.0, 8904.0, -10.0)]
+#[case(60.9, 246.2, -982.5)]
+#[case(40.5, 1673.3, -4.0)]
+#[case(2634.5, -2634.5, 14.1)]
+#[case(5.007e-14, 4.401331657952316e-5, -3.6e-6)]
+#[case(1719.3, 920.1, 0.0)]
+#[case(3.5695132850479827e3, -2.2313404290100934e3, 8.646324128723001e3)]
+fn bessel_j_cases(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {}
+
+#[apply(bessel_j_cases)]
 fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     let z = Complex64::new(zr, zi);
     let actual = bessel_j(order, z);
@@ -76,42 +106,20 @@ fn test_bessel_j_random_negative() {
     todo!("Add negative values")
 }
 
-#[rstest]
+#[apply(bessel_j_cases)]
 #[trace]
-#[case(4.0, 2.1)] // z_power_series
-#[case(5.0, 2.0001)] // z_power_series
-#[case(340.0, 35.0001)] // z_power_series, iflag = true
 fn test_bessel_j_large_n_real(
     #[case] order: f64,
-    #[case] z: f64,
+    #[case] zr: f64,
+    #[case] _zi: f64,
     #[values(3, 4, 9, 100)] n: usize,
     #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
 ) {
-    check_against_fortran(order, z.into(), scaling, n);
+    // ignores the zi input
+    check_against_fortran(order, zr.into(), scaling, n);
 }
 
-#[rstest]
-#[case(899.6,-35.7,317.8)]
-#[case(531.0,-106.7,-16.0)]
-#[case(531.0,-106.0,-16.0)]
-#[case(433.0,16.874,-38.17)]
-#[case(433.0,16.8,-38.17)]
-#[case(311.2078694557452,-10.990141170168044,-25.70154097357056,)]
-#[case(8.544950848779838, -8.645033163963603, 18.976439189605003,)]
-#[case(17.5, 70.3, 37.4)]
-#[case(13.337522865795481, -29.8266399174247, 17.66323218839807)]
-#[case(5423.24, -7915.11, -3113.95)]
-#[case(2213.0, -1813.0, -1033.0)]
-#[case(5514.86274463943, -9489.650336481069, 4951.6909981261)]
-#[case(2.74e-288, 6.33e-166, 7.53e-275)]
-#[case(1.51e-150, -3.07e-118, 3.51e-42)]
-#[case(2.637e-27, -4.01e-50, 0.0)]
-#[case(4.0e-132, 0e0, 445.0)]
-#[case(8714.0, 8904.0, -10.0)]
-#[case(60.9, 246.2, -982.5)]
-#[case(40.5, 1673.3, -4.0)]
-#[case(2634.5, -2634.5, 14.1)]
-#[case(5.007e-14, 4.401331657952316e-5, -3.6e-6)]
+#[apply(bessel_j_cases)]
 fn test_bessel_j_large_n_complex(
     #[case] order: f64,
     #[case] zr: f64,
