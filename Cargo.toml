@@ -3,6 +3,10 @@ name = "bessel-rs"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+# default = ["random_tests"]
+random_tests = []
+
 [dependencies]
 num = "0.4.3"
 thiserror = "2.0.11"
