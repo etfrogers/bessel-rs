@@ -132,22 +132,21 @@ pub fn z_asymptotic_i(
         return Ok((y, nz));
     }
 
-    let nn = n;
-    let mut k = nn - 2;
-    let mut ak = k as f64;
+    // let mut k = n - 2;
+    // let mut ak = k as f64;
     let rz = z.conj() * 2.0 * raz.powi(2);
-    let ib = 3;
-    '_l80: for _ in ib..=nn {
-        y[k - 1] = (ak + order) * (rz * y[k]) + y[k + 1];
-        ak -= 1.0;
-        if k > 0 {
-            k -= 1;
-        }
+    // let ib = 3;
+    for k in (1..=n - 2).rev() {
+        y[k - 1] = ((k as f64) + order) * (rz * y[k]) + y[k + 1];
+        // ak -= 1.0;
+        // if k > 0 {
+        //     k -= 1;
+        // }
     }
     if koded {
         let ck = cz.exp();
-        '_l90: for i in 0..nn {
-            y[i] *= ck;
+        for yi in y.iter_mut() {
+            *yi *= ck;
         }
     }
     Ok((y, nz))
