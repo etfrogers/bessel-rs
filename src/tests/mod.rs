@@ -225,36 +225,87 @@ fn check_complex_arrays_equal(
     let actual = actual.clone().into_vec();
     let expected = expected.clone().into_vec();
     let n = actual.len() as f64;
-    for (i, (act, exp)) in actual.iter().zip(expected).enumerate() {
-        let magnitude_diff = (act.re / act.im).log10().abs();
-        let mut tol = 10.0.powf((tolerance.log10() + magnitude_diff).min(0.0));
-        tol *= n;
-        if !relative_eq!(*act, exp, max_relative = tol) {
-            let (actual_error, relative_error) = abs_rel_errors_cmplx(act, &exp);
+    for (i, (&act, exp)) in actual.iter().zip(expected).enumerate() {
+        let tolerances = Tolerances::new(act, exp, tolerance);
+        if !complex_relative_eq(act, exp, &tolerances) {
+            let (actual_error, relative_error) = abs_rel_errors_cmplx(act, exp);
             return Some(format!(
                 "Failed on matching values at index {i}\n\
-                z1: {:e}\n\
-                z2: {exp:e}\n\
-                Magnitude difference in actual: {magnitude_diff}\n\
-                Relative tolerance: {tol:e}\n\
-                Actual absolute error - real: {:e}\n\
-                Actual relative error - real: {:e}\n\
-                Actual absolute error - imag: {:e}\n\
-                Actual relative error - imag: {:e}",
-                *act, actual_error.re, relative_error.re, actual_error.im, relative_error.im,
+                Actual: {act:e}\n\
+                Expected: {exp:e}\n\
+                \n\
+                Magnitude difference in actual: {}\n\
+                Correction: {:e}\n\
+                \n\
+                Relative tolerance - real: {:e}\n\
+                Absolute error - real: {:e}\n\
+                Relative error - real: {:e}\n\
+                \n\
+                Relative tolerance - imag: {:e}\n\
+                Absolute error - imag: {:e}\n\
+                Relative error - imag: {:e}",
+                tolerances.magnitude_diff,
+                tolerances.correction,
+                tolerances.tol_re,
+                actual_error.re,
+                relative_error.re,
+                tolerances.tol_im,
+                actual_error.im,
+                relative_error.im,
             ));
         };
     }
     None
 }
 
+struct Tolerances {
+    max_relative: f64,
+    magnitude_diff: f64,
+    correction: f64,
+    tol_re: f64,
+    tol_im: f64,
+}
+
+impl Tolerances {
+    fn new(a: Complex64, b: Complex64, max_relative: f64) -> Self {
+        let max_im = a.im.abs().max(b.im.abs());
+        let max_re = a.re.abs().max(b.re.abs());
+        let magnitude_diff = (max_re.log10() - max_im.log10()).abs();
+        let limit = 10.0 / max_relative;
+        let correction = 10.0.pow(magnitude_diff).min(limit);
+
+        let (tol_re, tol_im) = if max_re > max_im {
+            (max_relative, max_relative * correction)
+        } else {
+            (max_relative * correction, max_relative)
+        };
+        Self {
+            max_relative,
+            magnitude_diff,
+            correction,
+            tol_re,
+            tol_im,
+        }
+    }
+}
+
+fn complex_relative_eq(a: Complex64, b: Complex64, tolerances: &Tolerances) -> bool {
+    if relative_eq!(a, b, max_relative = tolerances.max_relative) {
+        return true;
+    }
+    let (_, rel_e_re) = abs_rel_errors(a.re, b.re);
+    let (_, rel_e_im) = abs_rel_errors(a.im, b.im);
+
+    rel_e_re < tolerances.tol_re && rel_e_im < tolerances.tol_im
+}
+
 fn abs_rel_errors(a: f64, b: f64) -> (f64, f64) {
     let abs_e = (a - b).abs();
-    let rel_e = abs_e / a.abs();
+    let rel_e = abs_e / a.abs().max(b.abs());
     (abs_e, rel_e)
 }
 
-fn abs_rel_errors_cmplx(a: &Complex64, b: &Complex64) -> (Complex64, Complex64) {
+fn abs_rel_errors_cmplx(a: Complex64, b: Complex64) -> (Complex64, Complex64) {
     let (abs_e_r, rel_e_r) = abs_rel_errors(a.re, b.re);
     let (abs_e_i, rel_e_i) = abs_rel_errors(a.im, b.im);
     (
@@ -278,11 +329,11 @@ fn print_complex_arrays(c1: &[Complex64], c2: &[Complex64], c3: &[Complex64], c4
     let errors: Vec<_> = c1
         .iter()
         .enumerate()
-        .map(|(i, fort)| {
+        .map(|(i, &fort)| {
             (
-                abs_rel_errors_cmplx(fort, &c2[i]),
-                abs_rel_errors_cmplx(fort, &c3[i]),
-                abs_rel_errors_cmplx(fort, &c4[i]),
+                abs_rel_errors_cmplx(fort, c2[i]),
+                abs_rel_errors_cmplx(fort, c3[i]),
+                abs_rel_errors_cmplx(fort, c4[i]),
             )
         })
         .collect();
