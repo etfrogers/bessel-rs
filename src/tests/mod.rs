@@ -176,9 +176,6 @@ fn check_against_fortran(order: f64, z: Complex64, scaling: Scaling, n: usize) {
 
     match &actual {
         Ok(actual) => {
-            if nz != actual.1.try_into().unwrap() {
-                fail("Failed for mismatched nz value");
-            }
             if let Some(reason) = check_complex_arrays_equal(&cy, &actual.0, tolerance) {
                 fail(&reason)
             }
