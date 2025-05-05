@@ -1,3 +1,4 @@
+#[allow(clippy::excessive_precision)]
 use std::f64::consts::FRAC_PI_2;
 
 use num::complex::{Complex64, ComplexFloat};

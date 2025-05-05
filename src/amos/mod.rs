@@ -211,7 +211,7 @@ impl PositiveArg for Complex<f64> {
     fn parg(&self) -> f64 {
         let mut ang = self.arg();
         if ang < 0.0 {
-            ang = (PI * 2.0) + ang;
+            ang += PI * 2.0;
         }
         ang
     }

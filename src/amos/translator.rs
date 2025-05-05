@@ -12,10 +12,7 @@ use num::{
 };
 use std::{
     cmp::min,
-    f64::{
-        self,
-        consts::{FRAC_PI_2, PI},
-    },
+    f64::consts::{FRAC_PI_2, PI},
 };
 
 const TWO_THIRDS: f64 = 6.66666666666666666e-01;
@@ -1656,7 +1653,6 @@ fn ZAIRY(//ZR, ZI, ID, KODE, AIR, AII, NZ, IERR){
     //   TOL = DMAX1(d1mach(4),1.0e-18);
     let machine_consts = MachineConsts::new();
       let FID = if return_derivative{1.0} else{0.0};//(ID as f64);
-      let mut significance_loss = false;
       if AZ <= 1.0 {//GO TO 70;
 //-----------------------------------------------------------------------;
 //     POWER SERIES FOR CABS(Z) <= 1.;
@@ -1753,12 +1749,12 @@ let mut s2 = c_one();
         AD = D1.min(D2);
         // AD = DMIN1(D1,D2);
         if a_term < machine_consts.abs_error_tolerance*AD {break;}//GO TO 40;
-        AK = AK + 18.0;
-        BK = BK + 18.0;
+        AK += 18.0;
+        BK += 18.0;
 //    30 CONTINUE;
       }
     }
-      return if return_derivative {//GO TO 50;
+    if return_derivative {//GO TO 50;
         // 50 CONTINUE;
         let mut ai = -s2*C2;
         // AIR = -S2R*C2;
@@ -1849,7 +1845,7 @@ let mut s2 = c_one();
     };
     //   AA=DSQRT(AA);
         AA = AA.sqrt();
-        significance_loss = AZ>AA;
+        let significance_loss = AZ>AA;
     //   if (AZ > AA) IERR=3;
     let csq = z.sqrt();
     //   CALL ZSQRT(ZR, ZI, CSQR, CSQI);
@@ -2605,9 +2601,9 @@ fn ZBKNU(
                 // STI = PI - FI*AK;
                 // S2R = CKR*STR - CKI*STI + S2R;
                 // S2I = CKR*STI + CKI*STR + S2I;
-                A1 = A1 * T1 / AK;
-                BK = BK + AK + AK + 1.0;
-                AK = AK + 1.0;
+                A1 *= T1 / AK;
+                BK += AK + AK + 1.0;
+                AK += 1.0;
 
                 if A1 <= machine_consts.abs_error_tolerance {
                     break;
@@ -2874,9 +2870,9 @@ fn ZBKNU(
                         //   CYI(J) = P1I;
                         // IF(IC.EQ.(I-1)) GO TO 264
                         // below implies we got here twice in a row
-                        if IC == (i as isize) - 1 {
+                        if IC == i - 1 {
                             underflow_occurred = true; //implies 270}//{skip_to_264 = true;break;}//GO TO 264;
-                            IC = i as isize;
+                            IC = i;
                             continue;
                         }
                     }
@@ -3385,7 +3381,7 @@ fn i_ratios(
         cy[k - 1] = pt.conj() / AK.powi(2);
         t1 -= 1.0;
     }
-    return cy;
+    cy
 }
 
 fn ZS1S2(//ZRR, ZRI, S1R, S1I, S2R, S2I, NZ, ASCLE, ALIM,
@@ -3615,7 +3611,7 @@ fn i_miller(
         ACK = BK * AK;
         sumr += (ACK + BK) * p1;
         BK = ACK;
-        FKK = FKK - 1.0;
+        FKK -= 1.0;
     }
     let mut y = c_zeros(N);
     y[N - 1] = p2;
@@ -3628,7 +3624,7 @@ fn i_miller(
             ACK = BK * AK;
             sumr += (ACK + BK) * p1;
             BK = ACK;
-            FKK = FKK - 1.0;
+            FKK -= 1.0;
             y[N - (i + 1)] = p2;
         }
     }
@@ -3641,7 +3637,7 @@ fn i_miller(
             ACK = BK * AK;
             sumr += (ACK + BK) * p1;
             BK = ACK;
-            FKK = FKK - 1.0;
+            FKK -= 1.0;
         }
     }
 
@@ -3671,7 +3667,7 @@ fn i_wronksian(
     order: f64,
     KODE: Scaling,
     N: usize,
-    y: &mut Vec<Complex64>,
+    y: &mut [Complex64],
     machine_consts: &MachineConsts,
 ) -> BesselResult<usize> {
     // ***BEGIN PROLOGUE  ZWRSK
@@ -3970,10 +3966,10 @@ fn ZBINU(
         let NW;
         (cy, NW) = i_power_series(z, order, KODE, NN, machine_consts)?;
         let INW: usize = NW.abs().try_into().unwrap();
-        NZ = NZ + INW;
-        NN = NN - INW;
+        NZ += INW;
+        NN -= INW;
         if NN == 0 || NW >= 0 {
-            return Ok((cy, NZ.try_into().unwrap()));
+            return Ok((cy, NZ));
         }
 
         DFNU = order + ((NN as f64) - 1.0);
@@ -3998,7 +3994,7 @@ fn ZBINU(
     }
     //  40 CONTINUE
     let mut skip_az_rl_check = true;
-    if !(DFNU <= 1.0) {
+    if DFNU > 1.0 {
         //GO TO 70
         skip_az_rl_check = false;
         //  50 CONTINUE
@@ -4008,8 +4004,8 @@ fn ZBINU(
         //-----------------------------------------------------------------------
         let nw = zuoik(z, order, KODE, IKType::I, NN, &mut cy, machine_consts)?;
 
-        NZ = NZ + nw;
-        NN = NN - nw;
+        NZ += nw;
+        NN -= nw;
         if NN == 0 {
             return Ok((cy, NZ));
         }
@@ -4035,7 +4031,7 @@ fn ZBINU(
         )?;
         //    * TOL, ELIM, ALIM)?
         // if (NW < 0) GO TO 130
-        NZ = NZ + NW;
+        NZ += NW;
         if NLAST == 0 {
             return Ok((cy, NZ));
         }
@@ -4044,7 +4040,7 @@ fn ZBINU(
     }
     //  60 CONTINUE
     // 'l60: loop{
-    if !skip_az_rl_check & !(AZ > machine_consts.asymptotic_z_limit) {
+    if !skip_az_rl_check && AZ <= machine_consts.asymptotic_z_limit {
         // GO TO 80
         //  70 CONTINUE
         //-----------------------------------------------------------------------
@@ -4082,13 +4078,13 @@ fn ZBINU(
         machine_consts,
     ) {
         if NW > 0 {
-            return Err(Overflow);
+            Err(Overflow)
         } else {
             let nz= i_wronksian(z, order, KODE, NN, &mut cy, machine_consts)?;
-            return Ok((cy, nz));
+            Ok((cy, nz))
         }
     } else {
-        return Ok((vec![c_one(); NN], NN));
+        Ok((vec![c_one(); NN], NN))
     }
 
     /*
@@ -4150,7 +4146,7 @@ fn ZACAI(//ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, RL, TOL,
 //-----------------------------------------------------------------------;
 let (y, NW_signed) = i_power_series(zn, order, KODE, NN, machine_consts)?;
 debug_assert!(NW_signed>=0);
-(y, NW_signed.abs() as usize)
+(y, NW_signed.unsigned_abs())
     //   CALL z_power_series(ZNR, ZNI, FNU, KODE, NN, YR, YI, NW, TOL, ELIM, ALIM);
       }else if AZ >=machine_consts.asymptotic_z_limit{
     //   GO TO 40;
@@ -5436,9 +5432,9 @@ fn ZBUNI(
     //   if (NW < 0) GO TO 50;
     NZ = NW;
     //   RETURN;
-    {
-        return Ok((NZ, NLAST));
-    }
+
+        Ok((NZ, NLAST))
+
     //    90 CONTINUE;
     //       NLAST = N;
     //       RETURN;
@@ -5819,7 +5815,7 @@ fn ZUNI1(
     //    90 CONTINUE;
     //   100 CONTINUE;
     //   RETURN;
-    return Ok((NZ, NLAST));
+    Ok((NZ, NLAST))
     //-----------------------------------------------------------------------;
     //     SET UNDERFLOW AND UPDATE PARAMETERS;
     //-----------------------------------------------------------------------;
