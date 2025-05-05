@@ -1754,20 +1754,25 @@ let mut s2 = c_one();
 //    30 CONTINUE;
       }
     }
-    if return_derivative {//GO TO 50;
+    let mut ai = if return_derivative {//GO TO 50;
         // 50 CONTINUE;
-        let mut ai = -s2*C2;
+        let mut ai_inner = -s2*C2;
         // AIR = -S2R*C2;
         // AII = -S2I*C2;
         if AZ > machine_consts.abs_error_tolerance {//GO TO 60;
         // STR = ZR*S1R - ZI*S1I;
         // STI = ZR*S1I + ZI*S1R;
         let CC = C1/(1.0+FID);
-        ai += CC * z.pow(2.0)*s1;
+        ai_inner += CC * z.pow(2.0)*s1;
         // AIR = AIR + CC*(STR*ZR-STI*ZI);
         // AII = AII + CC*(STR*ZI+STI*ZR);
-        Ok((ai, 0))
-        }else{
+        // Ok((ai, 0))
+        }
+        ai_inner
+    }
+        else{
+              s1*C1 - C2*z*s2
+        };
     //  60 CONTINUE;
         if KODE == Scaling::Scaled
         {
@@ -1782,17 +1787,17 @@ let mut s2 = c_one();
         }
         Ok((ai, 0))
 
-    }
+
         // RETURN;
 
-      }else{
+    //   }else{
 //    40 CONTINUE;
-        let mut ai = s1*C1 - C2*z*s2;
+        // let mut ai = s1*C1 - C2*z*s2;
 //      AIR = S1R*C1 - C2*(ZR*S2R-ZI*S2I);
 //       AII = S1I*C1 - C2*(ZR*S2I+ZI*S2R);
-      if KODE == Scaling::Scaled {//RETURN;
+    //   if KODE == Scaling::Scaled {//RETURN;
 
-        ai *= (TWO_THIRDS*z*z.sqrt()).exp();
+    //     ai *= (TWO_THIRDS*z*z.sqrt()).exp();
     //   CALL ZSQRT(ZR, ZI, STR, STI);
     //   ZTAR = TWO_THIRDS*(ZR*STR-ZI*STI);
     //   ZTAI = TWO_THIRDS*(ZR*STI+ZI*STR);
@@ -1801,9 +1806,9 @@ let mut s2 = c_one();
     //   AII = AIR*STI + AII*STR;
     //   AIR = PTR;
     //   RETURN;
-      }
-      Ok((ai, 0))
-      }
+    //   }
+    //   Ok((ai, 0))
+    //   }
     }else{
 //-----------------------------------------------------------------------;
 //     CASE FOR CABS(Z) > 1.0;
