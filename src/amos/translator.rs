@@ -1505,10 +1505,9 @@ fn ZBESY(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, CWRKR,
       */
 
 fn ZAIRY(
-    //ZR, ZI, ID, KODE, AIR, AII, NZ, IERR){
     z: Complex64,
     return_derivative: bool,
-    KODE: Scaling,
+    scaling: Scaling,
 ) -> BesselResult<(Complex64, usize)> {
     // ***BEGIN PROLOGUE  ZAIRY
     // ***DATE WRITTEN   830501   (YYMMDD)
@@ -1638,98 +1637,43 @@ fn ZAIRY(
     //
     // ***ROUTINES CALLED  ZACAI,ZBKNU,ZEXP,ZSQRT,ZABS,i1mach,d1mach
     // ***END PROLOGUE  ZAIRY
-    //     COMPLEX AI,CONE,CSQ,CY,S1,S2,TRM1,TRM2,Z,ZTA,Z3
-    //   EXTERNAL ZABS
-    //   DOUBLE PRECISION AA, AD, AII, AIR, AK, ALIM, ATRM, AZ, AZ3, BK,
-    //  * CC, CK, COEF, CONEI, CONER, CSQI, CSQR, CYI, CYR, C1, C2, DIG,
-    //  * DK, D1, D2, ELIM, FID, FNU, PTR, RL, R1M5, SFAC, STI, STR,
-    //  * S1I, S1R, S2I, S2R, TOL, TRM1I, TRM1R, TRM2I, TRM2R, TWO_THIRDS, ZEROI,
-    //  * ZEROR, ZI, ZR, ZTAI, ZTAR, Z3I, Z3R, d1mach, ZABS, ALAZ, BB
-    //   INTEGER ID, IERR, IFLAG, K, KODE, K1, K2, MR, NN, NZ, i1mach
-    //   DIMENSION CYR(1), CYI(1)
-    //   DATA TWO_THIRDS, C1, C2, COEF /6.66666666666666667e-01,
     const C1: f64 = 3.55028053887817240e-01;
     const C2: f64 = 2.58819403792806799e-01;
     const COEFF: f64 = 1.83776298473930683e-01;
-    //   DATA ZEROR, ZEROI, CONER, CONEI /0.0,0.0,1.0,0.0/
-    // ***FIRST EXECUTABLE STATEMENT  ZAIRY
-    //   IERR = 0;
-    //   let NZ=0;
-    //   if (ID < 0 || ID > 1) IERR=1;
-    //   if (KODE < 1 || KODE > 2) IERR=1;
-    //   if (IERR != 0) RETURN;
-    let abs_z = z.abs(); //ZABS(ZR,ZI);
-    //   TOL = DMAX1(d1mach(4),1.0e-18);
+
+    let abs_z = z.abs();
     let machine_consts = MachineConsts::new();
     let float_is_derivative = if return_derivative { 1.0 } else { 0.0 };
     if abs_z <= 1.0 {
-        //GO TO 70;
         //-----------------------------------------------------------------------;
         //     POWER SERIES FOR CABS(Z) <= 1.;
         //-----------------------------------------------------------------------;
         let mut s1 = c_one();
         let mut s2 = c_one();
-        //   S1R = CONER;
-        //   S1I = CONEI;
-        //   S2R = CONER;
-        //   S2I = CONEI;
         if abs_z < machine_consts.abs_error_tolerance {
-            //GO TO 170;
-            // 170 CONTINUE;
-            // AA = 1.0e+3*d1mach(1);
-            // S1R = ZEROR;
-            // S1I = ZEROI;
             s1 = c_zero();
             return if return_derivative {
-                //GO TO 190;
-                // 190 CONTINUE;
                 let mut ai = Complex64::new(-C2, 0.0);
-                // AIR = -C2;
-                // AII = 0.0;
-                // AA = DSQRT(AA);
 
                 if abs_z > machine_consts.underflow_limit.sqrt() {
-                    //GO TO 200;
                     s1 = z.pow(2.0) / 2.0;
-                    // S1R = 0.5*(ZR*ZR-ZI*ZI);
-                    // S1I = ZR*ZI;
                 }
-                // 200 CONTINUE;
                 ai += C1 * s1;
-                // AIR = AIR + C1*S1R;
-                // AII = AII + C1*S1I;
-                // RETURN;
                 Ok((ai, 0))
             } else {
                 if abs_z > machine_consts.underflow_limit {
-                    //GO TO 180;
                     s1 = C2 * z;
-                    // S1R = C2*ZR;
-                    // S1I = C2*ZI;
                 }
-                // 180 CONTINUE;
                 let ai = C1 - s1;
-                // AIR = C1 - S1R;
-                // AII = -S1I;
-                // RETURN;
                 Ok((ai, 0))
             };
         }
         let abs_z_sq = abs_z * abs_z;
         if abs_z_sq >= machine_consts.abs_error_tolerance / abs_z {
-            //GO TO 40;
             let mut term1 = c_one();
             let mut term2 = c_one();
-            //   TRM1R = CONER;
-            //   TRM1I = CONEI;
-            //   TRM2R = CONER;
-            //   TRM2I = CONEI;
             let mut a_term = 1.0;
             let z3 = z.pow(3.0);
-            //   STR = ZR*ZR - ZI*ZI;
-            //   STI = ZR*ZI + ZI*ZR;
-            //   Z3R = STR*ZR - STI*ZI;
-            //   Z3I = STR*ZI + STI*ZR;
             let AZ3 = abs_z * abs_z_sq;
             let (AK, BK, CK, DK) = (
                 2.0 + float_is_derivative,
@@ -1737,263 +1681,110 @@ fn ZAIRY(
                 4.0 - float_is_derivative,
                 3.0 + 2.0 * float_is_derivative,
             );
-            //   AK = 2.0 + FID;
-            //   BK = 3.0 - FID - FID;
-            //   CK = 4.0 - FID;
-            //   DK = 3.0 + FID + FID;
             let mut D1: f64 = AK * DK;
             let mut D2 = BK * CK;
-            let mut AD = D1.min(D2); //DMIN1(D1,D2);
+            let mut AD = D1.min(D2);
             let mut AK = 24.0 + 9.0 * float_is_derivative;
             let mut BK = 30.0 - 9.0 * float_is_derivative;
-            //   DO 30 K=1,25;
             for _ in 0..25 {
-                // STR = (TRM1R*Z3R-TRM1I*Z3I)/D1;
-                // TRM1I = (TRM1R*Z3I+TRM1I*Z3R)/D1;
-                // TRM1R = STR;
                 term1 = term1 * z3 / D1;
                 s1 += term1;
-                // S1R = S1R + TRM1R;
-                // S1I = S1I + TRM1I;
                 term2 = term2 * z3 / D2;
-                // STR = (TRM2R*Z3R-TRM2I*Z3I)/D2;
-                // TRM2I = (TRM2R*Z3I+TRM2I*Z3R)/D2;
-                // TRM2R = STR;
                 s2 += term2;
-                // S2R = S2R + TRM2R;
-                // S2I = S2I + TRM2I;
                 a_term = a_term * AZ3 / AD;
                 D1 += AK;
                 D2 += BK;
                 AD = D1.min(D2);
-                // AD = DMIN1(D1,D2);
                 if a_term < machine_consts.abs_error_tolerance * AD {
                     break;
-                } //GO TO 40;
+                }
                 AK += 18.0;
                 BK += 18.0;
-                //    30 CONTINUE;
             }
         }
         let mut ai = if return_derivative {
-            //GO TO 50;
-            // 50 CONTINUE;
             let mut ai_inner = -s2 * C2;
-            // AIR = -S2R*C2;
-            // AII = -S2I*C2;
             if abs_z > machine_consts.abs_error_tolerance {
-                //GO TO 60;
-                // STR = ZR*S1R - ZI*S1I;
-                // STI = ZR*S1I + ZI*S1R;
                 let CC = C1 / (1.0 + float_is_derivative);
                 ai_inner += CC * z.pow(2.0) * s1;
-                // AIR = AIR + CC*(STR*ZR-STI*ZI);
-                // AII = AII + CC*(STR*ZI+STI*ZR);
-                // Ok((ai, 0))
             }
             ai_inner
         } else {
             s1 * C1 - C2 * z * s2
         };
-        //  60 CONTINUE;
-        if KODE == Scaling::Scaled {
+        if scaling == Scaling::Scaled {
             ai *= (TWO_THIRDS * z * z.sqrt()).exp();
-            // CALL ZSQRT(ZR, ZI, STR, STI);
-            // ZTAR = TWO_THIRDS*(ZR*STR-ZI*STI);
-            // ZTAI = TWO_THIRDS*(ZR*STI+ZI*STR);
-            // CALL ZEXP(ZTAR, ZTAI, STR, STI);
-            // PTR = STR*AIR - STI*AII;
-            // AII = STR*AII + STI*AIR;
-            // AIR = PTR;
         }
         Ok((ai, 0))
-
-        // RETURN;
-
-        //   }else{
-        //    40 CONTINUE;
-        // let mut ai = s1*C1 - C2*z*s2;
-        //      AIR = S1R*C1 - C2*(ZR*S2R-ZI*S2I);
-        //       AII = S1I*C1 - C2*(ZR*S2I+ZI*S2R);
-        //   if KODE == Scaling::Scaled {//RETURN;
-
-        //     ai *= (TWO_THIRDS*z*z.sqrt()).exp();
-        //   CALL ZSQRT(ZR, ZI, STR, STI);
-        //   ZTAR = TWO_THIRDS*(ZR*STR-ZI*STI);
-        //   ZTAI = TWO_THIRDS*(ZR*STI+ZI*STR);
-        //   CALL ZEXP(ZTAR, ZTAI, STR, STI);
-        //   PTR = AIR*STR - AII*STI;
-        //   AII = AIR*STI + AII*STR;
-        //   AIR = PTR;
-        //   RETURN;
-        //   }
-        //   Ok((ai, 0))
-        //   }
     } else {
         //-----------------------------------------------------------------------;
         //     CASE FOR CABS(Z) > 1.0;
         //-----------------------------------------------------------------------;
-        //    70 CONTINUE;
         let FNU = (1.0 + float_is_derivative) / 3.0;
-        //-----------------------------------------------------------------------;
-        //     SET PARAMETERS RELATED TO MACHINE CONSTANTS.;
-        //     TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0e-18.;
-        //     ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.;
-        //     EXP(-ELIM) < EXP(-ALIM)=EXP(-ELIM)/TOL    AND;
-        //     EXP(ELIM) > EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR;
-        //     UNDERFLOW AND OVERFLOW LIMITS WHERE SCALED ARITHMETIC IS DONE.;
-        //     RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.;
-        //     DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).;
-        //-----------------------------------------------------------------------;
-        //   K1 = i1mach(15);
-        //   K2 = i1mach(16);
-        //   R1M5 = d1mach(5);
-        //   K = MIN0(K1.abs(),K2.abs());
-        //   ELIM = 2.303*(K as f64)*R1M5-3.0);
-        //   K1 = i1mach(14) - 1;
-        //   AA = R1M5*(K1 as f64);
-        //   DIG = DMIN1(AA,18.0);
-        //   AA = AA*2.303;
-        //   ALIM = ELIM + DMAX1(-AA,-41.45);
-        //   RL = 1.2*DIG + 3.0;
-        //   ALAZ = DLOG(AZ);
-        let ALAZ = abs_z.ln();
+        let ln_abs_z = abs_z.ln();
         //--------------------------------------------------------------------------;
         //     TEST FOR PROPER RANGE;
         //-----------------------------------------------------------------------;
         let mut AA = 0.5 / machine_consts.abs_error_tolerance;
-        //   BB=DBLE(FLOAT(i1mach(9)))*0.5;
         AA = AA.min(i32::MAX as f64 / 2.0);
         AA = AA.pow(TWO_THIRDS);
         if abs_z > AA {
             return Err(LossOfSignificance);
         };
-        //   AA=DSQRT(AA);
         AA = AA.sqrt();
         let significance_loss = abs_z > AA;
-        //   if (AZ > AA) IERR=3;
         let csq = z.sqrt();
-        //   CALL ZSQRT(ZR, ZI, CSQR, CSQI);
         let mut zta = TWO_THIRDS * z * csq;
-        //   ZTAR = TWO_THIRDS*(ZR*CSQR-ZI*CSQI);
-        //   ZTAI = TWO_THIRDS*(ZR*CSQI+ZI*CSQR);
         //-----------------------------------------------------------------------;
         //     RE(ZTA) <= 0 WHEN RE(Z) < 0, ESPECIALLY WHEN IM(Z) IS SMALL;
         //-----------------------------------------------------------------------;
         let mut IFLAG = 0;
         let mut SFAC = 1.0;
-        //   let AK = zta.im;//ZTAI;
         if z.re < 0.0 {
-            //GO TO 80;
-            //   BK = ZTAR;
-            //   CK = -(BK).abs();
-            //   ZTAR = CK;
-            //   ZTAI = AK;
             zta.re = -zta.re.abs();
         }
-        //    80 CONTINUE;
         if z.im == 0.0 && z.re <= 0.0 {
-            //   if (ZI != 0.0) GO TO 90;
-            //   if (ZR > 0.0) GO TO 90;
-            //   ZTAR = 0.0;
-            //   ZTAI = AK;
             zta.re = 0.0;
         }
-        //    90 CONTINUE;
-        let mut AA = zta.re; //ZTAR;
+        let mut AA = zta.re;
         let (cy, NZ) = if !(AA >= 0.0 && z.re > 0.0) {
-            //GO TO 110;
-            //   if (KODE == 2) GO TO 100;
             //-----------------------------------------------------------------------;
             //     OVERFLOW TEST;
             //-----------------------------------------------------------------------;
-            if KODE == Scaling::Unscaled && AA <= -machine_consts.approximation_limit {
-                //   if (AA > (-ALIM)) GO TO 100;
-                AA = -AA + 0.25 * ALAZ;
+            if scaling == Scaling::Unscaled && AA <= -machine_consts.approximation_limit {
+                AA = -AA + 0.25 * ln_abs_z;
                 IFLAG = 1;
                 SFAC = machine_consts.abs_error_tolerance;
                 if AA > machine_consts.exponent_limit {
                     return Err(Overflow);
-                } //GO TO 270;
+                }
             }
-            //   100 CONTINUE;
             //-----------------------------------------------------------------------;
             //     CBKNU AND CACON RETURN EXP(ZTA)*K(FNU,ZTA) ON KODE=2;
             //-----------------------------------------------------------------------;
             let MR = if z.im < 0.0 { -1 } else { 1 };
-            ZACAI(zta, FNU, KODE, MR, 1, &machine_consts)?
-        //    ZACAI(ZTAR, ZTAI, FNU, KODE, MR, 1, CYR, CYI, NN, RL, TOL,
-        //   ELIM, ALIM)?;
-        //   if (NN < 0) GO TO 280;
-        //   NZ = NZ + NN;
-        //   GO TO 130;
+            ZACAI(zta, FNU, scaling, MR, 1, &machine_consts)?
         } else {
-            //   110 CONTINUE;
-            //   if (KODE == 2) GO TO 120;
             //-----------------------------------------------------------------------;
             //     UNDERFLOW TEST;
             //-----------------------------------------------------------------------;
-            //   if (AA < ALIM) GO TO 120;
-            if KODE == Scaling::Unscaled && AA > machine_consts.approximation_limit {
-                AA = -AA - 0.25 * ALAZ;
+            if scaling == Scaling::Unscaled && AA > machine_consts.approximation_limit {
+                AA = -AA - 0.25 * ln_abs_z;
                 IFLAG = 2;
                 SFAC = 1.0 / machine_consts.abs_error_tolerance;
                 if AA < -machine_consts.exponent_limit {
                     return Ok((c_zero(), 1));
-                } //GO TO 210;
+                }
             }
-            //   120 CONTINUE;
-            ZBKNU(zta, FNU, KODE, 1, &machine_consts)?
-            //   CALL ZBKNU(ZTAR, ZTAI, FNU, KODE, 1, CYR, CYI, NZ, TOL, ELIM,
-            //  * ALIM);
+            ZBKNU(zta, FNU, scaling, 1, &machine_consts)?
         };
-        //   130 CONTINUE;
         let mut s1 = cy[0] * COEFF;
-        //   S1R = CYR(1)*COEF;
-        //   S1I = CYI(1)*COEF;
         let retval = if IFLAG == 0 {
-            //GO TO 150;
-            let ai = if return_derivative
-            //GO TO 140;
-            {
-                // 140 CONTINUE;
-                //   AIR = -(ZR*S1R-ZI*S1I);
-                //   AII = -(ZR*S1I+ZI*S1R);
-                -z * s1
-            } else {
-                csq * s1
-                //   AIR = CSQR*S1R - CSQI*S1I;
-                //   AII = CSQR*S1I + CSQI*S1R;
-            };
+            let ai = if return_derivative { -z * s1 } else { csq * s1 };
             (ai, NZ)
-        //   RETURN;
-
-        //   RETURN;
         } else {
-            //   150 CONTINUE;
             s1 *= SFAC;
-            //   S1R = S1R*SFAC;
-            //   S1I = S1I*SFAC;
-            s1 *= if return_derivative {
-                // 160 CONTINUE;
-                -z
-                // STR = -(S1R*ZR-S1I*ZI);
-                // S1I = -(S1R*ZI+S1I*ZR);
-                // S1R = STR;
-                // AIR = S1R/SFAC;
-                // AII = S1I/SFAC;
-                // RETURN;
-            } else {
-                //   if (ID == 1) GO TO 160;
-                //   STR = S1R*CSQR - S1I*CSQI;
-                //   S1I = S1R*CSQI + S1I*CSQR;
-                //   S1R = STR;
-                //   AIR = S1R/SFAC;
-                //   AII = S1I/SFAC;
-                //   RETURN;
-                csq
-            };
-            // ai = s1/SFAC;
+            s1 *= if return_derivative { -z } else { csq };
             (s1 / SFAC, NZ)
         };
         if significance_loss {
@@ -2004,48 +1795,6 @@ fn ZAIRY(
         } else {
             Ok(retval)
         }
-        //   170 CONTINUE;
-        //       AA = 1.0e+3*d1mach(1);
-        //       S1R = ZEROR;
-        //       S1I = ZEROI;
-        //       if (ID == 1) GO TO 190;
-        //       if (AZ <= AA) GO TO 180;
-        //       S1R = C2*ZR;
-        //       S1I = C2*ZI;
-        //   180 CONTINUE;
-        //       AIR = C1 - S1R;
-        //       AII = -S1I;
-        //       RETURN;
-        //   190 CONTINUE;
-        //       AIR = -C2;
-        //       AII = 0.0;
-        //       AA = DSQRT(AA);
-        //       if (AZ <= AA) GO TO 200;
-        //       S1R = 0.5*(ZR*ZR-ZI*ZI);
-        //       S1I = ZR*ZI;
-        //   200 CONTINUE;
-        //       AIR = AIR + C1*S1R;
-        //       AII = AII + C1*S1I;
-        //       RETURN;
-        //   210 CONTINUE;
-        //       NZ = 1;
-        //       AIR = ZEROR;
-        //       AII = ZEROI;
-        //       RETURN;
-        //   270 CONTINUE;
-        //       NZ = 0;
-        //       IERR=2;
-        //       RETURN;
-        //   280 CONTINUE;
-        //       if(NN == (-1)) GO TO 270;
-        //       NZ=0;
-        //       IERR=5;
-        //       RETURN;
-        //   260 CONTINUE;
-        //       IERR=4;
-        //       NZ=0;
-        //       RETURN;
-        //       END;
     }
 }
 /*
