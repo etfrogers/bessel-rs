@@ -2667,61 +2667,34 @@ fn ZKSCL(
     //       DATA ZEROR,ZEROI / 0.0 , 0.0 /
     //
     *NZ = 0;
-    // let mut IC = 0;
-    //NN = MIN0(2,N);
     let NN = min(2, N);
-    // DO 10 I=1,NN;
     let mut cy = c_zeros(2);
     let mut IC = 0;
     for i in 0..NN {
         let s1 = y[i];
-        //   S1R = YR(I);
-        //   S1I = YI(I);
         cy[i] = s1;
-        //   CYR(I) = S1R;
-        //   CYI(I) = S1I;
-        //   let AS = s1.abs();//ZABS(S1R,S1I);
-        //   let acs = -zr.re +  s1.abs().ln();
-        //   ACS = -ZRR + DLOG(AS);
         *NZ += 1;
-        //   NZ = NZ + 1;
         y[i] = c_zero();
-        //   YR(I) = ZEROR;
-        //   YI(I) = ZEROI;
         if -zr.re + s1.abs().ln() < (-machine_consts.exponent_limit) {
             continue;
-        } //GO TO 10;
+        }
         let mut cs = s1.ln() - zr;
-        //   CALL ZLOG(S1R, S1I, CSR, CSI, IDUM);
-        //   CSR = CSR - ZRR;
-        //   CSI = CSI - ZRI;
         cs = Complex64::from_polar(cs.re.exp() / machine_consts.abs_error_tolerance, cs.im);
-        //   STR = DEXP(CSR)/TOL;
-        //   CSR = STR*DCOS(CSI);
-        //   CSI = STR*DSIN(CSI);
-        //   CALL ZUunderflowCHK(CSR, CSI, NW, ASCLE, TOL);
 
         if will_z_underflow(cs, ASCLE, machine_consts.abs_error_tolerance) {
             continue;
-        } //GO TO 10;
+        }
         y[i] = cs;
-        //   YR(I) = CSR;
-        //   YI(I) = CSI;
         IC = i;
         *NZ -= 1;
     }
-    //    10 CONTINUE;
     if N == 1 {
         return;
     }
     if IC <= 1 {
-        //GO TO 20;
         y[0] = c_zero();
-        // YR(1) = ZEROR;
-        // YI(1) = ZEROI;
         *NZ = 2;
     }
-    //    20 CONTINUE;
     if N == 2 {
         return;
     }
@@ -2730,112 +2703,58 @@ fn ZKSCL(
     }
     let FN = order + 1.0;
     let mut ck = FN * rz;
-    // CKR = FN*RZR;
-    // CKI = FN*RZI;
     let mut s1 = cy[0];
-    // S1R = CYR(1);
-    // S1I = CYI(1);
     let mut s2 = cy[1];
-    // S2R = CYR(2);
-    // S2I = CYI(2);
     let half_elim = 0.5 * machine_consts.exponent_limit;
     let ELM = (-machine_consts.exponent_limit).exp();
     let CELMR = ELM;
     let mut zd = zr;
-    // ZDR = ZRR;
-    // ZDI = ZRI;
-    //;
-    //     FIND TWO CONSECUTIVE Y VALUES ON SCALE. SCALE RECURRENCE if;
-    //     S2 GETS LARGER THAN EXP(ELIM/2);
-    //;
+    //     FIND TWO CONSECUTIVE Y VALUES ON SCALE. SCALE RECURRENCE if
+    //     S2 GETS LARGER THAN EXP(ELIM/2)
     let mut skip_to_40 = false;
-    // DO 30 I=3,N;
     let mut KK = 0;
     for i in 2..N {
         KK = i + 1;
         let mut cs = s2;
-        //   CSR = S2R;
-        //   CSI = S2I;
         s2 = cs * ck + s1;
-        //   S2R = CKR*CSR - CKI*CSI + S1R;
-        //   S2I = CKI*CSR + CKR*CSI + S1I;
         s1 = cs;
-        //   S1R = CSR;
-        //   S1I = CSI;
         ck += rz;
-        //   CKR = CKR + RZR;
-        //   CKI = CKI + RZI;
-        //   AS = ZABS(S2R,S2I);
-        //   ALAS = DLOG(AS);
         let ALAS = s2.abs().ln();
-        //   ACS = -ZDR + ALAS;
         *NZ += 1;
         y[i] = Complex64::zero();
-        //   YR(I) = ZEROR;
-        //   YI(I) = ZEROI;
         if !(-zd.re + s2.abs().ln() < (-machine_consts.exponent_limit)) {
-            //GO TO 25;
-            //   CALL ZLOG(S2R, S2I, CSR, CSI, IDUM);
             cs = s2.ln() - zd;
-            //   CSR = CSR - ZDR;
-            //   CSI = CSI - ZDI;
             cs = Complex64::from_polar(cs.re.exp() / machine_consts.abs_error_tolerance, cs.im);
-            //   STR = DEXP(CSR)/TOL;
-            //   CSR = STR*DCOS(CSI);
-            //   CSI = STR*DSIN(CSI);
-            //   CALL ZUunderflowCHK(CSR, CSI, NW, ASCLE, TOL);
             if !will_z_underflow(cs, ASCLE, machine_consts.abs_error_tolerance) {
-                //GO TO 25;
                 y[i] = cs;
-                //   YR(I) = CSR;
-                //   YI(I) = CSI;
                 *NZ -= 1;
-                //   NZ = NZ - 1;
                 if IC == KK - 1 {
                     skip_to_40 = true;
                     break;
-                } //GO TO 40;
+                }
                 IC = KK;
-                //   GO TO 30;
                 continue;
             }
         }
 
-        //    25   CONTINUE;
         if ALAS < half_elim {
             continue;
-        } //GO TO 30;}
+        }
         zd -= machine_consts.exponent_limit;
-        //   ZDR = ZDR - ELIM;
         s1 *= CELMR;
         s2 *= CELMR;
-        //   S1R = S1R*CELMR;
-        //   S1I = S1I*CELMR;
-        //   S2R = S2R*CELMR;
-        //   S2I = S2I*CELMR;
     }
-    //    30 CONTINUE;
     if !skip_to_40 {
         *NZ = N;
         if IC == N {
             *NZ = N - 1
         };
-
-        // GO TO 45;
     } else {
-        //    40 CONTINUE;
         *NZ = KK - 2;
     }
-    //    45 CONTINUE;
     for i in 0..*NZ {
-        // DO 50 I=1,NZ;
         y[i] = c_zero();
-        //   YR(I) = ZEROR;
-        //   YI(I) = ZEROI;
     }
-    //    50 CONTINUE;
-    // RETURN;
-    // END;
 }
 /*
 fn ZSHCH(ZR, ZI, CSHR, CSHI, CCHR, CCHI)
