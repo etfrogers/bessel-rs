@@ -4831,22 +4831,14 @@ fn ZBUNI(
     Ok((NW, NLAST))
 }
 
-// enum UpdateAction {
-//     Return(usize),
-//     Overflow,
-//     Break,
-// }
-
 fn ZUNI1(
-    //ZR, ZI, FNU, KODE, N,
     z: Complex64,
     order: f64,
     KODE: Scaling,
-    N: usize, //YR, YI, NZ, NLAST, FNUL,
+    N: usize,
     y: &mut Vec<Complex64>,
     machine_consts: &MachineConsts,
 ) -> BesselResult<(usize, usize)> {
-    //* TOL, ELIM, ALIM)
     // ***BEGIN PROLOGUE  ZUNI1
     // ***REFER TO  ZBESI,ZBESK
     //
@@ -4861,19 +4853,6 @@ fn ZUNI1(
     //
     // ***ROUTINES CALLED  ZUunderflowCHK,ZUNIK,ZUOIK,d1mach,ZABS
     // ***END PROLOGUE  ZUNI1
-    //     COMPLEX CFN,CONE,CRSC,CSCL,CSR,CSS,CWRK,CZERO,C1,C2,PHI,RZ,SUM,S1,
-    //    *S2,Y,Z,ZETA1,ZETA2
-    //   EXTERNAL ZABS
-    //   DOUBLE PRECISION ALIM, APHI, ASCLE, BRY, CONER, CRSC,
-    //  * CSCL, CSRR, CSSR, CWRKI, CWRKR, C1R, C2I, C2M, C2R, ELIM, FN,
-    //  * FNU, FNUL, PHII, PHIR, RAST, RS1, RZI, RZR, STI, STR, SUMI,
-    //  * SUMR, S1I, S1R, S2I, S2R, TOL, YI, YR, ZEROI, ZEROR, ZETA1I,
-    //  * ZETA1R, ZETA2I, ZETA2R, ZI, ZR, CYR, CYI, d1mach, ZABS
-    //   INTEGER I, IFLAG, INIT, K, KODE, M, N, ND, NLAST, NN, NUF, NW, NZ
-    //   DIMENSION BRY(3), YR(N), YI(N), CWRKR(16), CWRKI(16), CSSR(3),
-    //  * CSRR(3), CYR(2), CYI(2)
-    //   DATA ZEROR,ZEROI,CONER / 0.0, 0.0, 1.0 /
-    //
     let mut NZ = 0;
     let mut ND = N;
     let NLAST = 0;
@@ -4884,108 +4863,59 @@ fn ZUNI1(
     //-----------------------------------------------------------------------;
     let CSCL = machine_consts.rtol;
     let CRSC = machine_consts.abs_error_tolerance;
-    //   CSSR(1) = CSCL;
-    //   CSSR(2) = CONER;
-    //   CSSR(3) = CRSC;
     let CSSR = [CSCL, 1.0, CRSC];
     let CSRR = [CRSC, 1.0, CSCL];
-    //   CSRR(1) = CRSC;
-    //   CSRR(2) = CONER;
-    //   CSRR(3) = CSCL;
     let BRY = [
         machine_consts.absolute_approximation_limit,
         1.0 / machine_consts.absolute_approximation_limit,
         f64::MAX / 2.0,
     ];
-    //   BRY(1) = 1.0e+3*d1mach(1)/TOL;
-    //   BRY(2) = 1.0/BRY(1);
-    //   BRY(3) = d1mach(2);
     //-----------------------------------------------------------------------;
     //     CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER;
     //-----------------------------------------------------------------------;
-    //   FN = DMAX1(FNU,1.0);
     let mut FN = order.max(1.0);
     let mut INIT = 0;
     let (_, zeta1, zeta2, _) = zunik(z, FN, IKType::I, true, machine_consts, &mut INIT);
-    //   CALL ZUNIK(ZR, ZI, FN, 1, 1, TOL, INIT, PHIR, PHII, ZETA1R,;
-    //  * ZETA1I, ZETA2R, ZETA2I, SUMR, SUMI, CWRKR, CWRKI);
     let s1 = if KODE == Scaling::Scaled {
-        //GO TO 10;
         let mut st = z + zeta2;
-        //   STR = ZR + ZETA2R;
-        //   STI = ZI + ZETA2I;
         let rast = FN / st.abs();
-        //   RAST = FN/ZABS(STR,STI);
         st = st.conj() * (rast.pow(2));
-        //   STR = STR*RAST*RAST;
-        //   STI = -STI*RAST*RAST;
         -zeta1 + st
-    //   S1R = -ZETA1R + STR;
-    //   S1I = -ZETA1I + STI;
     } else {
-        //   GO TO 20;
-        //    10 CONTINUE;
         -zeta1 + zeta2
-        //   S1R = -ZETA1R + ZETA2R;
-        //   S1I = -ZETA1I + ZETA2I;
     };
-    //    20 CONTINUE;
-    //   RS1 = S1R;
     let rs1 = s1.re;
-    if rs1.abs() > machine_consts.exponent_limit
-    //GO TO 130;
-    {
+    if rs1.abs() > machine_consts.exponent_limit {
         if rs1 > 0.0 {
             return Err(Overflow);
-        } //GO TO 120;
+        }
         return Ok((N, NLAST));
-        // NZ = N;
-        // DO 140 I=1,N;
-        //   YR(I) = ZEROR;
-        //   YI(I) = ZEROI;
     }
-    //    30 CONTINUE;
     let mut IFLAG = 0; // this value should never be used
     let mut cy = [c_zero(); 2];
-    // let mut y = c_zeros(N);
     let mut set_underflow_and_update = false;
     'l30: loop {
         if set_underflow_and_update {
-            // set_underflow_and_update = false;
             if rs1 > 0.0 {
                 return Err(Overflow);
-            } //GO TO 120;
+            }
             y[ND - 1] = c_zero();
-            //   YR(ND) = ZEROR;
-            //   YI(ND) = ZEROI;
             NZ += 1;
             ND -= 1;
             if ND == 0 {
                 return Ok((NZ, NLAST));
-            } //GO TO 100;
-            //   CALL ZUOIK(ZR, ZI, FNU, KODE, 1, ND, YR, YI, NUF, TOL, ELIM, ALIM);
+            }
             let NUF = zuoik(z, order, KODE, IKType::I, ND, y, machine_consts)?;
-
-            // if NUF < 0 {
-            //     return Err(Overflow);
-            // } //GO TO 120;
             ND -= NUF;
             NZ += NUF;
             if ND == 0 {
                 return Ok((NZ, NLAST));
-            } //GO TO 100;
+            }
             FN = order + ((ND - 1) as f64);
             if FN < machine_consts.asymptotic_order_limit {
-                // continue 'l30;
-                //GO TO 30;
-                //   NLAST = ND;
                 return Ok((NZ, ND));
-                // UpdateAction::Return(*ND)
             }
         }
-
-        // let NN = 2.min(ND);
-        //   DO 80 I=1,NN;
 
         for i in 0..2.min(ND) {
             FN = order + ((ND - (i + 1)) as f64);
@@ -4993,282 +4923,92 @@ fn ZUNI1(
             let (phi, zeta1, zeta2, sum) =
                 zunik(z, FN, IKType::I, false, machine_consts, &mut INIT);
             let sum = sum.unwrap();
-            //     CALL ZUNIK(ZR, ZI, FN, 1, 0, TOL, INIT, PHIR, PHII, ZETA1R,;
-            //  *   ZETA1I, ZETA2R, ZETA2I, SUMR, SUMI, CWRKR, CWRKI);
             let mut s1 = if KODE == Scaling::Scaled {
-                //GO TO 40;
                 let mut st = z + zeta2;
                 let rast = FN / st.abs();
                 st = st.conj() * rast.pow(2);
                 -zeta1 + st + Complex64::new(0.0, z.im)
-
-            // STR = ZR + ZETA2R;
-            // STI = ZI + ZETA2I;
-            // RAST = FN/ZABS(STR,STI);
-            // STR = STR*RAST*RAST;
-            // STI = -STI*RAST*RAST;
-            // S1R = -ZETA1R + STR;
-            // S1I = -ZETA1I + STI + ZI;
-            // GO TO 50;
-            //    40   CONTINUE;
             } else {
                 -zeta1 + zeta2
-                // S1R = -ZETA1R + ZETA2R;
-                // S1I = -ZETA1I + ZETA2I;
             };
-            //    50   CONTINUE;
             //-----------------------------------------------------------------------;
             //     TEST FOR UNDERFLOW AND OVERFLOW;
             //-----------------------------------------------------------------------;
-            // RS1 = S1R;
             let mut rs1 = s1.re;
             if rs1.abs() > machine_consts.exponent_limit {
                 set_underflow_and_update = true;
                 continue 'l30;
-                // match set_underflow_and_update_params(
-                //     z,
-                //     order,
-                //     KODE,
-                //     machine_consts,
-                //     rs1,
-                //     &mut y,
-                //     &mut ND,
-                //     &mut NZ,
-                //     &mut FN,
-                //     NLAST,
-                // ) {
-                //     UpdateAction::Return(NLAST_) => return Ok((y, N, NLAST_)),
-                //     UpdateAction::Overflow => return Err(Overflow),
-                //     UpdateAction::Break => break 'l30,
-                // }
-            } // GO TO 110;
+            }
             if i == 0 {
                 IFLAG = 2;
             }
             if rs1.abs() > machine_consts.approximation_limit {
-                //GO TO 60;
                 //-----------------------------------------------------------------------;
                 //     REFINE  TEST AND SCALE;
                 //-----------------------------------------------------------------------;
-                // APHI = ZABS(PHIR,PHII);
-                // RS1 = RS1 + DLOG(APHI);
                 rs1 += phi.abs().ln();
                 if rs1.abs() > machine_consts.exponent_limit {
                     set_underflow_and_update = true;
                     continue 'l30;
-
-                    // match set_underflow_and_update_params(
-                    //     z,
-                    //     order,
-                    //     KODE,
-                    //     machine_consts,
-                    //     rs1,
-                    //     &mut y,
-                    //     &mut ND,
-                    //     &mut NZ,
-                    //     &mut FN,
-                    //     NLAST,
-                    // ) {
-                    //     UpdateAction::Return(NLAST_) => return Ok((y, N, NLAST_)),
-                    //     UpdateAction::Overflow => return Err(Overflow),
-                    //     UpdateAction::Break => break 'l30,
-                    // }
-                } //GO TO 110;
+                }
                 if i == 0 {
                     IFLAG = 1;
                 }
                 if rs1 >= 0.0 {
-                    //GO TO 60;
                     if i == 0 {
                         IFLAG = 3;
                     }
                 }
-                //    60   CONTINUE;
             }
             //-----------------------------------------------------------------------;
             //     SCALE S1 if CABS(S1) < ASCLE;
             //-----------------------------------------------------------------------;
             let mut s2 = phi * sum;
-            // S2R = PHIR*SUMR - PHII*SUMI;
-            // S2I = PHIR*SUMI + PHII*SUMR;
             s1 = s1.re.exp() * CSSR[IFLAG - 1] * Complex64::cis(s1.im);
-            // STR = DEXP(S1R)*CSSR(IFLAG);
-            // S1R = STR*DCOS(S1I);
-            // S1I = STR*DSIN(S1I);
             s2 *= s1;
-            // STR = S2R*S1R - S2I*S1I;
-            // S2I = S2R*S1I + S2I*S1R;
-            // S2R = STR;
             if IFLAG == 1 {
-                //GO TO 70;
-                // CALL ZUunderflowCHK(S2R, S2I, NW, BRY(1), TOL);
                 if will_z_underflow(s2, BRY[0], machine_consts.abs_error_tolerance) {
                     set_underflow_and_update = true;
                     continue 'l30;
-
-                    // match set_underflow_and_update_params(
-                    //     z,
-                    //     order,
-                    //     KODE,
-                    //     machine_consts,
-                    //     rs1,
-                    //     &mut y,
-                    //     &mut ND,
-                    //     &mut NZ,
-                    //     &mut FN,
-                    //     NLAST,
-                    // ) {
-                    //     UpdateAction::Return(NLAST_) => return Ok((y, N, NLAST_)),
-                    //     UpdateAction::Overflow => return Err(Overflow),
-                    //     UpdateAction::Break => break 'l30,
-                    // }
-                } //GO TO 110;
+                }
             }
-            //    70   CONTINUE;
-
             cy[i] = s2;
-            // CYR(I) = S2R;
-            // CYI(I) = S2I;
-            // M = ND - I + 1;
             y[ND - i - 1] = s2 * CSRR[IFLAG - 1];
-            // YR(M) = S2R*CSRR(IFLAG);
-            // YI(M) = S2I*CSRR(IFLAG);
         }
         break 'l30;
     }
-    //    80 CONTINUE;
     if ND <= 2 {
         return Ok((NZ, NLAST));
-    } //GO TO 100;
-    //   RAST = 1.0/ZABS(ZR,ZI);
-    //   STR = ZR*RAST;
-    //   STI = -ZI*RAST;
-    //   RZR = (STR+STR)*RAST;
-    //   RZI = (STI+STI)*RAST;
+    }
     let rz = 2.0 * z.conj() / z.abs().pow(2);
-    //   BRY(2) = 1.0/BRY(1);
-    //   BRY(3) = d1mach(2);
     let [mut s1, mut s2] = cy;
-    //   S1R = CYR(1);
-    //   S1I = CYI(1);
-    //   S2R = CYR(2);
-    //   S2I = CYI(2);
     let mut C1R = CSRR[IFLAG - 1];
     let mut ASCLE = BRY[IFLAG - 1];
     let mut K = ND - 2;
     FN = K as f64;
-    //   DO 90 I=3,ND;
     for _ in 2..ND {
         let mut c2 = s2;
-        // C2R = S2R;
-        // C2I = S2I;
         s2 = s1 + (order + FN) * (rz * c2);
-        // S2R = S1R + (FNU+FN)*(RZR*C2R-RZI*C2I);
-        // S2I = S1I + (FNU+FN)*(RZR*C2I+RZI*C2R);
         s1 = c2;
-        // S1R = C2R;
-        // S1I = C2I;
         c2 = s2 * C1R;
-        // C2R = S2R*C1R;
-        // C2I = S2I*C1R;
         y[K - 1] = c2;
-        // YR(K) = C2R;
-        // YI(K) = C2I;
-        // K = K - 1;
         K -= 1;
-        // FN = FN - 1.0;
         FN -= 1.0;
         if IFLAG >= 3 {
             continue;
-        } //GO TO 90;
-        // STR = (C2R).abs();
-        // STI = (C2I).abs();
-        // C2M = DMAX1(STR,STI);
+        }
         if max_abs_component(c2) <= ASCLE {
             continue;
-        } //GO TO 90;
-        IFLAG += 1; //IFLAG + 1;
+        }
+        IFLAG += 1;
         ASCLE = BRY[IFLAG - 1];
         s1 *= C1R;
-        // S1R = S1R*C1R;
-        // S1I = S1I*C1R;
         s2 = c2;
-        // S2R = C2R;
-        // S2I = C2I;
         s1 *= CSSR[IFLAG - 1];
-        // S1R = S1R*CSSR(IFLAG);
-        // S1I = S1I*CSSR(IFLAG);
         s2 *= CSSR[IFLAG - 1];
-        // S2R = S2R*CSSR(IFLAG);
-        // S2I = S2I*CSSR(IFLAG);
         C1R = CSRR[IFLAG - 1];
     }
-    //    90 CONTINUE;
-    //   100 CONTINUE;
-    //   RETURN;
     Ok((NZ, NLAST))
-    //-----------------------------------------------------------------------;
-    //     SET UNDERFLOW AND UPDATE PARAMETERS;
-    //-----------------------------------------------------------------------;
-    //   120 CONTINUE;
-    //       NZ = -1;
-    //       RETURN;
-    //   130 CONTINUE;
-    //       if (RS1 > 0.0) GO TO 120;
-    //       NZ = N;
-    //       DO 140 I=1,N;
-    //         YR(I) = ZEROR;
-    //         YI(I) = ZEROI;
-    //   140 CONTINUE;
-    //       RETURN;
-    //       END;
-    // fn set_underflow_and_update_params(
-    //     z: Complex64,
-    //     order: f64,
-    //     KODE: Scaling,
-    //     machine_consts: &MachineConsts,
-    //     rs1: f64,
-    //     y: &mut Vec<Complex64>,
-    //     ND: &mut usize,
-    //     NZ: &mut usize,
-    //     FN: &mut f64,
-    //     NLAST: usize,
-    // ) -> UpdateAction {
-    //     //   110 CONTINUE;
-    //     if rs1 > 0.0 {
-    //         return UpdateAction::Overflow;
-    //     } //GO TO 120;
-    //     y[*ND] = c_zero();
-    //     //   YR(ND) = ZEROR;
-    //     //   YI(ND) = ZEROI;
-    //     *NZ += 1;
-    //     *ND -= 1;
-    //     if *ND == 0 {
-    //         return UpdateAction::Return(NLAST);
-    //     } //GO TO 100;
-    //     //   CALL ZUOIK(ZR, ZI, FNU, KODE, 1, ND, YR, YI, NUF, TOL, ELIM, ALIM);
-    //     let NUF = match zuoik(z, order, KODE, IKType::I, *ND, y.to_vec(), machine_consts) {
-    //         Ok((_, NUF_)) => NUF_,
-    //         Err(Overflow) => return UpdateAction::Overflow,
-    //         _ => panic!("Unexpected error in zuoik"),
-    //     };
-
-    //     if NUF < 0 {
-    //         return UpdateAction::Overflow;
-    //     } //GO TO 120;
-    //     *ND -= NUF;
-    //     *NZ += NUF;
-    //     if *ND == 0 {
-    //         return UpdateAction::Return(NLAST);
-    //     } //GO TO 100;
-    //     *FN = order + ((*ND - 1) as f64);
-    //     if *FN >= machine_consts.fnul {
-    //         return UpdateAction::Break;
-    //     } //GO TO 30;
-    //     //   NLAST = ND;
-    //     UpdateAction::Return(*ND)
-    //     //   RETURN;
-    // }
 }
 
 fn ZUNI2(
