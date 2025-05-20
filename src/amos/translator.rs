@@ -4694,17 +4694,14 @@ fn ZUNK2(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
       END
       */
 fn ZBUNI(
-    //ZR, ZI, FNU, KODE, N,
     z: Complex64,
     order: f64,
     KODE: Scaling,
     N: usize,
     NUI: usize,
     y: &mut Vec<Complex64>,
-    // YR, YI, NZ, NUI, NLAST,
     machine_consts: &MachineConsts,
 ) -> Result<(usize, usize), BesselError> {
-    // * FNUL, TOL, ELIM, ALIM)
     // ***BEGIN PROLOGUE  ZBUNI
     // ***REFER TO  ZBESI,ZBESK
     //
@@ -4716,255 +4713,122 @@ fn ZBUNI(
     //
     // ***ROUTINES CALLED  ZUNI1,ZUNI2,ZABS,d1mach
     // ***END PROLOGUE  ZBUNI
-    //     COMPLEX CSCL,CSCR,CY,RZ,ST,S1,S2,Y,Z
-    //   EXTERNAL ZABS
-    //   DOUBLE PRECISION ALIM, AX, AY, CSCLR, CSCRR, CYI, CYR, DFNU,
-    //  * ELIM, FNU, FNUI, FNUL, GNU, RAZ, RZI, RZR, STI, STR, S1I, S1R,
-    //  * S2I, S2R, TOL, YI, YR, ZI, ZR, ZABS, ASCLE, BRY, C1R, C1I, C1M,
-    //  * d1mach
-    //   INTEGER I, IFLAG, IFORM, K, KODE, N, NL, NLAST, NUI, NW, NZ
-    //   DIMENSION YR(N), YI(N), CYR(2), CYI(2), BRY(3)
-    let mut NZ = 0;
     let AX = z.re.abs() * 1.7321;
     let AY = z.im.abs();
-    //   let mut IFORM = 1;
     let IFORM = if AY > AX { 2 } else { 1 };
     if NUI != 0 {
-        //GO TO 60;
         let mut FNUI = NUI as f64;
         let DFNU = order + ((N - 1) as f64);
         let GNU = DFNU + FNUI;
         let mut cy = c_zeros(2);
         let (NW, NLAST) = if IFORM != 2 {
-            //GO TO 10;
             //-----------------------------------------------------------------------;
             //     ASYMPTOTIC EXPANSION FOR I(FNU,Z) FOR LARGE FNU APPLIED IN;
             //     -PI/3 <= ARG(Z) <= PI/3;
             //-----------------------------------------------------------------------;
-            ZUNI1(
-                //ZR, ZI, GNU, KODE, 2,
-                z,
-                GNU,
-                KODE,
-                2,
-                &mut cy,
-                machine_consts,
-            )?
-            //CYR, CYI, NW, NLAST, machine_consts)
-            //FNUL, TOL, ELIM, ALIM);
+            ZUNI1(z, GNU, KODE, 2, &mut cy, machine_consts)?
         } else {
-            //   GO TO 20;
-            //    10 CONTINUE;
             //-----------------------------------------------------------------------;
             //     ASYMPTOTIC EXPANSION FOR J(FNU,Z*EXP(M*FRAC_PI_2)) FOR LARGE FNU;
             //     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I;
             //     AND FRAC_PI_2=PI/2;
             //-----------------------------------------------------------------------;
-            ZUNI2(
-                //ZR, ZI, GNU, KODE, 2,
-                z,
-                GNU,
-                KODE,
-                2,
-                &mut cy,
-                machine_consts,
-            )?
-            //CYR, CYI, NW, NLAST, machine_consts)
-            //FNUL, TOL, ELIM, ALIM);
+            ZUNI2(z, GNU, KODE, 2, &mut cy, machine_consts)?
         };
-        //    20 CONTINUE;
-        //   if (NW < 0) GO TO 50;
         if NW != 0 {
-            return Ok((NZ, N /*NLAST=N*/));
-        } //GO TO 90;
-        //   STR = ZABS(CYR(1),CYI(1));
+            return Ok((0, N));
+        }
         //----------------------------------------------------------------------;
         //     SCALE BACKWARD RECURRENCE, BRY(3) IS DEFINED BUT NEVER USED;
         //----------------------------------------------------------------------;
-        //   BRY(1)= machine_consts.ascle//1.0e+3*d1mach(1)/TOL;
-        //   BRY(2) = 1.0/BRY(1);
-        //   BRY(3) = BRY(2);
         let BRY = [
             machine_consts.absolute_approximation_limit,
             1.0 / machine_consts.absolute_approximation_limit,
             1.0 / machine_consts.absolute_approximation_limit,
         ];
         let (mut IFLAG, mut ASCLE, mut CSCLR) = if cy[0].abs() <= BRY[0] {
-            // GO TO 21;
             (1, BRY[0], 1.0 / machine_consts.abs_error_tolerance)
-        //   IFLAG = 1;
-        //   ASCLE = BRY(1);
-        //   CSCLR = 1.0/TOL;
         } else if cy[0].abs() >= BRY[1] {
-            //   GO TO 25;
-            //    21 CONTINUE{// GO TO 25;
             (3, BRY[2], machine_consts.abs_error_tolerance)
-        //   IFLAG = 3;
-        //   ASCLE=BRY(3);
-        //   CSCLR = TOL;
         } else {
             (2, BRY[1], 1.0)
         };
 
-        //    25 CONTINUE;
         let mut CSCRR = 1.0 / CSCLR;
         let mut s1 = cy[1] * CSCLR;
         let mut s2 = cy[0] * CSCLR;
-        //   S1R = CYR(2)*CSCLR;
-        //   S1I = CYI(2)*CSCLR;
-        //   S2R = CYR(1)*CSCLR;
-        //   S2I = CYI(1)*CSCLR;
         // working out rz in multiple steps seems to give different floating point answer.
-        // TODO confirm this is important when rest of code is fixed.
-        // let RAZ = 1.0 / z.abs(); //ZABS(ZR,ZI);
-        //   STR = ZR*RAZ;
-        //   STI = -ZI*RAZ;
-        // let st = z.conj()*RAZ;
-        //   RZR = (STR+STR)*RAZ;
-        //   RZI = (STI+STI)*RAZ;
-        // let rz = (st+st)*RAZ;
         let rz = 2.0 * z.conj() / z.abs().pow(2);
 
-        //   DO 30 I=1,NUI;
         for _ in 0..NUI {
             let st = s2;
-            // STR = S2R;
-            // STI = S2I;
             s2 = (DFNU + FNUI) * rz * s2 + s1;
-            // S2R = (DFNU+FNUI)*(RZR*STR-RZI*STI) + S1R;
-            // S2I = (DFNU+FNUI)*(RZR*STI+RZI*STR) + S1I;
             s1 = st;
-            // S1R = STR;
-            // S1I = STI;
             FNUI -= 1.0;
             if IFLAG >= 3 {
                 continue;
-            } //GO TO 30;
-            // let c1 = (s2*CSCRR).abs();
-            // STR = S2R*CSCRR;
-            // STI = S2I*CSCRR;
-            // C1R = (STR).abs();
-            // C1I = (STI).abs();
-            // let c1m = max_abs_component(s2*CSCRR);
-            // C1M = DMAX1(C1R,C1I);
+            }
             let st = s2 * CSCRR;
             if max_abs_component(st) <= ASCLE {
                 continue;
-            } //GO TO 30;
+            }
             IFLAG += 1;
             ASCLE = BRY[IFLAG - 1];
             s1 *= CSCRR;
-            // S1R = S1R*CSCRR;
-            // S1I = S1I*CSCRR;
-            // S2R = STR;
-            // S2I = STI;
             s2 = st;
             CSCLR *= machine_consts.abs_error_tolerance;
             CSCRR = 1.0 / CSCLR;
             s1 *= CSCLR;
             s2 *= CSCLR;
-            // S1R = S1R*CSCLR;
-            // S1I = S1I*CSCLR;
-            // S2R = S2R*CSCLR;
-            // S2I = S2I*CSCLR;
         }
-        //    30 CONTINUE;
         y[N - 1] = s2 * CSCRR;
-        //   YR(N) = S2R*CSCRR;
-        //   YI(N) = S2I*CSCRR;
         if N == 1 {
-            return Ok((NZ, NLAST));
-        } //RETURN;
+            return Ok((0, NLAST));
+        }
         let NL = N - 1;
         FNUI = NL as f64;
         let mut K = NL;
-        //   DO 40 I=1,NL;
         for _ in 0..NL {
             let st = s2;
-            // STR = S2R;
-            // STI = S2I;
             s2 = (order + FNUI) * (rz * s2) + s1;
-            // S2R = (FNU+FNUI)*(RZR*STR-RZI*STI) + S1R;
-            // S2I = (FNU+FNUI)*(RZR*STI+RZI*STR) + S1I;
             s1 = st;
-            // S1R = STR;
-            // S1I = STI;
             y[K - 1] = s2 * CSCRR;
-            // STR = S2R*CSCRR;
-            // STI = S2I*CSCRR;
-            // YR(K) = STR;
-            // YI(K) = STI;
             FNUI -= 1.0;
             K -= 1;
             if IFLAG >= 3 {
                 continue;
-            } //GO TO 40;
-            // C1R = (STR).abs();
-            // C1I = (STI).abs();
-            // C1M = DMAX1(C1R,C1I);
-
+            }
             // using K (rather than K-1) below as Amos "saved" the y value before K was decremented
             if max_abs_component(y[K]) <= ASCLE {
                 continue;
-            } //GO TO 40;
+            }
             IFLAG += 1;
             ASCLE = BRY[IFLAG - 1];
             s1 *= CSCRR;
-            // S1R = S1R*CSCRR;
-            // S1I = S1I*CSCRR;
             s2 = y[K - 1];
-            // S2R = STR;
-            // S2I = STI;
             CSCLR *= machine_consts.abs_error_tolerance;
             CSCRR = 1.0 / CSCLR;
             s1 *= CSCLR;
             s2 *= CSCLR;
-            // S1R = S1R*CSCLR;
-            // S1I = S1I*CSCLR;
-            // S2R = S2R*CSCLR;
-            // S2I = S2I*CSCLR;
         }
-        //    40 CONTINUE;
-        //   RETURN;
-        return Ok((NZ, NLAST));
-        //    50 CONTINUE;
-        //       NZ = -1;
-        //       if(NW == (-2)) NZ=-2;
-        //       RETURN;
+        return Ok((0, NLAST));
     }
-    //    60 CONTINUE;
     let (NW, NLAST) = if IFORM != 2 {
-        //GO TO 70;
         //-----------------------------------------------------------------------;
         //     ASYMPTOTIC EXPANSION FOR I(FNU,Z) FOR LARGE FNU APPLIED IN;
         //     -PI/3 <= ARG(Z) <= PI/3;
         //-----------------------------------------------------------------------;
         ZUNI1(z, order, KODE, N, y, machine_consts)?
-    //    ZUNI1(ZR, ZI, FNU, KODE, N, YR, YI, NW, NLAST, FNUL, TOL,
-    //  * ELIM, ALIM)?;
     } else {
-        //   GO TO 80;
-        //    70 CONTINUE;
         //-----------------------------------------------------------------------;
         //     ASYMPTOTIC EXPANSION FOR J(FNU,Z*EXP(M*FRAC_PI_2)) FOR LARGE FNU;
         //     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I;
         //     AND FRAC_PI_2=PI/2;
         //-----------------------------------------------------------------------;
         ZUNI2(z, order, KODE, N, y, machine_consts)?
-        //    ZUNI2(ZR, ZI, FNU, KODE, N, YR, YI, NW, NLAST, FNUL, TOL,
-        //  * ELIM, ALIM)?;
     };
-    //    80 CONTINUE;
-    //   if (NW < 0) GO TO 50;
-    NZ = NW;
-    //   RETURN;
 
-    Ok((NZ, NLAST))
-
-    //    90 CONTINUE;
-    //       NLAST = N;
-    //       RETURN;
-    //       END;
+    Ok((NW, NLAST))
 }
 
 // enum UpdateAction {
