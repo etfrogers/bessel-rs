@@ -1649,11 +1649,11 @@ fn ZAIRY(//ZR, ZI, ID, KODE, AIR, AII, NZ, IERR){
     //   if (ID < 0 || ID > 1) IERR=1;
     //   if (KODE < 1 || KODE > 2) IERR=1;
     //   if (IERR != 0) RETURN;
-      let AZ = z.abs();//ZABS(ZR,ZI);
+      let abs_z = z.abs();//ZABS(ZR,ZI);
     //   TOL = DMAX1(d1mach(4),1.0e-18);
     let machine_consts = MachineConsts::new();
-      let FID = if return_derivative{1.0} else{0.0};//(ID as f64);
-      if AZ <= 1.0 {//GO TO 70;
+      let float_is_derivative = if return_derivative{1.0} else{0.0};
+      if abs_z <= 1.0 {//GO TO 70;
 //-----------------------------------------------------------------------;
 //     POWER SERIES FOR CABS(Z) <= 1.;
 //-----------------------------------------------------------------------;
@@ -1663,7 +1663,7 @@ let mut s2 = c_one();
     //   S1I = CONEI;
     //   S2R = CONER;
     //   S2I = CONEI;
-      if AZ < machine_consts.abs_error_tolerance {//GO TO 170;
+      if abs_z < machine_consts.abs_error_tolerance {//GO TO 170;
         // 170 CONTINUE;
         // AA = 1.0e+3*d1mach(1);
         // S1R = ZEROR;
@@ -1676,7 +1676,7 @@ let mut s2 = c_one();
         // AII = 0.0;
         // AA = DSQRT(AA);
 
-        if AZ > machine_consts.underflow_limit.sqrt() {//GO TO 200;
+        if abs_z > machine_consts.underflow_limit.sqrt() {//GO TO 200;
             s1 = z.pow(2.0)/2.0;
         // S1R = 0.5*(ZR*ZR-ZI*ZI);
         // S1I = ZR*ZI;
@@ -1688,7 +1688,7 @@ let mut s2 = c_one();
         // RETURN;
         Ok((ai, 0))
     }else{
-        if AZ > machine_consts.underflow_limit {//GO TO 180;
+        if abs_z > machine_consts.underflow_limit {//GO TO 180;
             s1 = C2*z;
         // S1R = C2*ZR;
         // S1I = C2*ZI;
@@ -1702,8 +1702,8 @@ let mut s2 = c_one();
 
     }
       }
-      let AA = AZ*AZ;
-      if AA >= machine_consts.abs_error_tolerance/AZ {//GO TO 40;
+      let abs_z_sq = abs_z*abs_z;
+      if abs_z_sq >= machine_consts.abs_error_tolerance/abs_z {//GO TO 40;
         let mut term1 = c_one();
         let mut term2 = c_one();
     //   TRM1R = CONER;
@@ -1716,8 +1716,8 @@ let mut s2 = c_one();
     //   STI = ZR*ZI + ZI*ZR;
     //   Z3R = STR*ZR - STI*ZI;
     //   Z3I = STR*ZI + STI*ZR;
-      let AZ3 = AZ*AA;
-      let (mut AK, mut BK,CK, DK) = (2.0+FID, 3.0-2.0*FID, 4.0-FID,3.0-2.0*FID);
+      let AZ3 = abs_z*abs_z_sq;
+      let ( AK,  BK,CK, DK) = (2.0+float_is_derivative, 3.0-2.0*float_is_derivative, 4.0-float_is_derivative,3.0+2.0*float_is_derivative);
     //   AK = 2.0 + FID;
     //   BK = 3.0 - FID - FID;
     //   CK = 4.0 - FID;
@@ -1725,8 +1725,8 @@ let mut s2 = c_one();
       let mut D1:f64 = AK*DK;
       let mut D2 = BK*CK;
       let mut AD = D1.min(D2);//DMIN1(D1,D2);
-      AK = 24.0 + 9.0*FID;
-      BK = 30.0 - 9.0*FID;
+      let mut AK = 24.0 + 9.0*float_is_derivative;
+      let mut BK = 30.0 - 9.0*float_is_derivative;
     //   DO 30 K=1,25;
       for _ in 0..25{
         // STR = (TRM1R*Z3R-TRM1I*Z3I)/D1;
@@ -1759,10 +1759,10 @@ let mut s2 = c_one();
         let mut ai_inner = -s2*C2;
         // AIR = -S2R*C2;
         // AII = -S2I*C2;
-        if AZ > machine_consts.abs_error_tolerance {//GO TO 60;
+        if abs_z > machine_consts.abs_error_tolerance {//GO TO 60;
         // STR = ZR*S1R - ZI*S1I;
         // STI = ZR*S1I + ZI*S1R;
-        let CC = C1/(1.0+FID);
+        let CC = C1/(1.0+float_is_derivative);
         ai_inner += CC * z.pow(2.0)*s1;
         // AIR = AIR + CC*(STR*ZR-STI*ZI);
         // AII = AII + CC*(STR*ZI+STI*ZR);
@@ -1814,7 +1814,7 @@ let mut s2 = c_one();
 //     CASE FOR CABS(Z) > 1.0;
 //-----------------------------------------------------------------------;
 //    70 CONTINUE;
-      let FNU = (1.0+FID)/3.0;
+      let FNU = (1.0+float_is_derivative)/3.0;
 //-----------------------------------------------------------------------;
 //     SET PARAMETERS RELATED TO MACHINE CONSTANTS.;
 //     TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0e-18.;
@@ -1837,7 +1837,7 @@ let mut s2 = c_one();
     //   ALIM = ELIM + DMAX1(-AA,-41.45);
     //   RL = 1.2*DIG + 3.0;
     //   ALAZ = DLOG(AZ);
-    let ALAZ = AZ.ln();
+    let ALAZ = abs_z.ln();
 //--------------------------------------------------------------------------;
 //     TEST FOR PROPER RANGE;
 //-----------------------------------------------------------------------;
@@ -1845,12 +1845,12 @@ let mut s2 = c_one();
     //   BB=DBLE(FLOAT(i1mach(9)))*0.5;
      AA=AA.min(i32::MAX as f64/2.0);
       AA=AA.pow(TWO_THIRDS);
-      if AZ > AA {
+      if abs_z > AA {
         return Err(LossOfSignificance);
     };
     //   AA=DSQRT(AA);
         AA = AA.sqrt();
-        let significance_loss = AZ>AA;
+        let significance_loss = abs_z>AA;
     //   if (AZ > AA) IERR=3;
     let csq = z.sqrt();
     //   CALL ZSQRT(ZR, ZI, CSQR, CSQI);
@@ -3371,20 +3371,19 @@ fn i_ratios(
     }
     let mut cy = c_zeros(N);
     cy[N - 1] = p2 / p1;
-    if N == 1 {
-        return cy;
-    }
-    t1 = Complex64::new((N - 1) as f64, 0.0);
-    let cdfnu = order * rz;
-    for k in (1..N).rev() {
-        let mut pt = cdfnu + t1 * rz + cy[k];
-        let mut AK = pt.abs();
-        if AK == 0.0 {
-            pt = Complex64::new(machine_consts.abs_error_tolerance, machine_consts.abs_error_tolerance);
-            AK = pt.abs();
+    if N > 1 {
+        t1 = Complex64::new((N - 1) as f64, 0.0);
+        let cdfnu = order * rz;
+        for k in (1..N).rev() {
+            let mut pt = cdfnu + t1 * rz + cy[k];
+            let mut AK = pt.abs();
+            if AK == 0.0 {
+                pt = Complex64::new(machine_consts.abs_error_tolerance, machine_consts.abs_error_tolerance);
+                AK = pt.abs();
+            }
+            cy[k - 1] = pt.conj() / AK.powi(2);
+            t1 -= 1.0;
         }
-        cy[k - 1] = pt.conj() / AK.powi(2);
-        t1 -= 1.0;
     }
     cy
 }
@@ -5972,7 +5971,7 @@ fn ZUNI2(
     let mut CIDI = -1.0;
     //   INU = INT(SNGL(FNU));
     let INU = order as usize;
-    let ANG = FRAC_PI_2 * (order - (INU as f64));
+    let ANG = FRAC_PI_2 * order.fract();
     let mut c2 = Complex64::cis(ANG);
     //   C2R = DCOS(ANG);
     //   C2I = DSIN(ANG);
@@ -6185,7 +6184,7 @@ fn ZUNI2(
             // STR = DEXP(S1R)*CSSR(IFLAG);
             // S1R = STR*DCOS(S1I);
             // S1I = STR*DSIN(S1I);
-            let s1 = s1.re.exp() * CSSR[IFLAG - 1] * Complex64::cis(s1.im);
+            let s1 = CSSR[IFLAG - 1] * Complex64::from_polar(s1.re.exp(),s1.im);
             s2 *= s1;
             // STR = S2R*S1R - S2I*S1I;
             // S2I = S2R*S1I + S2I*S1R;
