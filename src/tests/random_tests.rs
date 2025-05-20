@@ -8,7 +8,7 @@ use std::f64::consts::{FRAC_PI_2, PI};
 
 use approx::assert_relative_eq;
 
-use super::{check_against_fortran, check_complex_arrays_equal, expected_error};
+use super::{check_against_fortran, check_complex_arrays_equal, zbesj_fortran_loop};
 use crate::{BesselError, Scaling, bessel_j};
 
 const RANDOM_LIMIT: f64 = 10_000.0;
@@ -35,7 +35,8 @@ fn test_bessel_j_random(mut rng: SmallRng) {
         let ans = bessel_j(order, z);
         let expected = bessel_j_ref(order, z);
         if let Ok(actual) = ans {
-            check_complex_arrays_equal(&actual, &expected.unwrap(), expected_error(order, z));
+            let (cy_loop_fort, _, _) = zbesj_fortran_loop(order, z, Scaling::Unscaled, 1);
+            check_complex_arrays_equal(&actual, &expected.unwrap(), &cy_loop_fort);
         } else {
             let err = ans.unwrap_err();
             if err == BesselError::NotYetImplemented {
