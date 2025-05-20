@@ -16,7 +16,10 @@ fn test_gamma_ln_hard_coded() {
 
 #[template]
 #[rstest]
-fn f_values(#[values(0.00000000001, 1.5, 2.2, 0.5, 2.0_f64.sqrt(), 35.45764, 94.3567, 101.0)] f: f64) {}
+fn f_values(
+    #[values(0.00000000001, 1.5, 2.2, 0.5, 2.0_f64.sqrt(), 35.45764, 94.3567, 101.0)] f: f64,
+) {
+}
 
 #[apply(f_values)]
 fn test_gamma_ln(f: f64) {

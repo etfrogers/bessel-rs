@@ -1,6 +1,9 @@
 #![allow(non_snake_case)]
 use super::{
-    c_one, c_zero, c_zeros, gamma_ln, i_power_series, overflow_checks::{zunik, zuoik}, utils::{is_sigificance_lost, will_z_underflow}, BesselError, BesselResult, IKType, MachineConsts, Scaling
+    BesselError, BesselResult, IKType, MachineConsts, Scaling, c_one, c_zero, c_zeros, gamma_ln,
+    i_power_series,
+    overflow_checks::{zunik, zuoik},
+    utils::{is_sigificance_lost, will_z_underflow},
 };
 use crate::amos::{
     BesselError::*, max_abs_component, overflow_checks::zunhj, z_asymptotic_i::z_asymptotic_i,
@@ -370,160 +373,160 @@ fn ZBESH(ZR, ZI, FNU, KODE, M, N, CYR, CYI, NZ, IERR)
       END
       */
 
-pub fn ZBESI(z: Complex64, order:f64, KODE: Scaling, N: usize)->BesselResult {
+pub fn ZBESI(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
     //ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, IERR)
-// ***BEGIN PROLOGUE  ZBESI
-// ***DATE WRITTEN   830501   (YYMMDD)
-// ***REVISION DATE  890801, 930101   (YYMMDD)
-// ***CATEGORY NO.  B5K
-// ***KEYWORDS  I-BESSEL FUNCTION,COMPLEX BESSEL FUNCTION,
-//             MODIFIED BESSEL FUNCTION OF THE FIRST KIND
-// ***AUTHOR  AMOS, DONALD E., SANDIA NATIONAL LABORATORIES
-// ***PURPOSE  TO COMPUTE I-BESSEL FUNCTIONS OF COMPLEX ARGUMENT
-// ***DESCRIPTION
-//
-//                    ***A DOUBLE PRECISION ROUTINE***
-//         ON KODE=1, ZBESI COMPUTES AN N MEMBER SEQUENCE OF COMPLEX
-//         BESSEL FUNCTIONS CY(J)=I(FNU+J-1,Z) FOR REAL, NONNEGATIVE
-//         ORDERS FNU+J-1, J=1,...,N AND COMPLEX Z IN THE CUT PLANE
-//         -PI < ARG(Z) <= PI. ON KODE=2, ZBESI RETURNS THE SCALED
-//         FUNCTIONS
-//
-//         CY(J)=EXP(-ABS(X))*I(FNU+J-1,Z)   J = 1,...,N , X=REAL(Z)
-//
-//         WITH THE EXPONENTIAL GROWTH REMOVED IN BOTH THE LEFT AND
-//         RIGHT HALF PLANES FOR Z TO INFINITY. DEFINITIONS AND NOTATION
-//         ARE FOUND IN THE NBS HANDBOOK OF MATHEMATICAL FUNCTIONS
-//         (REF. 1).
-//
-//         INPUT      ZR,ZI,FNU ARE DOUBLE PRECISION
-//           ZR,ZI  - Z=CMPLX(ZR,ZI),  -PI < ARG(Z) <= PI
-//           FNU    - ORDER OF INITIAL I FUNCTION, FNU >= 0.0
-//           KODE   - A PARAMETER TO INDICATE THE SCALING OPTION
-//                    KODE= 1  RETURNS
-//                             CY(J)=I(FNU+J-1,Z), J=1,...,N
-//                        = 2  RETURNS
-//                             CY(J)=I(FNU+J-1,Z)*EXP(-ABS(X)), J=1,...,N
-//           N      - NUMBER OF MEMBERS OF THE SEQUENCE, N >= 1
-//
-//         OUTPUT     CYR,CYI ARE DOUBLE PRECISION
-//           CYR,CYI- DOUBLE PRECISION VECTORS WHOSE FIRST N COMPONENTS
-//                    CONTAIN REAL AND IMAGINARY PARTS FOR THE SEQUENCE
-//                    CY(J)=I(FNU+J-1,Z)  OR
-//                    CY(J)=I(FNU+J-1,Z)*EXP(-ABS(X))  J=1,...,N
-//                    DEPENDING ON KODE, X=REAL(Z)
-//           NZ     - NUMBER OF COMPONENTS SET TO ZERO DUE TO UNDERFLOW,
-//                    NZ= 0   , NORMAL RETURN
-//                    NZ > 0 , LAST NZ COMPONENTS OF CY SET TO ZERO
-//                              TO UNDERFLOW, CY(J)=CMPLX(0.0,0.0)
-//                              J = N-NZ+1,...,N
-//           IERR   - ERROR FLAG
-//                    IERR=0, NORMAL RETURN - COMPUTATION COMPLETED
-//                    IERR=1, INPUT ERROR   - NO COMPUTATION
-//                    IERR=2, OVERFLOW      - NO COMPUTATION, REAL(Z) TOO
-//                            LARGE ON KODE=1
-//                    IERR=3, CABS(Z) OR FNU+N-1 LARGE - COMPUTATION DONE
-//                            BUT LOSSES OF SIGNIFCANCE BY ARGUMENT
-//                            REDUCTION PRODUCE LESS THAN HALF OF MACHINE
-//                            ACCURACY
-//                    IERR=4, CABS(Z) OR FNU+N-1 TOO LARGE - NO COMPUTA-
-//                            TION BECAUSE OF COMPLETE LOSSES OF SIGNIFI-
-//                            CANCE BY ARGUMENT REDUCTION
-//                    IERR=5, ERROR              - NO COMPUTATION,
-//                            ALGORITHM TERMINATION CONDITION NOT MET
-//
-// ***LONG DESCRIPTION
-//
-//         THE COMPUTATION IS CARRIED OUT BY THE POWER SERIES FOR
-//         SMALL CABS(Z), THE ASYMPTOTIC EXPANSION FOR LARGE CABS(Z),
-//         THE MILLER ALGORITHM NORMALIZED BY THE WRONSKIAN AND A
-//         NEUMANN SERIES FOR IMTERMEDIATE MAGNITUDES, AND THE
-//         UNIFORM ASYMPTOTIC EXPANSIONS FOR I(FNU,Z) AND J(FNU,Z)
-//         FOR LARGE ORDERS. BACKWARD RECURRENCE IS USED TO GENERATE
-//         SEQUENCES OR REDUCE ORDERS WHEN NECESSARY.
-//
-//         THE CALCULATIONS ABOVE ARE DONE IN THE RIGHT HALF PLANE AND
-//         CONTINUED INTO THE LEFT HALF PLANE BY THE FORMULA
-//
-//         I(FNU,Z*EXP(M*PI)) = EXP(M*PI*FNU)*I(FNU,Z)  REAL(Z) > 0.0
-//                       M = +I OR -I,  I**2=-1
-//
-//         FOR NEGATIVE ORDERS,THE FORMULA
-//
-//              I(-FNU,Z) = I(FNU,Z) + (2/PI)*SIN(PI*FNU)*K(FNU,Z)
-//
-//         CAN BE USED. HOWEVER,FOR LARGE ORDERS CLOSE TO INTEGERS, THE
-//         THE FUNCTION CHANGES RADICALLY. WHEN FNU IS A LARGE POSITIVE
-//         INTEGER,THE MAGNITUDE OF I(-FNU,Z)=I(FNU,Z) IS A LARGE
-//         NEGATIVE POWER OF TEN. BUT WHEN FNU IS NOT AN INTEGER,
-//         K(FNU,Z) DOMINATES IN MAGNITUDE WITH A LARGE POSITIVE POWER OF
-//         TEN AND THE MOST THAT THE SECOND TERM CAN BE REDUCED IS BY
-//         UNIT ROUNDOFF FROM THE COEFFICIENT. THUS, WIDE CHANGES CAN
-//         OCCUR WITHIN UNIT ROUNDOFF OF A LARGE INTEGER FOR FNU. HERE,
-//         LARGE MEANS FNU > CABS(Z).
-//
-//         IN MOST COMPLEX VARIABLE COMPUTATION, ONE MUST EVALUATE ELE-
-//         MENTARY FUNCTIONS. WHEN THE MAGNITUDE OF Z OR FNU+N-1 IS
-//         LARGE, LOSSES OF SIGNIFICANCE BY ARGUMENT REDUCTION OCCUR.
-//         CONSEQUENTLY, if EITHER ONE EXCEEDS U1=SQRT(0.5/UR), THEN
-//         LOSSES EXCEEDING HALF PRECISION ARE LIKELY AND AN ERROR FLAG
-//         IERR=3 IS TRIGGERED WHERE UR=DMAX1(d1mach(4),1.0e-18) IS
-//         DOUBLE PRECISION UNIT ROUNDOFF LIMITED TO 18 DIGITS PRECISION.
-//         if EITHER IS LARGER THAN U2=0.5/UR, THEN ALL SIGNIFICANCE IS
-//         LOST AND IERR=4. IN ORDER TO USE THE INT FUNCTION, ARGUMENTS
-//         MUST BE FURTHER RESTRICTED NOT TO EXCEED THE LARGEST MACHINE
-//         INTEGER, U3=i1mach(9). THUS, THE MAGNITUDE OF Z AND FNU+N-1 IS
-//         RESTRICTED BY MIN(U2,U3). ON 32 BIT MACHINES, U1,U2, AND U3
-//         ARE APPROXIMATELY 2.0E+3, 4.2E+6, 2.1E+9 IN SINGLE PRECISION
-//         ARITHMETIC AND 1.3E+8, 1.8E+16, 2.1E+9 IN DOUBLE PRECISION
-//         ARITHMETIC RESPECTIVELY. THIS MAKES U2 AND U3 LIMITING IN
-//         THEIR RESPECTIVE ARITHMETICS. THIS MEANS THAT ONE CAN EXPECT
-//         TO RETAIN, IN THE WORST CASES ON 32 BIT MACHINES, NO DIGITS
-//         IN SINGLE AND ONLY 7 DIGITS IN DOUBLE PRECISION ARITHMETIC.
-//         SIMILAR CONSIDERATIONS HOLD FOR OTHER MACHINES.
-//
-//         THE APPROXIMATE RELATIVE ERROR IN THE MAGNITUDE OF A COMPLEX
-//         BESSEL FUNCTION CAN BE EXPRESSED BY P*10**S WHERE P=MAX(UNIT
-//         ROUNDOFF,1.0E-18) IS THE NOMINAL PRECISION AND 10**S REPRE-
-//         SENTS THE INCREASE IN ERROR DUE TO ARGUMENT REDUCTION IN THE
-//         ELEMENTARY FUNCTIONS. HERE, S=MAX(1,ABS(LOG10(CABS(Z))),
-//         ABS(LOG10(FNU))) APPROXIMATELY (I.E. S=MAX(1,ABS(EXPONENT OF
-//         CABS(Z),ABS(EXPONENT OF FNU)) ). HOWEVER, THE PHASE ANGLE MAY
-//         HAVE ONLY ABSOLUTE ACCURACY. THIS IS MOST LIKELY TO OCCUR WHEN
-//         ONE COMPONENT (IN ABSOLUTE VALUE) IS LARGER THAN THE OTHER BY
-//         SEVERAL ORDERS OF MAGNITUDE. if ONE COMPONENT IS 10**K LARGER
-//         THAN THE OTHER, THEN ONE CAN EXPECT ONLY MAX(ABS(LOG10(P))-K,
-//         0) SIGNIFICANT DIGITS; OR, STATED ANOTHER WAY, WHEN K EXCEEDS
-//         THE EXPONENT OF P, NO SIGNIFICANT DIGITS REMAIN IN THE SMALLER
-//         COMPONENT. HOWEVER, THE PHASE ANGLE RETAINS ABSOLUTE ACCURACY
-//         BECAUSE, IN COMPLEX ARITHMETIC WITH PRECISION P, THE SMALLER
-//         COMPONENT WILL NOT (AS A RULE) DECREASE BELOW P TIMES THE
-//         MAGNITUDE OF THE LARGER COMPONENT. IN THESE EXTREME CASES,
-//         THE PRINCIPAL PHASE ANGLE IS ON THE ORDER OF +P, -P, PI/2-P,
-//         OR -PI/2+P.
-//
-// ***REFERENCES  HANDBOOK OF MATHEMATICAL FUNCTIONS BY M. ABRAMOWITZ
-//                 AND I. A. STEGUN, NBS AMS SERIES 55, U.S. DEPT. OF
-//                 COMMERCE, 1955.
-//
-//               COMPUTATION OF BESSEL FUNCTIONS OF COMPLEX ARGUMENT
-//                 BY D. E. AMOS, SAND83-0083, MAY, 1983.
-//
-//               COMPUTATION OF BESSEL FUNCTIONS OF COMPLEX ARGUMENT
-//                 AND LARGE ORDER BY D. E. AMOS, SAND83-0643, MAY, 1983
-//
-//               A SUBROUTINE PACKAGE FOR BESSEL FUNCTIONS OF A COMPLEX
-//                 ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, SAND85-
-//                 1018, MAY, 1985
-//
-//               A PORTABLE PACKAGE FOR BESSEL FUNCTIONS OF A COMPLEX
-//                 ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, ACM
-//                 TRANS. MATH. SOFTWARE, VOL. 12, NO. 3, SEPTEMBER 1986,
-//                 PP 265-273.
-//
-// ***ROUTINES CALLED  ZBINU,ZABS,i1mach,d1mach
-// ***END PROLOGUE  ZBESI
-//     COMPLEX CONE,CSGN,CW,CY,CZERO,Z,ZN
+    // ***BEGIN PROLOGUE  ZBESI
+    // ***DATE WRITTEN   830501   (YYMMDD)
+    // ***REVISION DATE  890801, 930101   (YYMMDD)
+    // ***CATEGORY NO.  B5K
+    // ***KEYWORDS  I-BESSEL FUNCTION,COMPLEX BESSEL FUNCTION,
+    //             MODIFIED BESSEL FUNCTION OF THE FIRST KIND
+    // ***AUTHOR  AMOS, DONALD E., SANDIA NATIONAL LABORATORIES
+    // ***PURPOSE  TO COMPUTE I-BESSEL FUNCTIONS OF COMPLEX ARGUMENT
+    // ***DESCRIPTION
+    //
+    //                    ***A DOUBLE PRECISION ROUTINE***
+    //         ON KODE=1, ZBESI COMPUTES AN N MEMBER SEQUENCE OF COMPLEX
+    //         BESSEL FUNCTIONS CY(J)=I(FNU+J-1,Z) FOR REAL, NONNEGATIVE
+    //         ORDERS FNU+J-1, J=1,...,N AND COMPLEX Z IN THE CUT PLANE
+    //         -PI < ARG(Z) <= PI. ON KODE=2, ZBESI RETURNS THE SCALED
+    //         FUNCTIONS
+    //
+    //         CY(J)=EXP(-ABS(X))*I(FNU+J-1,Z)   J = 1,...,N , X=REAL(Z)
+    //
+    //         WITH THE EXPONENTIAL GROWTH REMOVED IN BOTH THE LEFT AND
+    //         RIGHT HALF PLANES FOR Z TO INFINITY. DEFINITIONS AND NOTATION
+    //         ARE FOUND IN THE NBS HANDBOOK OF MATHEMATICAL FUNCTIONS
+    //         (REF. 1).
+    //
+    //         INPUT      ZR,ZI,FNU ARE DOUBLE PRECISION
+    //           ZR,ZI  - Z=CMPLX(ZR,ZI),  -PI < ARG(Z) <= PI
+    //           FNU    - ORDER OF INITIAL I FUNCTION, FNU >= 0.0
+    //           KODE   - A PARAMETER TO INDICATE THE SCALING OPTION
+    //                    KODE= 1  RETURNS
+    //                             CY(J)=I(FNU+J-1,Z), J=1,...,N
+    //                        = 2  RETURNS
+    //                             CY(J)=I(FNU+J-1,Z)*EXP(-ABS(X)), J=1,...,N
+    //           N      - NUMBER OF MEMBERS OF THE SEQUENCE, N >= 1
+    //
+    //         OUTPUT     CYR,CYI ARE DOUBLE PRECISION
+    //           CYR,CYI- DOUBLE PRECISION VECTORS WHOSE FIRST N COMPONENTS
+    //                    CONTAIN REAL AND IMAGINARY PARTS FOR THE SEQUENCE
+    //                    CY(J)=I(FNU+J-1,Z)  OR
+    //                    CY(J)=I(FNU+J-1,Z)*EXP(-ABS(X))  J=1,...,N
+    //                    DEPENDING ON KODE, X=REAL(Z)
+    //           NZ     - NUMBER OF COMPONENTS SET TO ZERO DUE TO UNDERFLOW,
+    //                    NZ= 0   , NORMAL RETURN
+    //                    NZ > 0 , LAST NZ COMPONENTS OF CY SET TO ZERO
+    //                              TO UNDERFLOW, CY(J)=CMPLX(0.0,0.0)
+    //                              J = N-NZ+1,...,N
+    //           IERR   - ERROR FLAG
+    //                    IERR=0, NORMAL RETURN - COMPUTATION COMPLETED
+    //                    IERR=1, INPUT ERROR   - NO COMPUTATION
+    //                    IERR=2, OVERFLOW      - NO COMPUTATION, REAL(Z) TOO
+    //                            LARGE ON KODE=1
+    //                    IERR=3, CABS(Z) OR FNU+N-1 LARGE - COMPUTATION DONE
+    //                            BUT LOSSES OF SIGNIFCANCE BY ARGUMENT
+    //                            REDUCTION PRODUCE LESS THAN HALF OF MACHINE
+    //                            ACCURACY
+    //                    IERR=4, CABS(Z) OR FNU+N-1 TOO LARGE - NO COMPUTA-
+    //                            TION BECAUSE OF COMPLETE LOSSES OF SIGNIFI-
+    //                            CANCE BY ARGUMENT REDUCTION
+    //                    IERR=5, ERROR              - NO COMPUTATION,
+    //                            ALGORITHM TERMINATION CONDITION NOT MET
+    //
+    // ***LONG DESCRIPTION
+    //
+    //         THE COMPUTATION IS CARRIED OUT BY THE POWER SERIES FOR
+    //         SMALL CABS(Z), THE ASYMPTOTIC EXPANSION FOR LARGE CABS(Z),
+    //         THE MILLER ALGORITHM NORMALIZED BY THE WRONSKIAN AND A
+    //         NEUMANN SERIES FOR IMTERMEDIATE MAGNITUDES, AND THE
+    //         UNIFORM ASYMPTOTIC EXPANSIONS FOR I(FNU,Z) AND J(FNU,Z)
+    //         FOR LARGE ORDERS. BACKWARD RECURRENCE IS USED TO GENERATE
+    //         SEQUENCES OR REDUCE ORDERS WHEN NECESSARY.
+    //
+    //         THE CALCULATIONS ABOVE ARE DONE IN THE RIGHT HALF PLANE AND
+    //         CONTINUED INTO THE LEFT HALF PLANE BY THE FORMULA
+    //
+    //         I(FNU,Z*EXP(M*PI)) = EXP(M*PI*FNU)*I(FNU,Z)  REAL(Z) > 0.0
+    //                       M = +I OR -I,  I**2=-1
+    //
+    //         FOR NEGATIVE ORDERS,THE FORMULA
+    //
+    //              I(-FNU,Z) = I(FNU,Z) + (2/PI)*SIN(PI*FNU)*K(FNU,Z)
+    //
+    //         CAN BE USED. HOWEVER,FOR LARGE ORDERS CLOSE TO INTEGERS, THE
+    //         THE FUNCTION CHANGES RADICALLY. WHEN FNU IS A LARGE POSITIVE
+    //         INTEGER,THE MAGNITUDE OF I(-FNU,Z)=I(FNU,Z) IS A LARGE
+    //         NEGATIVE POWER OF TEN. BUT WHEN FNU IS NOT AN INTEGER,
+    //         K(FNU,Z) DOMINATES IN MAGNITUDE WITH A LARGE POSITIVE POWER OF
+    //         TEN AND THE MOST THAT THE SECOND TERM CAN BE REDUCED IS BY
+    //         UNIT ROUNDOFF FROM THE COEFFICIENT. THUS, WIDE CHANGES CAN
+    //         OCCUR WITHIN UNIT ROUNDOFF OF A LARGE INTEGER FOR FNU. HERE,
+    //         LARGE MEANS FNU > CABS(Z).
+    //
+    //         IN MOST COMPLEX VARIABLE COMPUTATION, ONE MUST EVALUATE ELE-
+    //         MENTARY FUNCTIONS. WHEN THE MAGNITUDE OF Z OR FNU+N-1 IS
+    //         LARGE, LOSSES OF SIGNIFICANCE BY ARGUMENT REDUCTION OCCUR.
+    //         CONSEQUENTLY, if EITHER ONE EXCEEDS U1=SQRT(0.5/UR), THEN
+    //         LOSSES EXCEEDING HALF PRECISION ARE LIKELY AND AN ERROR FLAG
+    //         IERR=3 IS TRIGGERED WHERE UR=DMAX1(d1mach(4),1.0e-18) IS
+    //         DOUBLE PRECISION UNIT ROUNDOFF LIMITED TO 18 DIGITS PRECISION.
+    //         if EITHER IS LARGER THAN U2=0.5/UR, THEN ALL SIGNIFICANCE IS
+    //         LOST AND IERR=4. IN ORDER TO USE THE INT FUNCTION, ARGUMENTS
+    //         MUST BE FURTHER RESTRICTED NOT TO EXCEED THE LARGEST MACHINE
+    //         INTEGER, U3=i1mach(9). THUS, THE MAGNITUDE OF Z AND FNU+N-1 IS
+    //         RESTRICTED BY MIN(U2,U3). ON 32 BIT MACHINES, U1,U2, AND U3
+    //         ARE APPROXIMATELY 2.0E+3, 4.2E+6, 2.1E+9 IN SINGLE PRECISION
+    //         ARITHMETIC AND 1.3E+8, 1.8E+16, 2.1E+9 IN DOUBLE PRECISION
+    //         ARITHMETIC RESPECTIVELY. THIS MAKES U2 AND U3 LIMITING IN
+    //         THEIR RESPECTIVE ARITHMETICS. THIS MEANS THAT ONE CAN EXPECT
+    //         TO RETAIN, IN THE WORST CASES ON 32 BIT MACHINES, NO DIGITS
+    //         IN SINGLE AND ONLY 7 DIGITS IN DOUBLE PRECISION ARITHMETIC.
+    //         SIMILAR CONSIDERATIONS HOLD FOR OTHER MACHINES.
+    //
+    //         THE APPROXIMATE RELATIVE ERROR IN THE MAGNITUDE OF A COMPLEX
+    //         BESSEL FUNCTION CAN BE EXPRESSED BY P*10**S WHERE P=MAX(UNIT
+    //         ROUNDOFF,1.0E-18) IS THE NOMINAL PRECISION AND 10**S REPRE-
+    //         SENTS THE INCREASE IN ERROR DUE TO ARGUMENT REDUCTION IN THE
+    //         ELEMENTARY FUNCTIONS. HERE, S=MAX(1,ABS(LOG10(CABS(Z))),
+    //         ABS(LOG10(FNU))) APPROXIMATELY (I.E. S=MAX(1,ABS(EXPONENT OF
+    //         CABS(Z),ABS(EXPONENT OF FNU)) ). HOWEVER, THE PHASE ANGLE MAY
+    //         HAVE ONLY ABSOLUTE ACCURACY. THIS IS MOST LIKELY TO OCCUR WHEN
+    //         ONE COMPONENT (IN ABSOLUTE VALUE) IS LARGER THAN THE OTHER BY
+    //         SEVERAL ORDERS OF MAGNITUDE. if ONE COMPONENT IS 10**K LARGER
+    //         THAN THE OTHER, THEN ONE CAN EXPECT ONLY MAX(ABS(LOG10(P))-K,
+    //         0) SIGNIFICANT DIGITS; OR, STATED ANOTHER WAY, WHEN K EXCEEDS
+    //         THE EXPONENT OF P, NO SIGNIFICANT DIGITS REMAIN IN THE SMALLER
+    //         COMPONENT. HOWEVER, THE PHASE ANGLE RETAINS ABSOLUTE ACCURACY
+    //         BECAUSE, IN COMPLEX ARITHMETIC WITH PRECISION P, THE SMALLER
+    //         COMPONENT WILL NOT (AS A RULE) DECREASE BELOW P TIMES THE
+    //         MAGNITUDE OF THE LARGER COMPONENT. IN THESE EXTREME CASES,
+    //         THE PRINCIPAL PHASE ANGLE IS ON THE ORDER OF +P, -P, PI/2-P,
+    //         OR -PI/2+P.
+    //
+    // ***REFERENCES  HANDBOOK OF MATHEMATICAL FUNCTIONS BY M. ABRAMOWITZ
+    //                 AND I. A. STEGUN, NBS AMS SERIES 55, U.S. DEPT. OF
+    //                 COMMERCE, 1955.
+    //
+    //               COMPUTATION OF BESSEL FUNCTIONS OF COMPLEX ARGUMENT
+    //                 BY D. E. AMOS, SAND83-0083, MAY, 1983.
+    //
+    //               COMPUTATION OF BESSEL FUNCTIONS OF COMPLEX ARGUMENT
+    //                 AND LARGE ORDER BY D. E. AMOS, SAND83-0643, MAY, 1983
+    //
+    //               A SUBROUTINE PACKAGE FOR BESSEL FUNCTIONS OF A COMPLEX
+    //                 ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, SAND85-
+    //                 1018, MAY, 1985
+    //
+    //               A PORTABLE PACKAGE FOR BESSEL FUNCTIONS OF A COMPLEX
+    //                 ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, ACM
+    //                 TRANS. MATH. SOFTWARE, VOL. 12, NO. 3, SEPTEMBER 1986,
+    //                 PP 265-273.
+    //
+    // ***ROUTINES CALLED  ZBINU,ZABS,i1mach,d1mach
+    // ***END PROLOGUE  ZBESI
+    //     COMPLEX CONE,CSGN,CW,CY,CZERO,Z,ZN
     //   EXTERNAL ZABS
     //   DOUBLE PRECISION AA, ALIM, ARG, CONEI, CONER, CSGNI, CSGNR, CYI,
     //  * CYR, DIG, ELIM, FNU, FNUL, PI, RL, R1M5, STR, TOL, ZI, ZNI, ZNR,
@@ -532,9 +535,9 @@ pub fn ZBESI(z: Complex64, order:f64, KODE: Scaling, N: usize)->BesselResult {
     //   DIMENSION CYR(N), CYI(N)
     //   DATA PI /3.14159265358979324/
     //   DATA CONER, CONEI /1.0,0.0/
-//
-// ***FIRST EXECUTABLE STATEMENT  ZBESI
-let mut err = None;
+    //
+    // ***FIRST EXECUTABLE STATEMENT  ZBESI
+    let mut err = None;
     if order < 0.0_f64 {
         err = Some("order must be positive")
     };
@@ -553,17 +556,17 @@ let mut err = None;
     //   if (KODE < 1 || KODE > 2) IERR=1;
     //   if (N < 1) IERR=1;
     //   if (IERR != 0) RETURN;
-//-----------------------------------------------------------------------;
-//     SET PARAMETERS RELATED TO MACHINE CONSTANTS.;
-//     TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0E-18.;
-//     ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.;
-//     EXP(-ELIM) < EXP(-ALIM)=EXP(-ELIM)/TOL    AND;
-//     EXP(ELIM) > EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR;
-//     UNDERFLOW AND OVERFLOW LIMITS WHERE SCALED ARITHMETIC IS DONE.;
-//     RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.;
-//     DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).;
-//     FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU.;
-//-----------------------------------------------------------------------;
+    //-----------------------------------------------------------------------;
+    //     SET PARAMETERS RELATED TO MACHINE CONSTANTS.;
+    //     TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0E-18.;
+    //     ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.;
+    //     EXP(-ELIM) < EXP(-ALIM)=EXP(-ELIM)/TOL    AND;
+    //     EXP(ELIM) > EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR;
+    //     UNDERFLOW AND OVERFLOW LIMITS WHERE SCALED ARITHMETIC IS DONE.;
+    //     RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.;
+    //     DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).;
+    //     FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU.;
+    //-----------------------------------------------------------------------;
     //   TOL = DMAX1(d1mach(4),1.0e-18);
     //   K1 = i1mach(15);
     //   K2 = i1mach(16);
@@ -578,11 +581,11 @@ let mut err = None;
     //   RL = 1.2*DIG + 3.0;
     //   FNUL = 10.0 + 6.0*(DIG-3.0);
     let machine_consts = MachineConsts::new();
-//-----------------------------------------------------------------------------;
-//     TEST FOR PROPER RANGE;
-//-----------------------------------------------------------------------;
-      let AZ = z.abs();//ZABS(ZR,ZI);
-      let FN = order+((N-1) as f64);
+    //-----------------------------------------------------------------------------;
+    //     TEST FOR PROPER RANGE;
+    //-----------------------------------------------------------------------;
+    let AZ = z.abs(); //ZABS(ZR,ZI);
+    let FN = order + ((N - 1) as f64);
     let partial_significance_loss = is_sigificance_lost(AZ, FN, &machine_consts)?;
 
     //   AA = 0.5/TOL;
@@ -597,101 +600,103 @@ let mut err = None;
     //   ZNI = ZI;
     //   CSGNR = CONER;
     //   CSGNI = CONEI;
-    let (zn, mut csgn) = if z.re >= 0.0{
+    let (zn, mut csgn) = if z.re >= 0.0 {
         (z, c_one())
-    }else{
+    } else {
         // zn = -z;
-    //   if (ZR >= 0.0) GO TO 40;
-    //   ZNR = -ZR;
-    //   ZNI = -ZI;
-//-----------------------------------------------------------------------;
-//     CALCULATE CSGN=EXP(FNU*PI*I) TO MINIMIZE LOSSES OF SIGNIFICANCE;
-//     WHEN FNU IS LARGE;
-//-----------------------------------------------------------------------;
-    let INU = order as usize;
-    //   INU = INT(SNGL(FNU));
-    //   ARG = (FNU-(INU as f64))*PI;
-    let  ARG = order.fract() * PI * if z.im<0.0{-1.0}else{1.0};
-    // if z.im <0.0{ARG = -ARG}
-    //   if (ZI < 0.0) ARG = -ARG;
-    let mut  csgn = Complex64::cis(ARG);
-    //   CSGNR = DCOS(ARG);
-    //   CSGNI = DSIN(ARG);
-    //   if (MOD(INU,2) == 0) GO TO 40;
-    if INU%2 != 0 {csgn = -csgn;}
-    (-z, csgn)
-    //   CSGNR = -CSGNR;
-    //   CSGNI = -CSGNI;
+        //   if (ZR >= 0.0) GO TO 40;
+        //   ZNR = -ZR;
+        //   ZNI = -ZI;
+        //-----------------------------------------------------------------------;
+        //     CALCULATE CSGN=EXP(FNU*PI*I) TO MINIMIZE LOSSES OF SIGNIFICANCE;
+        //     WHEN FNU IS LARGE;
+        //-----------------------------------------------------------------------;
+        let INU = order as usize;
+        //   INU = INT(SNGL(FNU));
+        //   ARG = (FNU-(INU as f64))*PI;
+        let ARG = order.fract() * PI * if z.im < 0.0 { -1.0 } else { 1.0 };
+        // if z.im <0.0{ARG = -ARG}
+        //   if (ZI < 0.0) ARG = -ARG;
+        let mut csgn = Complex64::cis(ARG);
+        //   CSGNR = DCOS(ARG);
+        //   CSGNI = DSIN(ARG);
+        //   if (MOD(INU,2) == 0) GO TO 40;
+        if INU % 2 != 0 {
+            csgn = -csgn;
+        }
+        (-z, csgn)
+        //   CSGNR = -CSGNR;
+        //   CSGNI = -CSGNI;
     };
-//    40 CONTINUE;
+    //    40 CONTINUE;
     //   CALL ZBINU(ZNR, ZNI, FNU, KODE, N, CYR, CYI, NZ, RL, FNUL, TOL,;
     //  * ELIM, ALIM);
     let (mut cy, nz) = ZBINU(zn, order, KODE, N, &machine_consts)?;
     //   if (NZ < 0) GO TO 120;
     let remaining_n = N - nz;
     //   if (ZR >= 0.0) RETURN;
-      if z.re < 0.0 && remaining_n > 0{
-
-//-----------------------------------------------------------------------;
-//     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE;
-//-----------------------------------------------------------------------;
-    //   NN = N - NZ;
-    //   if (NN == 0) RETURN;
-    //   RTOL = 1.0/TOL;
-    //   ASCLE = d1mach(1)*RTOL*1.0e+3;
-    //   DO 50 I=1,remaining_n;
-    for i in 0..remaining_n{
-//       STR = CYR(I)*CSGNR - CYI(I)*CSGNI;
-//       CYI(I) = CYR(I)*CSGNI + CYI(I)*CSGNR;
-//       CYR(I) = STR;
-        // AA = CYR(I);
-        // BB = CYI(I);
-        // ATOL = 1.0;
-        let correction = if max_abs_component(cy[i]) <= machine_consts.absolute_approximation_limit{
-            cy[i] *= machine_consts.rtol;
-            machine_consts.abs_error_tolerance
-        }else{
-            1.0
-        };
-//         if (DMAX1((AA).abs(),(BB).abs()) > ASCLE) GO TO 55;
-//           AA = AA*RTOL;
-//           BB = BB*RTOL;
-//           ATOL = TOL;
-//    55   CONTINUE;
-        cy[i] *= csgn;
-        cy[i] *= correction;
-        // STR = AA*CSGNR - BB*CSGNI;
-        // STI = AA*CSGNI + BB*CSGNR;
-        // CYR(I) = STR*ATOL;
-        // CYI(I) = STI*ATOL;
-        csgn = -csgn;
-        // CSGNR = -CSGNR;
-        // CSGNI = -CSGNI;
+    if z.re < 0.0 && remaining_n > 0 {
+        //-----------------------------------------------------------------------;
+        //     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE;
+        //-----------------------------------------------------------------------;
+        //   NN = N - NZ;
+        //   if (NN == 0) RETURN;
+        //   RTOL = 1.0/TOL;
+        //   ASCLE = d1mach(1)*RTOL*1.0e+3;
+        //   DO 50 I=1,remaining_n;
+        for i in 0..remaining_n {
+            //       STR = CYR(I)*CSGNR - CYI(I)*CSGNI;
+            //       CYI(I) = CYR(I)*CSGNI + CYI(I)*CSGNR;
+            //       CYR(I) = STR;
+            // AA = CYR(I);
+            // BB = CYI(I);
+            // ATOL = 1.0;
+            let correction =
+                if max_abs_component(cy[i]) <= machine_consts.absolute_approximation_limit {
+                    cy[i] *= machine_consts.rtol;
+                    machine_consts.abs_error_tolerance
+                } else {
+                    1.0
+                };
+            //         if (DMAX1((AA).abs(),(BB).abs()) > ASCLE) GO TO 55;
+            //           AA = AA*RTOL;
+            //           BB = BB*RTOL;
+            //           ATOL = TOL;
+            //    55   CONTINUE;
+            cy[i] *= csgn;
+            cy[i] *= correction;
+            // STR = AA*CSGNR - BB*CSGNI;
+            // STI = AA*CSGNI + BB*CSGNR;
+            // CYR(I) = STR*ATOL;
+            // CYI(I) = STI*ATOL;
+            csgn = -csgn;
+            // CSGNR = -CSGNR;
+            // CSGNI = -CSGNI;
+        }
     }
-}
 
-if partial_significance_loss {
-    Err(PartialLossOfSignificance { y: cy, nz })
-} else {
-    Ok((cy, nz))
+    if partial_significance_loss {
+        Err(PartialLossOfSignificance { y: cy, nz })
+    } else {
+        Ok((cy, nz))
+    }
+    //    50 CONTINUE;
+    //       RETURN;
+    //   120 CONTINUE;
+    //       if(NZ == (-2)) GO TO 130;
+    //       NZ = 0;
+    //       IERR=2;
+    //       RETURN;
+    //   130 CONTINUE;
+    //       NZ=0;
+    //       IERR=5;
+    //       RETURN;
+    //   260 CONTINUE;
+    //       NZ=0;
+    //       IERR=4;
+    //       RETURN;
+    //       END;
 }
-//    50 CONTINUE;
-//       RETURN;
-//   120 CONTINUE;
-//       if(NZ == (-2)) GO TO 130;
-//       NZ = 0;
-//       IERR=2;
-//       RETURN;
-//   130 CONTINUE;
-//       NZ=0;
-//       IERR=5;
-//       RETURN;
-//   260 CONTINUE;
-//       NZ=0;
-//       IERR=4;
-//       RETURN;
-//       END;
-      }
 
 pub fn zbesj(
     z: Complex64, //ZR, ZI,
@@ -911,16 +916,16 @@ pub fn zbesj(
     }
     let (mut cy, nz) = ZBINU(zn, order, KODE, n, &machine_consts)?;
     for i in 0..n - nz {
-        let  mut cyi = cy[i];
+        let mut cyi = cy[i];
         let mut ATOL = 1.0;
         if (max_abs_component(cyi)) <= machine_consts.absolute_approximation_limit {
             cyi *= machine_consts.rtol;
             ATOL = machine_consts.abs_error_tolerance;
         }
-        let st = cyi*csgn;
-        cy[i] = st*ATOL;
-        csgn *= sign_selector*Complex64::I;
-        }
+        let st = cyi * csgn;
+        cy[i] = st * ATOL;
+        csgn *= sign_selector * Complex64::I;
+    }
     if partial_significance_loss {
         Err(PartialLossOfSignificance { y: cy, nz })
     } else {
@@ -1499,137 +1504,141 @@ fn ZBESY(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, CWRKR,
       END
       */
 
-fn ZAIRY(//ZR, ZI, ID, KODE, AIR, AII, NZ, IERR){
-    z:Complex64, return_derivative: bool, KODE: Scaling) -> BesselResult<(Complex64, usize)> {
-// ***BEGIN PROLOGUE  ZAIRY
-// ***DATE WRITTEN   830501   (YYMMDD)
-// ***REVISION DATE  890801, 930101   (YYMMDD)
-// ***CATEGORY NO.  B5K
-// ***KEYWORDS  AIRY FUNCTION,BESSEL FUNCTIONS OF ORDER ONE THIRD
-// ***AUTHOR  AMOS, DONALD E., SANDIA NATIONAL LABORATORIES
-// ***PURPOSE  TO COMPUTE AIRY FUNCTIONS AI(Z) AND DAI(Z) FOR COMPLEX Z
-// ***DESCRIPTION
-//
-//                      ***A DOUBLE PRECISION ROUTINE***
-//         ON KODE=1, ZAIRY COMPUTES THE COMPLEX AIRY FUNCTION AI(Z) OR
-//         ITS DERIVATIVE DAI(Z)/DZ ON ID=0 OR ID=1 RESPECTIVELY. ON
-//         KODE=2, A SCALING OPTION CEXP(ZTA)*AI(Z) OR CEXP(ZTA)*
-//         DAI(Z)/DZ IS PROVIDED TO REMOVE THE EXPONENTIAL DECAY IN
-//         -PI/3 < ARG(Z) < PI/3 AND THE EXPONENTIAL GROWTH IN
-//         PI/3 < ABS(ARG(Z)) < PI WHERE ZTA=(2/3)*Z*CSQRT(Z).
-//
-//         WHILE THE AIRY FUNCTIONS AI(Z) AND DAI(Z)/DZ ARE ANALYTIC IN
-//         THE WHOLE Z PLANE, THE CORRESPONDING SCALED FUNCTIONS DEFINED
-//         FOR KODE=2 HAVE A CUT ALONG THE NEGATIVE REAL AXIS.
-//         DEFINTIONS AND NOTATION ARE FOUND IN THE NBS HANDBOOK OF
-//         MATHEMATICAL FUNCTIONS (REF. 1).
-//
-//         INPUT      ZR,ZI ARE DOUBLE PRECISION
-//           ZR,ZI  - Z=CMPLX(ZR,ZI)
-//           ID     - ORDER OF DERIVATIVE, ID=0 OR ID=1
-//           KODE   - A PARAMETER TO INDICATE THE SCALING OPTION
-//                    KODE= 1  RETURNS
-//                             AI=AI(Z)                ON ID=0 OR
-//                             AI=DAI(Z)/DZ            ON ID=1
-//                        = 2  RETURNS
-//                             AI=CEXP(ZTA)*AI(Z)       ON ID=0 OR
-//                             AI=CEXP(ZTA)*DAI(Z)/DZ   ON ID=1 WHERE
-//                             ZTA=(2/3)*Z*CSQRT(Z)
-//
-//         OUTPUT     AIR,AII ARE DOUBLE PRECISION
-//           AIR,AII- COMPLEX ANSWER DEPENDING ON THE CHOICES FOR ID AND
-//                    KODE
-//           NZ     - UNDERFLOW INDICATOR
-//                    NZ= 0   , NORMAL RETURN
-//                    NZ= 1   , AI=CMPLX(0.0,0.0) DUE TO UNDERFLOW IN
-//                              -PI/3 < ARG(Z) < PI/3 ON KODE=1
-//           IERR   - ERROR FLAG
-//                    IERR=0, NORMAL RETURN - COMPUTATION COMPLETED
-//                    IERR=1, INPUT ERROR   - NO COMPUTATION
-//                    IERR=2, OVERFLOW      - NO COMPUTATION, REAL(ZTA)
-//                            TOO LARGE ON KODE=1
-//                    IERR=3, CABS(Z) LARGE      - COMPUTATION COMPLETED
-//                            LOSSES OF SIGNIFCANCE BY ARGUMENT REDUCTION
-//                            PRODUCE LESS THAN HALF OF MACHINE ACCURACY
-//                    IERR=4, CABS(Z) TOO LARGE  - NO COMPUTATION
-//                            COMPLETE LOSS OF ACCURACY BY ARGUMENT
-//                            REDUCTION
-//                    IERR=5, ERROR              - NO COMPUTATION,
-//                            ALGORITHM TERMINATION CONDITION NOT MET
-//
-// ***LONG DESCRIPTION
-//
-//         AI AND DAI ARE COMPUTED FOR CABS(Z) > 1.0 FROM THE K BESSEL
-//         FUNCTIONS BY
-//
-//            AI(Z)=C*SQRT(Z)*K(1/3,ZTA) , DAI(Z)=-C*Z*K(2/3,ZTA)
-//                           C=1.0/(PI*SQRT(3.0))
-//                            ZTA=(2/3)*Z**(3/2)
-//
-//         WITH THE POWER SERIES FOR CABS(Z) <= 1.0.
-//
-//         IN MOST COMPLEX VARIABLE COMPUTATION, ONE MUST EVALUATE ELE-
-//         MENTARY FUNCTIONS. WHEN THE MAGNITUDE OF Z IS LARGE, LOSSES
-//         OF SIGNIFICANCE BY ARGUMENT REDUCTION OCCUR. CONSEQUENTLY, if
-//         THE MAGNITUDE OF ZETA=(2/3)*Z**1.5 EXCEEDS U1=SQRT(0.5/UR),
-//         THEN LOSSES EXCEEDING HALF PRECISION ARE LIKELY AND AN ERROR
-//         FLAG IERR=3 IS TRIGGERED WHERE UR=DMAX1(d1mach(4),1.0e-18) IS
-//         DOUBLE PRECISION UNIT ROUNDOFF LIMITED TO 18 DIGITS PRECISION.
-//         ALSO, if THE MAGNITUDE OF ZETA IS LARGER THAN U2=0.5/UR, THEN
-//         ALL SIGNIFICANCE IS LOST AND IERR=4. IN ORDER TO USE THE INT
-//         FUNCTION, ZETA MUST BE FURTHER RESTRICTED NOT TO EXCEED THE
-//         LARGEST INTEGER, U3=i1mach(9). THUS, THE MAGNITUDE OF ZETA
-//         MUST BE RESTRICTED BY MIN(U2,U3). ON 32 BIT MACHINES, U1,U2,
-//         AND U3 ARE APPROXIMATELY 2.0E+3, 4.2E+6, 2.1E+9 IN SINGLE
-//         PRECISION ARITHMETIC AND 1.3E+8, 1.8E+16, 2.1E+9 IN DOUBLE
-//         PRECISION ARITHMETIC RESPECTIVELY. THIS MAKES U2 AND U3 LIMIT-
-//         ING IN THEIR RESPECTIVE ARITHMETICS. THIS MEANS THAT THE MAG-
-//         NITUDE OF Z CANNOT EXCEED 3.1E+4 IN SINGLE AND 2.1E+6 IN
-//         DOUBLE PRECISION ARITHMETIC. THIS ALSO MEANS THAT ONE CAN
-//         EXPECT TO RETAIN, IN THE WORST CASES ON 32 BIT MACHINES,
-//         NO DIGITS IN SINGLE PRECISION AND ONLY 7 DIGITS IN DOUBLE
-//         PRECISION ARITHMETIC. SIMILAR CONSIDERATIONS HOLD FOR OTHER
-//         MACHINES.
-//
-//         THE APPROXIMATE RELATIVE ERROR IN THE MAGNITUDE OF A COMPLEX
-//         BESSEL FUNCTION CAN BE EXPRESSED BY P*10**S WHERE P=MAX(UNIT
-//         ROUNDOFF,1.0E-18) IS THE NOMINAL PRECISION AND 10**S REPRE-
-//         SENTS THE INCREASE IN ERROR DUE TO ARGUMENT REDUCTION IN THE
-//         ELEMENTARY FUNCTIONS. HERE, S=MAX(1,ABS(LOG10(CABS(Z))),
-//         ABS(LOG10(FNU))) APPROXIMATELY (I.E. S=MAX(1,ABS(EXPONENT OF
-//         CABS(Z),ABS(EXPONENT OF FNU)) ). HOWEVER, THE PHASE ANGLE MAY
-//         HAVE ONLY ABSOLUTE ACCURACY. THIS IS MOST LIKELY TO OCCUR WHEN
-//         ONE COMPONENT (IN ABSOLUTE VALUE) IS LARGER THAN THE OTHER BY
-//         SEVERAL ORDERS OF MAGNITUDE. if ONE COMPONENT IS 10**K LARGER
-//         THAN THE OTHER, THEN ONE CAN EXPECT ONLY MAX(ABS(LOG10(P))-K,
-//         0) SIGNIFICANT DIGITS; OR, STATED ANOTHER WAY, WHEN K EXCEEDS
-//         THE EXPONENT OF P, NO SIGNIFICANT DIGITS REMAIN IN THE SMALLER
-//         COMPONENT. HOWEVER, THE PHASE ANGLE RETAINS ABSOLUTE ACCURACY
-//         BECAUSE, IN COMPLEX ARITHMETIC WITH PRECISION P, THE SMALLER
-//         COMPONENT WILL NOT (AS A RULE) DECREASE BELOW P TIMES THE
-//         MAGNITUDE OF THE LARGER COMPONENT. IN THESE EXTREME CASES,
-//         THE PRINCIPAL PHASE ANGLE IS ON THE ORDER OF +P, -P, PI/2-P,
-//         OR -PI/2+P.
-//
-// ***REFERENCES  HANDBOOK OF MATHEMATICAL FUNCTIONS BY M. ABRAMOWITZ
-//                 AND I. A. STEGUN, NBS AMS SERIES 55, U.S. DEPT. OF
-//                 COMMERCE, 1955.
-//
-//               COMPUTATION OF BESSEL FUNCTIONS OF COMPLEX ARGUMENT
-//                 AND LARGE ORDER BY D. E. AMOS, SAND83-0643, MAY, 1983
-//
-//               A SUBROUTINE PACKAGE FOR BESSEL FUNCTIONS OF A COMPLEX
-//                 ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, SAND85-
-//                 1018, MAY, 1985
-//
-//               A PORTABLE PACKAGE FOR BESSEL FUNCTIONS OF A COMPLEX
-//                 ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, ACM
-//                 TRANS. MATH. SOFTWARE, VOL. 12, NO. 3, SEPTEMBER 1986,
-//                 PP 265-273.
-//
-// ***ROUTINES CALLED  ZACAI,ZBKNU,ZEXP,ZSQRT,ZABS,i1mach,d1mach
-// ***END PROLOGUE  ZAIRY
-//     COMPLEX AI,CONE,CSQ,CY,S1,S2,TRM1,TRM2,Z,ZTA,Z3
+fn ZAIRY(
+    //ZR, ZI, ID, KODE, AIR, AII, NZ, IERR){
+    z: Complex64,
+    return_derivative: bool,
+    KODE: Scaling,
+) -> BesselResult<(Complex64, usize)> {
+    // ***BEGIN PROLOGUE  ZAIRY
+    // ***DATE WRITTEN   830501   (YYMMDD)
+    // ***REVISION DATE  890801, 930101   (YYMMDD)
+    // ***CATEGORY NO.  B5K
+    // ***KEYWORDS  AIRY FUNCTION,BESSEL FUNCTIONS OF ORDER ONE THIRD
+    // ***AUTHOR  AMOS, DONALD E., SANDIA NATIONAL LABORATORIES
+    // ***PURPOSE  TO COMPUTE AIRY FUNCTIONS AI(Z) AND DAI(Z) FOR COMPLEX Z
+    // ***DESCRIPTION
+    //
+    //                      ***A DOUBLE PRECISION ROUTINE***
+    //         ON KODE=1, ZAIRY COMPUTES THE COMPLEX AIRY FUNCTION AI(Z) OR
+    //         ITS DERIVATIVE DAI(Z)/DZ ON ID=0 OR ID=1 RESPECTIVELY. ON
+    //         KODE=2, A SCALING OPTION CEXP(ZTA)*AI(Z) OR CEXP(ZTA)*
+    //         DAI(Z)/DZ IS PROVIDED TO REMOVE THE EXPONENTIAL DECAY IN
+    //         -PI/3 < ARG(Z) < PI/3 AND THE EXPONENTIAL GROWTH IN
+    //         PI/3 < ABS(ARG(Z)) < PI WHERE ZTA=(2/3)*Z*CSQRT(Z).
+    //
+    //         WHILE THE AIRY FUNCTIONS AI(Z) AND DAI(Z)/DZ ARE ANALYTIC IN
+    //         THE WHOLE Z PLANE, THE CORRESPONDING SCALED FUNCTIONS DEFINED
+    //         FOR KODE=2 HAVE A CUT ALONG THE NEGATIVE REAL AXIS.
+    //         DEFINTIONS AND NOTATION ARE FOUND IN THE NBS HANDBOOK OF
+    //         MATHEMATICAL FUNCTIONS (REF. 1).
+    //
+    //         INPUT      ZR,ZI ARE DOUBLE PRECISION
+    //           ZR,ZI  - Z=CMPLX(ZR,ZI)
+    //           ID     - ORDER OF DERIVATIVE, ID=0 OR ID=1
+    //           KODE   - A PARAMETER TO INDICATE THE SCALING OPTION
+    //                    KODE= 1  RETURNS
+    //                             AI=AI(Z)                ON ID=0 OR
+    //                             AI=DAI(Z)/DZ            ON ID=1
+    //                        = 2  RETURNS
+    //                             AI=CEXP(ZTA)*AI(Z)       ON ID=0 OR
+    //                             AI=CEXP(ZTA)*DAI(Z)/DZ   ON ID=1 WHERE
+    //                             ZTA=(2/3)*Z*CSQRT(Z)
+    //
+    //         OUTPUT     AIR,AII ARE DOUBLE PRECISION
+    //           AIR,AII- COMPLEX ANSWER DEPENDING ON THE CHOICES FOR ID AND
+    //                    KODE
+    //           NZ     - UNDERFLOW INDICATOR
+    //                    NZ= 0   , NORMAL RETURN
+    //                    NZ= 1   , AI=CMPLX(0.0,0.0) DUE TO UNDERFLOW IN
+    //                              -PI/3 < ARG(Z) < PI/3 ON KODE=1
+    //           IERR   - ERROR FLAG
+    //                    IERR=0, NORMAL RETURN - COMPUTATION COMPLETED
+    //                    IERR=1, INPUT ERROR   - NO COMPUTATION
+    //                    IERR=2, OVERFLOW      - NO COMPUTATION, REAL(ZTA)
+    //                            TOO LARGE ON KODE=1
+    //                    IERR=3, CABS(Z) LARGE      - COMPUTATION COMPLETED
+    //                            LOSSES OF SIGNIFCANCE BY ARGUMENT REDUCTION
+    //                            PRODUCE LESS THAN HALF OF MACHINE ACCURACY
+    //                    IERR=4, CABS(Z) TOO LARGE  - NO COMPUTATION
+    //                            COMPLETE LOSS OF ACCURACY BY ARGUMENT
+    //                            REDUCTION
+    //                    IERR=5, ERROR              - NO COMPUTATION,
+    //                            ALGORITHM TERMINATION CONDITION NOT MET
+    //
+    // ***LONG DESCRIPTION
+    //
+    //         AI AND DAI ARE COMPUTED FOR CABS(Z) > 1.0 FROM THE K BESSEL
+    //         FUNCTIONS BY
+    //
+    //            AI(Z)=C*SQRT(Z)*K(1/3,ZTA) , DAI(Z)=-C*Z*K(2/3,ZTA)
+    //                           C=1.0/(PI*SQRT(3.0))
+    //                            ZTA=(2/3)*Z**(3/2)
+    //
+    //         WITH THE POWER SERIES FOR CABS(Z) <= 1.0.
+    //
+    //         IN MOST COMPLEX VARIABLE COMPUTATION, ONE MUST EVALUATE ELE-
+    //         MENTARY FUNCTIONS. WHEN THE MAGNITUDE OF Z IS LARGE, LOSSES
+    //         OF SIGNIFICANCE BY ARGUMENT REDUCTION OCCUR. CONSEQUENTLY, if
+    //         THE MAGNITUDE OF ZETA=(2/3)*Z**1.5 EXCEEDS U1=SQRT(0.5/UR),
+    //         THEN LOSSES EXCEEDING HALF PRECISION ARE LIKELY AND AN ERROR
+    //         FLAG IERR=3 IS TRIGGERED WHERE UR=DMAX1(d1mach(4),1.0e-18) IS
+    //         DOUBLE PRECISION UNIT ROUNDOFF LIMITED TO 18 DIGITS PRECISION.
+    //         ALSO, if THE MAGNITUDE OF ZETA IS LARGER THAN U2=0.5/UR, THEN
+    //         ALL SIGNIFICANCE IS LOST AND IERR=4. IN ORDER TO USE THE INT
+    //         FUNCTION, ZETA MUST BE FURTHER RESTRICTED NOT TO EXCEED THE
+    //         LARGEST INTEGER, U3=i1mach(9). THUS, THE MAGNITUDE OF ZETA
+    //         MUST BE RESTRICTED BY MIN(U2,U3). ON 32 BIT MACHINES, U1,U2,
+    //         AND U3 ARE APPROXIMATELY 2.0E+3, 4.2E+6, 2.1E+9 IN SINGLE
+    //         PRECISION ARITHMETIC AND 1.3E+8, 1.8E+16, 2.1E+9 IN DOUBLE
+    //         PRECISION ARITHMETIC RESPECTIVELY. THIS MAKES U2 AND U3 LIMIT-
+    //         ING IN THEIR RESPECTIVE ARITHMETICS. THIS MEANS THAT THE MAG-
+    //         NITUDE OF Z CANNOT EXCEED 3.1E+4 IN SINGLE AND 2.1E+6 IN
+    //         DOUBLE PRECISION ARITHMETIC. THIS ALSO MEANS THAT ONE CAN
+    //         EXPECT TO RETAIN, IN THE WORST CASES ON 32 BIT MACHINES,
+    //         NO DIGITS IN SINGLE PRECISION AND ONLY 7 DIGITS IN DOUBLE
+    //         PRECISION ARITHMETIC. SIMILAR CONSIDERATIONS HOLD FOR OTHER
+    //         MACHINES.
+    //
+    //         THE APPROXIMATE RELATIVE ERROR IN THE MAGNITUDE OF A COMPLEX
+    //         BESSEL FUNCTION CAN BE EXPRESSED BY P*10**S WHERE P=MAX(UNIT
+    //         ROUNDOFF,1.0E-18) IS THE NOMINAL PRECISION AND 10**S REPRE-
+    //         SENTS THE INCREASE IN ERROR DUE TO ARGUMENT REDUCTION IN THE
+    //         ELEMENTARY FUNCTIONS. HERE, S=MAX(1,ABS(LOG10(CABS(Z))),
+    //         ABS(LOG10(FNU))) APPROXIMATELY (I.E. S=MAX(1,ABS(EXPONENT OF
+    //         CABS(Z),ABS(EXPONENT OF FNU)) ). HOWEVER, THE PHASE ANGLE MAY
+    //         HAVE ONLY ABSOLUTE ACCURACY. THIS IS MOST LIKELY TO OCCUR WHEN
+    //         ONE COMPONENT (IN ABSOLUTE VALUE) IS LARGER THAN THE OTHER BY
+    //         SEVERAL ORDERS OF MAGNITUDE. if ONE COMPONENT IS 10**K LARGER
+    //         THAN THE OTHER, THEN ONE CAN EXPECT ONLY MAX(ABS(LOG10(P))-K,
+    //         0) SIGNIFICANT DIGITS; OR, STATED ANOTHER WAY, WHEN K EXCEEDS
+    //         THE EXPONENT OF P, NO SIGNIFICANT DIGITS REMAIN IN THE SMALLER
+    //         COMPONENT. HOWEVER, THE PHASE ANGLE RETAINS ABSOLUTE ACCURACY
+    //         BECAUSE, IN COMPLEX ARITHMETIC WITH PRECISION P, THE SMALLER
+    //         COMPONENT WILL NOT (AS A RULE) DECREASE BELOW P TIMES THE
+    //         MAGNITUDE OF THE LARGER COMPONENT. IN THESE EXTREME CASES,
+    //         THE PRINCIPAL PHASE ANGLE IS ON THE ORDER OF +P, -P, PI/2-P,
+    //         OR -PI/2+P.
+    //
+    // ***REFERENCES  HANDBOOK OF MATHEMATICAL FUNCTIONS BY M. ABRAMOWITZ
+    //                 AND I. A. STEGUN, NBS AMS SERIES 55, U.S. DEPT. OF
+    //                 COMMERCE, 1955.
+    //
+    //               COMPUTATION OF BESSEL FUNCTIONS OF COMPLEX ARGUMENT
+    //                 AND LARGE ORDER BY D. E. AMOS, SAND83-0643, MAY, 1983
+    //
+    //               A SUBROUTINE PACKAGE FOR BESSEL FUNCTIONS OF A COMPLEX
+    //                 ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, SAND85-
+    //                 1018, MAY, 1985
+    //
+    //               A PORTABLE PACKAGE FOR BESSEL FUNCTIONS OF A COMPLEX
+    //                 ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, ACM
+    //                 TRANS. MATH. SOFTWARE, VOL. 12, NO. 3, SEPTEMBER 1986,
+    //                 PP 265-273.
+    //
+    // ***ROUTINES CALLED  ZACAI,ZBKNU,ZEXP,ZSQRT,ZABS,i1mach,d1mach
+    // ***END PROLOGUE  ZAIRY
+    //     COMPLEX AI,CONE,CSQ,CY,S1,S2,TRM1,TRM2,Z,ZTA,Z3
     //   EXTERNAL ZABS
     //   DOUBLE PRECISION AA, AD, AII, AIR, AK, ALIM, ATRM, AZ, AZ3, BK,
     //  * CC, CK, COEF, CONEI, CONER, CSQI, CSQR, CYI, CYR, C1, C2, DIG,
@@ -1639,389 +1648,407 @@ fn ZAIRY(//ZR, ZI, ID, KODE, AIR, AII, NZ, IERR){
     //   INTEGER ID, IERR, IFLAG, K, KODE, K1, K2, MR, NN, NZ, i1mach
     //   DIMENSION CYR(1), CYI(1)
     //   DATA TWO_THIRDS, C1, C2, COEF /6.66666666666666667e-01,
-     const C1:f64= 3.55028053887817240e-01;
-     const C2:f64 = 2.58819403792806799e-01;
-     const COEFF:f64 = 1.83776298473930683e-01;
+    const C1: f64 = 3.55028053887817240e-01;
+    const C2: f64 = 2.58819403792806799e-01;
+    const COEFF: f64 = 1.83776298473930683e-01;
     //   DATA ZEROR, ZEROI, CONER, CONEI /0.0,0.0,1.0,0.0/
-// ***FIRST EXECUTABLE STATEMENT  ZAIRY
+    // ***FIRST EXECUTABLE STATEMENT  ZAIRY
     //   IERR = 0;
     //   let NZ=0;
     //   if (ID < 0 || ID > 1) IERR=1;
     //   if (KODE < 1 || KODE > 2) IERR=1;
     //   if (IERR != 0) RETURN;
-      let abs_z = z.abs();//ZABS(ZR,ZI);
+    let abs_z = z.abs(); //ZABS(ZR,ZI);
     //   TOL = DMAX1(d1mach(4),1.0e-18);
     let machine_consts = MachineConsts::new();
-      let float_is_derivative = if return_derivative{1.0} else{0.0};
-      if abs_z <= 1.0 {//GO TO 70;
-//-----------------------------------------------------------------------;
-//     POWER SERIES FOR CABS(Z) <= 1.;
-//-----------------------------------------------------------------------;
-let mut s1 = c_one();
-let mut s2 = c_one();
-    //   S1R = CONER;
-    //   S1I = CONEI;
-    //   S2R = CONER;
-    //   S2I = CONEI;
-      if abs_z < machine_consts.abs_error_tolerance {//GO TO 170;
-        // 170 CONTINUE;
-        // AA = 1.0e+3*d1mach(1);
-        // S1R = ZEROR;
-        // S1I = ZEROI;
-        s1 = c_zero();
-        return if return_derivative {//GO TO 190;
-            // 190 CONTINUE;
-            let mut ai = Complex64::new(-C2, 0.0);
-        // AIR = -C2;
-        // AII = 0.0;
-        // AA = DSQRT(AA);
+    let float_is_derivative = if return_derivative { 1.0 } else { 0.0 };
+    if abs_z <= 1.0 {
+        //GO TO 70;
+        //-----------------------------------------------------------------------;
+        //     POWER SERIES FOR CABS(Z) <= 1.;
+        //-----------------------------------------------------------------------;
+        let mut s1 = c_one();
+        let mut s2 = c_one();
+        //   S1R = CONER;
+        //   S1I = CONEI;
+        //   S2R = CONER;
+        //   S2I = CONEI;
+        if abs_z < machine_consts.abs_error_tolerance {
+            //GO TO 170;
+            // 170 CONTINUE;
+            // AA = 1.0e+3*d1mach(1);
+            // S1R = ZEROR;
+            // S1I = ZEROI;
+            s1 = c_zero();
+            return if return_derivative {
+                //GO TO 190;
+                // 190 CONTINUE;
+                let mut ai = Complex64::new(-C2, 0.0);
+                // AIR = -C2;
+                // AII = 0.0;
+                // AA = DSQRT(AA);
 
-        if abs_z > machine_consts.underflow_limit.sqrt() {//GO TO 200;
-            s1 = z.pow(2.0)/2.0;
-        // S1R = 0.5*(ZR*ZR-ZI*ZI);
-        // S1I = ZR*ZI;
+                if abs_z > machine_consts.underflow_limit.sqrt() {
+                    //GO TO 200;
+                    s1 = z.pow(2.0) / 2.0;
+                    // S1R = 0.5*(ZR*ZR-ZI*ZI);
+                    // S1I = ZR*ZI;
+                }
+                // 200 CONTINUE;
+                ai += C1 * s1;
+                // AIR = AIR + C1*S1R;
+                // AII = AII + C1*S1I;
+                // RETURN;
+                Ok((ai, 0))
+            } else {
+                if abs_z > machine_consts.underflow_limit {
+                    //GO TO 180;
+                    s1 = C2 * z;
+                    // S1R = C2*ZR;
+                    // S1I = C2*ZI;
+                }
+                // 180 CONTINUE;
+                let ai = C1 - s1;
+                // AIR = C1 - S1R;
+                // AII = -S1I;
+                // RETURN;
+                Ok((ai, 0))
+            };
         }
-    // 200 CONTINUE;
-    ai+= C1 * s1;
-        // AIR = AIR + C1*S1R;
-        // AII = AII + C1*S1I;
-        // RETURN;
-        Ok((ai, 0))
-    }else{
-        if abs_z > machine_consts.underflow_limit {//GO TO 180;
-            s1 = C2*z;
-        // S1R = C2*ZR;
-        // S1I = C2*ZI;
+        let abs_z_sq = abs_z * abs_z;
+        if abs_z_sq >= machine_consts.abs_error_tolerance / abs_z {
+            //GO TO 40;
+            let mut term1 = c_one();
+            let mut term2 = c_one();
+            //   TRM1R = CONER;
+            //   TRM1I = CONEI;
+            //   TRM2R = CONER;
+            //   TRM2I = CONEI;
+            let mut a_term = 1.0;
+            let z3 = z.pow(3.0);
+            //   STR = ZR*ZR - ZI*ZI;
+            //   STI = ZR*ZI + ZI*ZR;
+            //   Z3R = STR*ZR - STI*ZI;
+            //   Z3I = STR*ZI + STI*ZR;
+            let AZ3 = abs_z * abs_z_sq;
+            let (AK, BK, CK, DK) = (
+                2.0 + float_is_derivative,
+                3.0 - 2.0 * float_is_derivative,
+                4.0 - float_is_derivative,
+                3.0 + 2.0 * float_is_derivative,
+            );
+            //   AK = 2.0 + FID;
+            //   BK = 3.0 - FID - FID;
+            //   CK = 4.0 - FID;
+            //   DK = 3.0 + FID + FID;
+            let mut D1: f64 = AK * DK;
+            let mut D2 = BK * CK;
+            let mut AD = D1.min(D2); //DMIN1(D1,D2);
+            let mut AK = 24.0 + 9.0 * float_is_derivative;
+            let mut BK = 30.0 - 9.0 * float_is_derivative;
+            //   DO 30 K=1,25;
+            for _ in 0..25 {
+                // STR = (TRM1R*Z3R-TRM1I*Z3I)/D1;
+                // TRM1I = (TRM1R*Z3I+TRM1I*Z3R)/D1;
+                // TRM1R = STR;
+                term1 = term1 * z3 / D1;
+                s1 += term1;
+                // S1R = S1R + TRM1R;
+                // S1I = S1I + TRM1I;
+                term2 = term2 * z3 / D2;
+                // STR = (TRM2R*Z3R-TRM2I*Z3I)/D2;
+                // TRM2I = (TRM2R*Z3I+TRM2I*Z3R)/D2;
+                // TRM2R = STR;
+                s2 += term2;
+                // S2R = S2R + TRM2R;
+                // S2I = S2I + TRM2I;
+                a_term = a_term * AZ3 / AD;
+                D1 += AK;
+                D2 += BK;
+                AD = D1.min(D2);
+                // AD = DMIN1(D1,D2);
+                if a_term < machine_consts.abs_error_tolerance * AD {
+                    break;
+                } //GO TO 40;
+                AK += 18.0;
+                BK += 18.0;
+                //    30 CONTINUE;
+            }
         }
-    // 180 CONTINUE;
-    let ai = C1-s1;
-        // AIR = C1 - S1R;
-        // AII = -S1I;
-        // RETURN;
-        Ok((ai, 0))
-
-    }
-      }
-      let abs_z_sq = abs_z*abs_z;
-      if abs_z_sq >= machine_consts.abs_error_tolerance/abs_z {//GO TO 40;
-        let mut term1 = c_one();
-        let mut term2 = c_one();
-    //   TRM1R = CONER;
-    //   TRM1I = CONEI;
-    //   TRM2R = CONER;
-    //   TRM2I = CONEI;
-      let mut a_term = 1.0;
-      let z3 = z.pow(3.0);
-    //   STR = ZR*ZR - ZI*ZI;
-    //   STI = ZR*ZI + ZI*ZR;
-    //   Z3R = STR*ZR - STI*ZI;
-    //   Z3I = STR*ZI + STI*ZR;
-      let AZ3 = abs_z*abs_z_sq;
-      let ( AK,  BK,CK, DK) = (2.0+float_is_derivative, 3.0-2.0*float_is_derivative, 4.0-float_is_derivative,3.0+2.0*float_is_derivative);
-    //   AK = 2.0 + FID;
-    //   BK = 3.0 - FID - FID;
-    //   CK = 4.0 - FID;
-    //   DK = 3.0 + FID + FID;
-      let mut D1:f64 = AK*DK;
-      let mut D2 = BK*CK;
-      let mut AD = D1.min(D2);//DMIN1(D1,D2);
-      let mut AK = 24.0 + 9.0*float_is_derivative;
-      let mut BK = 30.0 - 9.0*float_is_derivative;
-    //   DO 30 K=1,25;
-      for _ in 0..25{
-        // STR = (TRM1R*Z3R-TRM1I*Z3I)/D1;
-        // TRM1I = (TRM1R*Z3I+TRM1I*Z3R)/D1;
-        // TRM1R = STR;
-        term1 = term1*z3/D1;
-        s1 += term1;
-        // S1R = S1R + TRM1R;
-        // S1I = S1I + TRM1I;
-        term2 = term2*z3 /D2;
-        // STR = (TRM2R*Z3R-TRM2I*Z3I)/D2;
-        // TRM2I = (TRM2R*Z3I+TRM2I*Z3R)/D2;
-        // TRM2R = STR;
-        s2 += term2;
-        // S2R = S2R + TRM2R;
-        // S2I = S2I + TRM2I;
-        a_term = a_term*AZ3/AD;
-        D1 += AK;
-        D2 += BK;
-        AD = D1.min(D2);
-        // AD = DMIN1(D1,D2);
-        if a_term < machine_consts.abs_error_tolerance*AD {break;}//GO TO 40;
-        AK += 18.0;
-        BK += 18.0;
-//    30 CONTINUE;
-      }
-    }
-    let mut ai = if return_derivative {//GO TO 50;
-        // 50 CONTINUE;
-        let mut ai_inner = -s2*C2;
-        // AIR = -S2R*C2;
-        // AII = -S2I*C2;
-        if abs_z > machine_consts.abs_error_tolerance {//GO TO 60;
-        // STR = ZR*S1R - ZI*S1I;
-        // STI = ZR*S1I + ZI*S1R;
-        let CC = C1/(1.0+float_is_derivative);
-        ai_inner += CC * z.pow(2.0)*s1;
-        // AIR = AIR + CC*(STR*ZR-STI*ZI);
-        // AII = AII + CC*(STR*ZI+STI*ZR);
-        // Ok((ai, 0))
-        }
-        ai_inner
-    }
-        else{
-              s1*C1 - C2*z*s2
+        let mut ai = if return_derivative {
+            //GO TO 50;
+            // 50 CONTINUE;
+            let mut ai_inner = -s2 * C2;
+            // AIR = -S2R*C2;
+            // AII = -S2I*C2;
+            if abs_z > machine_consts.abs_error_tolerance {
+                //GO TO 60;
+                // STR = ZR*S1R - ZI*S1I;
+                // STI = ZR*S1I + ZI*S1R;
+                let CC = C1 / (1.0 + float_is_derivative);
+                ai_inner += CC * z.pow(2.0) * s1;
+                // AIR = AIR + CC*(STR*ZR-STI*ZI);
+                // AII = AII + CC*(STR*ZI+STI*ZR);
+                // Ok((ai, 0))
+            }
+            ai_inner
+        } else {
+            s1 * C1 - C2 * z * s2
         };
-    //  60 CONTINUE;
-        if KODE == Scaling::Scaled
-        {
-            ai *= (TWO_THIRDS*z*z.sqrt()).exp();
-        // CALL ZSQRT(ZR, ZI, STR, STI);
-        // ZTAR = TWO_THIRDS*(ZR*STR-ZI*STI);
-        // ZTAI = TWO_THIRDS*(ZR*STI+ZI*STR);
-        // CALL ZEXP(ZTAR, ZTAI, STR, STI);
-        // PTR = STR*AIR - STI*AII;
-        // AII = STR*AII + STI*AIR;
-        // AIR = PTR;
+        //  60 CONTINUE;
+        if KODE == Scaling::Scaled {
+            ai *= (TWO_THIRDS * z * z.sqrt()).exp();
+            // CALL ZSQRT(ZR, ZI, STR, STI);
+            // ZTAR = TWO_THIRDS*(ZR*STR-ZI*STI);
+            // ZTAI = TWO_THIRDS*(ZR*STI+ZI*STR);
+            // CALL ZEXP(ZTAR, ZTAI, STR, STI);
+            // PTR = STR*AIR - STI*AII;
+            // AII = STR*AII + STI*AIR;
+            // AIR = PTR;
         }
         Ok((ai, 0))
 
-
         // RETURN;
 
-    //   }else{
-//    40 CONTINUE;
+        //   }else{
+        //    40 CONTINUE;
         // let mut ai = s1*C1 - C2*z*s2;
-//      AIR = S1R*C1 - C2*(ZR*S2R-ZI*S2I);
-//       AII = S1I*C1 - C2*(ZR*S2I+ZI*S2R);
-    //   if KODE == Scaling::Scaled {//RETURN;
+        //      AIR = S1R*C1 - C2*(ZR*S2R-ZI*S2I);
+        //       AII = S1I*C1 - C2*(ZR*S2I+ZI*S2R);
+        //   if KODE == Scaling::Scaled {//RETURN;
 
-    //     ai *= (TWO_THIRDS*z*z.sqrt()).exp();
-    //   CALL ZSQRT(ZR, ZI, STR, STI);
-    //   ZTAR = TWO_THIRDS*(ZR*STR-ZI*STI);
-    //   ZTAI = TWO_THIRDS*(ZR*STI+ZI*STR);
-    //   CALL ZEXP(ZTAR, ZTAI, STR, STI);
-    //   PTR = AIR*STR - AII*STI;
-    //   AII = AIR*STI + AII*STR;
-    //   AIR = PTR;
-    //   RETURN;
-    //   }
-    //   Ok((ai, 0))
-    //   }
-    }else{
-//-----------------------------------------------------------------------;
-//     CASE FOR CABS(Z) > 1.0;
-//-----------------------------------------------------------------------;
-//    70 CONTINUE;
-      let FNU = (1.0+float_is_derivative)/3.0;
-//-----------------------------------------------------------------------;
-//     SET PARAMETERS RELATED TO MACHINE CONSTANTS.;
-//     TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0e-18.;
-//     ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.;
-//     EXP(-ELIM) < EXP(-ALIM)=EXP(-ELIM)/TOL    AND;
-//     EXP(ELIM) > EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR;
-//     UNDERFLOW AND OVERFLOW LIMITS WHERE SCALED ARITHMETIC IS DONE.;
-//     RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.;
-//     DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).;
-//-----------------------------------------------------------------------;
-    //   K1 = i1mach(15);
-    //   K2 = i1mach(16);
-    //   R1M5 = d1mach(5);
-    //   K = MIN0(K1.abs(),K2.abs());
-    //   ELIM = 2.303*(K as f64)*R1M5-3.0);
-    //   K1 = i1mach(14) - 1;
-    //   AA = R1M5*(K1 as f64);
-    //   DIG = DMIN1(AA,18.0);
-    //   AA = AA*2.303;
-    //   ALIM = ELIM + DMAX1(-AA,-41.45);
-    //   RL = 1.2*DIG + 3.0;
-    //   ALAZ = DLOG(AZ);
-    let ALAZ = abs_z.ln();
-//--------------------------------------------------------------------------;
-//     TEST FOR PROPER RANGE;
-//-----------------------------------------------------------------------;
-      let mut AA= 0.5/machine_consts.abs_error_tolerance;
-    //   BB=DBLE(FLOAT(i1mach(9)))*0.5;
-     AA=AA.min(i32::MAX as f64/2.0);
-      AA=AA.pow(TWO_THIRDS);
-      if abs_z > AA {
-        return Err(LossOfSignificance);
-    };
-    //   AA=DSQRT(AA);
+        //     ai *= (TWO_THIRDS*z*z.sqrt()).exp();
+        //   CALL ZSQRT(ZR, ZI, STR, STI);
+        //   ZTAR = TWO_THIRDS*(ZR*STR-ZI*STI);
+        //   ZTAI = TWO_THIRDS*(ZR*STI+ZI*STR);
+        //   CALL ZEXP(ZTAR, ZTAI, STR, STI);
+        //   PTR = AIR*STR - AII*STI;
+        //   AII = AIR*STI + AII*STR;
+        //   AIR = PTR;
+        //   RETURN;
+        //   }
+        //   Ok((ai, 0))
+        //   }
+    } else {
+        //-----------------------------------------------------------------------;
+        //     CASE FOR CABS(Z) > 1.0;
+        //-----------------------------------------------------------------------;
+        //    70 CONTINUE;
+        let FNU = (1.0 + float_is_derivative) / 3.0;
+        //-----------------------------------------------------------------------;
+        //     SET PARAMETERS RELATED TO MACHINE CONSTANTS.;
+        //     TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0e-18.;
+        //     ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.;
+        //     EXP(-ELIM) < EXP(-ALIM)=EXP(-ELIM)/TOL    AND;
+        //     EXP(ELIM) > EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR;
+        //     UNDERFLOW AND OVERFLOW LIMITS WHERE SCALED ARITHMETIC IS DONE.;
+        //     RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.;
+        //     DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).;
+        //-----------------------------------------------------------------------;
+        //   K1 = i1mach(15);
+        //   K2 = i1mach(16);
+        //   R1M5 = d1mach(5);
+        //   K = MIN0(K1.abs(),K2.abs());
+        //   ELIM = 2.303*(K as f64)*R1M5-3.0);
+        //   K1 = i1mach(14) - 1;
+        //   AA = R1M5*(K1 as f64);
+        //   DIG = DMIN1(AA,18.0);
+        //   AA = AA*2.303;
+        //   ALIM = ELIM + DMAX1(-AA,-41.45);
+        //   RL = 1.2*DIG + 3.0;
+        //   ALAZ = DLOG(AZ);
+        let ALAZ = abs_z.ln();
+        //--------------------------------------------------------------------------;
+        //     TEST FOR PROPER RANGE;
+        //-----------------------------------------------------------------------;
+        let mut AA = 0.5 / machine_consts.abs_error_tolerance;
+        //   BB=DBLE(FLOAT(i1mach(9)))*0.5;
+        AA = AA.min(i32::MAX as f64 / 2.0);
+        AA = AA.pow(TWO_THIRDS);
+        if abs_z > AA {
+            return Err(LossOfSignificance);
+        };
+        //   AA=DSQRT(AA);
         AA = AA.sqrt();
-        let significance_loss = abs_z>AA;
-    //   if (AZ > AA) IERR=3;
-    let csq = z.sqrt();
-    //   CALL ZSQRT(ZR, ZI, CSQR, CSQI);
-    let mut zta = TWO_THIRDS*z*csq;
-    //   ZTAR = TWO_THIRDS*(ZR*CSQR-ZI*CSQI);
-    //   ZTAI = TWO_THIRDS*(ZR*CSQI+ZI*CSQR);
-//-----------------------------------------------------------------------;
-//     RE(ZTA) <= 0 WHEN RE(Z) < 0, ESPECIALLY WHEN IM(Z) IS SMALL;
-//-----------------------------------------------------------------------;
-      let mut IFLAG = 0;
-      let mut SFAC = 1.0;
-    //   let AK = zta.im;//ZTAI;
-      if z.re < 0.0 {//GO TO 80;
-    //   BK = ZTAR;
-    //   CK = -(BK).abs();
-    //   ZTAR = CK;
-    //   ZTAI = AK;
-        zta.re = -zta.re.abs();
-      }
-//    80 CONTINUE;
-    if z.im ==0.0 && z.re<=0.0{
-    //   if (ZI != 0.0) GO TO 90;
-    //   if (ZR > 0.0) GO TO 90;
-    //   ZTAR = 0.0;
-    //   ZTAI = AK;
-    zta.re = 0.0;
-    }
-//    90 CONTINUE;
-      let mut AA = zta.re;//ZTAR;
-      let (cy, NZ) = if !(AA >= 0.0 && z.re > 0.0) {//GO TO 110;
-    //   if (KODE == 2) GO TO 100;
-//-----------------------------------------------------------------------;
-//     OVERFLOW TEST;
-//-----------------------------------------------------------------------;
-        if KODE == Scaling::Unscaled && AA<= -machine_consts.approximation_limit{
-    //   if (AA > (-ALIM)) GO TO 100;
-      AA = -AA + 0.25*ALAZ;
-      IFLAG = 1;
-      SFAC = machine_consts.abs_error_tolerance;
-      if AA > machine_consts.exponent_limit {return Err(Overflow);}//GO TO 270;
+        let significance_loss = abs_z > AA;
+        //   if (AZ > AA) IERR=3;
+        let csq = z.sqrt();
+        //   CALL ZSQRT(ZR, ZI, CSQR, CSQI);
+        let mut zta = TWO_THIRDS * z * csq;
+        //   ZTAR = TWO_THIRDS*(ZR*CSQR-ZI*CSQI);
+        //   ZTAI = TWO_THIRDS*(ZR*CSQI+ZI*CSQR);
+        //-----------------------------------------------------------------------;
+        //     RE(ZTA) <= 0 WHEN RE(Z) < 0, ESPECIALLY WHEN IM(Z) IS SMALL;
+        //-----------------------------------------------------------------------;
+        let mut IFLAG = 0;
+        let mut SFAC = 1.0;
+        //   let AK = zta.im;//ZTAI;
+        if z.re < 0.0 {
+            //GO TO 80;
+            //   BK = ZTAR;
+            //   CK = -(BK).abs();
+            //   ZTAR = CK;
+            //   ZTAI = AK;
+            zta.re = -zta.re.abs();
         }
-//   100 CONTINUE;
-//-----------------------------------------------------------------------;
-//     CBKNU AND CACON RETURN EXP(ZTA)*K(FNU,ZTA) ON KODE=2;
-//-----------------------------------------------------------------------;
-      let MR = if z.im < 0.0 { -1} else{1};
-      ZACAI(zta, FNU, KODE, MR, 1, &machine_consts)?
-    //    ZACAI(ZTAR, ZTAI, FNU, KODE, MR, 1, CYR, CYI, NN, RL, TOL,
-    //   ELIM, ALIM)?;
-    //   if (NN < 0) GO TO 280;
-    //   NZ = NZ + NN;
-    //   GO TO 130;
-    }else{
-//   110 CONTINUE;
-    //   if (KODE == 2) GO TO 120;
-//-----------------------------------------------------------------------;
-//     UNDERFLOW TEST;
-//-----------------------------------------------------------------------;
-    //   if (AA < ALIM) GO TO 120;
-    if KODE == Scaling::Unscaled && AA>machine_consts.approximation_limit{
-      AA = -AA - 0.25*ALAZ;
-      IFLAG = 2;
-      SFAC = 1.0/machine_consts.abs_error_tolerance;
-      if AA < -machine_consts.exponent_limit {return Ok((c_zero(), 1));} //GO TO 210;
+        //    80 CONTINUE;
+        if z.im == 0.0 && z.re <= 0.0 {
+            //   if (ZI != 0.0) GO TO 90;
+            //   if (ZR > 0.0) GO TO 90;
+            //   ZTAR = 0.0;
+            //   ZTAI = AK;
+            zta.re = 0.0;
+        }
+        //    90 CONTINUE;
+        let mut AA = zta.re; //ZTAR;
+        let (cy, NZ) = if !(AA >= 0.0 && z.re > 0.0) {
+            //GO TO 110;
+            //   if (KODE == 2) GO TO 100;
+            //-----------------------------------------------------------------------;
+            //     OVERFLOW TEST;
+            //-----------------------------------------------------------------------;
+            if KODE == Scaling::Unscaled && AA <= -machine_consts.approximation_limit {
+                //   if (AA > (-ALIM)) GO TO 100;
+                AA = -AA + 0.25 * ALAZ;
+                IFLAG = 1;
+                SFAC = machine_consts.abs_error_tolerance;
+                if AA > machine_consts.exponent_limit {
+                    return Err(Overflow);
+                } //GO TO 270;
+            }
+            //   100 CONTINUE;
+            //-----------------------------------------------------------------------;
+            //     CBKNU AND CACON RETURN EXP(ZTA)*K(FNU,ZTA) ON KODE=2;
+            //-----------------------------------------------------------------------;
+            let MR = if z.im < 0.0 { -1 } else { 1 };
+            ZACAI(zta, FNU, KODE, MR, 1, &machine_consts)?
+        //    ZACAI(ZTAR, ZTAI, FNU, KODE, MR, 1, CYR, CYI, NN, RL, TOL,
+        //   ELIM, ALIM)?;
+        //   if (NN < 0) GO TO 280;
+        //   NZ = NZ + NN;
+        //   GO TO 130;
+        } else {
+            //   110 CONTINUE;
+            //   if (KODE == 2) GO TO 120;
+            //-----------------------------------------------------------------------;
+            //     UNDERFLOW TEST;
+            //-----------------------------------------------------------------------;
+            //   if (AA < ALIM) GO TO 120;
+            if KODE == Scaling::Unscaled && AA > machine_consts.approximation_limit {
+                AA = -AA - 0.25 * ALAZ;
+                IFLAG = 2;
+                SFAC = 1.0 / machine_consts.abs_error_tolerance;
+                if AA < -machine_consts.exponent_limit {
+                    return Ok((c_zero(), 1));
+                } //GO TO 210;
+            }
+            //   120 CONTINUE;
+            ZBKNU(zta, FNU, KODE, 1, &machine_consts)?
+            //   CALL ZBKNU(ZTAR, ZTAI, FNU, KODE, 1, CYR, CYI, NZ, TOL, ELIM,
+            //  * ALIM);
+        };
+        //   130 CONTINUE;
+        let mut s1 = cy[0] * COEFF;
+        //   S1R = CYR(1)*COEF;
+        //   S1I = CYI(1)*COEF;
+        let retval = if IFLAG == 0 {
+            //GO TO 150;
+            let ai = if return_derivative
+            //GO TO 140;
+            {
+                // 140 CONTINUE;
+                //   AIR = -(ZR*S1R-ZI*S1I);
+                //   AII = -(ZR*S1I+ZI*S1R);
+                -z * s1
+            } else {
+                csq * s1
+                //   AIR = CSQR*S1R - CSQI*S1I;
+                //   AII = CSQR*S1I + CSQI*S1R;
+            };
+            (ai, NZ)
+        //   RETURN;
+
+        //   RETURN;
+        } else {
+            //   150 CONTINUE;
+            s1 *= SFAC;
+            //   S1R = S1R*SFAC;
+            //   S1I = S1I*SFAC;
+            s1 *= if return_derivative {
+                // 160 CONTINUE;
+                -z
+                // STR = -(S1R*ZR-S1I*ZI);
+                // S1I = -(S1R*ZI+S1I*ZR);
+                // S1R = STR;
+                // AIR = S1R/SFAC;
+                // AII = S1I/SFAC;
+                // RETURN;
+            } else {
+                //   if (ID == 1) GO TO 160;
+                //   STR = S1R*CSQR - S1I*CSQI;
+                //   S1I = S1R*CSQI + S1I*CSQR;
+                //   S1R = STR;
+                //   AIR = S1R/SFAC;
+                //   AII = S1I/SFAC;
+                //   RETURN;
+                csq
+            };
+            // ai = s1/SFAC;
+            (s1 / SFAC, NZ)
+        };
+        if significance_loss {
+            Err(PartialLossOfSignificance {
+                y: vec![retval.0],
+                nz: retval.1,
+            })
+        } else {
+            Ok(retval)
+        }
+        //   170 CONTINUE;
+        //       AA = 1.0e+3*d1mach(1);
+        //       S1R = ZEROR;
+        //       S1I = ZEROI;
+        //       if (ID == 1) GO TO 190;
+        //       if (AZ <= AA) GO TO 180;
+        //       S1R = C2*ZR;
+        //       S1I = C2*ZI;
+        //   180 CONTINUE;
+        //       AIR = C1 - S1R;
+        //       AII = -S1I;
+        //       RETURN;
+        //   190 CONTINUE;
+        //       AIR = -C2;
+        //       AII = 0.0;
+        //       AA = DSQRT(AA);
+        //       if (AZ <= AA) GO TO 200;
+        //       S1R = 0.5*(ZR*ZR-ZI*ZI);
+        //       S1I = ZR*ZI;
+        //   200 CONTINUE;
+        //       AIR = AIR + C1*S1R;
+        //       AII = AII + C1*S1I;
+        //       RETURN;
+        //   210 CONTINUE;
+        //       NZ = 1;
+        //       AIR = ZEROR;
+        //       AII = ZEROI;
+        //       RETURN;
+        //   270 CONTINUE;
+        //       NZ = 0;
+        //       IERR=2;
+        //       RETURN;
+        //   280 CONTINUE;
+        //       if(NN == (-1)) GO TO 270;
+        //       NZ=0;
+        //       IERR=5;
+        //       RETURN;
+        //   260 CONTINUE;
+        //       IERR=4;
+        //       NZ=0;
+        //       RETURN;
+        //       END;
     }
-//   120 CONTINUE;
-    ZBKNU(zta, FNU, KODE, 1, &machine_consts)?
-    //   CALL ZBKNU(ZTAR, ZTAI, FNU, KODE, 1, CYR, CYI, NZ, TOL, ELIM,
-    //  * ALIM);
-      };
-//   130 CONTINUE;
-      let mut s1 = cy[0]*COEFF;
-    //   S1R = CYR(1)*COEF;
-    //   S1I = CYI(1)*COEF;
-    let retval = if IFLAG == 0 {//GO TO 150;
-      let ai = if return_derivative //GO TO 140;
-      {
-        // 140 CONTINUE;
-    //   AIR = -(ZR*S1R-ZI*S1I);
-    //   AII = -(ZR*S1I+ZI*S1R);
-        -z*s1
-      }else{
-        csq*s1
-    //   AIR = CSQR*S1R - CSQI*S1I;
-    //   AII = CSQR*S1I + CSQI*S1R;
-      };
- (ai, NZ)
-    //   RETURN;
-
-    //   RETURN;
-    }else{
-
-//   150 CONTINUE;
-        s1 *=SFAC;
-    //   S1R = S1R*SFAC;
-    //   S1I = S1I*SFAC;
-    s1 *= if return_derivative{
-        // 160 CONTINUE;
-        -z
-        // STR = -(S1R*ZR-S1I*ZI);
-        // S1I = -(S1R*ZI+S1I*ZR);
-        // S1R = STR;
-        // AIR = S1R/SFAC;
-        // AII = S1I/SFAC;
-        // RETURN;
-
-    }else{
-    //   if (ID == 1) GO TO 160;
-    //   STR = S1R*CSQR - S1I*CSQI;
-    //   S1I = S1R*CSQI + S1I*CSQR;
-    //   S1R = STR;
-    //   AIR = S1R/SFAC;
-    //   AII = S1I/SFAC;
-    //   RETURN;
-        csq
-    };
-    // ai = s1/SFAC;
-    (s1/SFAC, NZ)
-
-};
-if significance_loss{
-    Err(PartialLossOfSignificance { y: vec![retval.0], nz: retval.1 })
-
-}else {
-    Ok(retval)
 }
-//   170 CONTINUE;
-//       AA = 1.0e+3*d1mach(1);
-//       S1R = ZEROR;
-//       S1I = ZEROI;
-//       if (ID == 1) GO TO 190;
-//       if (AZ <= AA) GO TO 180;
-//       S1R = C2*ZR;
-//       S1I = C2*ZI;
-//   180 CONTINUE;
-//       AIR = C1 - S1R;
-//       AII = -S1I;
-//       RETURN;
-//   190 CONTINUE;
-//       AIR = -C2;
-//       AII = 0.0;
-//       AA = DSQRT(AA);
-//       if (AZ <= AA) GO TO 200;
-//       S1R = 0.5*(ZR*ZR-ZI*ZI);
-//       S1I = ZR*ZI;
-//   200 CONTINUE;
-//       AIR = AIR + C1*S1R;
-//       AII = AII + C1*S1I;
-//       RETURN;
-//   210 CONTINUE;
-//       NZ = 1;
-//       AIR = ZEROR;
-//       AII = ZEROI;
-//       RETURN;
-//   270 CONTINUE;
-//       NZ = 0;
-//       IERR=2;
-//       RETURN;
-//   280 CONTINUE;
-//       if(NN == (-1)) GO TO 270;
-//       NZ=0;
-//       IERR=5;
-//       RETURN;
-//   260 CONTINUE;
-//       IERR=4;
-//       NZ=0;
-//       RETURN;
-//       END;
-}
-    }
-      /*
+/*
 fn ZBIRY(ZR, ZI, ID, KODE, BIR, BII, IERR)
 // ***BEGIN PROLOGUE  ZBIRY
 // ***DATE WRITTEN   830501   (YYMMDD)
@@ -2443,7 +2470,7 @@ fn ZBKNU(
     } else {
         0.0
     };
-    let mut skip_to_240= false;
+    let mut skip_to_240 = false;
     let (mut s1, mut s2) = if (DNU.abs() != 0.5) && (CAZ <= R1) {
         //-----------------------------------------------------------------------;
         //     SERIES FOR CABS(Z) <= R1; and not half integer order
@@ -2619,7 +2646,11 @@ fn ZBKNU(
         // let KFLAG = 2;
         // A1 = order + 1.0;
         AK = (order + 1.0) * smu.re.abs();
-        KFLAG = if AK > machine_consts.approximation_limit { 3 } else { 2 };
+        KFLAG = if AK > machine_consts.approximation_limit {
+            3
+        } else {
+            2
+        };
         // let p2 = s2 * CSSR[KFLAG-1];
         // STR = CSSR(KFLAG);
         // P2R = S2R*STR;
@@ -2674,8 +2705,9 @@ fn ZBKNU(
             //     12 <= E <= 60. E IS COMPUTED FROM 2**(-E)=B**(1-i1mach(14))=;
             //     TOL WHERE B IS THE BASE OF THE ARITHMETIC.;
             //-----------------------------------------------------------------------;
-            let mut T1 = ((f64::MANTISSA_DIGITS - 1) as f64 * (f64::RADIX as f64).log10() * 3.321928094)
-                .clamp(12.0, 60.0);
+            let mut T1 =
+                ((f64::MANTISSA_DIGITS - 1) as f64 * (f64::RADIX as f64).log10() * 3.321928094)
+                    .clamp(12.0, 60.0);
             let T2 = TWO_THIRDS * T1 - 6.0;
             T1 = if z.re == 0.0 {
                 FRAC_PI_2
@@ -2713,7 +2745,7 @@ fn ZBKNU(
                     if !converged {
                         return Err(DidNotConverge);
                     }
-                    FK +=  SPI * T1 * (T2 / CAZ).sqrt();
+                    FK += SPI * T1 * (T2 / CAZ).sqrt();
                     FHS = (0.25 - DNU2).abs();
                 }
                 (FK, FHS)
@@ -2757,8 +2789,8 @@ fn ZBKNU(
                 if underflow_occurred {
                     // skip_to_270 = true;
                 } //GO TO 270;
-            // GO TO 240;
-            skip_to_240 = true;
+                // GO TO 240;
+                skip_to_240 = true;
             } else {
                 //-----------------------------------------------------------------------;
                 //     COMPUTE P1/P2=(P1/CABS(P2)*CONJG(P2)/CABS(P2) FOR SCALING;
@@ -2790,149 +2822,150 @@ fn ZBKNU(
     // if underflow_occurred {} //{break 'l270;}
 
     'l225: loop {
-        if !skip_to_240{
-        if !(INU <= 0 && N <= 1) {
-            //   220 CONTINUE;
-            // let INUB = 1;
-            // if !underflow_occurred GO TO 261;
+        if !skip_to_240 {
+            if !(INU <= 0 && N <= 1) {
+                //   220 CONTINUE;
+                // let INUB = 1;
+                // if !underflow_occurred GO TO 261;
 
-            //   225 CONTINUE;
-            let mut P1R = CSRR[KFLAG - 1];
-            let mut ASCLE = BRY[KFLAG - 1];
-            for _ in INUB..=INU {
-                let st = s2;
-                s2 = ck * s2 + s1;
-                s1 = st;
-                ck += rz;
-                if KFLAG >= 3 {
-                    continue;
-                }
-                let p2 = s2 * P1R;
-                if max_abs_component(p2) <= ASCLE {
-                    continue;
-                }
-                KFLAG += 1;
-                ASCLE = BRY[KFLAG - 1];
-                s1 *= P1R;
-                s2 = p2;
-                s1 *= CSSR[KFLAG - 1];
-                s2 *= CSSR[KFLAG - 1];
-                P1R = CSRR[KFLAG - 1];
-            }
-        } else if underflow_occurred{
-            //-----------------------------------------------------------------------;
-            //     underflow_occured=1 CASES, FORWARD RECURRENCE ON SCALED VALUES ON UNDERFLOW;
-            //-----------------------------------------------------------------------;
-            //   261 CONTINUE;
-            let mut cy = c_zeros(2);
-            let HELIM = 0.5 * machine_consts.exponent_limit;
-            let ELM = (-machine_consts.exponent_limit).exp();
-            let CELMR = ELM;
-            let ASCLE = BRY[0]; //BRY(1);
-            let mut zd = z;
-            // ZDR = ZR;
-            // ZDI = ZI;
-            let mut IC: isize = -2;
-            let mut J = 2;
-            // DO 262 I=1,INU;
-            // let skip_to_264=false;
-            let mut I = 0;
-            for i in 0..INU {
-                I = i + 1;
-                let st = s2;
-                s2 = s2 * ck + s1;
-                //   STR = S2R;
-                //   STI = S2I;
-                //   S2R = STR*CKR-STI*CKI+S1R;
-                //   S2I = STI*CKR+STR*CKI+S1I;
-                //   S1R = STR;
-                //   S1I = STI;
-                s1 = st;
-                ck += rz;
-                //   CKR = CKR+RZR;
-                //   CKI = CKI+RZI;
-                //   AS = ZABS(S2R,S2I);
-                let ALAS = s2.abs().ln(); //DLOG(AS);
-                //   P2R = -ZDR+ALAS;
-                if !((-zd.re + ALAS) < (-machine_consts.exponent_limit)) {
-                    //GO TO 263;
-
-                    //   CALL ZLOG(S2R,S2I,STR,STI,IDUM);
-                    let p2 = -zd + s2.ln();
-                    //   P2R = -ZDR+STR;
-                    //   P2I = -ZDI+STI;
-                    //   P2M = DEXP(P2R)/TOL;
-                    //   P1R = P2M*DCOS(P2I);
-                    //   P1I = P2M*DSIN(P2I);
-                    let p1 = (p2.re.exp() / machine_consts.abs_error_tolerance) * Complex64::cis(p2.im);
-
-                    //   CALL ZUunderflowCHK(P1R,P1I,NW,ASCLE,TOL);
-                    if will_z_underflow(p1, ASCLE, machine_consts.abs_error_tolerance) {
-                        //GO TO 263;
-                        J = 3 - J;
-                        cy[J - 1] = p1;
-                        //   CYR(J) = P1R;
-                        //   CYI(J) = P1I;
-                        // IF(IC.EQ.(I-1)) GO TO 264
-                        // below implies we got here twice in a row
-                        if IC == i - 1 {
-                            underflow_occurred = true; //implies 270}//{skip_to_264 = true;break;}//GO TO 264;
-                            IC = i;
-                            continue;
-                        }
-                    }
-                    //   263   CONTINUE;
-                    if ALAS < HELIM {
+                //   225 CONTINUE;
+                let mut P1R = CSRR[KFLAG - 1];
+                let mut ASCLE = BRY[KFLAG - 1];
+                for _ in INUB..=INU {
+                    let st = s2;
+                    s2 = ck * s2 + s1;
+                    s1 = st;
+                    ck += rz;
+                    if KFLAG >= 3 {
                         continue;
-                    } //GO TO 262;
-                    zd.re -= machine_consts.exponent_limit;
-                    //   ZDR = ZDR-ELIM;
-                    s1 *= CELMR;
-                    s2 *= CELMR;
-                    //   S1R = S1R*CELMR;
-                    //   S1I = S1I*CELMR;
-                    //   S2R = S2R*CELMR;
-                    //   S2I = S2I*CELMR;
+                    }
+                    let p2 = s2 * P1R;
+                    if max_abs_component(p2) <= ASCLE {
+                        continue;
+                    }
+                    KFLAG += 1;
+                    ASCLE = BRY[KFLAG - 1];
+                    s1 *= P1R;
+                    s2 = p2;
+                    s1 *= CSSR[KFLAG - 1];
+                    s2 *= CSSR[KFLAG - 1];
+                    P1R = CSRR[KFLAG - 1];
                 }
+            } else if underflow_occurred {
+                //-----------------------------------------------------------------------;
+                //     underflow_occured=1 CASES, FORWARD RECURRENCE ON SCALED VALUES ON UNDERFLOW;
+                //-----------------------------------------------------------------------;
+                //   261 CONTINUE;
+                let mut cy = c_zeros(2);
+                let HELIM = 0.5 * machine_consts.exponent_limit;
+                let ELM = (-machine_consts.exponent_limit).exp();
+                let CELMR = ELM;
+                let ASCLE = BRY[0]; //BRY(1);
+                let mut zd = z;
+                // ZDR = ZR;
+                // ZDI = ZI;
+                let mut IC: isize = -2;
+                let mut J = 2;
+                // DO 262 I=1,INU;
+                // let skip_to_264=false;
+                let mut I = 0;
+                for i in 0..INU {
+                    I = i + 1;
+                    let st = s2;
+                    s2 = s2 * ck + s1;
+                    //   STR = S2R;
+                    //   STI = S2I;
+                    //   S2R = STR*CKR-STI*CKI+S1R;
+                    //   S2I = STI*CKR+STR*CKI+S1I;
+                    //   S1R = STR;
+                    //   S1I = STI;
+                    s1 = st;
+                    ck += rz;
+                    //   CKR = CKR+RZR;
+                    //   CKI = CKI+RZI;
+                    //   AS = ZABS(S2R,S2I);
+                    let ALAS = s2.abs().ln(); //DLOG(AS);
+                    //   P2R = -ZDR+ALAS;
+                    if !((-zd.re + ALAS) < (-machine_consts.exponent_limit)) {
+                        //GO TO 263;
+
+                        //   CALL ZLOG(S2R,S2I,STR,STI,IDUM);
+                        let p2 = -zd + s2.ln();
+                        //   P2R = -ZDR+STR;
+                        //   P2I = -ZDI+STI;
+                        //   P2M = DEXP(P2R)/TOL;
+                        //   P1R = P2M*DCOS(P2I);
+                        //   P1I = P2M*DSIN(P2I);
+                        let p1 = (p2.re.exp() / machine_consts.abs_error_tolerance)
+                            * Complex64::cis(p2.im);
+
+                        //   CALL ZUunderflowCHK(P1R,P1I,NW,ASCLE,TOL);
+                        if will_z_underflow(p1, ASCLE, machine_consts.abs_error_tolerance) {
+                            //GO TO 263;
+                            J = 3 - J;
+                            cy[J - 1] = p1;
+                            //   CYR(J) = P1R;
+                            //   CYI(J) = P1I;
+                            // IF(IC.EQ.(I-1)) GO TO 264
+                            // below implies we got here twice in a row
+                            if IC == i - 1 {
+                                underflow_occurred = true; //implies 270}//{skip_to_264 = true;break;}//GO TO 264;
+                                IC = i;
+                                continue;
+                            }
+                        }
+                        //   263   CONTINUE;
+                        if ALAS < HELIM {
+                            continue;
+                        } //GO TO 262;
+                        zd.re -= machine_consts.exponent_limit;
+                        //   ZDR = ZDR-ELIM;
+                        s1 *= CELMR;
+                        s2 *= CELMR;
+                        //   S1R = S1R*CELMR;
+                        //   S1I = S1I*CELMR;
+                        //   S2R = S2R*CELMR;
+                        //   S2I = S2I*CELMR;
+                    }
+                }
+                // if !skip_to_264{
+                //   262 CONTINUE;
+                // if(N == 1) {//GO TO 270;
+                //       s1 = s2;
+                // }
+                // S1R = S2R;
+                // S1I = S2I;
+                // GO TO 270;
+                // }
+                //   264 CONTINUE;
+                KFLAG = 1;
+                INUB = I + 1;
+                s2 = cy[J - 1];
+                // S2R = CYR(J);
+                // S2I = CYI(J);
+                J = 3 - J;
+                s1 = cy[J - 1];
+                // S1R = CYR(J);
+                // S1I = CYI(J);
+                if INUB <= INU {
+                    continue 'l225;
+                } //GO TO 225;
+                // }
+                // if(N == 1) {//GO TO 240;
+                // s1 = s2;
+                // }
+                // S1R = S2R;
+                // S1I = S2I;
+                // GO TO 240;
+                // break 'l270;
+                //}//loop 270
+                //}
             }
-            // if !skip_to_264{
-            //   262 CONTINUE;
-            // if(N == 1) {//GO TO 270;
-            //       s1 = s2;
             // }
-            // S1R = S2R;
-            // S1I = S2I;
-            // GO TO 270;
-            // }
-            //   264 CONTINUE;
-            KFLAG = 1;
-            INUB = I + 1;
-            s2 = cy[J - 1];
-            // S2R = CYR(J);
-            // S2I = CYI(J);
-            J = 3 - J;
-            s1 = cy[J - 1];
-            // S1R = CYR(J);
-            // S1I = CYI(J);
-            if INUB <= INU {
-                continue 'l225;
-            } //GO TO 225;
-            // }
-            // if(N == 1) {//GO TO 240;
-            // s1 = s2;
-            // }
-            // S1R = S2R;
-            // S1I = S2I;
-            // GO TO 240;
-            // break 'l270;
-            //}//loop 270
-            //}
+            if N == 1 {
+                s1 = s2;
+            }
         }
-        // }
-        if N == 1 {
-            s1 = s2;
-        }
-    }
         // ********* basic setup
         let (mut KK, mut y) = if !underflow_occurred {
             let mut y = c_zeros(N);
@@ -3367,7 +3400,10 @@ fn i_ratios(
         t1.re -= 1.0;
     }
     if p1.re == 0.0 && p1.im == 0.0 {
-        p1 = Complex64::new(machine_consts.abs_error_tolerance, machine_consts.abs_error_tolerance);
+        p1 = Complex64::new(
+            machine_consts.abs_error_tolerance,
+            machine_consts.abs_error_tolerance,
+        );
     }
     let mut cy = c_zeros(N);
     cy[N - 1] = p2 / p1;
@@ -3378,7 +3414,10 @@ fn i_ratios(
             let mut pt = cdfnu + t1 * rz + cy[k];
             let mut AK = pt.abs();
             if AK == 0.0 {
-                pt = Complex64::new(machine_consts.abs_error_tolerance, machine_consts.abs_error_tolerance);
+                pt = Complex64::new(
+                    machine_consts.abs_error_tolerance,
+                    machine_consts.abs_error_tolerance,
+                );
                 AK = pt.abs();
             }
             cy[k - 1] = pt.conj() / AK.powi(2);
@@ -3388,78 +3427,85 @@ fn i_ratios(
     cy
 }
 
-fn ZS1S2(//ZRR, ZRI, S1R, S1I, S2R, S2I, NZ, ASCLE, ALIM,
-     //* IUF)
-     zr: Complex64, s1:&mut Complex64, s2:&mut Complex64,  IUF:&mut usize, machine_consts: &MachineConsts
-)-> usize{
-// ***BEGIN PROLOGUE  ZS1S2
-// ***REFER TO  ZBESK,ZAIRY
-//
-//     ZS1S2 TESTS FOR A POSSIBLE UNDERFLOW RESULTING FROM THE
-//     ADDITION OF THE I AND K FUNCTIONS IN THE ANALYTIC CON-
-//     TINUATION FORMULA WHERE S1=K FUNCTION AND S2=I FUNCTION.
-//     ON KODE=1 THE I AND K FUNCTIONS ARE DIFFERENT ORDERS OF
-//     MAGNITUDE, BUT FOR KODE=2 THEY CAN BE OF THE SAME ORDER
-//     OF MAGNITUDE AND THE MAXIMUM MUST BE AT LEAST ONE
-//     PRECISION ABOVE THE UNDERFLOW LIMIT.
-//
-// ***ROUTINES CALLED  ZABS,ZEXP,ZLOG
-// ***END PROLOGUE  ZS1S2
-//     COMPLEX CZERO,C1,S1,S1D,S2,ZR
+fn ZS1S2(
+    //ZRR, ZRI, S1R, S1I, S2R, S2I, NZ, ASCLE, ALIM,
+    //* IUF)
+    zr: Complex64,
+    s1: &mut Complex64,
+    s2: &mut Complex64,
+    IUF: &mut usize,
+    machine_consts: &MachineConsts,
+) -> usize {
+    // ***BEGIN PROLOGUE  ZS1S2
+    // ***REFER TO  ZBESK,ZAIRY
+    //
+    //     ZS1S2 TESTS FOR A POSSIBLE UNDERFLOW RESULTING FROM THE
+    //     ADDITION OF THE I AND K FUNCTIONS IN THE ANALYTIC CON-
+    //     TINUATION FORMULA WHERE S1=K FUNCTION AND S2=I FUNCTION.
+    //     ON KODE=1 THE I AND K FUNCTIONS ARE DIFFERENT ORDERS OF
+    //     MAGNITUDE, BUT FOR KODE=2 THEY CAN BE OF THE SAME ORDER
+    //     OF MAGNITUDE AND THE MAXIMUM MUST BE AT LEAST ONE
+    //     PRECISION ABOVE THE UNDERFLOW LIMIT.
+    //
+    // ***ROUTINES CALLED  ZABS,ZEXP,ZLOG
+    // ***END PROLOGUE  ZS1S2
+    //     COMPLEX CZERO,C1,S1,S1D,S2,ZR
     //   EXTERNAL ZABS
     //   DOUBLE PRECISION AA, ALIM, ALN, ASCLE, AS1, AS2, C1I, C1R, S1DI,
     //  * S1DR, S1I, S1R, S2I, S2R, ZEROI, ZEROR, ZRI, ZRR, ZABS
     //   INTEGER IUF, IDUM, NZ
     //   DATA ZEROR,ZEROI  / 0.0 , 0.0 /
-      let NZ = 0;
-      let mut abs_s1 = s1.abs();
-      let abs_s2  =s2.abs();
+    let NZ = 0;
+    let mut abs_s1 = s1.abs();
+    let abs_s2 = s2.abs();
     //   AS1 = ZABS(S1R,S1I);
     //   AS2 = ZABS(S2R,S2I);
-    if (s1.re != 0.0 || s1.im != 0.0) && (abs_s1 !=0.0){
-
-
-    //   if (S1R == 0.0 && S1I == 0.0) GO TO 10;
-    //   if (AS1 == 0.0) GO TO 10;
-      let ALN = (-2.0*zr.re) + abs_s1.ln();//-ZRR - ZRR + DLOG(AS1);
+    if (s1.re != 0.0 || s1.im != 0.0) && (abs_s1 != 0.0) {
+        //   if (S1R == 0.0 && S1I == 0.0) GO TO 10;
+        //   if (AS1 == 0.0) GO TO 10;
+        let ALN = (-2.0 * zr.re) + abs_s1.ln(); //-ZRR - ZRR + DLOG(AS1);
         let s1d = *s1;
         *s1 = c_zero();
         abs_s1 = 0.0;
-    //   S1DR = S1R;
-    //   S1DI = S1I;
-    //   S1R = ZEROR;
-    //   S1I = ZEROI;
-    //   AS1 = ZEROR;
-      if ALN >= (-machine_consts.approximation_limit) {//} GO TO 10;
-        *s1 = (s1d.ln() - 2.0*zr).exp();
-        abs_s1 = s1.abs();
-    //   CALL ZLOG(S1DR, S1DI, C1R, C1I, IDUM);
-    //   C1R = C1R - ZRR - ZRR;
-    //   C1I = C1I - ZRI - ZRI;
-    //   CALL ZEXP(C1R, C1I, S1R, S1I);
-    //   AS1 = ZABS(S1R,S1I);
-      *IUF += 1;
-      }
+        //   S1DR = S1R;
+        //   S1DI = S1I;
+        //   S1R = ZEROR;
+        //   S1I = ZEROI;
+        //   AS1 = ZEROR;
+        if ALN >= (-machine_consts.approximation_limit) {
+            //} GO TO 10;
+            *s1 = (s1d.ln() - 2.0 * zr).exp();
+            abs_s1 = s1.abs();
+            //   CALL ZLOG(S1DR, S1DI, C1R, C1I, IDUM);
+            //   C1R = C1R - ZRR - ZRR;
+            //   C1I = C1I - ZRI - ZRI;
+            //   CALL ZEXP(C1R, C1I, S1R, S1I);
+            //   AS1 = ZABS(S1R,S1I);
+            *IUF += 1;
+        }
     }
-//    10 CONTINUE;
+    //    10 CONTINUE;
 
     //   AA = DMAX1(AS1,AS2);
-      if abs_s1.max(abs_s2) > machine_consts.absolute_approximation_limit { NZ} //RETURN;
-      else{
+    if abs_s1.max(abs_s2) > machine_consts.absolute_approximation_limit {
+        NZ
+    }
+    //RETURN;
+    else {
         *s1 = c_zero();
         *s2 = c_zero();
-    //   S1R = ZEROR;
-    //   S1I = ZEROI;
-    //   S2R = ZEROR;
-    //   S2I = ZEROI;
-    //   NZ = 1;
-      *IUF = 0;
-    //   RETURN;
-    //   END;
-      1
+        //   S1R = ZEROR;
+        //   S1I = ZEROI;
+        //   S2R = ZEROR;
+        //   S2I = ZEROI;
+        //   NZ = 1;
+        *IUF = 0;
+        //   RETURN;
+        //   END;
+        1
     }
 }
-      /*
+/*
 fn ZBUNK(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
      * ALIM)
 // ***BEGIN PROLOGUE  ZBUNK
@@ -3536,7 +3582,7 @@ fn i_miller(
     let mut converged = false;
     let mut I = 0;
     for i in 0..80 {
-        I = i+1;
+        I = i + 1;
         let pt = p2;
         p2 = p1 - ck * p2;
         p1 = pt;
@@ -3979,8 +4025,8 @@ fn ZBINU(
         DFNU = order + ((NN as f64) - 1.0);
     }
 
-    if (AZ >=  machine_consts.asymptotic_z_limit)
-          && ((DFNU <= 1.0) //GO TO 30
+    if (AZ >= machine_consts.asymptotic_z_limit)
+        && ((DFNU <= 1.0) //GO TO 30
           || (AZ+AZ >= DFNU*DFNU))
     //GO TO 50 //equiv to go to 40 as (DFNU <= 1.0) is not true to get here
     {
@@ -4017,13 +4063,15 @@ fn ZBINU(
         //     if (DFNU > FNUL) GO TO 110
         //     if (AZ > FNUL) GO TO 110
     }
-    if (DFNU > machine_consts.asymptotic_order_limit) || (AZ > machine_consts.asymptotic_order_limit) {
+    if (DFNU > machine_consts.asymptotic_order_limit)
+        || (AZ > machine_consts.asymptotic_order_limit)
+    {
         //-----------------------------------------------------------------------
         //     INCREMENT FNU+NN-1 UP TO FNUL, COMPUTE AND RECUR BACKWARD
         //-----------------------------------------------------------------------
         let NUI_isize = (machine_consts.asymptotic_order_limit - DFNU) as isize + 1;
         let NUI = NUI_isize.max(0) as usize;
-        let ( NW, NLAST) = ZBUNI(
+        let (NW, NLAST) = ZBUNI(
             //ZR, ZI, FNU,
             z,
             order,
@@ -4072,7 +4120,7 @@ fn ZBINU(
     //       CALL ZUOIK(ZR, ZI, FNU, KODE, 2, 2, CWR, CWI, NW, TOL, ELIM,
     //      * ALIM)
 
-    if let Ok( NW) = zuoik(
+    if let Ok(NW) = zuoik(
         z,
         order,
         KODE,
@@ -4084,7 +4132,7 @@ fn ZBINU(
         if NW > 0 {
             Err(Overflow)
         } else {
-            let nz= i_wronksian(z, order, KODE, NN, &mut cy, machine_consts)?;
+            let nz = i_wronksian(z, order, KODE, NN, &mut cy, machine_consts)?;
             Ok((cy, nz))
         }
     } else {
@@ -4106,27 +4154,33 @@ fn ZBINU(
           */
 }
 
-
-fn ZACAI(//ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, RL, TOL,
-     //* ELIM, ALIM)
-     z: Complex64, order: f64, KODE: Scaling, MR: i32, N:usize, machine_consts: &MachineConsts)-> BesselResult{
-// ***BEGIN PROLOGUE  ZACAI
-// ***REFER TO  ZAIRY
-//
-//     ZACAI APPLIES THE ANALYTIC CONTINUATION FORMULA
-//
-//         K(FNU,ZN*EXP(MP))=K(FNU,ZN)*EXP(-MP*FNU) - MP*I(FNU,ZN)
-//                 MP=PI*MR*CMPLX(0.0,1.0)
-//
-//     TO CONTINUE THE K FUNCTION FROM THE RIGHT HALF TO THE LEFT
-//     HALF Z PLANE FOR USE WITH ZAIRY WHERE FNU=1/3 OR 2/3 AND N=1.
-//     ZACAI IS THE SAME AS ZACON WITH THE PARTS FOR LARGER ORDERS AND
-//     RECURRENCE REMOVED. A RECURSIVE CALL TO ZACON CAN RESULT if ZACON
-//     IS CALLED FROM ZAIRY.
-//
-// ***ROUTINES CALLED  ZASYI,ZBKNU,ZMLRI,z_power_series,ZS1S2,d1mach,ZABS
-// ***END PROLOGUE  ZACAI
-//     COMPLEX CSGN,CSPN,C1,C2,Y,Z,ZN,CY
+fn ZACAI(
+    //ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, RL, TOL,
+    //* ELIM, ALIM)
+    z: Complex64,
+    order: f64,
+    KODE: Scaling,
+    MR: i32,
+    N: usize,
+    machine_consts: &MachineConsts,
+) -> BesselResult {
+    // ***BEGIN PROLOGUE  ZACAI
+    // ***REFER TO  ZAIRY
+    //
+    //     ZACAI APPLIES THE ANALYTIC CONTINUATION FORMULA
+    //
+    //         K(FNU,ZN*EXP(MP))=K(FNU,ZN)*EXP(-MP*FNU) - MP*I(FNU,ZN)
+    //                 MP=PI*MR*CMPLX(0.0,1.0)
+    //
+    //     TO CONTINUE THE K FUNCTION FROM THE RIGHT HALF TO THE LEFT
+    //     HALF Z PLANE FOR USE WITH ZAIRY WHERE FNU=1/3 OR 2/3 AND N=1.
+    //     ZACAI IS THE SAME AS ZACON WITH THE PARTS FOR LARGER ORDERS AND
+    //     RECURRENCE REMOVED. A RECURSIVE CALL TO ZACON CAN RESULT if ZACON
+    //     IS CALLED FROM ZAIRY.
+    //
+    // ***ROUTINES CALLED  ZASYI,ZBKNU,ZMLRI,z_power_series,ZS1S2,d1mach,ZABS
+    // ***END PROLOGUE  ZACAI
+    //     COMPLEX CSGN,CSPN,C1,C2,Y,Z,ZN,CY
     //   EXTERNAL ZABS
     //   DOUBLE PRECISION ALIM, ARG, ASCLE, AZ, CSGNR, CSGNI, CSPNR,
     //  * CSPNI, C1R, C1I, C2R, C2I, CYR, CYI, DFNU, ELIM, FMR, FNU, PI,
@@ -4134,107 +4188,111 @@ fn ZACAI(//ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, RL, TOL,
     //   INTEGER INU, IUF, KODE, MR, N, NN, NW, NZ
     //   DIMENSION YR(N), YI(N), CYR(2), CYI(2)
     //   DATA PI / 3.14159265358979324 /
-      let mut NZ = 0;
-      let zn = -z;
+    let mut NZ = 0;
+    let zn = -z;
     //   ZNR = -ZR;
     //   ZNI = -ZI;
     let AZ = z.abs();
     //   AZ = ZABS(ZR,ZI);
-      let NN = N;
-      let DFNU = order + ((N-1) as f64);
+    let NN = N;
+    let DFNU = order + ((N - 1) as f64);
     //   if (AZ <= 2.0) GO TO 10;
-    let (mut y, _) = if (AZ*AZ*0.25 <= DFNU+1.0) || (AZ <= 2.0) {//GO TO 20;
-//    10 CONTINUE;
-//-----------------------------------------------------------------------;
-//     POWER SERIES FOR THE I FUNCTION;
-//-----------------------------------------------------------------------;
-let (y, NW_signed) = i_power_series(zn, order, KODE, NN, machine_consts)?;
-debug_assert!(NW_signed>=0);
-(y, NW_signed.unsigned_abs())
+    let (mut y, _) = if (AZ * AZ * 0.25 <= DFNU + 1.0) || (AZ <= 2.0) {
+        //GO TO 20;
+        //    10 CONTINUE;
+        //-----------------------------------------------------------------------;
+        //     POWER SERIES FOR THE I FUNCTION;
+        //-----------------------------------------------------------------------;
+        let (y, NW_signed) = i_power_series(zn, order, KODE, NN, machine_consts)?;
+        debug_assert!(NW_signed >= 0);
+        (y, NW_signed.unsigned_abs())
     //   CALL z_power_series(ZNR, ZNI, FNU, KODE, NN, YR, YI, NW, TOL, ELIM, ALIM);
-      }else if AZ >=machine_consts.asymptotic_z_limit{
-    //   GO TO 40;
-//    20 CONTINUE;
-    //   if (AZ < RL) GO TO 30;
-//-----------------------------------------------------------------------;
-//     ASYMPTOTIC EXPANSION FOR LARGE Z FOR THE I FUNCTION;
-//-----------------------------------------------------------------------;
-    //   CALL ZASYI(ZNR, ZNI, FNU, KODE, NN, YR, YI, NW, RL, TOL, ELIM,;
-    //  * ALIM);
-     z_asymptotic_i(zn, order, KODE,NN, machine_consts)?
+    } else if AZ >= machine_consts.asymptotic_z_limit {
+        //   GO TO 40;
+        //    20 CONTINUE;
+        //   if (AZ < RL) GO TO 30;
+        //-----------------------------------------------------------------------;
+        //     ASYMPTOTIC EXPANSION FOR LARGE Z FOR THE I FUNCTION;
+        //-----------------------------------------------------------------------;
+        //   CALL ZASYI(ZNR, ZNI, FNU, KODE, NN, YR, YI, NW, RL, TOL, ELIM,;
+        //  * ALIM);
+        z_asymptotic_i(zn, order, KODE, NN, machine_consts)?
     //   if (NW < 0) GO TO 80;
     //   GO TO 40;
-//    30 CONTINUE;
-//-----------------------------------------------------------------------;
-//     MILLER ALGORITHM NORMALIZED BY THE SERIES FOR THE I FUNCTION;
-//-----------------------------------------------------------------------;
-      }else{
+    //    30 CONTINUE;
+    //-----------------------------------------------------------------------;
+    //     MILLER ALGORITHM NORMALIZED BY THE SERIES FOR THE I FUNCTION;
+    //-----------------------------------------------------------------------;
+    } else {
         i_miller(zn, order, KODE, NN, machine_consts)?
-    //   CALL ZMLRI(ZNR, ZNI, FNU, KODE, NN, YR, YI, NW, TOL);
-    //   if(NW < 0) GO TO 80;
-     };
-//    40 CONTINUE;
-//-----------------------------------------------------------------------;
-//     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE FOR THE K FUNCTION;
-//-----------------------------------------------------------------------;
-     let (cy, _) = ZBKNU(zn, order, KODE, 1, machine_consts)?;
+        //   CALL ZMLRI(ZNR, ZNI, FNU, KODE, NN, YR, YI, NW, TOL);
+        //   if(NW < 0) GO TO 80;
+    };
+    //    40 CONTINUE;
+    //-----------------------------------------------------------------------;
+    //     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE FOR THE K FUNCTION;
+    //-----------------------------------------------------------------------;
+    let (cy, _) = ZBKNU(zn, order, KODE, 1, machine_consts)?;
     //   CALL ZBKNU(ZNR, ZNI, FNU, KODE, 1, CYR, CYI, NW, TOL, ELIM, ALIM);
     //   if (NW != 0) GO TO 80;
     //   let FMR = (MR as f64);s
-      let SGN = -PI * (MR as f64).signum();//-DSIGN(PI,FMR);
-      let mut csgn = Complex64::new(0.0, SGN);
+    let SGN = -PI * (MR as f64).signum(); //-DSIGN(PI,FMR);
+    let mut csgn = Complex64::new(0.0, SGN);
     //   CSGNR = 0.0;
     //   CSGNI = SGN;
-      if KODE == Scaling::Scaled {// GO TO 50;
+    if KODE == Scaling::Scaled {
+        // GO TO 50;
         csgn = Complex64::I * csgn.im * Complex64::cis(-zn.im);
         // csgn.re = -csgn.re;
-    //   YY = -ZNI;
-    //   CSGNR = -CSGNI*DSIN(YY);
-    //   CSGNI = CSGNI*DCOS(YY);
-      }
-//    50 CONTINUE;
-//-----------------------------------------------------------------------;
-//     CALCULATE CSPN=EXP(FNU*PI*I) TO MINIMIZE LOSSES OF SIGNIFICANCE;
-//     WHEN FNU IS LARGE;
-//-----------------------------------------------------------------------;
+        //   YY = -ZNI;
+        //   CSGNR = -CSGNI*DSIN(YY);
+        //   CSGNI = CSGNI*DCOS(YY);
+    }
+    //    50 CONTINUE;
+    //-----------------------------------------------------------------------;
+    //     CALCULATE CSPN=EXP(FNU*PI*I) TO MINIMIZE LOSSES OF SIGNIFICANCE;
+    //     WHEN FNU IS LARGE;
+    //-----------------------------------------------------------------------;
     //   INU = INT(SNGL(FNU));
-      let INU = order as usize;
+    let INU = order as usize;
     //   ARG = (FNU-(INU as f64))*SGN;
     // let ARG = order.fract() * SGN;
-      let mut cspn = Complex64::cis(order.fract()*SGN);
+    let mut cspn = Complex64::cis(order.fract() * SGN);
     //   CSPNR = DCOS(ARG);
     //   CSPNI = DSIN(ARG);
-      if INU%2 != 0 {//GO TO 60;
-        cspn = - cspn;
-    //   CSPNR = -CSPNR;
-    //   CSPNI = -CSPNI;
-      }
-//    60 CONTINUE;
-      let mut c1 = cy[0];
-      let mut c2 = y[0];
+    if INU % 2 != 0 {
+        //GO TO 60;
+        cspn = -cspn;
+        //   CSPNR = -CSPNR;
+        //   CSPNI = -CSPNI;
+    }
+    //    60 CONTINUE;
+    let mut c1 = cy[0];
+    let mut c2 = y[0];
     //   C1R = CYR(1);
     //   C1I = CYI(1);
     //   C2R = YR(1);
     //   C2I = YI(1);
-      if KODE == Scaling::Scaled {//GO TO 70;
-      let mut IUF = 0;
-    //   ASCLE = 1.0e+3*d1mach(1)/TOL;
+    if KODE == Scaling::Scaled {
+        //GO TO 70;
+        let mut IUF = 0;
+        //   ASCLE = 1.0e+3*d1mach(1)/TOL;
         let NW = ZS1S2(zn, &mut c1, &mut c2, &mut IUF, machine_consts);
-    //   CALL ZS1S2(ZNR, ZNI, C1R, C1I, C2R, C2I, NW, ASCLE, ALIM, IUF);
-      NZ +=  NW;
-      }
-//    70 CONTINUE;
-      y[0] = cspn*c1 + csgn*c2;
+        //   CALL ZS1S2(ZNR, ZNI, C1R, C1I, C2R, C2I, NW, ASCLE, ALIM, IUF);
+        NZ += NW;
+    }
+    //    70 CONTINUE;
+    y[0] = cspn * c1 + csgn * c2;
     //   YR(1) = CSPNR*C1R - CSPNI*C1I + CSGNR*C2R - CSGNI*C2I;
     //   YI(1) = CSPNR*C1I + CSPNI*C1R + CSGNR*C2I + CSGNI*C2R;
-      Ok((y, NZ))
+    Ok((y, NZ))
     //   RETURN;
-//    80 CONTINUE;
-//       NZ = -1;
-//       if(NW == (-2)) NZ=-2;
-//       RETURN;
-//       END;
-     }
+    //    80 CONTINUE;
+    //       NZ = -1;
+    //       if(NW == (-2)) NZ=-2;
+    //       RETURN;
+    //       END;
+}
 
 /*
 fn ZUNK1(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
@@ -5213,7 +5271,7 @@ fn ZBUNI(
         let DFNU = order + ((N - 1) as f64);
         let GNU = DFNU + FNUI;
         let mut cy = c_zeros(2);
-        let ( NW, NLAST) = if IFORM != 2 {
+        let (NW, NLAST) = if IFORM != 2 {
             //GO TO 10;
             //-----------------------------------------------------------------------;
             //     ASYMPTOTIC EXPANSION FOR I(FNU,Z) FOR LARGE FNU APPLIED IN;
@@ -5351,7 +5409,7 @@ fn ZBUNI(
         //   YR(N) = S2R*CSCRR;
         //   YI(N) = S2I*CSCRR;
         if N == 1 {
-            return Ok(( NZ, NLAST));
+            return Ok((NZ, NLAST));
         } //RETURN;
         let NL = N - 1;
         FNUI = NL as f64;
@@ -5411,7 +5469,7 @@ fn ZBUNI(
         //       RETURN;
     }
     //    60 CONTINUE;
-    let ( NW, NLAST) = if IFORM != 2 {
+    let (NW, NLAST) = if IFORM != 2 {
         //GO TO 70;
         //-----------------------------------------------------------------------;
         //     ASYMPTOTIC EXPANSION FOR I(FNU,Z) FOR LARGE FNU APPLIED IN;
@@ -5428,7 +5486,7 @@ fn ZBUNI(
         //     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I;
         //     AND FRAC_PI_2=PI/2;
         //-----------------------------------------------------------------------;
-        ZUNI2(z, order, KODE,  N, y, machine_consts)?
+        ZUNI2(z, order, KODE, N, y, machine_consts)?
         //    ZUNI2(ZR, ZI, FNU, KODE, N, YR, YI, NW, NLAST, FNUL, TOL,
         //  * ELIM, ALIM)?;
     };
@@ -5437,7 +5495,7 @@ fn ZBUNI(
     NZ = NW;
     //   RETURN;
 
-        Ok((NZ, NLAST))
+    Ok((NZ, NLAST))
 
     //    90 CONTINUE;
     //       NLAST = N;
@@ -5564,13 +5622,12 @@ fn ZUNI1(
     // let mut y = c_zeros(N);
     let mut set_underflow_and_update = false;
     'l30: loop {
-
-        if set_underflow_and_update{
+        if set_underflow_and_update {
             // set_underflow_and_update = false;
             if rs1 > 0.0 {
-                return Err(Overflow)
+                return Err(Overflow);
             } //GO TO 120;
-            y[ND-1] = c_zero();
+            y[ND - 1] = c_zero();
             //   YR(ND) = ZEROR;
             //   YI(ND) = ZEROI;
             NZ += 1;
@@ -5579,7 +5636,7 @@ fn ZUNI1(
                 return Ok((NZ, NLAST));
             } //GO TO 100;
             //   CALL ZUOIK(ZR, ZI, FNU, KODE, 1, ND, YR, YI, NUF, TOL, ELIM, ALIM);
-            let NUF =  zuoik(z, order, KODE, IKType::I, ND, y, machine_consts)? ;
+            let NUF = zuoik(z, order, KODE, IKType::I, ND, y, machine_consts)?;
 
             // if NUF < 0 {
             //     return Err(Overflow);
@@ -5587,16 +5644,15 @@ fn ZUNI1(
             ND -= NUF;
             NZ += NUF;
             if ND == 0 {
-                return  Ok((NZ, NLAST));
+                return Ok((NZ, NLAST));
             } //GO TO 100;
-        FN = order + ((ND - 1) as f64);
+            FN = order + ((ND - 1) as f64);
             if FN < machine_consts.asymptotic_order_limit {
-
                 // continue 'l30;
-             //GO TO 30;
-            //   NLAST = ND;
-            return Ok((NZ, ND));
-            // UpdateAction::Return(*ND)
+                //GO TO 30;
+                //   NLAST = ND;
+                return Ok((NZ, ND));
+                // UpdateAction::Return(*ND)
             }
         }
 
@@ -5639,7 +5695,8 @@ fn ZUNI1(
             // RS1 = S1R;
             let mut rs1 = s1.re;
             if rs1.abs() > machine_consts.exponent_limit {
-                set_underflow_and_update = true; continue 'l30;
+                set_underflow_and_update = true;
+                continue 'l30;
                 // match set_underflow_and_update_params(
                 //     z,
                 //     order,
@@ -5669,7 +5726,8 @@ fn ZUNI1(
                 // RS1 = RS1 + DLOG(APHI);
                 rs1 += phi.abs().ln();
                 if rs1.abs() > machine_consts.exponent_limit {
-                set_underflow_and_update = true; continue 'l30;
+                    set_underflow_and_update = true;
+                    continue 'l30;
 
                     // match set_underflow_and_update_params(
                     //     z,
@@ -5717,7 +5775,8 @@ fn ZUNI1(
                 //GO TO 70;
                 // CALL ZUunderflowCHK(S2R, S2I, NW, BRY(1), TOL);
                 if will_z_underflow(s2, BRY[0], machine_consts.abs_error_tolerance) {
-                set_underflow_and_update = true; continue 'l30;
+                    set_underflow_and_update = true;
+                    continue 'l30;
 
                     // match set_underflow_and_update_params(
                     //     z,
@@ -6043,24 +6102,25 @@ fn ZUNI2(
             if rs1 > 0.0 {
                 return Err(Overflow);
             } //GO TO 140;
+
             //-----------------------------------------------------------------------;
             //     SET UNDERFLOW AND UPDATE PARAMETERS;
             //-----------------------------------------------------------------------;
-            y[ND-1] = c_zero();
+            y[ND - 1] = c_zero();
             //   YR(ND) = ZEROR;
             //   YI(ND) = ZEROI;
             NZ += 1;
             ND -= 1;
             if ND == 0 {
-                return Ok(( NZ, NLAST));
+                return Ok((NZ, NLAST));
             } //GO TO 110;
             //   CALL ZUOIK(ZR, ZI, FNU, KODE, 1, ND, YR, YI, NUF, TOL, ELIM, ALIM);
-            let  NUF = zuoik(z, order, KODE, IKType::I, ND, y, machine_consts)?;
+            let NUF = zuoik(z, order, KODE, IKType::I, ND, y, machine_consts)?;
 
             ND -= NUF;
             NZ += NUF;
             if ND == 0 {
-                return Ok(( NZ, NLAST));
+                return Ok((NZ, NLAST));
             } //GO TO 110;
             FN = order + ((ND - 1) as f64);
             if FN < machine_consts.asymptotic_order_limit {
@@ -6093,7 +6153,8 @@ fn ZUNI2(
         let mut cy = [c_zero(); 2];
         for i in 0..ND.min(2) {
             FN = order + ((ND - (i + 1)) as f64);
-            let (phi, arg, zeta1, zeta2, asum, bsum) = zunhj(zn, FN, false, machine_consts.abs_error_tolerance);
+            let (phi, arg, zeta1, zeta2, asum, bsum) =
+                zunhj(zn, FN, false, machine_consts.abs_error_tolerance);
             let asum = asum.unwrap();
             let bsum = bsum.unwrap();
             //     CALL ZUNHJ(ZNR, ZNI, FN, 0, TOL, PHIR, PHII, ARGR, ARGI,;
@@ -6161,16 +6222,16 @@ fn ZUNI2(
             //     EXPONENT EXTREMES;
             //-----------------------------------------------------------------------;
             //note that ZAIRY calls in fortran code ignore IERR (using IDUM)
-            let a_airy = match ZAIRY(arg, false, Scaling::Scaled){
+            let a_airy = match ZAIRY(arg, false, Scaling::Scaled) {
                 Ok((y, _)) => y,
                 Err(PartialLossOfSignificance { y, nz: _ }) => y[0],
-                _ => panic!("This case is not handled by the Amos code")
+                _ => panic!("This case is not handled by the Amos code"),
             };
-            let d_airy = match ZAIRY(arg, true, Scaling::Scaled){
-            Ok((y, _)) => y,
-            Err(PartialLossOfSignificance { y, nz: _ }) => y[0],
-            _ => panic!("This case is not handled by the Amos code")
-        };
+            let d_airy = match ZAIRY(arg, true, Scaling::Scaled) {
+                Ok((y, _)) => y,
+                Err(PartialLossOfSignificance { y, nz: _ }) => y[0],
+                _ => panic!("This case is not handled by the Amos code"),
+            };
             // CALL ZAIRY(ARGR, ARGI, 0, 2, AIR, AII, NAI, IDUM);
             // CALL ZAIRY(ARGR, ARGI, 1, 2, DAIR, DAII, NDAI, IDUM);
             // STR = DAIR*BSUMR - DAII*BSUMI;
@@ -6178,13 +6239,13 @@ fn ZUNI2(
             // STR = STR + (AIR*ASUMR-AII*ASUMI);
             // STI = STI + (AIR*ASUMI+AII*ASUMR);
 
-             let mut s2 = phi * (d_airy * bsum + a_airy * asum);
+            let mut s2 = phi * (d_airy * bsum + a_airy * asum);
             // S2R = PHIR*STR - PHII*STI;
             // S2I = PHIR*STI + PHII*STR;
             // STR = DEXP(S1R)*CSSR(IFLAG);
             // S1R = STR*DCOS(S1I);
             // S1I = STR*DSIN(S1I);
-            let s1 = CSSR[IFLAG - 1] * Complex64::from_polar(s1.re.exp(),s1.im);
+            let s1 = CSSR[IFLAG - 1] * Complex64::from_polar(s1.re.exp(), s1.im);
             s2 *= s1;
             // STR = S2R*S1R - S2I*S1I;
             // S2I = S2R*S1I + S2I*S1R;
@@ -6213,7 +6274,7 @@ fn ZUNI2(
             y[ND - i - 1] = s2 * CSRR[IFLAG - 1];
             // YR(J) = S2R*CSRR(IFLAG);
             // YI(J) = S2I*CSRR(IFLAG);
-            c2 *=  CIDI * Complex64::I;
+            c2 *= CIDI * Complex64::I;
             // STR = -C2I*CIDI;
             // C2I = C2R*CIDI;
             // C2R = STR;
@@ -6240,11 +6301,11 @@ fn ZUNI2(
         // let mut K = ND - 2;
         // FN = K as f64;
         //   DO 100 I=3,ND;
-        for K in (0..(ND-2)).rev() {
+        for K in (0..(ND - 2)).rev() {
             let st = s2;
             // C2R = S2R;
             // C2I = S2I;
-            s2 = s1 + (order + ((K+1) as f64)) * rz*s2;
+            s2 = s1 + (order + ((K + 1) as f64)) * rz * s2;
             // S2R = S1R + (FNU + FN) * (RZR * C2R - RZI * C2I);
             // S2I = S1I + (FNU + FN) * (RZR * C2I + RZI * C2R);
             s1 = st;
@@ -6253,7 +6314,7 @@ fn ZUNI2(
             // c2 = s2 *c1;
             // C2R = S2R * C1R;
             // C2I = S2I * C1R;
-            y[K] = s2*C1R;
+            y[K] = s2 * C1R;
             // YR(K) = C2R;
             // YI(K) = C2I;
             // K  -= 1;
@@ -6268,20 +6329,20 @@ fn ZUNI2(
                 continue;
             } //GO TO 100;
             IFLAG += 1;
-            ASCLE = BRY[IFLAG-1];
+            ASCLE = BRY[IFLAG - 1];
             s1 *= C1R;
             // S1R = S1R * C1R;
             // S1I = S1I * C1R;
             s2 = y[K];
             // S2R = C2R;
             // S2I = C2I;
-            s1 *= CSSR[IFLAG-1];
+            s1 *= CSSR[IFLAG - 1];
             // S1R = S1R * CSSR(IFLAG);
             // S1I = S1I * CSSR(IFLAG);
-            s2*=CSSR[IFLAG-1];
+            s2 *= CSSR[IFLAG - 1];
             // S2R = S2R * CSSR(IFLAG);
             // S2I = S2I * CSSR(IFLAG);
-            C1R = CSRR[IFLAG-1];
+            C1R = CSRR[IFLAG - 1];
         }
         break 'l40;
         //   100 CONTINUE;
