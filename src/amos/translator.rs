@@ -5012,11 +5012,10 @@ fn ZUNI1(
 }
 
 fn ZUNI2(
-    //ZR, ZI, FNU, KODE, N,
     z: Complex64,
     order: f64,
     KODE: Scaling,
-    N: usize, //YR, YI, NZ, NLAST, FNUL,
+    N: usize,
     y: &mut Vec<Complex64>,
     machine_consts: &MachineConsts,
 ) -> BesselResult<(usize, usize)> {
@@ -5035,33 +5034,13 @@ fn ZUNI2(
     //
     // ***ROUTINES CALLED  ZAIRY,ZUunderflowCHK,ZUNHJ,ZUOIK,d1mach,ZABS
     // ***END PROLOGUE  ZUNI2
-    //     COMPLEX AI,ARG,ASUM,BSUM,CFN,CI,CID,CIP,CONE,CRSC,CSCL,CSR,CSS,
-    //    *CZERO,C1,C2,DAI,PHI,RZ,S1,S2,Y,Z,ZB,ZETA1,ZETA2,ZN
-    //   EXTERNAL ZABS
-    //   DOUBLE PRECISION AARG, AIC, AII, AIR, ALIM, ANG, APHI, ARGI,
-    //  * ARGR, ASCLE, ASUMI, ASUMR, BRY, BSUMI, BSUMR, CIDI, CIPI, CIPR,
-    //  * CONER, CRSC, CSCL, CSRR, CSSR, C1R, C2I, C2M, C2R, DAII,
-    //  * DAIR, ELIM, FN, FNU, FNUL, FRAC_PI_2, PHII, PHIR, RAST, RAZ, RS1, RZI,
-    //  * RZR, STI, STR, S1I, S1R, S2I, S2R, TOL, YI, YR, ZBI, ZBR, ZEROI,
-    //  * ZEROR, ZETA1I, ZETA1R, ZETA2I, ZETA2R, ZI, ZNI, ZNR, ZR, CYR,
-    //  * CYI, d1mach, ZABS, CAR, SAR
-    //   INTEGER I, IFLAG, IN, INU, J, K, KODE, N, NAI, ND, NDAI, NLAST,
-    //  * NN, NUF, NW, NZ, IDUM
-    //   DIMENSION BRY(3), YR(N), YI(N), CIPR(4), CIPI(4), CSSR(3),
-    //  * CSRR(3), CYR(2), CYI(2)
-    //   DATA ZEROR,ZEROI,CONER / 0.0, 0.0, 1.0 /
-    //   DATA CIPR(1),CIPI(1),CIPR(2),CIPI(2),CIPR(3),CIPI(3),CIPR(4),
-    //  * CIPI(4)/
     let CIP = [
         Complex64::new(1.0, 0.0),
         Complex64::new(0.0, 1.0),
         Complex64::new(-1.0, 0.0),
         Complex64::new(0.0, -1.0),
     ];
-    //   DATA FRAC_PI_2, AIC  /
-    //  1      1.57079632679489662e+00,     1.265512123484645396e+00/
     const AIC: f64 = 1.265512123484645396;
-    //
     let mut NZ = 0;
     let mut ND = N;
     let NLAST = 0;
@@ -5074,13 +5053,6 @@ fn ZUNI2(
     let CRSC = machine_consts.abs_error_tolerance;
     let CSSR = [CSCL, 1.0, CRSC];
     let CSRR = [CRSC, 1.0, CSCL];
-    //   CSSR(1) = CSCL;
-    //   CSSR(2) = CONER;
-    //   CSSR(3) = CRSC;
-    //   CSRR(1) = CRSC;
-    //   CSRR(2) = CONER;
-    //   CSRR(3) = CSCL;
-    //   BRY(1) = 1.0e+3*d1mach(1)/TOL;
     let BRY = [
         machine_consts.absolute_approximation_limit,
         1.0 / machine_consts.absolute_approximation_limit,
@@ -5090,134 +5062,76 @@ fn ZUNI2(
     //     ZN IS IN THE RIGHT HALF PLANE AFTER ROTATION BY CI OR -CI;
     //-----------------------------------------------------------------------;
     let mut zn = Complex64::new(z.im, -z.re);
-    //   ZNR = ZI;
-    //   ZNI = -ZR;
     let mut zb = z;
-    //   ZBR = ZR;
-    //   ZBI = ZI;
     let mut CIDI = -1.0;
-    //   INU = INT(SNGL(FNU));
     let INU = order as usize;
     let ANG = FRAC_PI_2 * order.fract();
     let mut c2 = Complex64::cis(ANG);
-    //   C2R = DCOS(ANG);
-    //   C2I = DSIN(ANG);
     let CAR = c2.re;
     let SAR = c2.im;
-    //   CAR = C2R;
-    //   SAR = C2I;
     let index = (INU + N - 1) % 4;
-    //   let IN = (IN%4);
     c2 *= CIP[index];
-    //   STR = C2R*CIPR(IN) - C2I*CIPI(IN);
-    //   C2I = C2R*CIPI(IN) + C2I*CIPR(IN);
-    //   C2R = STR;
     if z.im <= 0.0 {
-        //GO TO 10;
-        //   ZNR = -ZNR;
         zn.re = -zn.re;
         zb.im = -zb.im;
-        //   ZBI = -ZBI;
         CIDI = -CIDI;
         c2.im = -c2.im;
-        //   C2I = -C2I;
     }
-    //    10 CONTINUE;
     //-----------------------------------------------------------------------;
     //     CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER;
     //-----------------------------------------------------------------------;
-    let mut FN = order.max(1.0); //DMAX1(FNU,1.0);
+    let mut FN = order.max(1.0);
     let (_, _, zeta1, zeta2, _, _) = zunhj(zn, FN, true, machine_consts.abs_error_tolerance);
 
-    //   CALL ZUNHJ(ZNR, ZNI, FN, 1, TOL, PHIR, PHII, ARGR, ARGI, ZETA1R,;
-    //  * ZETA1I, ZETA2R, ZETA2I, ASUMR, ASUMI, BSUMR, BSUMI);
     let s1 = if KODE == Scaling::Scaled {
-        //GO TO 20;
         let mut st = zb + zeta2;
-        //   STR = ZBR + ZETA2R;
-        //   STI = ZBI + ZETA2I;
         let RAST = FN / st.abs();
-        //   RAST = FN/ZABS(STR,STI);
         st = st.conj() * RAST.pow(2);
-        //   STR = STR*RAST*RAST;
-        //   STI = -STI*RAST*RAST;
         -zeta1 + st
-    //   S1R = -ZETA1R + STR;
-    //   S1I = -ZETA1I + STI;
-    //   GO TO 30;
     } else {
-        //    20 CONTINUE;}
         -zeta1 + zeta2
-        //   S1R = -ZETA1R + ZETA2R;
-        //   S1I = -ZETA1I + ZETA2I;
     };
-    //    30 CONTINUE;
-    //   RS1 = S1R;
     let mut rs1 = s1.re.abs();
     if rs1.abs() > machine_consts.exponent_limit {
-        //GO TO 150;
         return if s1.re > 0.0 {
             Err(Overflow)
         } else {
             Ok((N, NLAST))
         };
     }
-    //    40 CONTINUE;
     let mut set_underflow_and_update = false;
     'l40: loop {
         if set_underflow_and_update {
-            // 120 CONTINUE;
             if rs1 > 0.0 {
                 return Err(Overflow);
-            } //GO TO 140;
-
+            }
             //-----------------------------------------------------------------------;
             //     SET UNDERFLOW AND UPDATE PARAMETERS;
             //-----------------------------------------------------------------------;
             y[ND - 1] = c_zero();
-            //   YR(ND) = ZEROR;
-            //   YI(ND) = ZEROI;
             NZ += 1;
             ND -= 1;
             if ND == 0 {
                 return Ok((NZ, NLAST));
-            } //GO TO 110;
-            //   CALL ZUOIK(ZR, ZI, FNU, KODE, 1, ND, YR, YI, NUF, TOL, ELIM, ALIM);
+            }
             let NUF = zuoik(z, order, KODE, IKType::I, ND, y, machine_consts)?;
-
             ND -= NUF;
             NZ += NUF;
             if ND == 0 {
                 return Ok((NZ, NLAST));
-            } //GO TO 110;
+            }
             FN = order + ((ND - 1) as f64);
             if FN < machine_consts.asymptotic_order_limit {
                 return Ok((NZ, ND));
-            } //GO TO 130;
-            //      FN = CIDI;
-            //      J = NUF + 1;
-            //      K = MOD(J,4) + 1;
-            //      S1R = CIPR(K);
-            //      S1I = CIPI(K);
-            //      if (FN < 0.0) S1I = -S1I;
-            //      STR = C2R*S1R - C2I*S1I;
-            //      C2I = C2R*S1I + C2I*S1R;
-            //      C2R = STR;
+            }
             let index = (INU + ND - 1) % 4;
-            //   IN = INU + ND - 1;
-            //   IN = MOD(IN,4) + 1;
             c2 = Complex64::new(CAR, SAR) * CIP[index];
-            //   C2R = CAR*CIPR(IN) - SAR*CIPI(IN);
-            //   C2I = CAR*CIPI(IN) + SAR*CIPR(IN);
             if z.im <= 0.0 {
                 c2 = c2.conj();
-            } //C2I = -C2I;
-            //   GO TO 40;
+            }
         }
 
-        //   NN = MIN0(2,ND);
         let mut IFLAG = 0;
-        //   DO 90 I=1,NN;
         let mut cy = [c_zero(); 2];
         for i in 0..ND.min(2) {
             FN = order + ((ND - (i + 1)) as f64);
@@ -5225,30 +5139,14 @@ fn ZUNI2(
                 zunhj(zn, FN, false, machine_consts.abs_error_tolerance);
             let asum = asum.unwrap();
             let bsum = bsum.unwrap();
-            //     CALL ZUNHJ(ZNR, ZNI, FN, 0, TOL, PHIR, PHII, ARGR, ARGI,;
-            //  *   ZETA1R, ZETA1I, ZETA2R, ZETA2I, ASUMR, ASUMI, BSUMR, BSUMI);
             let s1 = if KODE == Scaling::Scaled {
-                //GO TO 50;
                 let mut st = zb + zeta2;
-                //   STR = ZBR + ZETA2R;
-                //   STI = ZBI + ZETA2I;
                 let RAST = FN / st.abs();
-                //   RAST = FN/ZABS(STR,STI);
                 st = st.conj() * RAST.pow(2);
-                //   STR = STR*RAST*RAST;
-                //   STI = -STI*RAST*RAST;
                 -zeta1 + st + Complex64::I * z.im.abs()
-            // S1R = -ZETA1R + STR;
-            // S1I = -ZETA1I + STI + (ZI).abs();
-            // GO TO 60;
             } else {
-                //    50   CONTINUE;
                 -zeta1 + zeta2
-
-                // S1R = -ZETA1R + ZETA2R;
-                // S1I = -ZETA1I + ZETA2I;
             };
-            //    60   CONTINUE;
             //-----------------------------------------------------------------------;
             //     TEST FOR UNDERFLOW AND OVERFLOW;
             //-----------------------------------------------------------------------;
@@ -5256,35 +5154,28 @@ fn ZUNI2(
             if rs1.abs() > machine_consts.exponent_limit {
                 set_underflow_and_update = true;
                 continue 'l40;
-            } //GO TO 120;
+            }
             if i == 0 {
                 IFLAG = 2
             };
             if rs1.abs() >= machine_consts.approximation_limit {
-                //GO TO 70;
                 //-----------------------------------------------------------------------;
                 //     REFINE  TEST AND SCALE;
                 //-----------------------------------------------------------------------;
-                //-----------------------------------------------------------------------;
                 rs1 += phi.abs().ln() - 0.25 * arg.abs().ln() - AIC;
-                // APHI = ZABS(PHIR,PHII);
-                // AARG = ZABS(ARGR,ARGI);
-                // RS1 = RS1 + DLOG(APHI) - 0.25*DLOG(AARG) - AIC;
                 if rs1.abs() > machine_consts.exponent_limit {
                     set_underflow_and_update = true;
                     continue 'l40;
-                } //GO TO 120;
+                }
                 if i == 0 {
                     IFLAG = 1;
                 }
                 if rs1 >= 0.0 {
-                    //GO TO 70;
                     if i == 0 {
                         IFLAG = 3;
                     }
                 }
             }
-            //    70   CONTINUE;
             //-----------------------------------------------------------------------;
             //     SCALE S1 TO KEEP INTERMEDIATE ARITHMETIC ON SCALE NEAR;
             //     EXPONENT EXTREMES;
@@ -5300,139 +5191,53 @@ fn ZUNI2(
                 Err(PartialLossOfSignificance { y, nz: _ }) => y[0],
                 _ => panic!("This case is not handled by the Amos code"),
             };
-            // CALL ZAIRY(ARGR, ARGI, 0, 2, AIR, AII, NAI, IDUM);
-            // CALL ZAIRY(ARGR, ARGI, 1, 2, DAIR, DAII, NDAI, IDUM);
-            // STR = DAIR*BSUMR - DAII*BSUMI;
-            // STI = DAIR*BSUMI + DAII*BSUMR;
-            // STR = STR + (AIR*ASUMR-AII*ASUMI);
-            // STI = STI + (AIR*ASUMI+AII*ASUMR);
 
             let mut s2 = phi * (d_airy * bsum + a_airy * asum);
-            // S2R = PHIR*STR - PHII*STI;
-            // S2I = PHIR*STI + PHII*STR;
-            // STR = DEXP(S1R)*CSSR(IFLAG);
-            // S1R = STR*DCOS(S1I);
-            // S1I = STR*DSIN(S1I);
             let s1 = CSSR[IFLAG - 1] * Complex64::from_polar(s1.re.exp(), s1.im);
             s2 *= s1;
-            // STR = S2R*S1R - S2I*S1I;
-            // S2I = S2R*S1I + S2I*S1R;
-            // S2R = STR;
             if IFLAG == 1 {
-                //GO TO 80;
-                // CALL ZUunderflowCHK(S2R, S2I, NW, BRY(1), TOL);
                 if will_z_underflow(s2, BRY[0], machine_consts.abs_error_tolerance) {
                     set_underflow_and_update = true;
                     continue 'l40;
                 }
-                // if (NW != 0) GO TO 120;
             }
-            //    80   CONTINUE;
             if z.im <= 0.0 {
                 s2 = s2.conj();
-            } //S2I = -S2I;
+            }
             s2 *= c2;
-            // STR = S2R*C2R - S2I*C2I;
-            // S2I = S2R*C2I + S2I*C2R;
-            // S2R = STR;
             cy[i] = s2;
-            // CYR(I) = S2R;
-            // CYI(I) = S2I;
-            // let J = ND - I + 1;
             y[ND - i - 1] = s2 * CSRR[IFLAG - 1];
-            // YR(J) = S2R*CSRR(IFLAG);
-            // YI(J) = S2I*CSRR(IFLAG);
             c2 *= CIDI * Complex64::I;
-            // STR = -C2I*CIDI;
-            // C2I = C2R*CIDI;
-            // C2R = STR;
         }
-        //    90 CONTINUE;
         if ND <= 2 {
             break 'l40;
-        } //GO TO 110;
-        //   RAZ = 1.0/ZABS(ZR,ZI);
-        //   STR = ZR*RAZ;
-        //   STI = -ZI*RAZ;
-        //   RZR = (STR+STR)*RAZ;
-        //   RZI = (STI+STI)*RAZ;
+        }
         let rz = 2.0 * z.conj() / z.abs().pow(2);
-        //   BRY(2) = 1.0/BRY(1);
-        //   BRY(3) = d1mach(2);
         let [mut s1, mut s2] = cy;
-        //   S1R = CYR(1);
-        //   S1I = CYI(1);
-        //   S2R = CYR(2);
-        //   S2I = CYI(2);
         let mut C1R = CSRR[IFLAG - 1];
         let mut ASCLE = BRY[IFLAG - 1];
-        // let mut K = ND - 2;
-        // FN = K as f64;
-        //   DO 100 I=3,ND;
         for K in (0..(ND - 2)).rev() {
             let st = s2;
-            // C2R = S2R;
-            // C2I = S2I;
             s2 = s1 + (order + ((K + 1) as f64)) * rz * s2;
-            // S2R = S1R + (FNU + FN) * (RZR * C2R - RZI * C2I);
-            // S2I = S1I + (FNU + FN) * (RZR * C2I + RZI * C2R);
             s1 = st;
-            // S1R = C2R;
-            // S1I = C2I;
-            // c2 = s2 *c1;
-            // C2R = S2R * C1R;
-            // C2I = S2I * C1R;
             y[K] = s2 * C1R;
-            // YR(K) = C2R;
-            // YI(K) = C2I;
-            // K  -= 1;
-            // FN -= 1.0;
             if IFLAG >= 3 {
                 continue;
-            } //GO TO 100;
-            // STR = (C2R).abs();
-            // STI = (C2I).abs();
-            // C2M = DMAX1(STR, STI);
+            }
             if max_abs_component(y[K]) <= ASCLE {
                 continue;
-            } //GO TO 100;
+            }
             IFLAG += 1;
             ASCLE = BRY[IFLAG - 1];
             s1 *= C1R;
-            // S1R = S1R * C1R;
-            // S1I = S1I * C1R;
             s2 = y[K];
-            // S2R = C2R;
-            // S2I = C2I;
             s1 *= CSSR[IFLAG - 1];
-            // S1R = S1R * CSSR(IFLAG);
-            // S1I = S1I * CSSR(IFLAG);
             s2 *= CSSR[IFLAG - 1];
-            // S2R = S2R * CSSR(IFLAG);
-            // S2I = S2I * CSSR(IFLAG);
             C1R = CSRR[IFLAG - 1];
         }
         break 'l40;
-        //   100 CONTINUE;
-        //   110 CONTINUE;
-        //   RETURN;
     }
     Ok((NZ, NLAST))
-    //   130 CONTINUE;
-    //       NLAST = ND;
-    //       RETURN;
-    //   140 CONTINUE;
-    //       NZ = -1;
-    //       RETURN;
-    //   150 CONTINUE;
-    //       if (RS1 > 0.0) GO TO 140;
-    //       NZ = D;
-    //       DO 160 I=1,N;
-    //         YR(I) = ZEROR;
-    //         YI(I) = ZEROI;
-    //   160 CONTINUE;
-    //       RETURN;
-    //       END;
 }
 /*
 
