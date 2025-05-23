@@ -256,7 +256,7 @@ pub fn zunik(
         let zeta1 = Complex64::new(2.0 * test.ln().abs() + order, 0.0);
         let zeta2 = Complex64::new(order, 0.0);
         let phi = c_one();
-        return (zeta1, zeta2, phi, None);
+        return (phi, zeta1, zeta2, None);
     }
     let t = zr * rfn;
     let s = c_one() + t * t;
