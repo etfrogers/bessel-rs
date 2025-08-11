@@ -122,13 +122,13 @@ pub(crate) type BesselResult<T = BesselValues> = Result<T, BesselError>;
 /// tests in `test_machine_consts.rs`
 #[derive(Debug, Clone)]
 pub(crate) struct MachineConsts {
-    // Originally ARM
+    /// Originally ARM
     pub underflow_limit: f64,
     /// Originally ASCLE
     pub absolute_approximation_limit: f64,
     /// TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0E-18.
     pub abs_error_tolerance: f64, // TOL
-    /// Originally ELIM
+    /// ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT
     pub exponent_limit: f64,
     /// Originally ALIM
     pub approximation_limit: f64,
@@ -139,6 +139,11 @@ pub(crate) struct MachineConsts {
     /// FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU.
     pub asymptotic_order_limit: f64, // FNUL
     pub rtol: f64,
+    /// CSSR
+    pub scaling_factors: [f64; 3],
+    /// CSRR
+    pub reciprocal_scaling_factors: [f64; 3],
+    pub bry: [f64; 3],
 }
 
 impl MachineConsts {
@@ -170,7 +175,21 @@ impl MachineConsts {
 
         let asymptotic_z_limit = 1.2 * significant_digits + 3.0;
         let asymptotic_order_limit = 10.0 + 6.0 * (significant_digits - 3.0);
-
+        let rtol = 1.0 / abs_error_tolerance;
+        //-----------------------------------------------------------------------
+        //     COMPUTED VALUES WITH EXPONENTS BETWEEN ALIM AND ELIM IN MAG-
+        //     NITUDE ARE SCALED TO KEEP INTERMEDIATE ARITHMETIC ON SCALE,
+        //     EXP(ALIM)=EXP(ELIM)*TOL
+        //-----------------------------------------------------------------------
+        // let CSCL = machine_consts.rtol;
+        // let CRSC = machine_consts.abs_error_tolerance;
+        let scaling_factors = [rtol, 1.0, abs_error_tolerance];
+        let reciprocal_scaling_factors = [abs_error_tolerance, 1.0, rtol];
+        let bry = [
+            absolute_approximation_limit,
+            1.0 / absolute_approximation_limit,
+            f64::MAX / 2.0,
+        ];
         Self {
             underflow_limit,
             absolute_approximation_limit,
@@ -180,7 +199,10 @@ impl MachineConsts {
             _significant_digits: significant_digits,
             asymptotic_z_limit,
             asymptotic_order_limit,
-            rtol: 1.0 / abs_error_tolerance,
+            rtol,
+            scaling_factors,
+            reciprocal_scaling_factors,
+            bry,
         }
     }
 }
