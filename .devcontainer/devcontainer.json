@@ -1,0 +1,21 @@
+{
+    "name": "Linux Dev Environment",
+    "dockerFile": "Dockerfile",
+    "context": ".",
+    "mounts": [
+        "source=${localWorkspaceFolder},target=/workspace,type=bind"
+    ],
+    // "settings
+    "remoteUser": "root",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "fortran-lang.linter-gfortran",
+                "formulahendry.code-runner",
+                "ms-vscode.cpptools",
+                "vadimcn.vscode-lldb",
+                "rust-lang.rust-analyzer"
+            ]
+        }
+    }
+}
