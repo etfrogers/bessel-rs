@@ -4862,8 +4862,7 @@ fn ZUNI1(
     //     CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER;
     //-----------------------------------------------------------------------;
     let mut FN = order.max(1.0);
-    let mut INIT = 0;
-    let (_, zeta1, zeta2, _) = zunik(z, FN, IKType::I, true, machine_consts, &mut INIT);
+    let (_, zeta1, zeta2, _) = zunik(z, FN, IKType::I, true, machine_consts);
     let s1 = if KODE == Scaling::Scaled {
         let mut st = z + zeta2;
         let rast = FN / st.abs();
@@ -4907,9 +4906,7 @@ fn ZUNI1(
 
         for i in 0..2.min(ND) {
             FN = order + ((ND - (i + 1)) as f64);
-            INIT = 0;
-            let (phi, zeta1, zeta2, sum) =
-                zunik(z, FN, IKType::I, false, machine_consts, &mut INIT);
+            let (phi, zeta1, zeta2, sum) = zunik(z, FN, IKType::I, false, machine_consts);
             let sum = sum.unwrap();
             let mut s1 = if KODE == Scaling::Scaled {
                 let mut st = z + zeta2;

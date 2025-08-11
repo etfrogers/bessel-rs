@@ -1,5 +1,9 @@
 #[allow(clippy::excessive_precision)]
 use std::f64::consts::FRAC_PI_2;
+use std::{
+    collections::HashMap,
+    sync::{LazyLock, Mutex},
+};
 
 use num::complex::{Complex64, ComplexFloat};
 
@@ -64,8 +68,7 @@ pub fn zuoik(
     //-----------------------------------------------------------------------;
     let mut zn = None;
     let (mut cz, phi, arg, aarg) = if iform == 1 {
-        let mut init = 0;
-        let (phi, zeta1, zeta2, _) = zunik(zr, gnu, ikflg, true, machine_consts, &mut init);
+        let (phi, zeta1, zeta2, _) = zunik(zr, gnu, ikflg, true, machine_consts);
         (-zeta1 + zeta2, phi, c_zero(), 0.0)
     } else {
         let mut zn_ = Complex64::new(zr.im, -zr.re);
@@ -147,9 +150,7 @@ pub fn zuoik(
             if !go_to_180 {
                 gnu = order + ((nn - 1) as f64);
                 let (phi, cz_, aarg) = if iform == 1 {
-                    let mut init = 0;
-                    let (phi, zeta1, zeta2, _) =
-                        zunik(zr, gnu, ikflg, true, machine_consts, &mut init);
+                    let (phi, zeta1, zeta2, _) = zunik(zr, gnu, ikflg, true, machine_consts);
                     let cz_inner = -zeta1 + zeta2;
                     (phi, cz_inner, 0.0)
                 } else {
@@ -208,13 +209,30 @@ pub fn zuoik(
     return Ok(nuf);
 }
 
+struct UniformAssymptoticParameters {
+    phi_i: Complex64,
+    phi_k: Complex64,
+    zeta1: Complex64,
+    zeta2: Complex64,
+    sum_i: Option<Complex64>,
+    sum_k: Option<Complex64>,
+    working: Option<Vec<Complex64>>,
+}
+
+static UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE: LazyLock<
+    Mutex<HashMap<(u64, u64, u64), UniformAssymptoticParameters>>,
+> = LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn cache_key(z: Complex64, order: f64) -> (u64, u64, u64) {
+    (z.re.to_bits(), z.im.to_bits(), order.to_bits())
+}
+
 pub fn zunik(
     zr: Complex64,
     order: f64,
     ikflg: IKType,
     only_phi_zeta: bool,
     machine_consts: &MachineConsts,
-    init: &mut usize,
 ) -> (Complex64, Complex64, Complex64, Option<Complex64>) {
     // ***BEGIN PROLOGUE  ZUNIK
     // ***REFER TO  ZBESI,ZBESK
@@ -237,125 +255,164 @@ pub fn zunik(
     // ***ROUTINES CALLED  ZDIV,ZLOG,ZSQRT,d1mach
     // ***END PROLOGUE  ZUNIK
     //
-    let mut working = c_zeros(16);
 
-    if *init != 0 {
-        todo!()
+    let compute_sum_i = |working: &Vec<num::Complex<f64>>| working.iter().sum::<Complex64>();
+    let compute_sum_k = |working: &Vec<num::Complex<f64>>| {
+        let mut term_sign = 1.0;
+        working
+            .iter()
+            .map(|v| {
+                let output = term_sign * v;
+                term_sign = -term_sign;
+                output
+            })
+            .sum::<Complex64>()
+    };
+
+    let mut cache = (*UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE)
+        .lock()
+        .expect("Failed to get results cache");
+
+    if let Some(params) = cache.get_mut(&cache_key(zr, order)) {
+        let zeta1 = params.zeta1;
+        let zeta2 = params.zeta2;
+
+        let working = &params.working;
+
+        let (phi, sum) = match ikflg {
+            IKType::I => {
+                let sum_i = if let Some(wkg) = working {
+                    Some(*params.sum_i.get_or_insert_with(|| compute_sum_i(wkg)))
+                } else {
+                    None
+                };
+                (params.phi_i, sum_i)
+            }
+            IKType::K => {
+                let sum_k = if let Some(wkg) = working {
+                    Some(*params.sum_k.get_or_insert_with(|| compute_sum_k(wkg)))
+                } else {
+                    None
+                };
+                (params.phi_k, sum_k)
+            }
+        };
+        if only_phi_zeta {
+            return (phi, zeta1, zeta2, None);
+        } else if sum.is_some() {
+            return (phi, zeta1, zeta2, sum);
+        }
     }
-    // if (INIT != 0) GO TO 40;
-    //-----------------------------------------------------------------------;
-    //     INITIALIZE ALL VARIABLES;
-    //-----------------------------------------------------------------------;
-    let rfn = 1.0 / order;
+
     //-----------------------------------------------------------------------;
     //     OVERFLOW TEST (ZR/FNU TOO SMALL);
     //-----------------------------------------------------------------------;
-    let test = machine_consts.underflow_limit;
-    let ac = order * test;
-    if !(zr.re.abs() > ac || zr.im.abs() > ac) {
-        let zeta1 = Complex64::new(2.0 * test.ln().abs() + order, 0.0);
+    let uflow_test = order * machine_consts.underflow_limit;
+    if zr.re.abs() < uflow_test && zr.im.abs() < uflow_test {
+        let zeta1 = Complex64::new(2.0 * machine_consts.underflow_limit.ln().abs() + order, 0.0);
         let zeta2 = Complex64::new(order, 0.0);
         let phi = c_one();
-        return (phi, zeta1, zeta2, None);
+        cache.insert(
+            cache_key(zr, order),
+            UniformAssymptoticParameters {
+                phi_i: phi,
+                phi_k: phi,
+                zeta1,
+                zeta2,
+                sum_i: Some(c_zero()),
+                sum_k: Some(c_zero()),
+                working: Some(vec![]),
+            },
+        );
+        return (
+            phi,
+            zeta1,
+            zeta2,
+            if only_phi_zeta { None } else { Some(c_zero()) },
+        );
     }
-    let t = zr * rfn;
+
+    //-----------------------------------------------------------------------;
+    //     INITIALIZE ALL VARIABLES;
+    //-----------------------------------------------------------------------;
+    let reciprocal_order = 1.0 / order;
+    let t = zr * reciprocal_order;
     let s = c_one() + t * t;
     let s_root = s.sqrt();
     let zn = (c_one() + s_root) / t;
     let zeta1 = order * zn.ln();
     let zeta2 = order * s_root;
     let t = c_one() / s_root;
-    let sr = t * rfn;
-    working[15] = sr.sqrt();
-    let mut phi = working[15] * CON[ikflg.index() - 1_usize];
+    let sr = t * reciprocal_order;
+    let sr_root = sr.sqrt();
+    let phi_i = sr_root * CON[0];
+    let phi_k = sr_root * CON[1];
+    let phi = match ikflg {
+        IKType::I => phi_i,
+        IKType::K => phi_k,
+    };
     if only_phi_zeta {
+        cache.insert(
+            cache_key(zr, order),
+            UniformAssymptoticParameters {
+                phi_i,
+                phi_k,
+                zeta1,
+                zeta2,
+                sum_i: None,
+                sum_k: None,
+                working: None,
+            },
+        );
         return (phi, zeta1, zeta2, None);
     };
+
+    let mut working = Vec::new();
     let t2 = c_one() / s;
-    working[0] = c_one();
+    working.push(c_one());
     let mut crfn = c_one();
     let mut ac = 1.0;
     let mut l = 0;
-    let mut k = 0;
-    'l20: for k_ in 1..15 {
-        k = k_;
+    'l20: for k in 1..15 {
         let mut s = c_zero();
-        '_l10: for _ in 0..=k_ {
+        '_l10: for _ in 0..=k {
             l += 1;
             s = s * t2 + C_ZUNIK[l];
         }
         crfn *= sr;
-        working[k_] = crfn * s;
-        ac *= rfn;
-        let test = working[k_].re.abs() + working[k_].im.abs();
+        working.push(crfn * s);
+        ac *= reciprocal_order;
+        let test = working[k].re.abs() + working[k].im.abs();
         if ac < machine_consts.abs_error_tolerance && test < machine_consts.abs_error_tolerance {
             break 'l20;
         } //GO TO 30;
     }
-    *init = k;
-    //    40 CONTINUE;
-    //-----------------------------------------------------------------------;
-    // FINISH INIT. Use OnceCell here later?
-    //-----------------------------------------------------------------------;
-    match ikflg {
+
+    let (sum_i, sum_k, sum) = match ikflg {
         IKType::I => {
-            //GO TO 60;
-            //-----------------------------------------------------------------------;
-            //     COMPUTE SUM FOR THE I FUNCTION;
-            //-----------------------------------------------------------------------;
-            // s=c_zero();
-            // SR = ZEROR;
-            // SI = ZEROI;
-            // DO 50 I=1,INIT;
-            // for i in 0..INIT{
-            //       s += working[i]
-            //   SR = SR + CWRKR(I);
-            //   SI = SI + CWRKI(I);
-            // }
-            //    50 CONTINUE;
-            // SUMR = SR;
-            // SUMI = SI;
-            let sum = working[..*init].iter().sum();
-            phi = working[15] * CON[0];
-            // PHIR = CWRKR(16)*CON(1);
-            // PHII = CWRKI(16)*CON(1);
-            // RETURN;
-            (phi, zeta1, zeta2, Some(sum))
+            let sum_i = compute_sum_i(&working);
+            (Some(sum_i), None, sum_i)
         }
         IKType::K => {
-            //    60 CONTINUE;
-            //-----------------------------------------------------------------------;
-            //     COMPUTE SUM FOR THE K FUNCTION;
-            //-----------------------------------------------------------------------;
-            let mut tr = 1.0;
-            let sum = working[..*init]
-                .iter()
-                .map(|v| {
-                    let output = tr * v;
-                    tr = -tr;
-                    output
-                })
-                .sum();
-
-            // SR = ZEROR;
-            // SI = ZEROI;
-            // TR = CONER;
-            // DO 70 I=1,INIT;
-            //   SR = SR + TR*CWRKR(I);
-            //   SI = SI + TR*CWRKI(I);
-            //   TR = -TR;
-            //    70 CONTINUE;
-            //       SUMR = SR;
-            //       SUMI = SI;
-            // PHIR = CWRKR(16)*CON(2);
-            // PHII = CWRKI(16)*CON(2);
-            phi = working[15] * CON[1];
-            (phi, zeta1, zeta2, Some(sum))
-
-            // RETURN;
-            // END;
+            let sum_k = compute_sum_k(&working);
+            (None, Some(sum_k), sum_k)
         }
-    }
+    };
+    cache.insert(
+        cache_key(zr, order),
+        UniformAssymptoticParameters {
+            phi_i,
+            phi_k,
+            zeta1,
+            zeta2,
+            sum_i,
+            sum_k,
+            working: Some(working),
+        },
+    );
+
+    return (phi, zeta1, zeta2, Some(sum));
+
 }
 
 pub fn zunhj(
@@ -363,8 +420,8 @@ pub fn zunhj(
     order: f64,
     only_phi_zeta: bool,
     tol: f64,
-    //returns: phi, arg, zeta1, zeta2, asum, bsum
 ) -> (
+    //returns: phi, arg, zeta1, zeta2, asum, bsum
     Complex64,
     Complex64,
     Complex64,
