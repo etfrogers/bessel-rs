@@ -1,4 +1,7 @@
+#[cfg(test)]
 use std::ffi::{c_double, c_int};
+
+#[cfg(test)]
 unsafe extern "C" {
     pub fn zbesy_wrap(
         zr: c_double,
