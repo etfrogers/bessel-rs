@@ -3,16 +3,10 @@ use std::f64::consts::PI;
 use num::complex::{Complex64, ComplexFloat};
 
 use super::{
-    BesselError::*, BesselResult, MachineConsts, Scaling, c_one, c_zero, c_zeros, utils::RTPI,
+    BesselError::*, BesselResult, MACHINE_CONSTANTS, Scaling, c_one, c_zero, c_zeros, utils::RTPI,
 };
 
-pub fn z_asymptotic_i(
-    z: Complex64,
-    order: f64,
-    kode: Scaling,
-    n: usize,
-    machine_consts: &MachineConsts,
-) -> BesselResult {
+pub fn z_asymptotic_i(z: Complex64, order: f64, kode: Scaling, n: usize) -> BesselResult {
     // ***BEGIN PROLOGUE  ZASYI
     // ***REFER TO  ZBESI,ZBESK
     //
@@ -26,7 +20,7 @@ pub fn z_asymptotic_i(
     let nz = 0;
     let mut y = c_zeros(n);
     let az = z.abs();
-    let rtr1 = machine_consts.underflow_limit.sqrt();
+    let rtr1 = MACHINE_CONSTANTS.underflow_limit.sqrt();
     let il = 2.min(n);
     let dfnu = order + ((n - il) as f64);
     //-----------------------------------------------------------------------;
@@ -38,12 +32,12 @@ pub fn z_asymptotic_i(
     if kode == Scaling::Scaled {
         cz.re = 0.0;
     }
-    if cz.re.abs() > machine_consts.exponent_limit {
+    if cz.re.abs() > MACHINE_CONSTANTS.exponent_limit {
         return Err(Overflow);
     }
     let dnu2 = dfnu + dfnu;
     let mut koded = true;
-    if !((cz.re.abs() > machine_consts.approximation_limit) && (n > 2)) {
+    if !((cz.re.abs() > MACHINE_CONSTANTS.approximation_limit) && (n > 2)) {
         koded = false;
         ak1 *= cz.exp();
     }
@@ -58,8 +52,8 @@ pub fn z_asymptotic_i(
     //     EXPANSION FOR THE IMAGINARY PART.;
     //-----------------------------------------------------------------------;
     let aez = 8.0 * az;
-    let s = machine_consts.abs_error_tolerance / aez;
-    let jl = (machine_consts.asymptotic_z_limit * 2.0) as i32 + 2;
+    let s = MACHINE_CONSTANTS.abs_error_tolerance / aez;
+    let jl = (MACHINE_CONSTANTS.asymptotic_z_limit * 2.0) as i32 + 2;
     let mut p1 = c_zero();
     if z.im != 0.0 {
         //-----------------------------------------------------------------------;
@@ -121,7 +115,7 @@ pub fn z_asymptotic_i(
             return Err(DidNotConverge);
         }
         let mut s2 = cs1;
-        if z.re * 2.0 < machine_consts.exponent_limit {
+        if z.re * 2.0 < MACHINE_CONSTANTS.exponent_limit {
             s2 += (-z * 2.0).exp() * p1 * cs2;
         }
         fdn = fdn + 8.0 * dfnu + 4.0;

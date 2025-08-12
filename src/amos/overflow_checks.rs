@@ -7,9 +7,10 @@ use std::{
 
 use num::complex::{Complex64, ComplexFloat};
 
-use crate::amos::{PositiveArg, c_zero, machine::d1mach, utils::will_z_underflow};
-
-use super::{BesselError::*, BesselResult, IKType, MachineConsts, Scaling, c_one, c_zeros};
+use super::{
+    BesselError::*, BesselResult, IKType, MACHINE_CONSTANTS, MachineConsts, PositiveArg, Scaling,
+    c_one, c_zero, c_zeros, utils::will_z_underflow,
+};
 
 pub enum Overflow {
     Overflow,
@@ -20,12 +21,12 @@ pub enum Overflow {
 }
 
 impl Overflow {
-    pub fn find_overflow(rs1: f64, phi: Complex64, machine_consts: &MachineConsts) -> Self {
+    pub fn find_overflow(rs1: f64, phi: Complex64) -> Self {
         // let choose_under_or_over = |rs: f64| return if rs>0.0{Self::Overflow } else {Self::Underflow};
         //-----------------------------------------------------------------------;
         //     TEST FOR UNDERFLOW AND OVERFLOW;
         //-----------------------------------------------------------------------;
-        if rs1.abs() > machine_consts.exponent_limit
+        if rs1.abs() > MACHINE_CONSTANTS.exponent_limit
         //GO TO 260;
         {
             return if rs1 > 0.0 {
@@ -35,18 +36,19 @@ impl Overflow {
             };
         }
         // if (KDFLG == 1) IFLAG = 2;
-        if rs1.abs() < machine_consts.approximation_limit {
+        if rs1.abs() < MACHINE_CONSTANTS.approximation_limit {
             return Self::None;
         } //GO TO 220;
+
         //-----------------------------------------------------------------------;
         //     REFINE  TEST AND SCALE;
         //-----------------------------------------------------------------------;
         // APHI = ZABS(PHIDR,PHIDI);
         // RS1 = RS1 + DLOG(APHI);
+
         let refined_rs1 = rs1 + phi.abs().ln();
-        if refined_rs1.abs() > machine_consts.exponent_limit
         //GO TO 260;
-        {
+        if refined_rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
             return if refined_rs1 > 0.0 {
                 Self::Overflow
             } else {
@@ -72,7 +74,6 @@ pub fn zuoik(
     ikflg: IKType,
     n: usize, //YR, YI, NUF,
     y: &mut Vec<Complex64>,
-    machine_consts: &MachineConsts,
 ) -> BesselResult<usize> {
     // ***BEGIN PROLOGUE  ZUOIK
     // ***REFER TO  ZBESI,ZBESK,ZBESH
@@ -122,7 +123,7 @@ pub fn zuoik(
     //-----------------------------------------------------------------------;
     let mut zn = None;
     let (mut cz, phi, arg, aarg) = if iform == 1 {
-        let (phi, zeta1, zeta2, _) = zunik(zr, gnu, ikflg, true, machine_consts);
+        let (phi, zeta1, zeta2, _) = zunik(zr, gnu, ikflg, true);
         (-zeta1 + zeta2, phi, c_zero(), 0.0)
     } else {
         let mut zn_ = Complex64::new(zr.im, -zr.re);
@@ -130,7 +131,7 @@ pub fn zuoik(
             zn_.re = -zn_.re;
         }
         let (phi, arg, zeta1, zeta2, _, _) =
-            zunhj(zn_, gnu, true, machine_consts.abs_error_tolerance);
+            zunhj(zn_, gnu, true, MACHINE_CONSTANTS.abs_error_tolerance);
         zn = Some(zn_);
         let cz = -zeta1 + zeta2;
         let aarg = arg.abs();
@@ -147,42 +148,42 @@ pub fn zuoik(
     //-----------------------------------------------------------------------;
     //     OVERFLOW TEST;
     //-----------------------------------------------------------------------;
-    if rcz > machine_consts.exponent_limit {
+    if rcz > MACHINE_CONSTANTS.exponent_limit {
         return Err(Overflow);
     }
-    if rcz >= machine_consts.approximation_limit {
+    if rcz >= MACHINE_CONSTANTS.approximation_limit {
         rcz += aphi.ln();
         if iform == 2 {
             rcz = rcz - 0.25 * aarg.ln() - AIC
         };
-        if rcz > machine_consts.exponent_limit {
+        if rcz > MACHINE_CONSTANTS.exponent_limit {
             return Err(Overflow);
         }
     } else {
         //-----------------------------------------------------------------------;
         //     UNDERFLOW TEST;
         //-----------------------------------------------------------------------;
-        if rcz < -machine_consts.exponent_limit {
+        if rcz < -MACHINE_CONSTANTS.exponent_limit {
             y[0..nn].iter_mut().for_each(|v| *v = c_zero());
             return Ok(nn);
         }
-        if rcz <= -machine_consts.approximation_limit {
+        if rcz <= -MACHINE_CONSTANTS.approximation_limit {
             rcz += aphi.ln();
             if iform == 2 {
                 rcz = rcz - 0.25 * aarg.ln() - AIC
             };
-            if rcz <= -machine_consts.exponent_limit {
+            if rcz <= -MACHINE_CONSTANTS.exponent_limit {
                 return Ok(nn);
             }
             cz += phi.ln();
             if iform == 2 {
                 cz -= 0.25 * arg.ln() + AIC
             }
-            cz = Complex64::from_polar(rcz.exp() / machine_consts.abs_error_tolerance, cz.im);
+            cz = Complex64::from_polar(rcz.exp() / MACHINE_CONSTANTS.abs_error_tolerance, cz.im);
             if will_z_underflow(
                 cz,
-                machine_consts.absolute_approximation_limit,
-                machine_consts.abs_error_tolerance,
+                MACHINE_CONSTANTS.absolute_approximation_limit,
+                MACHINE_CONSTANTS.abs_error_tolerance,
             ) {
                 y[0..nn].iter_mut().for_each(|v| *v = c_zero());
                 return Ok(nn);
@@ -204,12 +205,16 @@ pub fn zuoik(
             if !go_to_180 {
                 gnu = order + ((nn - 1) as f64);
                 let (phi, cz_, aarg) = if iform == 1 {
-                    let (phi, zeta1, zeta2, _) = zunik(zr, gnu, ikflg, true, machine_consts);
+                    let (phi, zeta1, zeta2, _) = zunik(zr, gnu, ikflg, true);
                     let cz_inner = -zeta1 + zeta2;
                     (phi, cz_inner, 0.0)
                 } else {
-                    let (phi, arg, zeta1, zeta2, _, _) =
-                        zunhj(zn.unwrap(), gnu, true, machine_consts.abs_error_tolerance);
+                    let (phi, arg, zeta1, zeta2, _, _) = zunhj(
+                        zn.unwrap(),
+                        gnu,
+                        true,
+                        MACHINE_CONSTANTS.abs_error_tolerance,
+                    );
                     let cz_inner = -zeta1 + zeta2;
                     let aarg = arg.abs();
                     (phi, cz_inner, aarg)
@@ -220,15 +225,15 @@ pub fn zuoik(
                 }
                 let aphi = phi.abs();
                 rcz = cz.re;
-                if rcz >= -machine_consts.exponent_limit {
-                    if rcz > -machine_consts.approximation_limit {
+                if rcz >= -MACHINE_CONSTANTS.exponent_limit {
+                    if rcz > -MACHINE_CONSTANTS.approximation_limit {
                         return Ok(nuf);
                     };
                     rcz += aphi.ln();
                     if iform == 2 {
                         rcz = rcz - 0.25 * aarg.ln() - AIC;
                     }
-                    if rcz > -machine_consts.exponent_limit {
+                    if rcz > -MACHINE_CONSTANTS.exponent_limit {
                         skip_to_190 = true
                     }
                 }
@@ -249,11 +254,11 @@ pub fn zuoik(
         if iform != 1 {
             cz -= 0.25 * arg.ln() + AIC
         }
-        cz = Complex64::from_polar(rcz.exp() / machine_consts.abs_error_tolerance, cz.im);
+        cz = Complex64::from_polar(rcz.exp() / MACHINE_CONSTANTS.abs_error_tolerance, cz.im);
         if will_z_underflow(
             cz,
-            machine_consts.absolute_approximation_limit,
-            machine_consts.abs_error_tolerance,
+            MACHINE_CONSTANTS.absolute_approximation_limit,
+            MACHINE_CONSTANTS.abs_error_tolerance,
         ) {
             go_to_180 = true;
         } else {
@@ -286,7 +291,6 @@ pub fn zunik(
     order: f64,
     ikflg: IKType,
     only_phi_zeta: bool,
-    machine_consts: &MachineConsts,
 ) -> (Complex64, Complex64, Complex64, Option<Complex64>) {
     // ***BEGIN PROLOGUE  ZUNIK
     // ***REFER TO  ZBESI,ZBESK
@@ -361,9 +365,12 @@ pub fn zunik(
     //-----------------------------------------------------------------------;
     //     OVERFLOW TEST (ZR/FNU TOO SMALL);
     //-----------------------------------------------------------------------;
-    let uflow_test = order * machine_consts.underflow_limit;
+    let uflow_test = order * MACHINE_CONSTANTS.underflow_limit;
     if zr.re.abs() < uflow_test && zr.im.abs() < uflow_test {
-        let zeta1 = Complex64::new(2.0 * machine_consts.underflow_limit.ln().abs() + order, 0.0);
+        let zeta1 = Complex64::new(
+            2.0 * MACHINE_CONSTANTS.underflow_limit.ln().abs() + order,
+            0.0,
+        );
         let zeta2 = Complex64::new(order, 0.0);
         let phi = c_one();
         cache.insert(
@@ -437,7 +444,9 @@ pub fn zunik(
         working.push(crfn * s);
         ac *= reciprocal_order;
         let test = working[k].re.abs() + working[k].im.abs();
-        if ac < machine_consts.abs_error_tolerance && test < machine_consts.abs_error_tolerance {
+        if ac < MACHINE_CONSTANTS.abs_error_tolerance
+            && test < MACHINE_CONSTANTS.abs_error_tolerance
+        {
             break 'l20;
         } //GO TO 30;
     }
@@ -466,7 +475,6 @@ pub fn zunik(
     );
 
     return (phi, zeta1, zeta2, Some(sum));
-
 }
 
 pub fn zunhj(
@@ -522,7 +530,7 @@ pub fn zunhj(
     //-----------------------------------------------------------------------
     //     OVERFLOW TEST (Z/FNU TOO SMALL)
     //-----------------------------------------------------------------------
-    let test = d1mach(1) * 1.0e+3;
+    let test = MACHINE_CONSTANTS.underflow_limit;
     let ac = order * test;
     if !((z.re).abs() > ac || (z.im).abs() > ac) {
         let zeta1 = Complex64::new(2.0 * test.ln().abs() + order, 0.0);

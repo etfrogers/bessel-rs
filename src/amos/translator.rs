@@ -7,7 +7,7 @@ use super::{
 };
 use crate::amos::{
     BesselError::*,
-    max_abs_component,
+    MACHINE_CONSTANTS, max_abs_component,
     overflow_checks::{Overflow, zunhj},
     z_asymptotic_i::z_asymptotic_i,
 };
@@ -220,7 +220,6 @@ pub fn ZBESH(order: f64, z: Complex64, KODE: Scaling, M: HankelKind, N: usize) -
     let mut NZ = 0;
 
     let mut NN = N;
-    let machine_consts = MachineConsts::new();
     let FN = order + ((NN - 1) as f64);
     let MM: i64 = 3_i64 - 2 * <HankelKind as Into<i64>>::into(M);
     let FMM = MM as f64;
@@ -232,7 +231,7 @@ pub fn ZBESH(order: f64, z: Complex64, KODE: Scaling, M: HankelKind, N: usize) -
     //-----------------------------------------------------------------------;
     //   AZ = ZABS(ZR,ZI);
     let abs_z = z.abs();
-    let mut AA = 0.5 / machine_consts.abs_error_tolerance;
+    let mut AA = 0.5 / MACHINE_CONSTANTS.abs_error_tolerance;
     //   let BB=i32::MAX as f64 /2.0;//DBLE(FLOAT(_i1mach(9)))*0.5;
     AA = AA.min(i32::MAX as f64 / 2.0); // DMIN1(AA,BB);
     if abs_z > AA {
@@ -250,10 +249,10 @@ pub fn ZBESH(order: f64, z: Complex64, KODE: Scaling, M: HankelKind, N: usize) -
     //     OVERFLOW TEST ON THE LAST MEMBER OF THE SEQUENCE;
     //-----------------------------------------------------------------------;
     //   UFL = d1mach(1)*1.0e+3;
-    if abs_z < machine_consts.underflow_limit {
+    if abs_z < MACHINE_CONSTANTS.underflow_limit {
         return Err(Overflow);
     } //GO TO 230;
-    let (mut cy, NZ) = if order < machine_consts.asymptotic_order_limit {
+    let (mut cy, NZ) = if order < MACHINE_CONSTANTS.asymptotic_order_limit {
         // GO TO 90;
         //   if (FN <= 1.0) GO TO 70;
         if FN > 1.0 {
@@ -264,7 +263,7 @@ pub fn ZBESH(order: f64, z: Complex64, KODE: Scaling, M: HankelKind, N: usize) -
                 //    60 CONTINUE;
                 // CALL ZUOIK(ZNR, ZNI, FNU, KODE, 2, NN, CYR, CYI, NUF, TOL, ELIM, ALIM);
                 let mut cy = c_zeros(N);
-                let NUF = zuoik(z, order, KODE, IKType::I, NN, &mut cy, &machine_consts)?;
+                let NUF = zuoik(z, order, KODE, IKType::I, NN, &mut cy)?;
 
                 if NUF < 0 {
                     return Err(Overflow);
@@ -288,11 +287,11 @@ pub fn ZBESH(order: f64, z: Complex64, KODE: Scaling, M: HankelKind, N: usize) -
                 }
             }
             //   if (AZ > TOL) GO TO 70;
-            if abs_z <= machine_consts.abs_error_tolerance {
+            if abs_z <= MACHINE_CONSTANTS.abs_error_tolerance {
                 //GO TO 70;
                 //   ARG = 0.5*AZ;
                 //   ALN = -FN*DLOG(ARG);
-                if -FN * (0.5 * abs_z).ln() > machine_consts.exponent_limit {
+                if -FN * (0.5 * abs_z).ln() > MACHINE_CONSTANTS.exponent_limit {
                     return Err(Overflow);
                 } //GO TO 230;
             }
@@ -306,7 +305,7 @@ pub fn ZBESH(order: f64, z: Complex64, KODE: Scaling, M: HankelKind, N: usize) -
                 //     YN >= 0. || M=1);
                 //-----------------------------------------------------------------------;
                 //   CALL ZBKNU(ZNR, ZNI, FNU, KODE, NN, CYR, CYI, NZ, TOL, ELIM, ALIM);
-                ZBKNU(z, order, KODE, NN, &machine_consts)?
+                ZBKNU(z, order, KODE, NN)?
             //   GO TO 110;
             //-----------------------------------------------------------------------;
             //     LEFT HALF PLANE COMPUTATION;
@@ -316,7 +315,7 @@ pub fn ZBESH(order: f64, z: Complex64, KODE: Scaling, M: HankelKind, N: usize) -
                 //   MR = -MM;
 
                 //   CALL ZACON(ZNR, ZNI, FNU, KODE, MR, NN, CYR, CYI, NW, RL, FNUL, TOL, ELIM, ALIM);
-                analytic_continuation(z, order, KODE, -MM, NN, &machine_consts)?
+                analytic_continuation(z, order, KODE, -MM, NN)?
                 //   if (NW < 0) GO TO 240;
                 //   NZ=NW;
             }
@@ -339,7 +338,7 @@ pub fn ZBESH(order: f64, z: Complex64, KODE: Scaling, M: HankelKind, N: usize) -
                 }
             }
             //   100 CONTINUE;
-            let (cy, NW) = ZBUNK(z, order, KODE, MR, NN, &machine_consts)?;
+            let (cy, NW) = ZBUNK(z, order, KODE, MR, NN)?;
             //   CALL ZBUNK(ZNR, ZNI, FNU, KODE, MR, NN, CYR, CYI, NW, TOL, ELIM, ALIM);
             //   if (NW < 0) GO TO 240;
             NZ += NW;
@@ -391,9 +390,9 @@ pub fn ZBESH(order: f64, z: Complex64, KODE: Scaling, M: HankelKind, N: usize) -
         let mut loop_y = cy[i];
         // let mut ATOL = 1.0;
         // if (DMAX1((AA).abs(),(BB).abs()) > ASCLE) GO TO 135;
-        let ATOL = if max_abs_component(loop_y) < machine_consts.absolute_approximation_limit {
-            loop_y *= machine_consts.rtol;
-            machine_consts.abs_error_tolerance
+        let ATOL = if max_abs_component(loop_y) < MACHINE_CONSTANTS.absolute_approximation_limit {
+            loop_y *= MACHINE_CONSTANTS.rtol;
+            MACHINE_CONSTANTS.abs_error_tolerance
         //   AA = AA*RTOL;
         //   BB = BB*RTOL;
         //   ATOL = TOL;
@@ -641,13 +640,13 @@ pub fn zbesi(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult 
     //   ALIM = ELIM + DMAX1(-AA,-41.45);
     //   RL = 1.2*DIG + 3.0;
     //   FNUL = 10.0 + 6.0*(DIG-3.0);
-    let machine_consts = MachineConsts::new();
+
     //-----------------------------------------------------------------------------;
     //     TEST FOR PROPER RANGE;
     //-----------------------------------------------------------------------;
     let AZ = z.abs(); //ZABS(ZR,ZI);
     let FN = order + ((N - 1) as f64);
-    let partial_significance_loss = is_sigificance_lost(AZ, FN, &machine_consts)?;
+    let partial_significance_loss = is_sigificance_lost(AZ, FN)?;
 
     //   AA = 0.5/TOL;
     //   BB=DBLE(FLOAT(i1mach(9)))*0.5;
@@ -692,7 +691,7 @@ pub fn zbesi(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult 
     //    40 CONTINUE;
     //   CALL ZBINU(ZNR, ZNI, FNU, KODE, N, CYR, CYI, NZ, RL, FNUL, TOL,;
     //  * ELIM, ALIM);
-    let (mut cy, nz) = ZBINU(zn, order, KODE, N, &machine_consts)?;
+    let (mut cy, nz) = ZBINU(zn, order, KODE, N)?;
     //   if (NZ < 0) GO TO 120;
     let remaining_n = N - nz;
     //   if (ZR >= 0.0) RETURN;
@@ -713,9 +712,9 @@ pub fn zbesi(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult 
             // BB = CYI(I);
             // ATOL = 1.0;
             let correction =
-                if max_abs_component(cy[i]) <= machine_consts.absolute_approximation_limit {
-                    cy[i] *= machine_consts.rtol;
-                    machine_consts.abs_error_tolerance
+                if max_abs_component(cy[i]) <= MACHINE_CONSTANTS.absolute_approximation_limit {
+                    cy[i] *= MACHINE_CONSTANTS.rtol;
+                    MACHINE_CONSTANTS.abs_error_tolerance
                 } else {
                     1.0
                 };
@@ -946,13 +945,13 @@ pub fn zbesj(
     //     DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).
     //     FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU.
     //-----------------------------------------------------------------------
-    let machine_consts = MachineConsts::new();
+
     //-----------------------------------------------------------------------
     //     TEST FOR PROPER RANGE
     //-----------------------------------------------------------------------
     let z_abs = z.abs(); //ZABS(ZR, ZI);
     let reduced_order = order + ((n - 1) as f64);
-    let partial_significance_loss = is_sigificance_lost(z_abs, reduced_order, &machine_consts)?;
+    let partial_significance_loss = is_sigificance_lost(z_abs, reduced_order)?;
     //-----------------------------------------------------------------------
     //     CALCULATE CSGN=EXP(FNU*FRAC_PI_2*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
     //     WHEN FNU IS LARGE
@@ -975,13 +974,14 @@ pub fn zbesj(
         csgn.im = -csgn.im;
         sign_selector = -sign_selector;
     }
-    let (mut cy, nz) = ZBINU(zn, order, KODE, n, &machine_consts)?;
+    let (mut cy, nz) = ZBINU(zn, order, KODE, n)?;
     for i in 0..n - nz {
         let mut cyi = cy[i];
         let mut ATOL = 1.0;
-        if (max_abs_component(cyi)) <= machine_consts.absolute_approximation_limit {
-            cyi *= machine_consts.rtol;
-            ATOL = machine_consts.abs_error_tolerance;
+        // TODO is the below a pattern?
+        if (max_abs_component(cyi)) <= MACHINE_CONSTANTS.absolute_approximation_limit {
+            cyi *= MACHINE_CONSTANTS.rtol;
+            ATOL = MACHINE_CONSTANTS.abs_error_tolerance;
         }
         let st = cyi * csgn;
         cy[i] = st * ATOL;
@@ -1703,7 +1703,6 @@ fn ZAIRY(
     const COEFF: f64 = 1.83776298473930683e-01;
 
     let abs_z = z.abs();
-    let machine_consts = MachineConsts::new();
     let float_is_derivative = if return_derivative { 1.0 } else { 0.0 };
     if abs_z <= 1.0 {
         //-----------------------------------------------------------------------;
@@ -1711,18 +1710,18 @@ fn ZAIRY(
         //-----------------------------------------------------------------------;
         let mut s1 = c_one();
         let mut s2 = c_one();
-        if abs_z < machine_consts.abs_error_tolerance {
+        if abs_z < MACHINE_CONSTANTS.abs_error_tolerance {
             s1 = c_zero();
             return if return_derivative {
                 let mut ai = Complex64::new(-C2, 0.0);
 
-                if abs_z > machine_consts.underflow_limit.sqrt() {
+                if abs_z > MACHINE_CONSTANTS.underflow_limit.sqrt() {
                     s1 = z.pow(2.0) / 2.0;
                 }
                 ai += C1 * s1;
                 Ok((ai, 0))
             } else {
-                if abs_z > machine_consts.underflow_limit {
+                if abs_z > MACHINE_CONSTANTS.underflow_limit {
                     s1 = C2 * z;
                 }
                 let ai = C1 - s1;
@@ -1730,7 +1729,7 @@ fn ZAIRY(
             };
         }
         let abs_z_sq = abs_z * abs_z;
-        if abs_z_sq >= machine_consts.abs_error_tolerance / abs_z {
+        if abs_z_sq >= MACHINE_CONSTANTS.abs_error_tolerance / abs_z {
             let mut term1 = c_one();
             let mut term2 = c_one();
             let mut a_term = 1.0;
@@ -1756,7 +1755,7 @@ fn ZAIRY(
                 D1 += AK;
                 D2 += BK;
                 AD = D1.min(D2);
-                if a_term < machine_consts.abs_error_tolerance * AD {
+                if a_term < MACHINE_CONSTANTS.abs_error_tolerance * AD {
                     break;
                 }
                 AK += 18.0;
@@ -1765,7 +1764,7 @@ fn ZAIRY(
         }
         let mut ai = if return_derivative {
             let mut ai_inner = -s2 * C2;
-            if abs_z > machine_consts.abs_error_tolerance {
+            if abs_z > MACHINE_CONSTANTS.abs_error_tolerance {
                 let CC = C1 / (1.0 + float_is_derivative);
                 ai_inner += CC * z.pow(2.0) * s1;
             }
@@ -1786,7 +1785,7 @@ fn ZAIRY(
         //--------------------------------------------------------------------------;
         //     TEST FOR PROPER RANGE;
         //-----------------------------------------------------------------------;
-        let mut AA = 0.5 / machine_consts.abs_error_tolerance;
+        let mut AA = 0.5 / MACHINE_CONSTANTS.abs_error_tolerance;
         AA = AA.min(i32::MAX as f64 / 2.0);
         AA = AA.pow(TWO_THIRDS);
         if abs_z > AA {
@@ -1812,11 +1811,11 @@ fn ZAIRY(
             //-----------------------------------------------------------------------;
             //     OVERFLOW TEST;
             //-----------------------------------------------------------------------;
-            if scaling == Scaling::Unscaled && AA <= -machine_consts.approximation_limit {
+            if scaling == Scaling::Unscaled && AA <= -MACHINE_CONSTANTS.approximation_limit {
                 AA = -AA + 0.25 * ln_abs_z;
                 IFLAG = 1;
-                SFAC = machine_consts.abs_error_tolerance;
-                if AA > machine_consts.exponent_limit {
+                SFAC = MACHINE_CONSTANTS.abs_error_tolerance;
+                if AA > MACHINE_CONSTANTS.exponent_limit {
                     return Err(Overflow);
                 }
             }
@@ -1824,20 +1823,20 @@ fn ZAIRY(
             //     CBKNU AND CACON RETURN EXP(ZTA)*K(FNU,ZTA) ON KODE=2;
             //-----------------------------------------------------------------------;
             let MR = if z.im < 0.0 { -1 } else { 1 };
-            ZACAI(zta, FNU, scaling, MR, 1, &machine_consts)?
+            ZACAI(zta, FNU, scaling, MR, 1)?
         } else {
             //-----------------------------------------------------------------------;
             //     UNDERFLOW TEST;
             //-----------------------------------------------------------------------;
-            if scaling == Scaling::Unscaled && AA > machine_consts.approximation_limit {
+            if scaling == Scaling::Unscaled && AA > MACHINE_CONSTANTS.approximation_limit {
                 AA = -AA - 0.25 * ln_abs_z;
                 IFLAG = 2;
-                SFAC = 1.0 / machine_consts.abs_error_tolerance;
-                if AA < -machine_consts.exponent_limit {
+                SFAC = 1.0 / MACHINE_CONSTANTS.abs_error_tolerance;
+                if AA < -MACHINE_CONSTANTS.exponent_limit {
                     return Ok((c_zero(), 1));
                 }
             }
-            ZBKNU(zta, FNU, scaling, 1, &machine_consts)?
+            ZBKNU(zta, FNU, scaling, 1)?
         };
         let mut s1 = cy[0] * COEFF;
         let retval = if IFLAG == 0 {
@@ -2226,13 +2225,7 @@ fn ZBIRY(ZR, ZI, ID, KODE, BIR, BII, IERR)
       RETURN
       END
 */
-fn ZBKNU(
-    z: Complex64,
-    order: f64,
-    KODE: Scaling,
-    N: usize,
-    machine_consts: &MachineConsts,
-) -> BesselResult {
+fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
     // ***BEGIN PROLOGUE  ZBKNU
     // ***REFER TO  ZBESI,ZBESK,ZAIRY,ZBESH
     //
@@ -2266,7 +2259,7 @@ fn ZBKNU(
     let rz = 2.0 * z.conj() / CAZ.powi(2);
     let mut INU = (order + 0.5) as isize; // round to nearest int
     let DNU = order - (INU as f64); // signed fractional part (-0.5 < DNU < 0.5 )
-    let DNU2 = if DNU.abs() > machine_consts.abs_error_tolerance {
+    let DNU2 = if DNU.abs() > MACHINE_CONSTANTS.abs_error_tolerance {
         DNU * DNU
     } else {
         0.0
@@ -2302,7 +2295,7 @@ fn ZBKNU(
                 ak *= DNU2;
                 let TM = CC[k] * ak;
                 sum += TM;
-                if TM.abs() < machine_consts.abs_error_tolerance {
+                if TM.abs() < MACHINE_CONSTANTS.abs_error_tolerance {
                     break;
                 }
             }
@@ -2325,7 +2318,7 @@ fn ZBKNU(
             //     SPECIAL CASE
             //     GENERATE K(FNU,Z), 0.0  <=  FNU  <  0.5 AND N=1;
             //-----------------------------------------------------------------------;
-            if CAZ >= machine_consts.abs_error_tolerance {
+            if CAZ >= MACHINE_CONSTANTS.abs_error_tolerance {
                 let cz = 0.25 * z.powu(2);
                 let T1 = 0.25 * CAZ * CAZ;
                 '_l60: loop {
@@ -2337,7 +2330,7 @@ fn ZBKNU(
                     A1 *= T1 / AK;
                     BK += (2.0 * AK) + 1.0;
                     AK += 1.0;
-                    if A1 <= machine_consts.abs_error_tolerance {
+                    if A1 <= MACHINE_CONSTANTS.abs_error_tolerance {
                         break;
                     }
                 }
@@ -2352,7 +2345,7 @@ fn ZBKNU(
             //-----------------------------------------------------------------------;
         }
 
-        if CAZ >= machine_consts.abs_error_tolerance {
+        if CAZ >= MACHINE_CONSTANTS.abs_error_tolerance {
             let cz = 0.25 * z.powu(2);
             let T1 = 0.25 * CAZ * CAZ;
             '_l90: loop {
@@ -2368,19 +2361,19 @@ fn ZBKNU(
                 BK += AK + AK + 1.0;
                 AK += 1.0;
 
-                if A1 <= machine_consts.abs_error_tolerance {
+                if A1 <= MACHINE_CONSTANTS.abs_error_tolerance {
                     break;
                 }
             }
         }
         AK = (order + 1.0) * smu.re.abs();
-        KFLAG = if AK > machine_consts.approximation_limit {
+        KFLAG = if AK > MACHINE_CONSTANTS.approximation_limit {
             3
         } else {
             2
         };
-        s2 *= machine_consts.scaling_factors[KFLAG - 1] * rz;
-        s1 *= machine_consts.scaling_factors[KFLAG - 1];
+        s2 *= MACHINE_CONSTANTS.scaling_factors[KFLAG - 1] * rz;
+        s1 *= MACHINE_CONSTANTS.scaling_factors[KFLAG - 1];
         if KODED == Scaling::Scaled {
             let z_exp = z.exp();
             s1 *= z_exp;
@@ -2398,13 +2391,13 @@ fn ZBKNU(
         let mut coef = Complex64::new(RTFRAC_PI_2, 0.0) / z.sqrt();
         KFLAG = 2;
         if KODED == Scaling::Unscaled {
-            if z.re > machine_consts.approximation_limit {
+            if z.re > MACHINE_CONSTANTS.approximation_limit {
                 KODED = Scaling::Scaled;
                 underflow_occurred = true;
                 KFLAG = 2;
             } else {
                 coef *= (-z.re).exp()
-                    * machine_consts.scaling_factors[KFLAG - 1]
+                    * MACHINE_CONSTANTS.scaling_factors[KFLAG - 1]
                     * Complex64::cis(z.im).conj();
             }
         }
@@ -2437,7 +2430,7 @@ fn ZBKNU(
                 //-----------------------------------------------------------------------;
                 //     FORWARD RECURRENCE LOOP WHEN CABS(Z) >= R2;
                 //-----------------------------------------------------------------------;
-                let ETEST = AK / (PI * CAZ * machine_consts.abs_error_tolerance);
+                let ETEST = AK / (PI * CAZ * MACHINE_CONSTANTS.abs_error_tolerance);
                 let mut FK = 1.0;
                 if ETEST >= 1.0 {
                     let mut FKS = CTWOR;
@@ -2471,7 +2464,7 @@ fn ZBKNU(
                 //-----------------------------------------------------------------------;
                 //     COMPUTE BACKWARD INDEX K FOR CABS(Z) < R2;
                 //-----------------------------------------------------------------------;
-                AK *= FPI / (machine_consts.abs_error_tolerance * CAZ.sqrt().sqrt());
+                AK *= FPI / (MACHINE_CONSTANTS.abs_error_tolerance * CAZ.sqrt().sqrt());
                 let AA = 3.0 * T1 / (1.0 + CAZ);
                 let BB = 14.7 * T1 / (28.0 + CAZ);
                 AK = (AK.ln() + CAZ * AA.cos() / (1.0 + 0.008 * CAZ)) / BB.cos();
@@ -2484,7 +2477,7 @@ fn ZBKNU(
             let K = FK as usize;
             let mut k_squared = FK.floor().pow(2);
             let mut p1 = Complex64::zero();
-            let mut p2 = Complex64::new(machine_consts.abs_error_tolerance, 0.0);
+            let mut p2 = Complex64::new(MACHINE_CONSTANTS.abs_error_tolerance, 0.0);
             let mut cs = p2;
             for i in (1..=K).rev() {
                 let k_f64 = i as f64;
@@ -2537,8 +2530,8 @@ fn ZBKNU(
     'l225: loop {
         if !skip_to_240 {
             if !(INU <= 0 && N <= 1) {
-                let mut P1R = machine_consts.reciprocal_scaling_factors[KFLAG - 1];
-                let mut ASCLE = machine_consts.bry[KFLAG - 1];
+                let mut P1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG - 1];
+                let mut ASCLE = MACHINE_CONSTANTS.bry[KFLAG - 1];
                 for _ in INUB..=INU {
                     let st = s2;
                     s2 = ck * s2 + s1;
@@ -2552,25 +2545,25 @@ fn ZBKNU(
                         continue;
                     }
                     KFLAG += 1;
-                    ASCLE = machine_consts.bry[KFLAG - 1];
+                    ASCLE = MACHINE_CONSTANTS.bry[KFLAG - 1];
                     s1 *= P1R;
                     s2 = p2;
-                    s1 *= machine_consts.scaling_factors[KFLAG - 1];
-                    s2 *= machine_consts.scaling_factors[KFLAG - 1];
-                    P1R = machine_consts.reciprocal_scaling_factors[KFLAG - 1];
+                    s1 *= MACHINE_CONSTANTS.scaling_factors[KFLAG - 1];
+                    s2 *= MACHINE_CONSTANTS.scaling_factors[KFLAG - 1];
+                    P1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG - 1];
                 }
             } else if underflow_occurred {
                 //-----------------------------------------------------------------------;
                 //     underflow_occured=1 CASES, FORWARD RECURRENCE ON SCALED VALUES ON UNDERFLOW;
                 //-----------------------------------------------------------------------;
                 let mut cy = c_zeros(2);
-                let HELIM = 0.5 * machine_consts.exponent_limit;
-                let ELM = (-machine_consts.exponent_limit).exp();
+                let HELIM = 0.5 * MACHINE_CONSTANTS.exponent_limit;
+                let ELM = (-MACHINE_CONSTANTS.exponent_limit).exp();
                 let CELMR = ELM;
-                let ASCLE = machine_consts.bry[0];
+                let ASCLE = MACHINE_CONSTANTS.bry[0];
                 let mut zd = z;
                 let mut IC: isize = -2;
-                let mut J = 2;
+                let mut J = 2; // TODO subtract 1 throughout
                 let mut I = 0;
                 for i in 0..INU {
                     I = i + 1;
@@ -2579,11 +2572,11 @@ fn ZBKNU(
                     s1 = st;
                     ck += rz;
                     let ALAS = s2.abs().ln();
-                    if !((-zd.re + ALAS) < (-machine_consts.exponent_limit)) {
+                    if !((-zd.re + ALAS) < (-MACHINE_CONSTANTS.exponent_limit)) {
                         let p2 = -zd + s2.ln();
-                        let p1 = (p2.re.exp() / machine_consts.abs_error_tolerance)
+                        let p1 = (p2.re.exp() / MACHINE_CONSTANTS.abs_error_tolerance)
                             * Complex64::cis(p2.im);
-                        if will_z_underflow(p1, ASCLE, machine_consts.abs_error_tolerance) {
+                        if will_z_underflow(p1, ASCLE, MACHINE_CONSTANTS.abs_error_tolerance) {
                             J = 3 - J;
                             cy[J - 1] = p1;
                             // IF(IC.EQ.(I-1)) GO TO 264
@@ -2597,7 +2590,7 @@ fn ZBKNU(
                         if ALAS < HELIM {
                             continue;
                         }
-                        zd.re -= machine_consts.exponent_limit;
+                        zd.re -= MACHINE_CONSTANTS.exponent_limit;
                         s1 *= CELMR;
                         s2 *= CELMR;
                     }
@@ -2618,11 +2611,11 @@ fn ZBKNU(
         // ********* basic setup
         let (mut KK, mut y) = if !underflow_occurred {
             let mut y = c_zeros(N);
-            y[0] = s1 * machine_consts.reciprocal_scaling_factors[KFLAG - 1];
+            y[0] = s1 * MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG - 1];
             if N == 1 {
                 return Ok((y, NZ));
             }
-            y[1] = s2 * machine_consts.reciprocal_scaling_factors[KFLAG - 1];
+            y[1] = s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG - 1];
             if N == 2 {
                 return Ok((y, NZ));
             }
@@ -2637,27 +2630,18 @@ fn ZBKNU(
             if N > 1 {
                 y[1] = s2;
             }
-            ZKSCL(
-                zd,
-                order,
-                N,
-                &mut y,
-                &mut NZ,
-                rz,
-                machine_consts.bry[0],
-                machine_consts,
-            );
+            ZKSCL(zd, order, N, &mut y, &mut NZ, rz, MACHINE_CONSTANTS.bry[0]);
             INU = (N - NZ) as isize;
             if INU <= 0 {
                 return Ok((y, NZ));
             }
             let mut KK = NZ; // + 1;
-            y[KK - 1] *= machine_consts.reciprocal_scaling_factors[0];
+            y[KK - 1] *= MACHINE_CONSTANTS.reciprocal_scaling_factors[0];
             if INU == 1 {
                 return Ok((y, NZ));
             }
             KK = NZ + 1;
-            y[KK] *= machine_consts.reciprocal_scaling_factors[0];
+            y[KK] *= MACHINE_CONSTANTS.reciprocal_scaling_factors[0];
             if INU == 2 {
                 return Ok((y, NZ));
             }
@@ -2669,8 +2653,8 @@ fn ZBKNU(
         if KK >= N {
             return Ok((y, NZ));
         }
-        let mut P1R = machine_consts.reciprocal_scaling_factors[KFLAG - 1];
-        let mut ASCLE = machine_consts.bry[KFLAG - 1];
+        let mut P1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG - 1];
+        let mut ASCLE = MACHINE_CONSTANTS.bry[KFLAG - 1];
         let mut I;
         for i in KK..N {
             I = i;
@@ -2687,12 +2671,12 @@ fn ZBKNU(
                 continue;
             }
             KFLAG += 1;
-            ASCLE = machine_consts.bry[KFLAG - 1];
+            ASCLE = MACHINE_CONSTANTS.bry[KFLAG - 1];
             s1 *= P1R;
             s2 = p2;
-            s1 *= machine_consts.scaling_factors[KFLAG - 1];
-            s2 *= machine_consts.scaling_factors[KFLAG - 1];
-            P1R = machine_consts.reciprocal_scaling_factors[KFLAG - 1];
+            s1 *= MACHINE_CONSTANTS.scaling_factors[KFLAG - 1];
+            s2 *= MACHINE_CONSTANTS.scaling_factors[KFLAG - 1];
+            P1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG - 1];
         }
         return Ok((y, NZ));
     }
@@ -2707,7 +2691,6 @@ fn ZKSCL(
     NZ: &mut usize,
     rz: Complex64, //RZR,RZI,
     ASCLE: f64,
-    machine_consts: &MachineConsts,
 ) //-> BesselResult//ASCLE,TOL,ELIM)
 {
     // ***BEGIN PROLOGUE  ZKSCL
@@ -2738,13 +2721,13 @@ fn ZKSCL(
         cy[i] = s1;
         *NZ += 1;
         y[i] = c_zero();
-        if -zr.re + s1.abs().ln() < (-machine_consts.exponent_limit) {
+        if -zr.re + s1.abs().ln() < (-MACHINE_CONSTANTS.exponent_limit) {
             continue;
         }
         let mut cs = s1.ln() - zr;
-        cs = Complex64::from_polar(cs.re.exp() / machine_consts.abs_error_tolerance, cs.im);
+        cs = Complex64::from_polar(cs.re.exp() / MACHINE_CONSTANTS.abs_error_tolerance, cs.im);
 
-        if will_z_underflow(cs, ASCLE, machine_consts.abs_error_tolerance) {
+        if will_z_underflow(cs, ASCLE, MACHINE_CONSTANTS.abs_error_tolerance) {
             continue;
         }
         y[i] = cs;
@@ -2768,8 +2751,8 @@ fn ZKSCL(
     let mut ck = FN * rz;
     let mut s1 = cy[0];
     let mut s2 = cy[1];
-    let half_elim = 0.5 * machine_consts.exponent_limit;
-    let ELM = (-machine_consts.exponent_limit).exp();
+    let half_elim = 0.5 * MACHINE_CONSTANTS.exponent_limit;
+    let ELM = (-MACHINE_CONSTANTS.exponent_limit).exp();
     let CELMR = ELM;
     let mut zd = zr;
     //     FIND TWO CONSECUTIVE Y VALUES ON SCALE. SCALE RECURRENCE if
@@ -2785,10 +2768,10 @@ fn ZKSCL(
         let ALAS = s2.abs().ln();
         *NZ += 1;
         y[i] = Complex64::zero();
-        if !(-zd.re + s2.abs().ln() < (-machine_consts.exponent_limit)) {
+        if !(-zd.re + s2.abs().ln() < (-MACHINE_CONSTANTS.exponent_limit)) {
             cs = s2.ln() - zd;
-            cs = Complex64::from_polar(cs.re.exp() / machine_consts.abs_error_tolerance, cs.im);
-            if !will_z_underflow(cs, ASCLE, machine_consts.abs_error_tolerance) {
+            cs = Complex64::from_polar(cs.re.exp() / MACHINE_CONSTANTS.abs_error_tolerance, cs.im);
+            if !will_z_underflow(cs, ASCLE, MACHINE_CONSTANTS.abs_error_tolerance) {
                 y[i] = cs;
                 *NZ -= 1;
                 if IC == KK - 1 {
@@ -2803,7 +2786,7 @@ fn ZKSCL(
         if ALAS < half_elim {
             continue;
         }
-        zd -= machine_consts.exponent_limit;
+        zd -= MACHINE_CONSTANTS.exponent_limit;
         s1 *= CELMR;
         s2 *= CELMR;
     }
@@ -2848,7 +2831,6 @@ fn i_ratios(
     z: Complex64,
     order: f64,
     N: usize, //CYR, CYI, TOL
-    machine_consts: &MachineConsts,
 ) -> Vec<Complex64> {
     // ***BEGIN PROLOGUE  ZRATI
     // ***REFER TO  ZBESI,ZBESK,ZBESH
@@ -2887,7 +2869,7 @@ fn i_ratios(
     //     P2 VALUES BY AP1 TO ENSURE THAT AN OVERFLOW DOES NOT OCCUR
     //     PREMATURELY.;
     //-----------------------------------------------------------------------;
-    let ARG = (AP2 + AP2) / (AP1 * machine_consts.abs_error_tolerance);
+    let ARG = (AP2 + AP2) / (AP1 * MACHINE_CONSTANTS.abs_error_tolerance);
     let TEST1 = ARG.sqrt();
     let mut TEST = TEST1;
     p1 /= AP1;
@@ -2928,8 +2910,8 @@ fn i_ratios(
     }
     if p1.re == 0.0 && p1.im == 0.0 {
         p1 = Complex64::new(
-            machine_consts.abs_error_tolerance,
-            machine_consts.abs_error_tolerance,
+            MACHINE_CONSTANTS.abs_error_tolerance,
+            MACHINE_CONSTANTS.abs_error_tolerance,
         );
     }
     let mut cy = c_zeros(N);
@@ -2942,8 +2924,8 @@ fn i_ratios(
             let mut AK = pt.abs();
             if AK == 0.0 {
                 pt = Complex64::new(
-                    machine_consts.abs_error_tolerance,
-                    machine_consts.abs_error_tolerance,
+                    MACHINE_CONSTANTS.abs_error_tolerance,
+                    MACHINE_CONSTANTS.abs_error_tolerance,
                 );
                 AK = pt.abs();
             }
@@ -2961,7 +2943,6 @@ fn ZS1S2(
     s1: &mut Complex64,
     s2: &mut Complex64,
     IUF: &mut isize,
-    machine_consts: &MachineConsts,
 ) -> usize {
     // ***BEGIN PROLOGUE  ZS1S2
     // ***REFER TO  ZBESK,ZAIRY
@@ -2999,7 +2980,7 @@ fn ZS1S2(
         //   S1R = ZEROR;
         //   S1I = ZEROI;
         //   AS1 = ZEROR;
-        if ALN >= (-machine_consts.approximation_limit) {
+        if ALN >= (-MACHINE_CONSTANTS.approximation_limit) {
             //} GO TO 10;
             *s1 = (s1d.ln() - 2.0 * zr).exp();
             abs_s1 = s1.abs();
@@ -3014,7 +2995,7 @@ fn ZS1S2(
     //    10 CONTINUE;
 
     //   AA = DMAX1(AS1,AS2);
-    if abs_s1.max(abs_s2) > machine_consts.absolute_approximation_limit {
+    if abs_s1.max(abs_s2) > MACHINE_CONSTANTS.absolute_approximation_limit {
         NZ
     }
     //RETURN;
@@ -3033,14 +3014,7 @@ fn ZS1S2(
     }
 }
 
-fn ZBUNK(
-    z: Complex64,
-    order: f64,
-    KODE: Scaling,
-    MR: i64,
-    N: usize,
-    machine_consts: &MachineConsts,
-) -> BesselResult {
+fn ZBUNK(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselResult {
     //ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
     // * ALIM)
     // ***BEGIN PROLOGUE  ZBUNK
@@ -3065,7 +3039,7 @@ fn ZBUNK(
         //     ASYMPTOTIC EXPANSION FOR K(FNU,Z) FOR LARGE FNU APPLIED IN
         //     -PI/3 <= ARG(Z) <= PI/3
         //-----------------------------------------------------------------------
-        ZUNK1(z, order, KODE, MR, N, machine_consts)
+        ZUNK1(z, order, KODE, MR, N)
         // ZUNK1(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM, ALIM)
         //   GO TO 20;
     } else {
@@ -3075,7 +3049,7 @@ fn ZBUNK(
         //     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I
         //     AND FRAC_PI_2=PI/2
         //-----------------------------------------------------------------------
-        // ZUNK2(z, order, KODE, MR, N, machine_consts)
+        // ZUNK2(z, order, KODE, MR, N)
         Err(BesselError::NotYetImplemented)
         // ZUNK2(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM, ALIM)
     }
@@ -3089,7 +3063,6 @@ fn i_miller(
     order: f64, //ZR, ZI, FNU,
     KODE: Scaling,
     N: usize, //YR, YI, NZ,
-    machine_consts: &MachineConsts,
 ) -> BesselResult {
     // ***BEGIN PROLOGUE  ZMLRI
     // ***REFER TO  ZBESI,ZBESK
@@ -3100,7 +3073,7 @@ fn i_miller(
     // ***ROUTINES CALLED  gamma_ln,d1mach,ZABS,ZEXP,ZLOG,ZMLT
     // ***END PROLOGUE  ZMLRI
 
-    let SCLE: f64 = 2.0 * f64::MIN_POSITIVE / machine_consts.abs_error_tolerance;
+    let SCLE: f64 = 2.0 * f64::MIN_POSITIVE / MACHINE_CONSTANTS.abs_error_tolerance;
     let NZ = 0;
     let AZ = z.abs();
     let IAZ = AZ as usize;
@@ -3116,7 +3089,7 @@ fn i_miller(
     let RHO = ACK + (ACK * ACK - 1.0).sqrt();
     let RHO2 = RHO * RHO;
     let mut TST = (RHO2 + RHO2) / ((RHO2 - 1.0) * (RHO - 1.0));
-    TST /= machine_consts.abs_error_tolerance;
+    TST /= MACHINE_CONSTANTS.abs_error_tolerance;
     //-----------------------------------------------------------------------;
     //     COMPUTE RELATIVE TRUNCATION ERROR INDEX FOR SERIES;
     //-----------------------------------------------------------------------;
@@ -3149,7 +3122,7 @@ fn i_miller(
         let AT = (INU as f64) + 1.0;
         ck = z.conj() * RAZ * RAZ * AT;
         ACK = AT * RAZ;
-        TST = (ACK / machine_consts.abs_error_tolerance).sqrt();
+        TST = (ACK / MACHINE_CONSTANTS.abs_error_tolerance).sqrt();
         let mut hit_loop_end = false;
         converged = false;
         for k in 0..80 {
@@ -3260,7 +3233,6 @@ fn i_wronksian(
     KODE: Scaling,
     N: usize,
     y: &mut [Complex64],
-    machine_consts: &MachineConsts,
 ) -> BesselResult<usize> {
     // ***BEGIN PROLOGUE  ZWRSK
     // ***REFER TO  ZBESI,ZBESK
@@ -3276,8 +3248,8 @@ fn i_wronksian(
     //     WRONSKIAN WITH K(FNU,Z) AND K(FNU+1,Z) FROM CBKNU.
     //-----------------------------------------------------------------------
     let NZ = 0;
-    let (cw, _) = ZBKNU(zr, order, KODE, 2, machine_consts)?;
-    let y_ratios = i_ratios(zr, order, N, machine_consts);
+    let (cw, _) = ZBKNU(zr, order, KODE, 2)?;
+    let y_ratios = i_ratios(zr, order, N);
     //-----------------------------------------------------------------------;
     //     RECUR FORWARD ON I(FNU+1,Z) = R(FNU,Z)*I(FNU,Z),;
     //     R(FNU+J-1,Z)=Y(J),  J=1,...,N;
@@ -3293,10 +3265,10 @@ fn i_wronksian(
     //     THE RESULT IS ON SCALE.;
     //-----------------------------------------------------------------------;
     let acw = cw[1].abs();
-    let CSCLR = if acw <= machine_consts.absolute_approximation_limit {
-        1.0 / machine_consts.abs_error_tolerance
-    } else if acw >= 1.0 / machine_consts.absolute_approximation_limit {
-        machine_consts.abs_error_tolerance
+    let CSCLR = if acw <= MACHINE_CONSTANTS.absolute_approximation_limit {
+        1.0 / MACHINE_CONSTANTS.abs_error_tolerance
+    } else if acw >= 1.0 / MACHINE_CONSTANTS.absolute_approximation_limit {
+        MACHINE_CONSTANTS.abs_error_tolerance
     } else {
         1.0
     };
@@ -3324,7 +3296,6 @@ fn analytic_continuation(
     KODE: Scaling,
     MR: i64,
     N: usize,
-    machine_consts: &MachineConsts,
 ) -> BesselResult {
     //ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, RL, FNUL,
     //  * TOL, ELIM, ALIM)
@@ -3359,7 +3330,7 @@ fn analytic_continuation(
     //   ZNR = -ZR;
     //   ZNI = -ZI;
     //   let mut NN = N;
-    let (mut y, NW) = ZBINU(zn, order, KODE, N, machine_consts)?;
+    let (mut y, NW) = ZBINU(zn, order, KODE, N)?;
     //   CALL ZBINU(ZNR, ZNI, FNU, KODE, NN, YR, YI, NW, RL, FNUL, TOL,;
     //  * ELIM, ALIM);
     //   if (NW < 0) GO TO 90;
@@ -3367,7 +3338,7 @@ fn analytic_continuation(
     //     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE FOR THE K FUNCTION;
     //-----------------------------------------------------------------------;
     let NN = 2.min(N); //MIN0(2,N);
-    let (cy, NW) = ZBKNU(z, order, KODE, NN, machine_consts)?;
+    let (cy, NW) = ZBKNU(z, order, KODE, NN)?;
     //   CALL ZBKNU(ZNR, ZNI, FNU, KODE, NN, CYR, CYI, NW, TOL, ELIM, ALIM);
     //   if (NW != 0) GO TO 90;
     if NW > 0 {
@@ -3420,7 +3391,7 @@ fn analytic_continuation(
     //   if (KODE == 1) GO TO 30;
     let mut sc1;
     if KODE == Scaling::Scaled {
-        let NW = ZS1S2(zn, &mut c1, &mut c2, &mut IUF, machine_consts);
+        let NW = ZS1S2(zn, &mut c1, &mut c2, &mut IUF);
         //   CALL ZS1S2(ZNR, ZNI, C1R, C1I, C2R, C2I, NW, ASCLE, ALIM, IUF);
         NZ += NW;
         sc1 = c1;
@@ -3455,7 +3426,7 @@ fn analytic_continuation(
     // this value never used, as initialised and used if scaling is needed
     let mut sc2 = c_zero() * f64::NAN;
     if KODE == Scaling::Scaled {
-        let NW = ZS1S2(zn, &mut c1, &mut c2, &mut IUF, machine_consts);
+        let NW = ZS1S2(zn, &mut c1, &mut c2, &mut IUF);
         NZ += NW;
 
         //   CALL ZS1S2(ZNR, ZNI, C1R, C1I, C2R, C2I, NW, ASCLE, ALIM, IUF);
@@ -3517,23 +3488,23 @@ fn analytic_continuation(
     //       IF (AS2.LT.BRY(2)) GO TO 60
     //       KFLAG = 3
     //    60 CONTINUE
-    let mut KFLAG = if abs_s2 <= machine_consts.bry[0] {
+    let mut KFLAG = if abs_s2 <= MACHINE_CONSTANTS.bry[0] {
         0
-    } else if abs_s2 > machine_consts.bry[1] {
+    } else if abs_s2 > MACHINE_CONSTANTS.bry[1] {
         2
     } else {
         0
     };
     //    60 CONTINUE;
-    let mut b_scale = machine_consts.bry[KFLAG];
+    let mut b_scale = MACHINE_CONSTANTS.bry[KFLAG];
     //   BSCLE = BRY(KFLAG);
-    s1 *= machine_consts.scaling_factors[KFLAG];
-    s2 *= machine_consts.scaling_factors[KFLAG];
+    s1 *= MACHINE_CONSTANTS.scaling_factors[KFLAG];
+    s2 *= MACHINE_CONSTANTS.scaling_factors[KFLAG];
     //   S1R = S1R*CSSR(KFLAG);
     //   S1I = S1I*CSSR(KFLAG);
     //   S2R = S2R*CSSR(KFLAG);
     //   S2I = S2I*CSSR(KFLAG);
-    let mut CSR = machine_consts.reciprocal_scaling_factors[KFLAG];
+    let mut CSR = MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG];
     //   CSR = CSRR(KFLAG);
     //   DO 80 I=3,N;
     for i in 2..N {
@@ -3558,7 +3529,7 @@ fn analytic_continuation(
         if KODE == Scaling::Scaled && IUF >= 0 {
             // if (KODE == 1) GO TO 70;
             // if (IUF < 0) GO TO 70;
-            let NW = ZS1S2(zn, &mut c1, &mut c2, &mut IUF, machine_consts);
+            let NW = ZS1S2(zn, &mut c1, &mut c2, &mut IUF);
             // CALL ZS1S2(ZNR, ZNI, C1R, C1I, C2R, C2I, NW, ASCLE, ALIM, IUF);
             NZ += NW;
             sc1 = sc2;
@@ -3570,8 +3541,8 @@ fn analytic_continuation(
             if IUF == 3 {
                 //GO TO 70;
                 IUF = -4;
-                s1 = sc1 * machine_consts.scaling_factors[KFLAG];
-                s2 = sc2 * machine_consts.scaling_factors[KFLAG];
+                s1 = sc1 * MACHINE_CONSTANTS.scaling_factors[KFLAG];
+                s2 = sc2 * MACHINE_CONSTANTS.scaling_factors[KFLAG];
                 // S1R = SC1R*CSSR(KFLAG);
                 // S1I = SC1I*CSSR(KFLAG);
                 // S2R = SC2R*CSSR(KFLAG);
@@ -3604,7 +3575,7 @@ fn analytic_continuation(
             //GO TO 80;
             KFLAG += 1;
             // KFLAG = KFLAG + 1;
-            b_scale = machine_consts.bry[KFLAG];
+            b_scale = MACHINE_CONSTANTS.bry[KFLAG];
             // BSCLE = BRY(KFLAG);
             s1 *= CSR;
             // S1R = S1R * CSR;
@@ -3612,13 +3583,13 @@ fn analytic_continuation(
             s2 = st;
             // S2R = STR;
             // S2I = STI;
-            s1 *= machine_consts.scaling_factors[KFLAG];
-            s2 *= machine_consts.scaling_factors[KFLAG];
+            s1 *= MACHINE_CONSTANTS.scaling_factors[KFLAG];
+            s2 *= MACHINE_CONSTANTS.scaling_factors[KFLAG];
             // S1R = S1R * CSSR(KFLAG);
             // S1I = S1I * CSSR(KFLAG);
             // S2R = S2R * CSSR(KFLAG);
             // S2I = S2I * CSSR(KFLAG);
-            CSR = machine_consts.reciprocal_scaling_factors[KFLAG]; //CSRR(KFLAG);
+            CSR = MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG]; //CSRR(KFLAG);
         }
         //    80 CONTINUE;
     }
@@ -3636,7 +3607,6 @@ fn ZBINU(
     order: f64,
     KODE: Scaling,
     N: usize,
-    machine_consts: &MachineConsts,
 ) -> BesselResult {
     //output?: CYR, CYI, NZ,)
     // ***BEGIN PROLOGUE  ZBINU
@@ -3663,7 +3633,7 @@ fn ZBINU(
         //     POWER SERIES
         //-----------------------------------------------------------------------
         let NW;
-        (cy, NW) = i_power_series(z, order, KODE, NN, machine_consts)?;
+        (cy, NW) = i_power_series(z, order, KODE, NN)?;
         let INW: usize = NW.abs().try_into().unwrap();
         NZ += INW;
         NN -= INW;
@@ -3674,7 +3644,7 @@ fn ZBINU(
         DFNU = order + ((NN as f64) - 1.0);
     }
 
-    if (AZ >= machine_consts.asymptotic_z_limit)
+    if (AZ >= MACHINE_CONSTANTS.asymptotic_z_limit)
         && ((DFNU <= 1.0) //GO TO 30
           || (AZ+AZ >= DFNU*DFNU))
     //GO TO 50 //equiv to go to 40 as (DFNU <= 1.0) is not true to get here
@@ -3686,7 +3656,7 @@ fn ZBINU(
         //     ASYMPTOTIC EXPANSION FOR LARGE Z
         //-----------------------------------------------------------------------
         //  30 CONTINUE
-        let (cy, nw) = z_asymptotic_i(z, order, KODE, NN, machine_consts)?;
+        let (cy, nw) = z_asymptotic_i(z, order, KODE, NN)?;
         //     if (NW < 0) GO TO 130
         debug_assert!(nw == NZ);
         return Ok((cy, NZ));
@@ -3701,7 +3671,7 @@ fn ZBINU(
         //-----------------------------------------------------------------------
         //     OVERFLOW AND UNDERFLOW TEST ON I SEQUENCE FOR MILLER ALGORITHM
         //-----------------------------------------------------------------------
-        let nw = zuoik(z, order, KODE, IKType::I, NN, &mut cy, machine_consts)?;
+        let nw = zuoik(z, order, KODE, IKType::I, NN, &mut cy)?;
 
         NZ += nw;
         NN -= nw;
@@ -3712,23 +3682,18 @@ fn ZBINU(
         //     if (DFNU > FNUL) GO TO 110
         //     if (AZ > FNUL) GO TO 110
     }
-    if (DFNU > machine_consts.asymptotic_order_limit)
-        || (AZ > machine_consts.asymptotic_order_limit)
+    if (DFNU > MACHINE_CONSTANTS.asymptotic_order_limit)
+        || (AZ > MACHINE_CONSTANTS.asymptotic_order_limit)
     {
         //-----------------------------------------------------------------------
         //     INCREMENT FNU+NN-1 UP TO FNUL, COMPUTE AND RECUR BACKWARD
         //-----------------------------------------------------------------------
-        let NUI_isize = (machine_consts.asymptotic_order_limit - DFNU) as isize + 1;
+        let NUI_isize = (MACHINE_CONSTANTS.asymptotic_order_limit - DFNU) as isize + 1;
         let NUI = NUI_isize.max(0) as usize;
         let (NW, NLAST) = ZBUNI(
             //ZR, ZI, FNU,
-            z,
-            order,
-            KODE,
-            NN,
-            NUI, //CYR, CYI, NW, NUI, NLAST, FNUL,
+            z, order, KODE, NN, NUI, //CYR, CYI, NW, NUI, NLAST, FNUL,
             &mut cy,
-            machine_consts,
         )?;
         //    * TOL, ELIM, ALIM)?
         // if (NW < 0) GO TO 130
@@ -3741,7 +3706,7 @@ fn ZBINU(
     }
     //  60 CONTINUE
     // 'l60: loop{
-    if !skip_az_rl_check && AZ <= machine_consts.asymptotic_z_limit {
+    if !skip_az_rl_check && AZ <= MACHINE_CONSTANTS.asymptotic_z_limit {
         // GO TO 80
         //  70 CONTINUE
         //-----------------------------------------------------------------------
@@ -3749,11 +3714,8 @@ fn ZBINU(
         //-----------------------------------------------------------------------
         let (cy, _) = i_miller(
             //ZR, ZI, FNU,
-            z,
-            order,
-            KODE,
-            NN,
-            /*CYR, CYI, NW,*/ machine_consts,
+            z, order, KODE, NN,
+            /*CYR, CYI, NW,*/
         )?;
         //      return{if(NW < 0) { if(NW == (-2)) { Err(DidNotConverge);}// NZ=-2
         //     else{Err(Overflow)}}}else{
@@ -3769,19 +3731,11 @@ fn ZBINU(
     //       CALL ZUOIK(ZR, ZI, FNU, KODE, 2, 2, CWR, CWI, NW, TOL, ELIM,
     //      * ALIM)
 
-    if let Ok(NW) = zuoik(
-        z,
-        order,
-        KODE,
-        IKType::K,
-        2,
-        &mut vec![c_one(); 2],
-        machine_consts,
-    ) {
+    if let Ok(NW) = zuoik(z, order, KODE, IKType::K, 2, &mut vec![c_one(); 2]) {
         if NW > 0 {
             Err(Overflow)
         } else {
-            let nz = i_wronksian(z, order, KODE, NN, &mut cy, machine_consts)?;
+            let nz = i_wronksian(z, order, KODE, NN, &mut cy)?;
             Ok((cy, nz))
         }
     } else {
@@ -3811,7 +3765,6 @@ fn ZACAI(
     KODE: Scaling,
     MR: i64,
     N: usize,
-    machine_consts: &MachineConsts,
 ) -> BesselResult {
     // ***BEGIN PROLOGUE  ZACAI
     // ***REFER TO  ZAIRY
@@ -3852,11 +3805,11 @@ fn ZACAI(
         //-----------------------------------------------------------------------;
         //     POWER SERIES FOR THE I FUNCTION;
         //-----------------------------------------------------------------------;
-        let (y, NW_signed) = i_power_series(zn, order, KODE, NN, machine_consts)?;
+        let (y, NW_signed) = i_power_series(zn, order, KODE, NN)?;
         debug_assert!(NW_signed >= 0);
         (y, NW_signed.unsigned_abs())
     //   CALL z_power_series(ZNR, ZNI, FNU, KODE, NN, YR, YI, NW, TOL, ELIM, ALIM);
-    } else if AZ >= machine_consts.asymptotic_z_limit {
+    } else if AZ >= MACHINE_CONSTANTS.asymptotic_z_limit {
         //   GO TO 40;
         //    20 CONTINUE;
         //   if (AZ < RL) GO TO 30;
@@ -3865,7 +3818,7 @@ fn ZACAI(
         //-----------------------------------------------------------------------;
         //   CALL ZASYI(ZNR, ZNI, FNU, KODE, NN, YR, YI, NW, RL, TOL, ELIM,;
         //  * ALIM);
-        z_asymptotic_i(zn, order, KODE, NN, machine_consts)?
+        z_asymptotic_i(zn, order, KODE, NN)?
     //   if (NW < 0) GO TO 80;
     //   GO TO 40;
     //    30 CONTINUE;
@@ -3873,7 +3826,7 @@ fn ZACAI(
     //     MILLER ALGORITHM NORMALIZED BY THE SERIES FOR THE I FUNCTION;
     //-----------------------------------------------------------------------;
     } else {
-        i_miller(zn, order, KODE, NN, machine_consts)?
+        i_miller(zn, order, KODE, NN)?
         //   CALL ZMLRI(ZNR, ZNI, FNU, KODE, NN, YR, YI, NW, TOL);
         //   if(NW < 0) GO TO 80;
     };
@@ -3881,7 +3834,7 @@ fn ZACAI(
     //-----------------------------------------------------------------------;
     //     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE FOR THE K FUNCTION;
     //-----------------------------------------------------------------------;
-    let (cy, _) = ZBKNU(zn, order, KODE, 1, machine_consts)?;
+    let (cy, _) = ZBKNU(zn, order, KODE, 1)?;
     //   CALL ZBKNU(ZNR, ZNI, FNU, KODE, 1, CYR, CYI, NW, TOL, ELIM, ALIM);
     //   if (NW != 0) GO TO 80;
     //   let FMR = (MR as f64);s
@@ -3926,7 +3879,7 @@ fn ZACAI(
         //GO TO 70;
         let mut IUF = 0;
         //   ASCLE = 1.0e+3*d1mach(1)/TOL;
-        let NW = ZS1S2(zn, &mut c1, &mut c2, &mut IUF, machine_consts);
+        let NW = ZS1S2(zn, &mut c1, &mut c2, &mut IUF);
         //   CALL ZS1S2(ZNR, ZNI, C1R, C1I, C2R, C2I, NW, ASCLE, ALIM, IUF);
         NZ += NW;
     }
@@ -3943,14 +3896,7 @@ fn ZACAI(
     //       END;
 }
 
-fn ZUNK1(
-    z: Complex64,
-    order: f64,
-    KODE: Scaling,
-    MR: i64,
-    N: usize,
-    machine_consts: &MachineConsts,
-) -> BesselResult {
+fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselResult {
     // ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
     //  * ALIM)
     // ***BEGIN PROLOGUE  ZUNK1
@@ -4037,7 +3983,7 @@ fn ZUNK1(
         FN = order + (i as f64);
         init[J] = 0;
         let sum_opt;
-        (phi[J], zeta1[J], zeta2[J], sum_opt) = zunik(zr, FN, IKType::K, false, machine_consts);
+        (phi[J], zeta1[J], zeta2[J], sum_opt) = zunik(zr, FN, IKType::K, false);
         sum[J] = sum_opt.unwrap();
         //     CALL ZUNIK(ZRR, ZRI, FN, 2, 0, TOL, INIT(J), PHIR(J), PHII(J),;
         //  *   ZETA1R(J), ZETA1I(J), ZETA2R(J), ZETA2I(J), SUMR(J), SUMI(J),;
@@ -4068,12 +4014,12 @@ fn ZUNK1(
         //     TEST FOR UNDERFLOW AND OVERFLOW;
         //-----------------------------------------------------------------------;
         let mut skip_to_60 = false;
-        if RS1.abs() <= machine_consts.exponent_limit {
+        if RS1.abs() <= MACHINE_CONSTANTS.exponent_limit {
             //GO TO 60;
             if !KDFLG {
                 KFLAG = 1;
             }
-            if RS1.abs() >= machine_consts.approximation_limit {
+            if RS1.abs() >= MACHINE_CONSTANTS.approximation_limit {
                 //GO TO 40;
                 //-----------------------------------------------------------------------;
                 //     REFINE  TEST AND SCALE;
@@ -4082,7 +4028,7 @@ fn ZUNK1(
                 // APHI = ZABS(PHIR(J),PHII(J));
                 // RS1 = RS1 + DLOG(APHI);
                 RS1 += abs_phi.ln();
-                if RS1.abs() <= machine_consts.exponent_limit {
+                if RS1.abs() <= MACHINE_CONSTANTS.exponent_limit {
                     skip_to_60 = true;
                 }
                 //GO TO 60;
@@ -4108,8 +4054,8 @@ fn ZUNK1(
             ////////
             // TODO from_polar -> s1.exp()?!
             ////////
-            let s1 =
-                machine_consts.scaling_factors[KFLAG] * Complex64::from_polar(s1.re.exp(), s1.im);
+            let s1 = MACHINE_CONSTANTS.scaling_factors[KFLAG]
+                * Complex64::from_polar(s1.re.exp(), s1.im);
             // STR = DEXP(S1R)*CSSR(KFLAG);
             // S1R = STR*DCOS(S1I);
             // S1I = STR*DSIN(S1I);
@@ -4124,14 +4070,14 @@ fn ZUNK1(
             if KFLAG != 0
                 || !will_z_underflow(
                     s2,
-                    machine_consts.bry[0],
-                    machine_consts.abs_error_tolerance,
+                    MACHINE_CONSTANTS.bry[0],
+                    MACHINE_CONSTANTS.abs_error_tolerance,
                 )
             {
                 cy[KDFLG as usize] = s2;
                 // CYR(KDFLG) = S2R;
                 // CYI(KDFLG) = S2I;
-                y[i] = s2 * machine_consts.reciprocal_scaling_factors[KFLAG];
+                y[i] = s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG];
                 // YR(I) = S2R*CSRR(KFLAG);
                 // YI(I) = S2I*CSRR(KFLAG);
                 if KDFLG {
@@ -4146,7 +4092,8 @@ fn ZUNK1(
 
         if RS1 > 0.0 {
             return Err(Overflow);
-        } //GO TO 300;
+        }
+        //GO TO 300;
         //-----------------------------------------------------------------------;
         //     FOR ZR < 0.0, THE I FUNCTION TO BE ADDED WILL OVERFLOW;
         //-----------------------------------------------------------------------;
@@ -4195,7 +4142,7 @@ fn ZUNK1(
         //   let IPARD = 1;
         //   if (MR != 0){ IPARD = 0;}
         //   let mut INITD = 0;
-        let (phi, zet1d, zet2d, _sumd) = zunik(zr, order, IKType::K, MR == 0, machine_consts);
+        let (phi, zet1d, zet2d, _sumd) = zunik(zr, order, IKType::K, MR == 0);
         //   CALL ZUNIK(ZRR, ZRI, FN, 2, IPARD, TOL, INITD, PHIDR, PHIDI,;
         //  * ZET1DR, ZET1DI, ZET2DR, ZET2DI, SUMDR, SUMDI, CWRKR(1,3),;
         //  * CWRKI(1,3));
@@ -4223,13 +4170,13 @@ fn ZUNK1(
         //       }
         //    90 CONTINUE;
         let mut overflow_test = s1.re.abs();
-        if overflow_test > machine_consts.exponent_limit {
+        if overflow_test > MACHINE_CONSTANTS.exponent_limit {
             return Err(Overflow);
         }
 
-        if overflow_test > machine_consts.approximation_limit {
+        if overflow_test > MACHINE_CONSTANTS.approximation_limit {
             overflow_test += phi.abs().ln();
-            if overflow_test > machine_consts.exponent_limit {
+            if overflow_test > MACHINE_CONSTANTS.exponent_limit {
                 if overflow_test == 0.0 && z.re > 0.0 {
                     return Ok((c_zeros(N), N));
                 } else {
@@ -4268,8 +4215,8 @@ fn ZUNK1(
             //   S2R = CYR(2);
             //   S2I = CYI(2);
 
-            let mut C1R = machine_consts.scaling_factors[KFLAG];
-            let mut ASCLE = machine_consts.bry[KFLAG];
+            let mut C1R = MACHINE_CONSTANTS.scaling_factors[KFLAG];
+            let mut ASCLE = MACHINE_CONSTANTS.bry[KFLAG];
             //   DO 120 I=IB,N;
             for i in IB..N {
                 let ct = s2;
@@ -4301,20 +4248,20 @@ fn ZUNK1(
                     continue;
                 } //GO TO 120;
                 KFLAG += 1;
-                ASCLE = machine_consts.bry[KFLAG];
+                ASCLE = MACHINE_CONSTANTS.bry[KFLAG];
                 s1 *= C1R;
                 // S1R = S1R*C1R;
                 // S1I = S1I*C1R;
                 s1 = ct;
                 // S2R = C2R;
                 // S2I = C2I;
-                s1 *= machine_consts.scaling_factors[KFLAG];
-                s2 *= machine_consts.scaling_factors[KFLAG];
+                s1 *= MACHINE_CONSTANTS.scaling_factors[KFLAG];
+                s2 *= MACHINE_CONSTANTS.scaling_factors[KFLAG];
                 // S1R = S1R*CSSR(KFLAG);
                 // S1I = S1I*CSSR(KFLAG);
                 // S2R = S2R*CSSR(KFLAG);
                 // S2I = S2I*CSSR(KFLAG);
-                C1R = machine_consts.scaling_factors[KFLAG];
+                C1R = MACHINE_CONSTANTS.scaling_factors[KFLAG];
                 //   120 CONTINUE;
             }
         }
@@ -4350,7 +4297,7 @@ fn ZUNK1(
         //       CSPNI = -CSPNI;
         //   170 CONTINUE;
         //   ASC = BRY(1);
-        // let ASC = machine_consts.bry[0];
+        // let ASC = MACHINE_CONSTANTS.bry[0];
         let mut IUF = 0;
         //   let KK = N;
         KDFLG = false;
@@ -4392,7 +4339,7 @@ fn ZUNK1(
             // INITD = 0;
             // }
             //   180   CONTINUE;
-            let (phid, zet1d, zet2d, sumd) = zunik(zr, order, IKType::I, false, machine_consts); //, &mut INITD);
+            let (phid, zet1d, zet2d, sumd) = zunik(zr, order, IKType::I, false); //, &mut INITD);
             let sumd = sumd.unwrap();
             //     CALL ZUNIK(ZRR, ZRI, FN, 1, 0, TOL, INITD, PHIDR, PHIDI,;
             //  *   ZET1DR, ZET1DI, ZET2DR, ZET2DI, SUMDR, SUMDI,;
@@ -4433,7 +4380,7 @@ fn ZUNK1(
                 // let str = ;
                 // STR = DEXP(S1R)*CSSR(IFLAG);
                 let s1 = Complex64::from_polar(
-                    s1.re.exp() * machine_consts.scaling_factors[inner_flag],
+                    s1.re.exp() * MACHINE_CONSTANTS.scaling_factors[inner_flag],
                     s1.im,
                 );
                 // S1R = STR*DCOS(S1I);
@@ -4445,8 +4392,8 @@ fn ZUNK1(
                 if inner_flag == 0
                     && will_z_underflow(
                         s2,
-                        machine_consts.bry[0],
-                        machine_consts.abs_error_tolerance,
+                        MACHINE_CONSTANTS.bry[0],
+                        MACHINE_CONSTANTS.abs_error_tolerance,
                     )
                 {
                     s2 = c_zero();
@@ -4459,7 +4406,7 @@ fn ZUNK1(
                 (s2, Some(new_iflag))
                 //   230   CONTINUE;},
             };
-            let (mut s2, new_iflag) = match Overflow::find_overflow(s1.re, phid, machine_consts) {
+            let (mut s2, new_iflag) = match Overflow::find_overflow(s1.re, phid) {
                 Overflow::Overflow => {
                     return Err(Overflow);
                 }
@@ -4508,7 +4455,7 @@ fn ZUNK1(
             let c2 = s2;
             // C2R = S2R;
             // C2I = S2I;
-            s2 *= machine_consts.scaling_factors[IFLAG];
+            s2 *= MACHINE_CONSTANTS.scaling_factors[IFLAG];
             // S2R = S2R*CSRR(IFLAG);
             // S2I = S2I*CSRR(IFLAG);
             //-----------------------------------------------------------------------;
@@ -4520,7 +4467,7 @@ fn ZUNK1(
             if KODE == Scaling::Scaled {
                 // if (KODE == 1) GO TO 250;
                 // CALL ZS1S2(ZRR, ZRI, S1R, S1I, S2R, S2I, NW, ASC, ALIM, IUF);
-                let NW = ZS1S2(zr, &mut s1, &mut s2, &mut IUF, machine_consts);
+                let NW = ZS1S2(zr, &mut s1, &mut s2, &mut IUF);
                 NZ += NW;
             }
             //   250   CONTINUE;
@@ -4568,8 +4515,8 @@ fn ZUNK1(
         //-----------------------------------------------------------------------;
         let mut s1 = cy[0];
         let mut s2 = cy[1];
-        let mut csr = machine_consts.scaling_factors[IFLAG];
-        let mut ASCLE = machine_consts.bry[IFLAG];
+        let mut csr = MACHINE_CONSTANTS.scaling_factors[IFLAG];
+        let mut ASCLE = MACHINE_CONSTANTS.bry[IFLAG];
         //   S1R = CYR(1);
         //   S1I = CYI(1);
         //   S2R = CYR(2);
@@ -4604,7 +4551,7 @@ fn ZUNK1(
             // if (KODE == 1) GO TO 280;
             if KODE == Scaling::Scaled {
                 // CALL ZS1S2(ZRR, ZRI, C1R, C1I, C2R, C2I, NW, ASC, ALIM, IUF);
-                let NW = ZS1S2(zr, &mut c1, &mut c2, &mut IUF, machine_consts);
+                let NW = ZS1S2(zr, &mut c1, &mut c2, &mut IUF);
                 NZ += NW;
             }
             //   280   CONTINUE;
@@ -4628,21 +4575,21 @@ fn ZUNK1(
                 continue;
             } //GO TO 290;
             // IFLAG = IFLAG + 1;
-            IFLAG+=1;
-            ASCLE = machine_consts.bry[IFLAG];//BRY(IFLAG);
+            IFLAG += 1;
+            ASCLE = MACHINE_CONSTANTS.bry[IFLAG]; //BRY(IFLAG);
             s1 *= csr;
             // S1R = S1R * CSR;
             // S1I = S1I * CSR;
             s2 = ck;
             // S2R = CKR;
             // S2I = CKI
-            s1 *= machine_consts.scaling_factors[IFLAG];
-            s2 *= machine_consts.scaling_factors[IFLAG];
+            s1 *= MACHINE_CONSTANTS.scaling_factors[IFLAG];
+            s2 *= MACHINE_CONSTANTS.scaling_factors[IFLAG];
             // S1R = S1R * CSSR(IFLAG);
             // S1I = S1I * CSSR(IFLAG);
             // S2R = S2R * CSSR(IFLAG);
             // S2I = S2I * CSSR(IFLAG);
-            csr = machine_consts.scaling_factors[IFLAG];
+            csr = MACHINE_CONSTANTS.scaling_factors[IFLAG];
             // CSR = CSRR(IFLAG);
             //   290 CONTINUE;
         }
@@ -4658,7 +4605,7 @@ fn ZUNK1(
 
 /*
 
-fn ZUNK2(z: Complex64,order: f64,KODE: Scaling,MR: i64,N: usize,machine_consts: &MachineConsts,)->BesselResult{
+fn ZUNK2(z: Complex64,order: f64,KODE: Scaling,MR: i64,N: usize,)->BesselResult{
     //ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
      // * ALIM)
 // ***BEGIN PROLOGUE  ZUNK2
@@ -5187,7 +5134,6 @@ fn ZBUNI(
     N: usize,
     NUI: usize,
     y: &mut Vec<Complex64>,
-    machine_consts: &MachineConsts,
 ) -> Result<(usize, usize), BesselError> {
     // ***BEGIN PROLOGUE  ZBUNI
     // ***REFER TO  ZBESI,ZBESK
@@ -5213,14 +5159,14 @@ fn ZBUNI(
             //     ASYMPTOTIC EXPANSION FOR I(FNU,Z) FOR LARGE FNU APPLIED IN;
             //     -PI/3 <= ARG(Z) <= PI/3;
             //-----------------------------------------------------------------------;
-            ZUNI1(z, GNU, KODE, 2, &mut cy, machine_consts)?
+            ZUNI1(z, GNU, KODE, 2, &mut cy)?
         } else {
             //-----------------------------------------------------------------------;
             //     ASYMPTOTIC EXPANSION FOR J(FNU,Z*EXP(M*FRAC_PI_2)) FOR LARGE FNU;
             //     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I;
             //     AND FRAC_PI_2=PI/2;
             //-----------------------------------------------------------------------;
-            ZUNI2(z, GNU, KODE, 2, &mut cy, machine_consts)?
+            ZUNI2(z, GNU, KODE, 2, &mut cy)?
         };
         if NW != 0 {
             return Ok((0, N));
@@ -5228,17 +5174,18 @@ fn ZBUNI(
         //----------------------------------------------------------------------;
         //     SCALE BACKWARD RECURRENCE, BRY(3) IS DEFINED BUT NEVER USED;
         //----------------------------------------------------------------------;
-        let BRY = [
-            machine_consts.absolute_approximation_limit,
-            1.0 / machine_consts.absolute_approximation_limit,
-            1.0 / machine_consts.absolute_approximation_limit,
+        let local_bry = [
+            MACHINE_CONSTANTS.absolute_approximation_limit,
+            1.0 / MACHINE_CONSTANTS.absolute_approximation_limit,
+            1.0 / MACHINE_CONSTANTS.absolute_approximation_limit,
         ];
-        let (mut IFLAG, mut ASCLE, mut CSCLR) = if cy[0].abs() <= BRY[0] {
-            (1, BRY[0], 1.0 / machine_consts.abs_error_tolerance)
-        } else if cy[0].abs() >= BRY[1] {
-            (3, BRY[2], machine_consts.abs_error_tolerance)
+        let (mut IFLAG, mut ASCLE, mut CSCLR) = if cy[0].abs() <= local_bry[0] {
+            // TODO Subtract 1 throughout
+            (1, local_bry[0], 1.0 / MACHINE_CONSTANTS.abs_error_tolerance)
+        } else if cy[0].abs() >= local_bry[1] {
+            (3, local_bry[2], MACHINE_CONSTANTS.abs_error_tolerance)
         } else {
-            (2, BRY[1], 1.0)
+            (2, local_bry[1], 1.0)
         };
 
         let mut CSCRR = 1.0 / CSCLR;
@@ -5260,10 +5207,10 @@ fn ZBUNI(
                 continue;
             }
             IFLAG += 1;
-            ASCLE = BRY[IFLAG - 1];
+            ASCLE = local_bry[IFLAG - 1];
             s1 *= CSCRR;
             s2 = st;
-            CSCLR *= machine_consts.abs_error_tolerance;
+            CSCLR *= MACHINE_CONSTANTS.abs_error_tolerance;
             CSCRR = 1.0 / CSCLR;
             s1 *= CSCLR;
             s2 *= CSCLR;
@@ -5290,10 +5237,10 @@ fn ZBUNI(
                 continue;
             }
             IFLAG += 1;
-            ASCLE = BRY[IFLAG - 1];
+            ASCLE = local_bry[IFLAG - 1];
             s1 *= CSCRR;
             s2 = y[K - 1];
-            CSCLR *= machine_consts.abs_error_tolerance;
+            CSCLR *= MACHINE_CONSTANTS.abs_error_tolerance;
             CSCRR = 1.0 / CSCLR;
             s1 *= CSCLR;
             s2 *= CSCLR;
@@ -5305,14 +5252,14 @@ fn ZBUNI(
         //     ASYMPTOTIC EXPANSION FOR I(FNU,Z) FOR LARGE FNU APPLIED IN;
         //     -PI/3 <= ARG(Z) <= PI/3;
         //-----------------------------------------------------------------------;
-        ZUNI1(z, order, KODE, N, y, machine_consts)?
+        ZUNI1(z, order, KODE, N, y)?
     } else {
         //-----------------------------------------------------------------------;
         //     ASYMPTOTIC EXPANSION FOR J(FNU,Z*EXP(M*FRAC_PI_2)) FOR LARGE FNU;
         //     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I;
         //     AND FRAC_PI_2=PI/2;
         //-----------------------------------------------------------------------;
-        ZUNI2(z, order, KODE, N, y, machine_consts)?
+        ZUNI2(z, order, KODE, N, y)?
     };
 
     Ok((NW, NLAST))
@@ -5324,7 +5271,6 @@ fn ZUNI1(
     KODE: Scaling,
     N: usize,
     y: &mut Vec<Complex64>,
-    machine_consts: &MachineConsts,
 ) -> BesselResult<(usize, usize)> {
     // ***BEGIN PROLOGUE  ZUNI1
     // ***REFER TO  ZBESI,ZBESK
@@ -5347,7 +5293,7 @@ fn ZUNI1(
     //     CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER;
     //-----------------------------------------------------------------------;
     let mut FN = order.max(1.0);
-    let (_, zeta1, zeta2, _) = zunik(z, FN, IKType::I, true, machine_consts);
+    let (_, zeta1, zeta2, _) = zunik(z, FN, IKType::I, true);
     let s1 = if KODE == Scaling::Scaled {
         let mut st = z + zeta2;
         let rast = FN / st.abs();
@@ -5357,7 +5303,7 @@ fn ZUNI1(
         -zeta1 + zeta2
     };
     let rs1 = s1.re;
-    if rs1.abs() > machine_consts.exponent_limit {
+    if rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
         if rs1 > 0.0 {
             return Err(Overflow);
         }
@@ -5377,21 +5323,21 @@ fn ZUNI1(
             if ND == 0 {
                 return Ok((NZ, NLAST));
             }
-            let NUF = zuoik(z, order, KODE, IKType::I, ND, y, machine_consts)?;
+            let NUF = zuoik(z, order, KODE, IKType::I, ND, y)?;
             ND -= NUF;
             NZ += NUF;
             if ND == 0 {
                 return Ok((NZ, NLAST));
             }
             FN = order + ((ND - 1) as f64);
-            if FN < machine_consts.asymptotic_order_limit {
+            if FN < MACHINE_CONSTANTS.asymptotic_order_limit {
                 return Ok((NZ, ND));
             }
         }
 
         for i in 0..2.min(ND) {
             FN = order + ((ND - (i + 1)) as f64);
-            let (phi, zeta1, zeta2, sum) = zunik(z, FN, IKType::I, false, machine_consts);
+            let (phi, zeta1, zeta2, sum) = zunik(z, FN, IKType::I, false);
             let sum = sum.unwrap();
             let mut s1 = if KODE == Scaling::Scaled {
                 let mut st = z + zeta2;
@@ -5405,19 +5351,19 @@ fn ZUNI1(
             //     TEST FOR UNDERFLOW AND OVERFLOW;
             //-----------------------------------------------------------------------;
             let mut rs1 = s1.re;
-            if rs1.abs() > machine_consts.exponent_limit {
+            if rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
                 set_underflow_and_update = true;
                 continue 'l30;
             }
             if i == 0 {
                 IFLAG = 2;
             }
-            if rs1.abs() > machine_consts.approximation_limit {
+            if rs1.abs() > MACHINE_CONSTANTS.approximation_limit {
                 //-----------------------------------------------------------------------;
                 //     REFINE  TEST AND SCALE;
                 //-----------------------------------------------------------------------;
                 rs1 += phi.abs().ln();
-                if rs1.abs() > machine_consts.exponent_limit {
+                if rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
                     set_underflow_and_update = true;
                     continue 'l30;
                 }
@@ -5434,20 +5380,20 @@ fn ZUNI1(
             //     SCALE S1 if CABS(S1) < ASCLE;
             //-----------------------------------------------------------------------;
             let mut s2 = phi * sum;
-            s1 = s1.re.exp() * machine_consts.scaling_factors[IFLAG - 1] * Complex64::cis(s1.im);
+            s1 = s1.re.exp() * MACHINE_CONSTANTS.scaling_factors[IFLAG - 1] * Complex64::cis(s1.im);
             s2 *= s1;
             if IFLAG == 1 {
                 if will_z_underflow(
                     s2,
-                    machine_consts.bry[0],
-                    machine_consts.abs_error_tolerance,
+                    MACHINE_CONSTANTS.bry[0],
+                    MACHINE_CONSTANTS.abs_error_tolerance,
                 ) {
                     set_underflow_and_update = true;
                     continue 'l30;
                 }
             }
             cy[i] = s2;
-            y[ND - i - 1] = s2 * machine_consts.reciprocal_scaling_factors[IFLAG - 1];
+            y[ND - i - 1] = s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[IFLAG - 1];
         }
         break 'l30;
     }
@@ -5456,8 +5402,8 @@ fn ZUNI1(
     }
     let rz = 2.0 * z.conj() / z.abs().pow(2);
     let [mut s1, mut s2] = cy;
-    let mut C1R = machine_consts.reciprocal_scaling_factors[IFLAG - 1];
-    let mut ASCLE = machine_consts.bry[IFLAG - 1];
+    let mut C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[IFLAG - 1];
+    let mut ASCLE = MACHINE_CONSTANTS.bry[IFLAG - 1];
     let mut K = ND - 2;
     FN = K as f64;
     for _ in 2..ND {
@@ -5475,12 +5421,12 @@ fn ZUNI1(
             continue;
         }
         IFLAG += 1;
-        ASCLE = machine_consts.bry[IFLAG - 1];
+        ASCLE = MACHINE_CONSTANTS.bry[IFLAG - 1];
         s1 *= C1R;
         s2 = c2;
-        s1 *= machine_consts.scaling_factors[IFLAG - 1];
-        s2 *= machine_consts.scaling_factors[IFLAG - 1];
-        C1R = machine_consts.reciprocal_scaling_factors[IFLAG - 1];
+        s1 *= MACHINE_CONSTANTS.scaling_factors[IFLAG - 1];
+        s2 *= MACHINE_CONSTANTS.scaling_factors[IFLAG - 1];
+        C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[IFLAG - 1];
     }
     Ok((NZ, NLAST))
 }
@@ -5491,7 +5437,6 @@ fn ZUNI2(
     KODE: Scaling,
     N: usize,
     y: &mut Vec<Complex64>,
-    machine_consts: &MachineConsts,
 ) -> BesselResult<(usize, usize)> {
     // ***BEGIN PROLOGUE  ZUNI2
     // ***REFER TO  ZBESI,ZBESK
@@ -5541,7 +5486,7 @@ fn ZUNI2(
     //     CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER;
     //-----------------------------------------------------------------------;
     let mut FN = order.max(1.0);
-    let (_, _, zeta1, zeta2, _, _) = zunhj(zn, FN, true, machine_consts.abs_error_tolerance);
+    let (_, _, zeta1, zeta2, _, _) = zunhj(zn, FN, true, MACHINE_CONSTANTS.abs_error_tolerance);
 
     let s1 = if KODE == Scaling::Scaled {
         let mut st = zb + zeta2;
@@ -5552,7 +5497,7 @@ fn ZUNI2(
         -zeta1 + zeta2
     };
     let mut rs1 = s1.re.abs();
-    if rs1.abs() > machine_consts.exponent_limit {
+    if rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
         return if s1.re > 0.0 {
             Err(Overflow)
         } else {
@@ -5574,14 +5519,14 @@ fn ZUNI2(
             if ND == 0 {
                 return Ok((NZ, NLAST));
             }
-            let NUF = zuoik(z, order, KODE, IKType::I, ND, y, machine_consts)?;
+            let NUF = zuoik(z, order, KODE, IKType::I, ND, y)?;
             ND -= NUF;
             NZ += NUF;
             if ND == 0 {
                 return Ok((NZ, NLAST));
             }
             FN = order + ((ND - 1) as f64);
-            if FN < machine_consts.asymptotic_order_limit {
+            if FN < MACHINE_CONSTANTS.asymptotic_order_limit {
                 return Ok((NZ, ND));
             }
             let index = (INU + ND - 1) % 4;
@@ -5596,7 +5541,7 @@ fn ZUNI2(
         for i in 0..ND.min(2) {
             FN = order + ((ND - (i + 1)) as f64);
             let (phi, arg, zeta1, zeta2, asum, bsum) =
-                zunhj(zn, FN, false, machine_consts.abs_error_tolerance);
+                zunhj(zn, FN, false, MACHINE_CONSTANTS.abs_error_tolerance);
             let asum = asum.unwrap();
             let bsum = bsum.unwrap();
             let s1 = if KODE == Scaling::Scaled {
@@ -5611,19 +5556,19 @@ fn ZUNI2(
             //     TEST FOR UNDERFLOW AND OVERFLOW;
             //-----------------------------------------------------------------------;
             rs1 = s1.re;
-            if rs1.abs() > machine_consts.exponent_limit {
+            if rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
                 set_underflow_and_update = true;
                 continue 'l40;
             }
             if i == 0 {
                 IFLAG = 2
             };
-            if rs1.abs() >= machine_consts.approximation_limit {
+            if rs1.abs() >= MACHINE_CONSTANTS.approximation_limit {
                 //-----------------------------------------------------------------------;
                 //     REFINE  TEST AND SCALE;
                 //-----------------------------------------------------------------------;
                 rs1 += phi.abs().ln() - 0.25 * arg.abs().ln() - AIC;
-                if rs1.abs() > machine_consts.exponent_limit {
+                if rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
                     set_underflow_and_update = true;
                     continue 'l40;
                 }
@@ -5653,14 +5598,14 @@ fn ZUNI2(
             };
 
             let mut s2 = phi * (d_airy * bsum + a_airy * asum);
-            let s1 = machine_consts.scaling_factors[IFLAG - 1]
+            let s1 = MACHINE_CONSTANTS.scaling_factors[IFLAG - 1]
                 * Complex64::from_polar(s1.re.exp(), s1.im);
             s2 *= s1;
             if IFLAG == 1 {
                 if will_z_underflow(
                     s2,
-                    machine_consts.bry[0],
-                    machine_consts.abs_error_tolerance,
+                    MACHINE_CONSTANTS.bry[0],
+                    MACHINE_CONSTANTS.abs_error_tolerance,
                 ) {
                     set_underflow_and_update = true;
                     continue 'l40;
@@ -5671,7 +5616,7 @@ fn ZUNI2(
             }
             s2 *= c2;
             cy[i] = s2;
-            y[ND - i - 1] = s2 * machine_consts.reciprocal_scaling_factors[IFLAG - 1];
+            y[ND - i - 1] = s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[IFLAG - 1];
             c2 *= CIDI * Complex64::I;
         }
         if ND <= 2 {
@@ -5679,8 +5624,8 @@ fn ZUNI2(
         }
         let rz = 2.0 * z.conj() / z.abs().pow(2);
         let [mut s1, mut s2] = cy;
-        let mut C1R = machine_consts.reciprocal_scaling_factors[IFLAG - 1];
-        let mut ASCLE = machine_consts.bry[IFLAG - 1];
+        let mut C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[IFLAG - 1];
+        let mut ASCLE = MACHINE_CONSTANTS.bry[IFLAG - 1];
         for K in (0..(ND - 2)).rev() {
             let st = s2;
             s2 = s1 + (order + ((K + 1) as f64)) * rz * s2;
@@ -5693,12 +5638,12 @@ fn ZUNI2(
                 continue;
             }
             IFLAG += 1;
-            ASCLE = machine_consts.bry[IFLAG - 1];
+            ASCLE = MACHINE_CONSTANTS.bry[IFLAG - 1];
             s1 *= C1R;
             s2 = y[K];
-            s1 *= machine_consts.scaling_factors[IFLAG - 1];
-            s2 *= machine_consts.scaling_factors[IFLAG - 1];
-            C1R = machine_consts.reciprocal_scaling_factors[IFLAG - 1];
+            s1 *= MACHINE_CONSTANTS.scaling_factors[IFLAG - 1];
+            s2 *= MACHINE_CONSTANTS.scaling_factors[IFLAG - 1];
+            C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[IFLAG - 1];
         }
         break 'l40;
     }

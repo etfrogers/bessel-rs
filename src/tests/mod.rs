@@ -8,7 +8,7 @@ use num::pow::Pow;
 use rstest::rstest;
 
 use crate::amos::bindings::zbesj_wrap;
-use crate::amos::{BesselResult, MachineConsts, zbesj};
+use crate::amos::{BesselResult, MACHINE_CONSTANTS, MachineConsts, zbesj};
 use crate::{BesselError, Scaling, bessel_j};
 use complex_bessel_rs::bessel_i::bessel_i as bessel_i_ref;
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_ref;
@@ -245,7 +245,7 @@ fn check_complex_arrays_equal(
     let actual = actual.clone().into_vec();
     let expected = expected.clone().into_vec();
     let reference = reference.clone().into_vec();
-    let exp_error = MachineConsts::new().abs_error_tolerance;
+    let exp_error = MACHINE_CONSTANTS.abs_error_tolerance;
 
     for (i, (&act, exp)) in actual.iter().zip(expected).enumerate() {
         let ref_val = reference.get(i);
