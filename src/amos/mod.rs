@@ -4,7 +4,7 @@ pub use gamma_ln::{GammaError, gamma_ln};
 pub use i_power_series::i_power_series;
 use num::{Complex, One, Zero, complex::Complex64};
 use thiserror::Error;
-pub use translator::zbesj;
+pub use translator::{zbesi, zbesj};
 pub mod bindings;
 mod gamma_ln;
 mod i_power_series;
@@ -93,6 +93,24 @@ impl IKType {
 pub enum HankelKind {
     First,
     Second,
+}
+
+impl Into<f64> for HankelKind {
+    fn into(self) -> f64 {
+        match self {
+            HankelKind::First => 1.0,
+            HankelKind::Second => 2.0,
+        }
+    }
+}
+
+impl Into<i64> for HankelKind {
+    fn into(self) -> i64 {
+        match self {
+            HankelKind::First => 1,
+            HankelKind::Second => 2,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]

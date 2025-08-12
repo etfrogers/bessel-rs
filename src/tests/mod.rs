@@ -10,6 +10,7 @@ use rstest::rstest;
 use crate::amos::bindings::zbesj_wrap;
 use crate::amos::{BesselResult, MachineConsts, zbesj};
 use crate::{BesselError, Scaling, bessel_j};
+use complex_bessel_rs::bessel_i::bessel_i as bessel_i_ref;
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_ref;
 
 #[cfg(feature = "random_tests")]
@@ -67,6 +68,26 @@ fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     }
 
     let expected = bessel_j_ref(order, z.into());
+    if let Ok(actual) = actual {
+        check_complex_arrays_equal(&actual, &expected.unwrap(), &Vec::new());
+    } else {
+        assert_eq!(actual.unwrap_err().error_code(), expected.unwrap_err())
+    }
+}
+
+#[apply(bessel_j_cases)]
+#[trace]
+fn test_bessel_i(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
+    use crate::bessel_i;
+
+    let z = Complex64::new(zr, zi);
+    let actual = bessel_i(order, z);
+    dbg!(&actual);
+    if actual == Err(BesselError::NotYetImplemented) {
+        todo!()
+    }
+
+    let expected = bessel_i_ref(order, z.into());
     if let Ok(actual) = actual {
         check_complex_arrays_equal(&actual, &expected.unwrap(), &Vec::new());
     } else {

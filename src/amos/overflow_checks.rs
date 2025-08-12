@@ -11,6 +11,60 @@ use crate::amos::{PositiveArg, c_zero, machine::d1mach, utils::will_z_underflow}
 
 use super::{BesselError::*, BesselResult, IKType, MachineConsts, Scaling, c_one, c_zeros};
 
+pub enum Overflow {
+    Overflow,
+    RefinedOverflow,
+    Underflow,
+    RefinedUnderflow,
+    None,
+}
+
+impl Overflow {
+    pub fn find_overflow(rs1: f64, phi: Complex64, machine_consts: &MachineConsts) -> Self {
+        // let choose_under_or_over = |rs: f64| return if rs>0.0{Self::Overflow } else {Self::Underflow};
+        //-----------------------------------------------------------------------;
+        //     TEST FOR UNDERFLOW AND OVERFLOW;
+        //-----------------------------------------------------------------------;
+        if rs1.abs() > machine_consts.exponent_limit
+        //GO TO 260;
+        {
+            return if rs1 > 0.0 {
+                Self::Overflow
+            } else {
+                Self::Underflow
+            };
+        }
+        // if (KDFLG == 1) IFLAG = 2;
+        if rs1.abs() < machine_consts.approximation_limit {
+            return Self::None;
+        } //GO TO 220;
+        //-----------------------------------------------------------------------;
+        //     REFINE  TEST AND SCALE;
+        //-----------------------------------------------------------------------;
+        // APHI = ZABS(PHIDR,PHIDI);
+        // RS1 = RS1 + DLOG(APHI);
+        let refined_rs1 = rs1 + phi.abs().ln();
+        if refined_rs1.abs() > machine_consts.exponent_limit
+        //GO TO 260;
+        {
+            return if refined_rs1 > 0.0 {
+                Self::Overflow
+            } else {
+                Self::Underflow
+            };
+        }
+
+        if refined_rs1 > 0.0 {
+            Self::RefinedOverflow
+        } else {
+            Self::RefinedUnderflow
+        }
+        // if (KDFLG == 1) IFLAG = 1;
+        // if (RS1 < 0.0) GO TO 220;
+        // if (KDFLG == 1) IFLAG = 3;
+    }
+}
+
 pub fn zuoik(
     z: Complex64,
     order: f64, //ZR, ZI, FNU,
