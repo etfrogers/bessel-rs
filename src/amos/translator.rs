@@ -2368,12 +2368,12 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
         }
         AK = (order + 1.0) * smu.re.abs();
         KFLAG = if AK > MACHINE_CONSTANTS.approximation_limit {
-            3
-        } else {
             2
+        } else {
+            1
         };
-        s2 *= MACHINE_CONSTANTS.scaling_factors[KFLAG - 1] * rz;
-        s1 *= MACHINE_CONSTANTS.scaling_factors[KFLAG - 1];
+        s2 *= MACHINE_CONSTANTS.scaling_factors[KFLAG] * rz;
+        s1 *= MACHINE_CONSTANTS.scaling_factors[KFLAG];
         if KODED == Scaling::Scaled {
             let z_exp = z.exp();
             s1 *= z_exp;
@@ -2389,15 +2389,15 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
         //     RECURSION;
         //-----------------------------------------------------------------------;
         let mut coef = Complex64::new(RTFRAC_PI_2, 0.0) / z.sqrt();
-        KFLAG = 2;
+        KFLAG = 1;
         if KODED == Scaling::Unscaled {
             if z.re > MACHINE_CONSTANTS.approximation_limit {
                 KODED = Scaling::Scaled;
                 underflow_occurred = true;
-                KFLAG = 2;
+                KFLAG = 1;
             } else {
                 coef *= (-z.re).exp()
-                    * MACHINE_CONSTANTS.scaling_factors[KFLAG - 1]
+                    * MACHINE_CONSTANTS.scaling_factors[KFLAG]
                     * Complex64::cis(z.im).conj();
             }
         }
@@ -2530,14 +2530,14 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
     'l225: loop {
         if !skip_to_240 {
             if !(INU <= 0 && N <= 1) {
-                let mut P1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG - 1];
-                let mut ASCLE = MACHINE_CONSTANTS.bry[KFLAG - 1];
+                let mut P1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG];
+                let mut ASCLE = MACHINE_CONSTANTS.bry[KFLAG];
                 for _ in INUB..=INU {
                     let st = s2;
                     s2 = ck * s2 + s1;
                     s1 = st;
                     ck += rz;
-                    if KFLAG >= 3 {
+                    if KFLAG >= 2 {
                         continue;
                     }
                     let p2 = s2 * P1R;
@@ -2545,12 +2545,12 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
                         continue;
                     }
                     KFLAG += 1;
-                    ASCLE = MACHINE_CONSTANTS.bry[KFLAG - 1];
+                    ASCLE = MACHINE_CONSTANTS.bry[KFLAG];
                     s1 *= P1R;
                     s2 = p2;
-                    s1 *= MACHINE_CONSTANTS.scaling_factors[KFLAG - 1];
-                    s2 *= MACHINE_CONSTANTS.scaling_factors[KFLAG - 1];
-                    P1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG - 1];
+                    s1 *= MACHINE_CONSTANTS.scaling_factors[KFLAG];
+                    s2 *= MACHINE_CONSTANTS.scaling_factors[KFLAG];
+                    P1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG];
                 }
             } else if underflow_occurred {
                 //-----------------------------------------------------------------------;
@@ -2563,7 +2563,7 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
                 let ASCLE = MACHINE_CONSTANTS.bry[0];
                 let mut zd = z;
                 let mut IC: isize = -2;
-                let mut J = 2; // TODO subtract 1 throughout
+                let mut J = 1;
                 let mut I = 0;
                 for i in 0..INU {
                     I = i + 1;
@@ -2577,8 +2577,8 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
                         let p1 = (p2.re.exp() / MACHINE_CONSTANTS.abs_error_tolerance)
                             * Complex64::cis(p2.im);
                         if will_z_underflow(p1, ASCLE, MACHINE_CONSTANTS.abs_error_tolerance) {
-                            J = 3 - J;
-                            cy[J - 1] = p1;
+                            J = 1 - J;
+                            cy[J] = p1;
                             // IF(IC.EQ.(I-1)) GO TO 264
                             // below implies we got here twice in a row
                             if IC == i - 1 {
@@ -2595,11 +2595,11 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
                         s2 *= CELMR;
                     }
                 }
-                KFLAG = 1;
+                KFLAG = 0;
                 INUB = I + 1;
-                s2 = cy[J - 1];
-                J = 3 - J;
-                s1 = cy[J - 1];
+                s2 = cy[J];
+                J = 1 - J;
+                s1 = cy[J];
                 if INUB <= INU {
                     continue 'l225;
                 }
@@ -2611,11 +2611,11 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
         // ********* basic setup
         let (mut KK, mut y) = if !underflow_occurred {
             let mut y = c_zeros(N);
-            y[0] = s1 * MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG - 1];
+            y[0] = s1 * MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG];
             if N == 1 {
                 return Ok((y, NZ));
             }
-            y[1] = s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG - 1];
+            y[1] = s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG];
             if N == 2 {
                 return Ok((y, NZ));
             }
@@ -2646,15 +2646,15 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
                 return Ok((y, NZ));
             }
             ck = (order + ((KK - 1) as f64)) * rz;
-            KFLAG = 1;
+            KFLAG = 0;
             (KK, y)
         };
         KK += 1;
         if KK >= N {
             return Ok((y, NZ));
         }
-        let mut P1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG - 1];
-        let mut ASCLE = MACHINE_CONSTANTS.bry[KFLAG - 1];
+        let mut P1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG];
+        let mut ASCLE = MACHINE_CONSTANTS.bry[KFLAG];
         let mut I;
         for i in KK..N {
             I = i;
@@ -2664,19 +2664,19 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
             ck *= rz;
             p2 = s2 * P1R;
             y[I - 1] = p2;
-            if KFLAG >= 3 {
+            if KFLAG >= 2 {
                 return Err(LossOfSignificance);
             };
             if max_abs_component(p2) <= ASCLE {
                 continue;
             }
             KFLAG += 1;
-            ASCLE = MACHINE_CONSTANTS.bry[KFLAG - 1];
+            ASCLE = MACHINE_CONSTANTS.bry[KFLAG];
             s1 *= P1R;
             s2 = p2;
-            s1 *= MACHINE_CONSTANTS.scaling_factors[KFLAG - 1];
-            s2 *= MACHINE_CONSTANTS.scaling_factors[KFLAG - 1];
-            P1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG - 1];
+            s1 *= MACHINE_CONSTANTS.scaling_factors[KFLAG];
+            s2 *= MACHINE_CONSTANTS.scaling_factors[KFLAG];
+            P1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG];
         }
         return Ok((y, NZ));
     }
@@ -3969,7 +3969,7 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
     let mut FN = 0.0;
     // let mut completed_it = false;
     let mut y = c_zeros(N);
-    let mut KFLAG=1; // TODO subtract 1
+    let mut KFLAG = 1;
 
     //   DO 70 I=1,N;
     for i in 0..N {
@@ -5180,12 +5180,11 @@ fn ZBUNI(
             1.0 / MACHINE_CONSTANTS.absolute_approximation_limit,
         ];
         let (mut IFLAG, mut ASCLE, mut CSCLR) = if cy[0].abs() <= local_bry[0] {
-            // TODO Subtract 1 throughout
-            (1, local_bry[0], 1.0 / MACHINE_CONSTANTS.abs_error_tolerance)
+            (0, local_bry[0], 1.0 / MACHINE_CONSTANTS.abs_error_tolerance)
         } else if cy[0].abs() >= local_bry[1] {
-            (3, local_bry[2], MACHINE_CONSTANTS.abs_error_tolerance)
+            (2, local_bry[2], MACHINE_CONSTANTS.abs_error_tolerance)
         } else {
-            (2, local_bry[1], 1.0)
+            (1, local_bry[1], 1.0)
         };
 
         let mut CSCRR = 1.0 / CSCLR;
@@ -5199,7 +5198,7 @@ fn ZBUNI(
             s2 = (DFNU + FNUI) * rz * s2 + s1;
             s1 = st;
             FNUI -= 1.0;
-            if IFLAG >= 3 {
+            if IFLAG >= 2 {
                 continue;
             }
             let st = s2 * CSCRR;
@@ -5207,7 +5206,7 @@ fn ZBUNI(
                 continue;
             }
             IFLAG += 1;
-            ASCLE = local_bry[IFLAG - 1];
+            ASCLE = local_bry[IFLAG];
             s1 *= CSCRR;
             s2 = st;
             CSCLR *= MACHINE_CONSTANTS.abs_error_tolerance;
@@ -5229,7 +5228,7 @@ fn ZBUNI(
             y[K - 1] = s2 * CSCRR;
             FNUI -= 1.0;
             K -= 1;
-            if IFLAG >= 3 {
+            if IFLAG >= 2 {
                 continue;
             }
             // using K (rather than K-1) below as Amos "saved" the y value before K was decremented
@@ -5237,7 +5236,7 @@ fn ZBUNI(
                 continue;
             }
             IFLAG += 1;
-            ASCLE = local_bry[IFLAG - 1];
+            ASCLE = local_bry[IFLAG];
             s1 *= CSCRR;
             s2 = y[K - 1];
             CSCLR *= MACHINE_CONSTANTS.abs_error_tolerance;
@@ -5356,7 +5355,7 @@ fn ZUNI1(
                 continue 'l30;
             }
             if i == 0 {
-                IFLAG = 2;
+                IFLAG = 1;
             }
             if rs1.abs() > MACHINE_CONSTANTS.approximation_limit {
                 //-----------------------------------------------------------------------;
@@ -5368,11 +5367,11 @@ fn ZUNI1(
                     continue 'l30;
                 }
                 if i == 0 {
-                    IFLAG = 1;
+                    IFLAG = 0;
                 }
                 if rs1 >= 0.0 {
                     if i == 0 {
-                        IFLAG = 3;
+                        IFLAG = 2;
                     }
                 }
             }
@@ -5380,9 +5379,9 @@ fn ZUNI1(
             //     SCALE S1 if CABS(S1) < ASCLE;
             //-----------------------------------------------------------------------;
             let mut s2 = phi * sum;
-            s1 = s1.re.exp() * MACHINE_CONSTANTS.scaling_factors[IFLAG - 1] * Complex64::cis(s1.im);
+            s1 = s1.re.exp() * MACHINE_CONSTANTS.scaling_factors[IFLAG] * Complex64::cis(s1.im);
             s2 *= s1;
-            if IFLAG == 1 {
+            if IFLAG == 0 {
                 if will_z_underflow(
                     s2,
                     MACHINE_CONSTANTS.bry[0],
@@ -5393,7 +5392,7 @@ fn ZUNI1(
                 }
             }
             cy[i] = s2;
-            y[ND - i - 1] = s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[IFLAG - 1];
+            y[ND - i - 1] = s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[IFLAG];
         }
         break 'l30;
     }
@@ -5402,8 +5401,8 @@ fn ZUNI1(
     }
     let rz = 2.0 * z.conj() / z.abs().pow(2);
     let [mut s1, mut s2] = cy;
-    let mut C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[IFLAG - 1];
-    let mut ASCLE = MACHINE_CONSTANTS.bry[IFLAG - 1];
+    let mut C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[IFLAG];
+    let mut ASCLE = MACHINE_CONSTANTS.bry[IFLAG];
     let mut K = ND - 2;
     FN = K as f64;
     for _ in 2..ND {
@@ -5414,19 +5413,19 @@ fn ZUNI1(
         y[K - 1] = c2;
         K -= 1;
         FN -= 1.0;
-        if IFLAG >= 3 {
+        if IFLAG >= 2 {
             continue;
         }
         if max_abs_component(c2) <= ASCLE {
             continue;
         }
         IFLAG += 1;
-        ASCLE = MACHINE_CONSTANTS.bry[IFLAG - 1];
+        ASCLE = MACHINE_CONSTANTS.bry[IFLAG];
         s1 *= C1R;
         s2 = c2;
-        s1 *= MACHINE_CONSTANTS.scaling_factors[IFLAG - 1];
-        s2 *= MACHINE_CONSTANTS.scaling_factors[IFLAG - 1];
-        C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[IFLAG - 1];
+        s1 *= MACHINE_CONSTANTS.scaling_factors[IFLAG];
+        s2 *= MACHINE_CONSTANTS.scaling_factors[IFLAG];
+        C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[IFLAG];
     }
     Ok((NZ, NLAST))
 }
@@ -5535,7 +5534,6 @@ fn ZUNI2(
                 c2 = c2.conj();
             }
         }
-
         let mut IFLAG = 0;
         let mut cy = [c_zero(); 2];
         for i in 0..ND.min(2) {
@@ -5561,7 +5559,7 @@ fn ZUNI2(
                 continue 'l40;
             }
             if i == 0 {
-                IFLAG = 2
+                IFLAG = 1
             };
             if rs1.abs() >= MACHINE_CONSTANTS.approximation_limit {
                 //-----------------------------------------------------------------------;
@@ -5573,11 +5571,11 @@ fn ZUNI2(
                     continue 'l40;
                 }
                 if i == 0 {
-                    IFLAG = 1;
+                    IFLAG = 0;
                 }
                 if rs1 >= 0.0 {
                     if i == 0 {
-                        IFLAG = 3;
+                        IFLAG = 2;
                     }
                 }
             }
@@ -5598,10 +5596,10 @@ fn ZUNI2(
             };
 
             let mut s2 = phi * (d_airy * bsum + a_airy * asum);
-            let s1 = MACHINE_CONSTANTS.scaling_factors[IFLAG - 1]
+            let s1 = MACHINE_CONSTANTS.scaling_factors[IFLAG]
                 * Complex64::from_polar(s1.re.exp(), s1.im);
             s2 *= s1;
-            if IFLAG == 1 {
+            if IFLAG == 0 {
                 if will_z_underflow(
                     s2,
                     MACHINE_CONSTANTS.bry[0],
@@ -5616,7 +5614,7 @@ fn ZUNI2(
             }
             s2 *= c2;
             cy[i] = s2;
-            y[ND - i - 1] = s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[IFLAG - 1];
+            y[ND - i - 1] = s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[IFLAG];
             c2 *= CIDI * Complex64::I;
         }
         if ND <= 2 {
@@ -5624,26 +5622,26 @@ fn ZUNI2(
         }
         let rz = 2.0 * z.conj() / z.abs().pow(2);
         let [mut s1, mut s2] = cy;
-        let mut C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[IFLAG - 1];
-        let mut ASCLE = MACHINE_CONSTANTS.bry[IFLAG - 1];
+        let mut C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[IFLAG];
+        let mut ASCLE = MACHINE_CONSTANTS.bry[IFLAG];
         for K in (0..(ND - 2)).rev() {
             let st = s2;
             s2 = s1 + (order + ((K + 1) as f64)) * rz * s2;
             s1 = st;
             y[K] = s2 * C1R;
-            if IFLAG >= 3 {
+            if IFLAG >= 2 {
                 continue;
             }
             if max_abs_component(y[K]) <= ASCLE {
                 continue;
             }
             IFLAG += 1;
-            ASCLE = MACHINE_CONSTANTS.bry[IFLAG - 1];
+            ASCLE = MACHINE_CONSTANTS.bry[IFLAG];
             s1 *= C1R;
             s2 = y[K];
-            s1 *= MACHINE_CONSTANTS.scaling_factors[IFLAG - 1];
-            s2 *= MACHINE_CONSTANTS.scaling_factors[IFLAG - 1];
-            C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[IFLAG - 1];
+            s1 *= MACHINE_CONSTANTS.scaling_factors[IFLAG];
+            s2 *= MACHINE_CONSTANTS.scaling_factors[IFLAG];
+            C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[IFLAG];
         }
         break 'l40;
     }
