@@ -1,3 +1,5 @@
+use std::f64;
+
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Eq)]
@@ -72,7 +74,7 @@ pub fn gamma_ln(z: f64) -> Result<f64, GammaError> {
         let zsq = zp * zp;
         let test = term1 * working_tolerance;
         for k in 1..22 {
-            zp = zp * zsq;
+            zp *= zsq;
             let term = COEFFS[k] * zp;
             if term.abs() < test {
                 break;
@@ -95,10 +97,12 @@ pub fn gamma_ln(z: f64) -> Result<f64, GammaError> {
     Ok(return_value)
 }
 
-// ln(2*PI)
+// ln(2*PI)carg
+#[allow(clippy::excessive_precision)]
 const LN_2_PI: f64 = 1.83787706640934548e+00;
 
 // COEFFICIENTS OF ASYMPTOTIC EXPANSION
+#[allow(clippy::excessive_precision)]
 const COEFFS: [f64; 22] = [
     8.33333333333333333e-02,
     -2.77777777777777778e-03,
@@ -124,11 +128,12 @@ const COEFFS: [f64; 22] = [
     -2.13203339609193739e+16,
 ];
 
+#[allow(clippy::excessive_precision)]
 const INT_GAMMA_LOG_DATA: [f64; 101] = [
     0.0, // value at GLN[0] - can never be reached.
     0.00000000000000000e+00,
     0.00000000000000000e+00,
-    6.93147180559945309e-01,
+    f64::consts::LN_2,
     1.79175946922805500e+00,
     3.17805383034794562e+00,
     4.78749174278204599e+00,

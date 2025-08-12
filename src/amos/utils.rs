@@ -1,3 +1,4 @@
+#![allow(clippy::excessive_precision)]
 use num::complex::Complex64;
 
 use super::{BesselError, BesselResult, MACHINE_CONSTANTS};

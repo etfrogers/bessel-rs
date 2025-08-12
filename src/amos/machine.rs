@@ -1,4 +1,4 @@
-use std::cell::LazyCell;
+use std::sync::LazyLock;
 
 /// `elim` is a nunber such that if you take `elim.exp()` or `(-elim).exp()`, you will create a
 /// number that is at risk of overflowing `f64`. In this case "at risk of overflow" means
@@ -102,8 +102,7 @@ impl MachineConsts {
     }
 }
 
-pub(crate) const MACHINE_CONSTANTS: LazyCell<MachineConsts> =
-    LazyCell::new(|| MachineConsts::new());
+pub(crate) static MACHINE_CONSTANTS: LazyLock<MachineConsts> = LazyLock::new(MachineConsts::new);
 
 pub fn d1mach(i: u8) -> f64 {
     //*********************************************************************72

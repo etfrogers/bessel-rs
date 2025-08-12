@@ -69,7 +69,7 @@ pub fn z_asymptotic_i(z: Complex64, order: f64, kode: Scaling, n: usize) -> Bess
             bk = -bk
         };
         p1 = Complex64::new(ak, bk);
-        if inu % 2 != 0 {
+        if !inu.is_multiple_of(2) {
             p1 = -p1;
         }
     }

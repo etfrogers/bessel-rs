@@ -1,4 +1,4 @@
-#[allow(clippy::excessive_precision)]
+#![allow(clippy::excessive_precision)]
 use std::f64::consts::FRAC_PI_2;
 use std::{
     collections::HashMap,
@@ -8,15 +8,15 @@ use std::{
 use num::complex::{Complex64, ComplexFloat};
 
 use super::{
-    BesselError::*, BesselResult, IKType, MACHINE_CONSTANTS, MachineConsts, PositiveArg, Scaling,
-    c_one, c_zero, c_zeros, utils::will_z_underflow,
+    BesselError::*, BesselResult, IKType, MACHINE_CONSTANTS, PositiveArg, Scaling, c_one, c_zero,
+    c_zeros, utils::will_z_underflow,
 };
 
 pub enum Overflow {
-    Overflow,
-    RefinedOverflow,
-    Underflow,
-    RefinedUnderflow,
+    Over,
+    RefinedOver,
+    Under,
+    RefinedUnder,
     None,
 }
 
@@ -29,11 +29,7 @@ impl Overflow {
         if rs1.abs() > MACHINE_CONSTANTS.exponent_limit
         //GO TO 260;
         {
-            return if rs1 > 0.0 {
-                Self::Overflow
-            } else {
-                Self::Underflow
-            };
+            return if rs1 > 0.0 { Self::Over } else { Self::Under };
         }
         // if (KDFLG == 1) IFLAG = 2;
         if rs1.abs() < MACHINE_CONSTANTS.approximation_limit {
@@ -50,16 +46,16 @@ impl Overflow {
         //GO TO 260;
         if refined_rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
             return if refined_rs1 > 0.0 {
-                Self::Overflow
+                Self::Over
             } else {
-                Self::Underflow
+                Self::Under
             };
         }
 
         if refined_rs1 > 0.0 {
-            Self::RefinedOverflow
+            Self::RefinedOver
         } else {
-            Self::RefinedUnderflow
+            Self::RefinedUnder
         }
         // if (KDFLG == 1) IFLAG = 1;
         // if (RS1 < 0.0) GO TO 220;
@@ -73,7 +69,7 @@ pub fn zuoik(
     kode: Scaling,
     ikflg: IKType,
     n: usize, //YR, YI, NUF,
-    y: &mut Vec<Complex64>,
+    y: &mut [Complex64],
 ) -> BesselResult<usize> {
     // ***BEGIN PROLOGUE  ZUOIK
     // ***REFER TO  ZBESI,ZBESK,ZBESH
@@ -242,8 +238,8 @@ pub fn zuoik(
             go_to_180 = false;
             if !skip_to_190 {
                 y[nn - 1] = c_zero();
-                nn = nn - 1;
-                nuf = nuf + 1;
+                nn -= 1;
+                nuf += 1;
                 if nn == 0 {
                     return Ok(nuf);
                 }
@@ -266,7 +262,7 @@ pub fn zuoik(
             break 'outer;
         }
     }
-    return Ok(nuf);
+    Ok(nuf)
 }
 
 struct UniformAssymptoticParameters {
@@ -279,11 +275,13 @@ struct UniformAssymptoticParameters {
     working: Option<Vec<Complex64>>,
 }
 
+type CacheKey = (u64, u64, u64);
+
 static UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE: LazyLock<
-    Mutex<HashMap<(u64, u64, u64), UniformAssymptoticParameters>>,
+    Mutex<HashMap<CacheKey, UniformAssymptoticParameters>>,
 > = LazyLock::new(|| Mutex::new(HashMap::new()));
 
-fn cache_key(z: Complex64, order: f64) -> (u64, u64, u64) {
+fn cache_key(z: Complex64, order: f64) -> CacheKey {
     (z.re.to_bits(), z.im.to_bits(), order.to_bits())
 }
 
@@ -475,7 +473,7 @@ pub fn zunik(
         },
     );
 
-    return (phi, zeta1, zeta2, Some(sum));
+    (phi, zeta1, zeta2, Some(sum))
 }
 
 pub fn zunhj(
@@ -669,7 +667,7 @@ pub fn zunhj(
         // BSUMI = BSUMI*PP;
         //   120 CONTINUE;
         //       RETURN;
-        return (phi, arg, zeta1, zeta2, Some(asum), Some(bsum));
+        (phi, arg, zeta1, zeta2, Some(asum), Some(bsum))
     } else {
         //-----------------------------------------------------------------------;
         //     CABS(W2) > 0.25;
@@ -684,13 +682,7 @@ pub fn zunhj(
 
         let za = (c_one() + w) / zb;
         let mut zc = za.ln();
-        if zc.im < 0.0 {
-            zc.im = 0.0;
-        }
-
-        if zc.im > FRAC_PI_2 {
-            zc.im = FRAC_PI_2;
-        }
+        zc.im = zc.im.clamp(0.0, FRAC_PI_2);
         if zc.re < 0.0 {
             zc.re = 0.0
         };
@@ -749,7 +741,7 @@ pub fn zunhj(
         let mut asum = c_zero();
         // ASUMR = ZEROR;
         // ASUMI = ZEROI;
-        if !(rfnu < tol) {
+        if rfnu >= tol {
             //GO TO 220;
             let mut przth = rzth;
             // PRZTHR = RZTHR;
@@ -812,7 +804,7 @@ pub fn zunhj(
                     //     DRI(KS) = PRZTHI*AR(KS+2);
                 }
                 //   160   CONTINUE;
-                pp = pp * rfnu2;
+                pp *= rfnu2;
                 if !ias {
                     //GO TO 180;
                     let mut suma = up[lrp1 - 1];
@@ -844,7 +836,7 @@ pub fn zunhj(
                     let mut ju = lrp1;
                     for jr in 0..lr {
                         //   DO 190 JR=1,LR;
-                        ju = ju - 1;
+                        ju -= 1;
                         sumb += dr[jr] * up[ju - 1];
                         //     SUMBR = SUMBR + DRR(JR)*UPR(JU) - DRI(JR)*UPI(JU);
                         //     SUMBI = SUMBI + DRR(JR)*UPI(JU) + DRI(JR)*UPR(JU);
@@ -873,9 +865,7 @@ pub fn zunhj(
         // STI = -BSUMI*RFN13;
         // CALL ZDIV(STR, STI, RTZTR, RTZTI, BSUMR, BSUMI);
         // GO TO 120;
-        return (phi, arg, zeta1, zeta2, Some(asum), Some(bsum));
-
-        // END;
+        (phi, arg, zeta1, zeta2, Some(asum), Some(bsum))
     }
 }
 

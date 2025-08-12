@@ -183,9 +183,7 @@ pub fn i_power_series(
             let ck = s2 * crscr;
             y[k - 1] = ck;
             ak -= 1.0;
-            if k > 0 {
-                k -= 1;
-            }
+            k = k.saturating_sub(1);
             l = l_inner + 1;
             if ck.abs() > MACHINE_CONSTANTS.absolute_approximation_limit {
                 to_return = false;
@@ -207,5 +205,5 @@ pub fn i_power_series(
         ak -= 1.0;
         k -= 1;
     }
-    return Ok((y, nz));
+    Ok((y, nz))
 }

@@ -96,18 +96,18 @@ pub enum HankelKind {
     Second,
 }
 
-impl Into<f64> for HankelKind {
-    fn into(self) -> f64 {
-        match self {
+impl From<HankelKind> for f64 {
+    fn from(value: HankelKind) -> Self {
+        match value {
             HankelKind::First => 1.0,
             HankelKind::Second => 2.0,
         }
     }
 }
 
-impl Into<i64> for HankelKind {
-    fn into(self) -> i64 {
-        match self {
+impl From<HankelKind> for i64 {
+    fn from(value: HankelKind) -> Self {
+        match value {
             HankelKind::First => 1,
             HankelKind::Second => 2,
         }

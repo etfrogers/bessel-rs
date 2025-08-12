@@ -1,7 +1,7 @@
-#![allow(non_snake_case)]
+#![allow(non_snake_case, clippy::excessive_precision)]
 use super::{
-    BesselError, BesselResult, HankelKind, IKType, MachineConsts, Scaling, c_one, c_zero, c_zeros,
-    gamma_ln, i_power_series,
+    BesselError, BesselResult, HankelKind, IKType, Scaling, c_one, c_zero, c_zeros, gamma_ln,
+    i_power_series,
     overflow_checks::{zunik, zuoik},
     utils::{is_sigificance_lost, will_z_underflow},
 };
@@ -265,9 +265,6 @@ pub fn ZBESH(order: f64, z: Complex64, KODE: Scaling, M: HankelKind, N: usize) -
                 let mut cy = c_zeros(N);
                 let NUF = zuoik(z, order, KODE, IKType::I, NN, &mut cy)?;
 
-                if NUF < 0 {
-                    return Err(Overflow);
-                } //GO TO 230;
                 NZ += NUF;
                 NN -= NUF;
                 //-----------------------------------------------------------------------;
@@ -681,7 +678,7 @@ pub fn zbesi(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult 
         //   CSGNR = DCOS(ARG);
         //   CSGNI = DSIN(ARG);
         //   if (MOD(INU,2) == 0) GO TO 40;
-        if INU % 2 != 0 {
+        if !INU.is_multiple_of(2) {
             csgn = -csgn;
         }
         (-z, csgn)
@@ -2225,6 +2222,7 @@ fn ZBIRY(ZR, ZI, ID, KODE, BIR, BII, IERR)
       RETURN
       END
 */
+
 fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
     // ***BEGIN PROLOGUE  ZBKNU
     // ***REFER TO  ZBESI,ZBESK,ZAIRY,ZBESH
@@ -2416,9 +2414,10 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
             //     12 <= E <= 60. E IS COMPUTED FROM 2**(-E)=B**(1-i1mach(14))=;
             //     TOL WHERE B IS THE BASE OF THE ARITHMETIC.;
             //-----------------------------------------------------------------------;
-            let mut T1 =
-                ((f64::MANTISSA_DIGITS - 1) as f64 * (f64::RADIX as f64).log10() * 3.321928094)
-                    .clamp(12.0, 60.0);
+            let mut T1 = ((f64::MANTISSA_DIGITS - 1) as f64
+                * (f64::RADIX as f64).log10()
+                * std::f64::consts::LOG2_10)
+                .clamp(12.0, 60.0);
             let T2 = TWO_THIRDS * T1 - 6.0;
             T1 = if z.re == 0.0 {
                 FRAC_PI_2
@@ -2572,7 +2571,7 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
                     s1 = st;
                     ck += rz;
                     let ALAS = s2.abs().ln();
-                    if !((-zd.re + ALAS) < (-MACHINE_CONSTANTS.exponent_limit)) {
+                    if -zd.re + ALAS >= -MACHINE_CONSTANTS.exponent_limit {
                         let p2 = -zd + s2.ln();
                         let p1 = (p2.re.exp() / MACHINE_CONSTANTS.abs_error_tolerance)
                             * Complex64::cis(p2.im);
@@ -2687,7 +2686,7 @@ fn ZKSCL(
     zr: Complex64,
     order: f64,
     N: usize, //YR,YI,NZ,
-    y: &mut Vec<Complex64>,
+    y: &mut [Complex64],
     NZ: &mut usize,
     rz: Complex64, //RZR,RZI,
     ASCLE: f64,
@@ -2768,7 +2767,7 @@ fn ZKSCL(
         let ALAS = s2.abs().ln();
         *NZ += 1;
         y[i] = Complex64::zero();
-        if !(-zd.re + s2.abs().ln() < (-MACHINE_CONSTANTS.exponent_limit)) {
+        if -zd.re + s2.abs().ln() >= -MACHINE_CONSTANTS.exponent_limit {
             cs = s2.ln() - zd;
             cs = Complex64::from_polar(cs.re.exp() / MACHINE_CONSTANTS.abs_error_tolerance, cs.im);
             if !will_z_underflow(cs, ASCLE, MACHINE_CONSTANTS.abs_error_tolerance) {
@@ -3030,7 +3029,6 @@ fn ZBUNK(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
     //   DOUBLE PRECISION ALIM, AX, AY, ELIM, FNU, TOL, YI, YR, ZI, ZR
     //   INTEGER KODE, MR, N, NZ
     //   DIMENSION YR(N), YI(N)
-    let NZ = 0;
     let AX = z.re.abs() * 1.7321;
     let AY = z.im.abs();
     if AY <= AX {
@@ -3224,7 +3222,7 @@ fn i_miller(
     for i in 0..N {
         y[i] *= cnorm;
     }
-    return Ok((y, NZ));
+    Ok((y, NZ))
 }
 
 fn i_wronksian(
@@ -3330,7 +3328,7 @@ fn analytic_continuation(
     //   ZNR = -ZR;
     //   ZNI = -ZI;
     //   let mut NN = N;
-    let (mut y, NW) = ZBINU(zn, order, KODE, N)?;
+    let (mut y, _) = ZBINU(zn, order, KODE, N)?;
     //   CALL ZBINU(ZNR, ZNI, FNU, KODE, NN, YR, YI, NW, RL, FNUL, TOL,;
     //  * ELIM, ALIM);
     //   if (NW < 0) GO TO 90;
@@ -3731,7 +3729,7 @@ fn ZBINU(
     //       CALL ZUOIK(ZR, ZI, FNU, KODE, 2, 2, CWR, CWI, NW, TOL, ELIM,
     //      * ALIM)
 
-    if let Ok(NW) = zuoik(z, order, KODE, IKType::K, 2, &mut vec![c_one(); 2]) {
+    if let Ok(NW) = zuoik(z, order, KODE, IKType::K, 2, &mut [c_one(); 2]) {
         if NW > 0 {
             Err(Overflow)
         } else {
@@ -3862,7 +3860,7 @@ fn ZACAI(
     let mut cspn = Complex64::cis(order.fract() * SGN);
     //   CSPNR = DCOS(ARG);
     //   CSPNI = DSIN(ARG);
-    if INU % 2 != 0 {
+    if !INU.is_multiple_of(2) {
         //GO TO 60;
         cspn = -cspn;
         //   CSPNR = -CSPNR;
@@ -4032,10 +4030,8 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
                     skip_to_60 = true;
                 }
                 //GO TO 60;
-                else {
-                    if !KDFLG {
-                        KFLAG = if RS1 < 0.0 { 0 } else { 1 };
-                    }
+                else if !KDFLG {
+                    KFLAG = if RS1 < 0.0 { 0 } else { 1 };
 
                     // if (RS1 < 0.0) GO TO 40;
                     // if (KDFLG == 1) KFLAG = 3;
@@ -4407,16 +4403,16 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
                 //   230   CONTINUE;},
             };
             let (mut s2, new_iflag) = match Overflow::find_overflow(s1.re, phid) {
-                Overflow::Overflow => {
+                Overflow::Over => {
                     return Err(Overflow);
                 }
-                Overflow::RefinedOverflow => calculate_s2(0),
-                Overflow::Underflow => (c_zero(), None),
-                Overflow::RefinedUnderflow => calculate_s2(2),
+                Overflow::RefinedOver => calculate_s2(0),
+                Overflow::Under => (c_zero(), None),
+                Overflow::RefinedUnder => calculate_s2(2),
                 Overflow::None => calculate_s2(1),
             };
-            if !KDFLG && new_iflag.is_some() {
-                IFLAG = new_iflag.unwrap();
+            if !KDFLG && let Some(new_val) = new_iflag {
+                IFLAG = new_val;
             }
             //         RS1 = S1R;
             //         if ((RS1).abs() > ELIM) GO TO 260;
@@ -4485,7 +4481,7 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
             }
             //   255   CONTINUE;
             // if (KDFLG == 2) {}GO TO 275;
-            if KDFLG == true {
+            if KDFLG {
                 left_early = true;
             }
 
@@ -4526,7 +4522,7 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         FN = INU as f64 + IL as f64;
         let mut KK = N - completed_k;
         //   FN = DBLE(FLOAT(INU+IL));
-        for i in 0..IL {
+        for _ in 0..IL {
             //   DO 290 I=1,IL;
             let mut c2 = s2;
             // C2R = S2R;
@@ -5133,7 +5129,7 @@ fn ZBUNI(
     KODE: Scaling,
     N: usize,
     NUI: usize,
-    y: &mut Vec<Complex64>,
+    y: &mut [Complex64],
 ) -> Result<(usize, usize), BesselError> {
     // ***BEGIN PROLOGUE  ZBUNI
     // ***REFER TO  ZBESI,ZBESK
@@ -5269,7 +5265,7 @@ fn ZUNI1(
     order: f64,
     KODE: Scaling,
     N: usize,
-    y: &mut Vec<Complex64>,
+    y: &mut [Complex64],
 ) -> BesselResult<(usize, usize)> {
     // ***BEGIN PROLOGUE  ZUNI1
     // ***REFER TO  ZBESI,ZBESK
@@ -5369,10 +5365,8 @@ fn ZUNI1(
                 if i == 0 {
                     IFLAG = 0;
                 }
-                if rs1 >= 0.0 {
-                    if i == 0 {
-                        IFLAG = 2;
-                    }
+                if rs1 >= 0.0 && i == 0 {
+                    IFLAG = 2;
                 }
             }
             //-----------------------------------------------------------------------;
@@ -5381,15 +5375,15 @@ fn ZUNI1(
             let mut s2 = phi * sum;
             s1 = s1.re.exp() * MACHINE_CONSTANTS.scaling_factors[IFLAG] * Complex64::cis(s1.im);
             s2 *= s1;
-            if IFLAG == 0 {
-                if will_z_underflow(
+            if IFLAG == 0
+                && will_z_underflow(
                     s2,
                     MACHINE_CONSTANTS.bry[0],
                     MACHINE_CONSTANTS.abs_error_tolerance,
-                ) {
-                    set_underflow_and_update = true;
-                    continue 'l30;
-                }
+                )
+            {
+                set_underflow_and_update = true;
+                continue 'l30;
             }
             cy[i] = s2;
             y[ND - i - 1] = s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[IFLAG];
@@ -5435,7 +5429,7 @@ fn ZUNI2(
     order: f64,
     KODE: Scaling,
     N: usize,
-    y: &mut Vec<Complex64>,
+    y: &mut [Complex64],
 ) -> BesselResult<(usize, usize)> {
     // ***BEGIN PROLOGUE  ZUNI2
     // ***REFER TO  ZBESI,ZBESK
@@ -5573,10 +5567,8 @@ fn ZUNI2(
                 if i == 0 {
                     IFLAG = 0;
                 }
-                if rs1 >= 0.0 {
-                    if i == 0 {
-                        IFLAG = 2;
-                    }
+                if rs1 >= 0.0 && i == 0 {
+                    IFLAG = 2;
                 }
             }
             //-----------------------------------------------------------------------;
@@ -5599,15 +5591,15 @@ fn ZUNI2(
             let s1 = MACHINE_CONSTANTS.scaling_factors[IFLAG]
                 * Complex64::from_polar(s1.re.exp(), s1.im);
             s2 *= s1;
-            if IFLAG == 0 {
-                if will_z_underflow(
+            if IFLAG == 0
+                && will_z_underflow(
                     s2,
                     MACHINE_CONSTANTS.bry[0],
                     MACHINE_CONSTANTS.abs_error_tolerance,
-                ) {
-                    set_underflow_and_update = true;
-                    continue 'l40;
-                }
+                )
+            {
+                set_underflow_and_update = true;
+                continue 'l40;
             }
             if z.im <= 0.0 {
                 s2 = s2.conj();
