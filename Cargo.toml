@@ -13,7 +13,8 @@ thiserror = "2.0.11"
 
 [dev-dependencies]
 approx = { version = "0.5.1", features = ["num-complex"] }
-complex-bessel-rs = "1.2.1"
+# complex-bessel-rs = "1.2.1"
+complex-bessel-rs = { git = "https://github.com/etfrogers/complex-bessel-rs.git", branch = "bugfix-besseli" }
 rand = "0.9.0"
 rstest = "0.25.0"
 rstest_reuse = "0.7.0"

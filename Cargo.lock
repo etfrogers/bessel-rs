@@ -70,8 +70,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 [[package]]
 name = "complex-bessel-rs"
 version = "1.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16ebd796dd4b1ac5288f92d1df3782c323c6bf325c94b6f2ee3ec1776ab89ab2"
+source = "git+https://github.com/etfrogers/complex-bessel-rs.git?branch=bugfix-besseli#52e57736ad30b74952e9e03434f0487dec2a7020"
 dependencies = [
  "cc",
  "num",
