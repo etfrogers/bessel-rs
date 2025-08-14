@@ -316,34 +316,33 @@ pub fn zbesh(z: Complex64, order: f64, KODE: Scaling, M: HankelKind, N: usize) -
                 //   if (NW < 0) GO TO 240;
                 //   NZ=NW;
             }
-
-        //   GO TO 110;
         } else {
-            //    90 CONTINUE;
-            //-----------------------------------------------------------------------;
-            //     UNIFORM ASYMPTOTIC EXPANSIONS FOR FNU > FNUL;
-            //-----------------------------------------------------------------------;
-            let mut MR = 0;
-            if !((zn.re >= 0.0) && (zn.re != 0.0 || zn.im >= 0.0 || M != HankelKind::Second)) {
-                //GO TO 100;
-                MR = -MM;
-                if !(zn.re != 0.0 || zn.im >= 0.0) {
-                    //GO TO 100;
-                    zn = -zn;
-                    //   ZNR = -ZNR;
-                    //   ZNI = -ZNI;
-                }
-            }
-            //   100 CONTINUE;
-            let (cy, NW) = ZBUNK(z, order, KODE, MR, NN)?;
-            //   CALL ZBUNK(ZNR, ZNI, FNU, KODE, MR, NN, CYR, CYI, NW, TOL, ELIM, ALIM);
-            //   if (NW < 0) GO TO 240;
-            NZ += NW;
-            //   NZ = NZ + NW;
-            (cy, NZ)
+            (c_zeros(N), 0)
         }
+    //   GO TO 110;
     } else {
-        (c_zeros(N), 0)
+        //    90 CONTINUE;
+        //-----------------------------------------------------------------------;
+        //     UNIFORM ASYMPTOTIC EXPANSIONS FOR FNU > FNUL;
+        //-----------------------------------------------------------------------;
+        let mut MR = 0;
+        if !((zn.re >= 0.0) && (zn.re != 0.0 || zn.im >= 0.0 || M != HankelKind::Second)) {
+            //GO TO 100;
+            MR = -MM;
+            if !(zn.re != 0.0 || zn.im >= 0.0) {
+                //GO TO 100;
+                zn = -zn;
+                //   ZNR = -ZNR;
+                //   ZNI = -ZNI;
+            }
+        }
+        //   100 CONTINUE;
+        let (cy, NW) = ZBUNK(zn, order, KODE, MR, NN)?;
+        //   CALL ZBUNK(ZNR, ZNI, FNU, KODE, MR, NN, CYR, CYI, NW, TOL, ELIM, ALIM);
+        //   if (NW < 0) GO TO 240;
+        NZ += NW;
+        //   NZ = NZ + NW;
+        (cy, NZ)
     };
     //   110 CONTINUE;
     //-----------------------------------------------------------------------;
