@@ -243,6 +243,9 @@ pub fn zbesh(z: Complex64, order: f64, KODE: Scaling, M: HankelKind, N: usize) -
     //   AA = DSQRT(AA);
     AA = AA.sqrt();
     let partial_loss_of_significance = abs_z > AA || order > AA;
+    if partial_loss_of_significance {
+        todo!()
+    }
     //   if (AZ > AA) IERR=3;
     //   if (FN > AA) IERR=3;
     //-----------------------------------------------------------------------;
@@ -263,7 +266,7 @@ pub fn zbesh(z: Complex64, order: f64, KODE: Scaling, M: HankelKind, N: usize) -
                 //    60 CONTINUE;
                 // CALL ZUOIK(ZNR, ZNI, FNU, KODE, 2, NN, CYR, CYI, NUF, TOL, ELIM, ALIM);
                 let mut cy = c_zeros(N);
-                let NUF = zuoik(z, order, KODE, IKType::I, NN, &mut cy)?;
+                let NUF = zuoik(zn, order, KODE, IKType::K, NN, &mut cy)?;
 
                 NZ += NUF;
                 NN -= NUF;
@@ -312,7 +315,7 @@ pub fn zbesh(z: Complex64, order: f64, KODE: Scaling, M: HankelKind, N: usize) -
                 //   MR = -MM;
 
                 //   CALL ZACON(ZNR, ZNI, FNU, KODE, MR, NN, CYR, CYI, NW, RL, FNUL, TOL, ELIM, ALIM);
-                analytic_continuation(z, order, KODE, -MM, NN)?
+                analytic_continuation(zn, order, KODE, -MM, NN)?
                 //   if (NW < 0) GO TO 240;
                 //   NZ=NW;
             }
