@@ -23,7 +23,7 @@ use std::{
 
 const TWO_THIRDS: f64 = 6.66666666666666666e-01;
 
-pub fn ZBESH(order: f64, z: Complex64, KODE: Scaling, M: HankelKind, N: usize) -> BesselResult {
+pub fn zbesh(z: Complex64, order: f64, KODE: Scaling, M: HankelKind, N: usize) -> BesselResult {
     //ZR, ZI, FNU, KODE, M, N, CYR, CYI, NZ, IERR)
     // ***BEGIN PROLOGUE  ZBESH
     // ***DATE WRITTEN   830501   (YYMMDD)

@@ -4,9 +4,9 @@ pub use gamma_ln::{GammaError, gamma_ln};
 pub use i_power_series::i_power_series;
 use num::{Complex, One, Zero, complex::Complex64};
 use thiserror::Error;
-pub use translator::{zbesi, zbesj};
+pub use translator::{zbesh, zbesi, zbesj};
 pub(crate) mod bindings;
-pub(crate) use machine::{MACHINE_CONSTANTS, MachineConsts};
+pub(crate) use machine::MACHINE_CONSTANTS;
 mod gamma_ln;
 mod i_power_series;
 mod machine;
@@ -106,6 +106,15 @@ impl From<HankelKind> for f64 {
 }
 
 impl From<HankelKind> for i64 {
+    fn from(value: HankelKind) -> Self {
+        match value {
+            HankelKind::First => 1,
+            HankelKind::Second => 2,
+        }
+    }
+}
+
+impl From<HankelKind> for i32 {
     fn from(value: HankelKind) -> Self {
         match value {
             HankelKind::First => 1,

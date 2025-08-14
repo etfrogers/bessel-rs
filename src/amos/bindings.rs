@@ -52,4 +52,17 @@ unsafe extern "C" {
         nz: *mut c_int,
         ierr: *mut c_int,
     );
+
+    pub fn zbesh_wrap(
+        zr: c_double,
+        zi: c_double,
+        nu: c_double,
+        kode: c_int,
+        M: c_int,
+        N: c_int,
+        cyr: *mut c_double,
+        cyi: *mut c_double,
+        nz: *mut c_int,
+        ierr: *mut c_int,
+    );
 }

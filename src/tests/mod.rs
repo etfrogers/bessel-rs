@@ -5,9 +5,10 @@ use rstest_reuse::{apply, template};
 use num::complex::Complex64;
 use rstest::rstest;
 
-use crate::amos::bindings::zbesj_wrap;
-use crate::amos::{BesselResult, zbesj};
-use crate::{BesselError, Scaling, bessel_j};
+use crate::amos::bindings::{zbesh_wrap, zbesj_wrap};
+use crate::amos::{BesselResult, HankelKind, zbesj};
+use crate::{BesselError, Scaling, bessel_i, bessel_j, hankel};
+
 use complex_bessel_rs::bessel_i::bessel_i as bessel_i_ref;
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_ref;
 use utils::{check_against_fortran, check_complex_arrays_equal};
@@ -78,8 +79,6 @@ fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
 #[apply(bessel_j_cases)]
 #[trace]
 fn test_bessel_i(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
-    use crate::bessel_i;
-
     let z = Complex64::new(zr, zi);
     let actual = bessel_i(order, z);
     dbg!(&actual);
@@ -88,6 +87,30 @@ fn test_bessel_i(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     }
 
     let expected = bessel_i_ref(order, z.into());
+    if let Ok(actual) = actual {
+        check_complex_arrays_equal(&actual, &expected.unwrap(), &Vec::new());
+    } else {
+        assert_eq!(actual.unwrap_err().error_code(), expected.unwrap_err())
+    }
+}
+
+#[apply(bessel_j_cases)]
+#[trace]
+fn test_bessel_h(
+    #[case] order: f64,
+    #[case] zr: f64,
+    #[case] zi: f64,
+    #[values(HankelKind::First, HankelKind::Second)] kind: HankelKind,
+) {
+    let z = Complex64::new(zr, zi);
+    let actual = hankel(order, z, kind);
+    dbg!(&actual);
+    if actual == Err(BesselError::NotYetImplemented) {
+        return;
+        //todo!()
+    }
+
+    let expected = bessel_h_ref(order, z.into(), kind);
     if let Ok(actual) = actual {
         check_complex_arrays_equal(&actual, &expected.unwrap(), &Vec::new());
     } else {
@@ -205,6 +228,49 @@ fn zbesj_fortran(
             z.im,
             order,
             scaling as i32,
+            n.try_into().unwrap(),
+            r_uninit.as_mut_ptr().cast(),
+            i_uninit.as_mut_ptr().cast(),
+            &mut nz,
+            &mut ierr,
+        );
+        cyr.set_len(n);
+        cyi.set_len(n);
+    }
+    let cy = cyr
+        .into_iter()
+        .zip(cyi)
+        .map(|(r, i)| Complex64::new(r, i))
+        .collect();
+    (cy, nz.try_into().unwrap(), ierr)
+}
+
+fn bessel_h_ref(order: f64, z: Complex64, kind: HankelKind) -> Result<Complex64, i32> {
+    let (y, _, ierr) = zbesh_fortran(order, z, Scaling::Unscaled, kind, 1);
+    if ierr != 0 { Err(ierr) } else { Ok(y[0]) }
+}
+
+fn zbesh_fortran(
+    order: f64,
+    z: Complex64,
+    scaling: Scaling,
+    kind: HankelKind,
+    n: usize,
+) -> (Vec<Complex64>, usize, i32) {
+    let mut cyr: Vec<f64> = Vec::with_capacity(n);
+    let mut cyi: Vec<f64> = Vec::with_capacity(n);
+    let mut nz = 0;
+    let mut ierr = 0;
+
+    let r_uninit = cyr.spare_capacity_mut();
+    let i_uninit = cyi.spare_capacity_mut();
+    unsafe {
+        zbesh_wrap(
+            z.re,
+            z.im,
+            order,
+            scaling as i32,
+            kind.into(),
             n.try_into().unwrap(),
             r_uninit.as_mut_ptr().cast(),
             i_uninit.as_mut_ptr().cast(),
