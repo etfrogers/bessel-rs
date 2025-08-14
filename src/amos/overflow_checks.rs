@@ -1,5 +1,6 @@
 #![allow(clippy::excessive_precision)]
 use std::f64::consts::FRAC_PI_2;
+use std::ops::Index;
 use std::{
     collections::HashMap,
     sync::{LazyLock, Mutex},
@@ -12,11 +13,12 @@ use super::{
     c_zeros, utils::will_z_underflow,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Overflow {
     Over,
-    RefinedOver,
+    NearOver,
     Under,
-    RefinedUnder,
+    NearUnder,
     None,
 }
 
@@ -53,15 +55,50 @@ impl Overflow {
         }
 
         if refined_rs1 > 0.0 {
-            Self::RefinedOver
+            Self::NearOver
         } else {
-            Self::RefinedUnder
+            Self::NearUnder
         }
         // if (KDFLG == 1) IFLAG = 1;
         // if (RS1 < 0.0) GO TO 220;
         // if (KDFLG == 1) IFLAG = 3;
     }
+
+    pub fn increment(&mut self) {
+        match self {
+            Overflow::Over | Overflow::Under => {
+                panic!("Overflow and underflow are not valid for incrementation")
+            }
+            Overflow::NearOver => panic!("NearOver is the largest possible overflow condition"),
+            Overflow::NearUnder => *self = Self::None,
+            Overflow::None => *self = Self::NearOver,
+        }
+    }
 }
+
+impl Index<Overflow> for [f64] {
+    type Output = f64;
+
+    fn index(&self, index: Overflow) -> &Self::Output {
+        match index {
+            Overflow::Over | Overflow::Under => {
+                panic!("Overflow and underflow are not valid indices")
+            }
+            Overflow::NearOver => &self[2],
+            Overflow::NearUnder => &self[0],
+            Overflow::None => &self[1],
+        }
+    }
+}
+
+// impl AddAssign<i64> for Overflow {
+//     fn add_assign(&mut self, rhs: i64) {
+//         assert!(
+//             rhs == 1,
+//             "Overflow add assign is only implemented for steps of 1"
+//         )
+//     }
+// }
 
 pub fn zuoik(
     z: Complex64,

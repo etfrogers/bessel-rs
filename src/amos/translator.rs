@@ -3955,8 +3955,6 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
     };
     //    10 CONTINUE;
     let mut J = 1;
-
-    let mut init = [0; 2];
     let mut phi = c_zeros(2);
     let mut zeta1 = c_zeros(2);
     let mut zeta2 = c_zeros(2);
@@ -3966,7 +3964,7 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
     let mut FN = 0.0;
     // let mut completed_it = false;
     let mut y = c_zeros(N);
-    let mut KFLAG = 1;
+    let mut KFLAG = Overflow::NearUnder;
 
     //   DO 70 I=1,N;
     for i in 0..N {
@@ -3978,7 +3976,7 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         // J = 3 - J;
         J = 1 - J;
         FN = order + (i as f64);
-        init[J] = 0;
+
         let sum_opt;
         (phi[J], zeta1[J], zeta2[J], sum_opt) = zunik(zr, FN, IKType::K, false);
         sum[J] = sum_opt.unwrap();
@@ -4001,44 +3999,14 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         // GO TO 30;
         else {
             //    20   CONTINUE;
+            // TODO refcctor common rescaling of -?(zeta1 - zeta2)
             zeta1[J] - zeta2[J]
             // S1R = ZETA1R(J) - ZETA2R(J);
             // S1I = ZETA1I(J) - ZETA2I(J);
         };
         //    30   CONTINUE;
-        let mut RS1 = s1.re;
-        //-----------------------------------------------------------------------;
-        //     TEST FOR UNDERFLOW AND OVERFLOW;
-        //-----------------------------------------------------------------------;
-        let mut skip_to_60 = false;
-        if RS1.abs() <= MACHINE_CONSTANTS.exponent_limit {
-            //GO TO 60;
-            if !KDFLG {
-                KFLAG = 1;
-            }
-            if RS1.abs() >= MACHINE_CONSTANTS.approximation_limit {
-                //GO TO 40;
-                //-----------------------------------------------------------------------;
-                //     REFINE  TEST AND SCALE;
-                //-----------------------------------------------------------------------;
-                let abs_phi = phi[J].abs();
-                // APHI = ZABS(PHIR(J),PHII(J));
-                // RS1 = RS1 + DLOG(APHI);
-                RS1 += abs_phi.ln();
-                if RS1.abs() <= MACHINE_CONSTANTS.exponent_limit {
-                    skip_to_60 = true;
-                }
-                //GO TO 60;
-                else if !KDFLG {
-                    KFLAG = if RS1 < 0.0 { 0 } else { 1 };
 
-                    // if (RS1 < 0.0) GO TO 40;
-                    // if (KDFLG == 1) KFLAG = 3;
-                }
-            }
-        }
-        //    40   CONTINUE;
-        if !skip_to_60 {
+        let mut calculate_cy = |of: Overflow| {
             //-----------------------------------------------------------------------;
             //     SCALE S1 TO KEEP INTERMEDIATE ARITHMETIC ON SCALE NEAR;
             //     EXPONENT EXTREMES;
@@ -4049,8 +4017,8 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
             ////////
             // TODO from_polar -> s1.exp()?!
             ////////
-            let s1 = MACHINE_CONSTANTS.scaling_factors[KFLAG]
-                * Complex64::from_polar(s1.re.exp(), s1.im);
+            let s1 =
+                MACHINE_CONSTANTS.scaling_factors[of] * Complex64::from_polar(s1.re.exp(), s1.im);
             // STR = DEXP(S1R)*CSSR(KFLAG);
             // S1R = STR*DCOS(S1I);
             // S1I = STR*DSIN(S1I);
@@ -4062,7 +4030,8 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
             // CALL ZUunderflowCHK(S2R, S2I, NW, BRY(1), TOL);
             // if (NW != 0) GO TO 60;
             //    50   CONTINUE;
-            if KFLAG != 0
+            let mut should_break = false;
+            if of != Overflow::NearUnder
                 || !will_z_underflow(
                     s2,
                     MACHINE_CONSTANTS.bry[0],
@@ -4072,51 +4041,147 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
                 cy[KDFLG as usize] = s2;
                 // CYR(KDFLG) = S2R;
                 // CYI(KDFLG) = S2I;
-                y[i] = s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG];
+                y[i] = s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[of];
                 // YR(I) = S2R*CSRR(KFLAG);
                 // YI(I) = S2I*CSRR(KFLAG);
                 if KDFLG {
-                    break;
+                    should_break = true;
                 } //GO TO 75;
                 KDFLG = true;
             }
-        }
+            should_break
+        };
+
+        KFLAG = match Overflow::find_overflow(s1.re, phi[J]) {
+            Overflow::Over => return Err(Overflow),
+            Overflow::Under => {
+                if z.re < 0.0 {
+                    return Err(Overflow);
+                }
+                KDFLG = false;
+                y[i] = c_zero();
+                NZ += 1;
+                Overflow::Under
+            }
+            of @ Overflow::None | of @ Overflow::NearOver | of @ Overflow::NearUnder => {
+                let should_break = calculate_cy(of);
+                if should_break {
+                    break;
+                }
+                of
+            }
+        };
+        // let mut RS1 = s1.re;
+        //-----------------------------------------------------------------------;
+        //     TEST FOR UNDERFLOW AND OVERFLOW;
+        //-----------------------------------------------------------------------;
+        // let mut skip_to_60 = false;
+        // if RS1.abs() <= MACHINE_CONSTANTS.exponent_limit {
+        //     //GO TO 60;
+        //     if !KDFLG {
+        //         KFLAG = 1;
+        //     }
+        //     if RS1.abs() >= MACHINE_CONSTANTS.approximation_limit {
+        //         //GO TO 40;
+        //         //-----------------------------------------------------------------------;
+        //         //     REFINE  TEST AND SCALE;
+        //         //-----------------------------------------------------------------------;
+        //         let abs_phi = phi[J].abs();
+        //         // APHI = ZABS(PHIR(J),PHII(J));
+        //         // RS1 = RS1 + DLOG(APHI);
+        //         RS1 += abs_phi.ln();
+        //         if RS1.abs() <= MACHINE_CONSTANTS.exponent_limit {
+        //             skip_to_60 = true;
+        //         }
+        //         //GO TO 60;
+        //         else if !KDFLG {
+        //             KFLAG = if RS1 < 0.0 { 0 } else { 1 };
+
+        //             // if (RS1 < 0.0) GO TO 40;
+        //             // if (KDFLG == 1) KFLAG = 3;
+        //         }
+        //     }
+        // }
+        //    40   CONTINUE;
+        // if !skip_to_60 {
+        //     //-----------------------------------------------------------------------;
+        //     //     SCALE S1 TO KEEP INTERMEDIATE ARITHMETIC ON SCALE NEAR;
+        //     //     EXPONENT EXTREMES;
+        //     //-----------------------------------------------------------------------;
+        //     let mut s2 = phi[J] * sum[J];
+        //     // S2R = PHIR(J)*SUMR(J) - PHII(J)*SUMI(J);
+        //     // S2I = PHIR(J)*SUMI(J) + PHII(J)*SUMR(J);
+        //     ////////
+        //     // TODO from_polar -> s1.exp()?!
+        //     ////////
+        //     let s1 = MACHINE_CONSTANTS.scaling_factors[KFLAG]
+        //         * Complex64::from_polar(s1.re.exp(), s1.im);
+        //     // STR = DEXP(S1R)*CSSR(KFLAG);
+        //     // S1R = STR*DCOS(S1I);
+        //     // S1I = STR*DSIN(S1I);
+        //     s2 *= s1;
+        //     // STR = S2R*S1R - S2I*S1I;
+        //     // S2I = S1R*S2I + S2R*S1I;
+        //     // S2R = STR;
+        //     // if (KFLAG != 1) GO TO 50;
+        //     // CALL ZUunderflowCHK(S2R, S2I, NW, BRY(1), TOL);
+        //     // if (NW != 0) GO TO 60;
+        //     //    50   CONTINUE;
+        //     if KFLAG != 0
+        //         || !will_z_underflow(
+        //             s2,
+        //             MACHINE_CONSTANTS.bry[0],
+        //             MACHINE_CONSTANTS.abs_error_tolerance,
+        //         )
+        //     {
+        //         cy[KDFLG as usize] = s2;
+        //         // CYR(KDFLG) = S2R;
+        //         // CYI(KDFLG) = S2I;
+        //         y[i] = s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG];
+        //         // YR(I) = S2R*CSRR(KFLAG);
+        //         // YI(I) = S2I*CSRR(KFLAG);
+        //         if KDFLG {
+        //             break;
+        //         } //GO TO 75;
+        //         KDFLG = true;
+        //     }
+        // }
         // GO TO 70;
         // }else{
         //    60   CONTINUE;
 
-        if RS1 > 0.0 {
-            return Err(Overflow);
-        }
+        // if RS1 > 0.0 {
+        //     return Err(Overflow);
+        // }
         //GO TO 300;
         //-----------------------------------------------------------------------;
         //     FOR ZR < 0.0, THE I FUNCTION TO BE ADDED WILL OVERFLOW;
         //-----------------------------------------------------------------------;
-        if z.re < 0.0 {
-            return Err(Overflow);
-        } //GO TO 300;
-        KDFLG = false;
-        y[i] = c_zero();
-        // YR(I)=ZEROR;
-        // YI(I)=ZEROI;
-        NZ += 1;
-        if i > 0 && y[i - 1] != c_zero() {
-            // if (I == 1) GO TO 70;
-            // if ((YR(I-1) == ZEROR)&&(YI(I-1) == ZEROI)) GO TO 70;
-            // YR(I-1)=ZEROR;
-            // YI(I-1)=ZEROI;
-            // NZ=NZ+1;
+        // if z.re < 0.0 {
+        //     return Err(Overflow);
+        // } //GO TO 300;
+        // KDFLG = false;
+        // y[i] = c_zero();
+        // // YR(I)=ZEROR;
+        // // YI(I)=ZEROI;
+        // NZ += 1;
+        // if i > 0 && y[i - 1] != c_zero() {
+        //     // if (I == 1) GO TO 70;
+        //     // if ((YR(I-1) == ZEROR)&&(YI(I-1) == ZEROI)) GO TO 70;
+        //     // YR(I-1)=ZEROR;
+        //     // YI(I-1)=ZEROI;
+        //     // NZ=NZ+1;
 
-            y[i - 1] = c_zero();
-            NZ += 1
-        }
+        //     y[i - 1] = c_zero();
+        //     NZ += 1
+        // }
         //    70 CONTINUE;
     }
     if !KDFLG {
         I = N;
     }
     //    75 CONTINUE;
-    let reciprocal_abs_zr = 1.0 / zr.abs();
+    // let reciprocal_abs_zr = 1.0 / zr.abs();
     //   RAZR = 1.0/ZABS(ZRR,ZRI);
     //   STR = ZRR*RAZR;
     //   STI = -ZRI*RAZR;
@@ -4127,7 +4192,7 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
     //   CKR = FN*RZR;
     //   CKI = FN*RZI;
     let mut IB = I + 1;
-    if N >= IB {
+    if N - 1 >= IB {
         //GO TO 160;
         //-----------------------------------------------------------------------;
         //     TEST LAST MEMBER FOR UNDERFLOW AND OVERFLOW. SET SEQUENCE TO ZERO;
@@ -4141,6 +4206,7 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         //   CALL ZUNIK(ZRR, ZRI, FN, 2, IPARD, TOL, INITD, PHIDR, PHIDI,;
         //  * ZET1DR, ZET1DI, ZET2DR, ZET2DI, SUMDR, SUMDI, CWRKR(1,3),;
         //  * CWRKI(1,3));
+        // TODO scaling
         let s1 = if KODE == Scaling::Scaled {
             let mut st = zr + zet2d;
             let rast = FN / st.abs();
@@ -4165,6 +4231,7 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         //       }
         //    90 CONTINUE;
         let mut overflow_test = s1.re.abs();
+        // TODO overflow tests
         if overflow_test > MACHINE_CONSTANTS.exponent_limit {
             return Err(Overflow);
         }
@@ -4233,7 +4300,7 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
                 // YR(I) = C2R;
                 // YI(I) = C2I;
 
-                if KFLAG >= 2 {
+                if KFLAG == Overflow::NearOver {
                     continue;
                 } //GO TO 120;
                 // STR = (C2R).abs();
@@ -4242,7 +4309,7 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
                 if max_abs_component(ct) <= ASCLE {
                     continue;
                 } //GO TO 120;
-                KFLAG += 1;
+                KFLAG.increment();
                 ASCLE = MACHINE_CONSTANTS.bry[KFLAG];
                 s1 *= C1R;
                 // S1R = S1R*C1R;
@@ -4405,9 +4472,9 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
                 Overflow::Over => {
                     return Err(Overflow);
                 }
-                Overflow::RefinedOver => calculate_s2(0),
+                Overflow::NearOver => calculate_s2(0),
                 Overflow::Under => (c_zero(), None),
-                Overflow::RefinedUnder => calculate_s2(2),
+                Overflow::NearUnder => calculate_s2(2),
                 Overflow::None => calculate_s2(1),
             };
             if !KDFLG && let Some(new_val) = new_iflag {
