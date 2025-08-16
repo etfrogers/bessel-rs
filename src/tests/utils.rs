@@ -1,26 +1,39 @@
+use core::f64;
+
 use approx::relative_eq;
-use num::{complex::Complex64, pow::Pow};
+use num::{Zero, complex::Complex64, pow::Pow};
 
 use crate::{
     BesselError, Scaling,
-    amos::{MACHINE_CONSTANTS, zbesj},
-    tests::{TOLERANCE_MARGIN, zbesj_fortran_loop, zbesj_loop},
+    amos::{BesselResult, MACHINE_CONSTANTS},
+    tests::{BesselFortranSig, BesselSig, TOLERANCE_MARGIN},
 };
 
-pub fn check_against_fortran(order: f64, z: Complex64, scaling: Scaling, n: usize) {
-    let actual = zbesj(z, order, scaling, n);
+pub fn check_against_fortran(
+    order: f64,
+    z: Complex64,
+    scaling: Scaling,
+    n: usize,
+    rust_func: BesselSig,
+    fortran_func: BesselFortranSig,
+) {
+    let actual = rust_func(z, order, scaling, n);
     if let Err(ref err) = actual {
         if *err == BesselError::NotYetImplemented {
-            // return;
+            //return;
             panic!("NotYetImplemented should not occur")
         }
     }
 
-    let (cy, nz, ierr) = super::zbesj_fortran(order, z, scaling, n);
-    let (cy_loop_fort, _, _) = zbesj_fortran_loop(order, z, scaling, n);
+    let (cy, nz, ierr) = fortran_func(order, z, scaling, n);
+    let (cy_loop_fort, _, _) = fortran_bess_loop(order, z, scaling, n, fortran_func);
 
     let fail = |reason: &str| -> () {
-        let (cy_loop_rust, _) = zbesj_loop(order, z, scaling, n).unwrap();
+        let cy_loop_rust = match rust_bess_loop(order, z, scaling, n, rust_func) {
+            Ok((data, _)) => data,
+            Err(BesselError::NotYetImplemented) => vec![Complex64::new(f64::NAN, f64::NAN); n],
+            _ => todo!(),
+        };
         println!("Order: {order:e}\nz: {z:e}\nscaling: {scaling:?}\nn: {n}");
         println!("#[case({:e}, {:e}, {:e})]", order, z.re, z.im);
         println!("#[case({:.1}, {:.1}, {:.1})]\n", order, z.re, z.im);
@@ -72,6 +85,43 @@ pub fn check_against_fortran(order: f64, z: Complex64, scaling: Scaling, n: usiz
             }
         }
     }
+}
+
+fn rust_bess_loop(
+    order: f64,
+    z: Complex64,
+    scaling: Scaling,
+    n: usize,
+    func: BesselSig,
+) -> BesselResult {
+    let mut y = vec![Complex64::zero(); n];
+    let mut nz = 0;
+    for i in 0..n {
+        let (yi, nzi) = func(z, order + i as f64, scaling, 1)?;
+        y[i] = yi[0];
+        nz += nzi;
+    }
+    return Ok((y, nz));
+}
+
+fn fortran_bess_loop(
+    order: f64,
+    z: Complex64,
+    scaling: Scaling,
+    n: usize,
+    func: BesselFortranSig,
+) -> (Vec<Complex64>, usize, i32) {
+    let mut y = vec![Complex64::zero(); n];
+    let mut nz = 0;
+    for i in 0..n {
+        let (yi, nzi, ierr) = func(order + i as f64, z, scaling, 1);
+        if ierr != 0 {
+            return (y, nz, ierr);
+        }
+        y[i] = yi[0];
+        nz += nzi;
+    }
+    (y, nz, 0)
 }
 
 pub trait IntoComplexVec: Clone {

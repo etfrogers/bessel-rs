@@ -3338,7 +3338,7 @@ fn analytic_continuation(
     //     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE FOR THE K FUNCTION;
     //-----------------------------------------------------------------------;
     let NN = 2.min(N); //MIN0(2,N);
-    let (cy, NW) = ZBKNU(z, order, KODE, NN)?;
+    let (cy, NW) = ZBKNU(zn, order, KODE, NN)?;
     //   CALL ZBKNU(ZNR, ZNI, FNU, KODE, NN, CYR, CYI, NW, TOL, ELIM, ALIM);
     //   if (NW != 0) GO TO 90;
     if NW > 0 {

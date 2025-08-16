@@ -1,12 +1,11 @@
 use f64;
-use num::Zero;
 use rstest_reuse::{apply, template};
 
 use num::complex::Complex64;
 use rstest::rstest;
 
-use crate::amos::bindings::{zbesh_wrap, zbesj_wrap};
-use crate::amos::{BesselResult, HankelKind, zbesj};
+use crate::amos::bindings::{zbesh_wrap, zbesi_wrap, zbesj_wrap};
+use crate::amos::{BesselResult, HankelKind, zbesh, zbesi, zbesj};
 use crate::{BesselError, Scaling, bessel_i, bessel_j, hankel};
 
 use complex_bessel_rs::bessel_i::bessel_i as bessel_i_ref;
@@ -20,6 +19,9 @@ mod test_machine_consts;
 mod utils;
 
 const TOLERANCE_MARGIN: f64 = 10_000.0;
+
+type BesselSig = fn(Complex64, f64, Scaling, usize) -> BesselResult;
+type BesselFortranSig = fn(f64, Complex64, Scaling, usize) -> (Vec<Complex64>, usize, i32);
 
 #[template]
 #[rstest]
@@ -126,29 +128,78 @@ fn test_bessel_j_large_n_real(
     #[case] _zi: f64,
     #[values(3, 4, 9, 100)] n: usize,
     #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
-    // #[values(3)] n: usize,
-    // #[values(Scaling::Scaled)] scaling: Scaling,
+    #[values(
+        (zbesj as BesselSig, zbesj_fortran as BesselFortranSig),
+        (zbesi as BesselSig, zbesi_fortran as BesselFortranSig),
+        (zbesh_first as BesselSig , zbesh_fortran_first as BesselFortranSig),
+        (zbesh_second as BesselSig , zbesh_fortran_second as BesselFortranSig),
+    )]
+    (rust_fn, fortran_fn): (BesselSig, BesselFortranSig),
+    // #[values(4)] n: usize,
+    // #[values(Scaling::Unscaled)] scaling: Scaling,
 ) {
     // ignores the zi input
-    check_against_fortran(order, zr.into(), scaling, n);
+    check_against_fortran(order, zr.into(), scaling, n, rust_fn, fortran_fn);
 }
 
 #[apply(bessel_j_cases)]
-fn test_bessel_j_large_n_complex(
+fn test_bessel_large_n_complex(
     #[case] order: f64,
     #[case] zr: f64,
     #[case] zi: f64,
     #[values(3, 4, 9, 100)] n: usize,
     #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
+    #[values(
+        (zbesj as BesselSig, zbesj_fortran as BesselFortranSig),
+        (zbesi as BesselSig, zbesi_fortran as BesselFortranSig),
+        (zbesh_first as BesselSig , zbesh_fortran_first as BesselFortranSig),
+        (zbesh_second as BesselSig , zbesh_fortran_second as BesselFortranSig),
+    )]
+    (rust_fn, fortran_fn): (BesselSig, BesselFortranSig),
     // #[values(9)] n: usize,
     // #[values(Scaling::Unscaled)] scaling: Scaling,
 ) {
     let z = Complex64::new(zr, zi);
-    check_against_fortran(order, z, scaling, n);
+    check_against_fortran(order, z, scaling, n, rust_fn, fortran_fn);
 }
 
+fn zbesh_first(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
+    zbesh(z, order, scaling, HankelKind::First, n)
+}
+
+fn zbesh_fortran_first(
+    order: f64,
+    z: Complex64,
+    scaling: Scaling,
+    n: usize,
+) -> (Vec<Complex64>, usize, i32) {
+    zbesh_fortran(order, z, scaling, HankelKind::First, n)
+}
+
+fn zbesh_second(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
+    zbesh(z, order, scaling, HankelKind::Second, n)
+}
+
+fn zbesh_fortran_second(
+    order: f64,
+    z: Complex64,
+    scaling: Scaling,
+    n: usize,
+) -> (Vec<Complex64>, usize, i32) {
+    zbesh_fortran(order, z, scaling, HankelKind::Second, n)
+}
+
+// #[apply(bessel_types)]
 #[rstest]
-fn test_bessel_j_extremes(
+fn test_bessel_extremes(
+    #[values(
+        (zbesj as BesselSig, zbesj_fortran as BesselFortranSig),
+        (zbesi as BesselSig, zbesi_fortran as BesselFortranSig),
+        (zbesh_first as BesselSig , zbesh_fortran_first as BesselFortranSig),
+        (zbesh_second as BesselSig , zbesh_fortran_second as BesselFortranSig),
+    )]
+    (rust_fn, fortran_fn): (BesselSig, BesselFortranSig),
+
     #[values(0.0, f64::EPSILON, f64::MIN_POSITIVE, 1.0, f64::MAX)] order: f64,
     #[values(
         f64::MIN,
@@ -176,37 +227,7 @@ fn test_bessel_j_extremes(
 ) {
     let n = 9;
     let z = Complex64::new(zr, zi);
-    check_against_fortran(order, z, scaling, n);
-}
-
-fn zbesj_loop(order: f64, z: Complex64, scaling: Scaling, n: usize) -> BesselResult {
-    let mut y = vec![Complex64::zero(); n];
-    let mut nz = 0;
-    for i in 0..n {
-        let (yi, nzi) = zbesj(z, order + i as f64, scaling, 1)?;
-        y[i] = yi[0];
-        nz += nzi;
-    }
-    return Ok((y, nz));
-}
-
-fn zbesj_fortran_loop(
-    order: f64,
-    z: Complex64,
-    scaling: Scaling,
-    n: usize,
-) -> (Vec<Complex64>, usize, i32) {
-    let mut y = vec![Complex64::zero(); n];
-    let mut nz = 0;
-    for i in 0..n {
-        let (yi, nzi, ierr) = zbesj_fortran(order + i as f64, z, scaling, 1);
-        if ierr != 0 {
-            return (y, nz, ierr);
-        }
-        y[i] = yi[0];
-        nz += nzi;
-    }
-    (y, nz, 0)
+    check_against_fortran(order, z, scaling, n, rust_fn, fortran_fn);
 }
 
 fn zbesj_fortran(
@@ -224,6 +245,42 @@ fn zbesj_fortran(
     let i_uninit = cyi.spare_capacity_mut();
     unsafe {
         zbesj_wrap(
+            z.re,
+            z.im,
+            order,
+            scaling as i32,
+            n.try_into().unwrap(),
+            r_uninit.as_mut_ptr().cast(),
+            i_uninit.as_mut_ptr().cast(),
+            &mut nz,
+            &mut ierr,
+        );
+        cyr.set_len(n);
+        cyi.set_len(n);
+    }
+    let cy = cyr
+        .into_iter()
+        .zip(cyi)
+        .map(|(r, i)| Complex64::new(r, i))
+        .collect();
+    (cy, nz.try_into().unwrap(), ierr)
+}
+
+fn zbesi_fortran(
+    order: f64,
+    z: Complex64,
+    scaling: Scaling,
+    n: usize,
+) -> (Vec<Complex64>, usize, i32) {
+    let mut cyr: Vec<f64> = Vec::with_capacity(n);
+    let mut cyi: Vec<f64> = Vec::with_capacity(n);
+    let mut nz = 0;
+    let mut ierr = 0;
+
+    let r_uninit = cyr.spare_capacity_mut();
+    let i_uninit = cyi.spare_capacity_mut();
+    unsafe {
+        zbesi_wrap(
             z.re,
             z.im,
             order,
