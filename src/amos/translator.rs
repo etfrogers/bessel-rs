@@ -305,7 +305,7 @@ pub fn zbesh(z: Complex64, order: f64, KODE: Scaling, M: HankelKind, N: usize) -
                 //     YN >= 0. || M=1);
                 //-----------------------------------------------------------------------;
                 //   CALL ZBKNU(ZNR, ZNI, FNU, KODE, NN, CYR, CYI, NZ, TOL, ELIM, ALIM);
-                ZBKNU(z, order, KODE, NN)?
+                ZBKNU(zn, order, KODE, NN)?
             //   GO TO 110;
             //-----------------------------------------------------------------------;
             //     LEFT HALF PLANE COMPUTATION;
@@ -365,7 +365,7 @@ pub fn zbesh(z: Complex64, order: f64, KODE: Scaling, M: HankelKind, N: usize) -
     //   INUH = INU/2;
     let int_remain = int_order - 2 * half_int_order;
     //   IR = INU - 2*INUH;
-    let arg = order - ((int_order - int_remain) as f64) * sign;
+    let arg = (order - ((int_order - int_remain) as f64)) * sign;
     //   ARG = (FNU-((INU-IR) as f64))*SGN;
     let mut csgn = (1.0 / sign) * Complex64::I * Complex64::cis(arg);
     //   RFRAC_PI_2 = 1.0/SGN;
@@ -2381,7 +2381,7 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
         }
         (s1, s2)
     } else {
-        // alterntive to SERIES FOR CABS(Z) <= R1; Or half integer order
+        // alternative to SERIES FOR CABS(Z) <= R1; Or half integer order
         //-----------------------------------------------------------------------;
         //     underflow_occured=0 MEANS NO UNDERFLOW OCCURRED;
         //     underflow_occured=1 MEANS AN UNDERFLOW OCCURRED- COMPUTATION PROCEEDS WITH;
@@ -2661,10 +2661,10 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
             I = i;
             let mut p2 = s2;
             s2 = ck * s2 + s1;
-            let mut s1 = p2;
-            ck *= rz;
+            s1 = p2;
+            ck += rz;
             p2 = s2 * P1R;
-            y[I - 1] = p2;
+            y[I] = p2;
             if KFLAG >= 2 {
                 return Err(LossOfSignificance);
             };
