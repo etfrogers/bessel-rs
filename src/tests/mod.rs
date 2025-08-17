@@ -122,7 +122,7 @@ fn test_bessel_h(
 
 #[apply(bessel_j_cases)]
 #[trace]
-fn test_bessel_j_large_n_real(
+fn test_bessel_large_n_real(
     #[case] order: f64,
     #[case] zr: f64,
     #[case] _zi: f64,
@@ -143,6 +143,7 @@ fn test_bessel_j_large_n_real(
 }
 
 #[apply(bessel_j_cases)]
+#[trace]
 fn test_bessel_large_n_complex(
     #[case] order: f64,
     #[case] zr: f64,
