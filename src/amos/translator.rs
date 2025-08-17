@@ -3945,7 +3945,7 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
     //   BRY(1) = 1.0e+3*d1mach(1)/TOL;
     //   BRY(2) = 1.0/BRY(1);
     //   BRY(3) = d1mach(2);
-    let zr = z;
+
     //   ZRR = ZR;
     //   ZRI = ZI;
     let zr = if z.re < 0.0 {
@@ -3992,7 +3992,9 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
             // STR = ZRR + ZETA2R(J);
             // STI = ZRI + ZETA2I(J);
             // RAST = FN/ZABS(STR,STI);
-            st = st.conj() / (FN / st.abs()).pow(2);
+            // let rast = FN / st.abs();
+            // st = st.conj() * rast * rast;
+            st = st.conj() * (FN / st.abs()).pow(2);
             // STR = STR*RAST*RAST;
             // STI = -STI*RAST*RAST;
             zeta1[J] - st
@@ -4268,7 +4270,7 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         //   S2R = CYR(2);
         //   S2I = CYI(2);
 
-        let mut C1R = MACHINE_CONSTANTS.scaling_factors[KFLAG];
+        let mut C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG];
         let mut ASCLE = MACHINE_CONSTANTS.bry[KFLAG];
         //   DO 120 I=IB,N;
         for i in IB..N {
@@ -4305,7 +4307,7 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
             s1 *= C1R;
             // S1R = S1R*C1R;
             // S1I = S1I*C1R;
-            s1 = ct;
+            s2 = ct;
             // S2R = C2R;
             // S2I = C2I;
             s1 *= MACHINE_CONSTANTS.scaling_factors[KFLAG];
@@ -4314,7 +4316,7 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
             // S1I = S1I*CSSR(KFLAG);
             // S2R = S2R*CSSR(KFLAG);
             // S2I = S2I*CSSR(KFLAG);
-            C1R = MACHINE_CONSTANTS.scaling_factors[KFLAG];
+            C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG];
             //   120 CONTINUE;
         }
         //   160 CONTINUE;
