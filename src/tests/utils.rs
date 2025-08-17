@@ -104,7 +104,7 @@ fn rust_bess_loop(
     return Ok((y, nz));
 }
 
-fn fortran_bess_loop(
+pub fn fortran_bess_loop(
     order: f64,
     z: Complex64,
     scaling: Scaling,

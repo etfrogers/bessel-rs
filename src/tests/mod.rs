@@ -10,7 +10,10 @@ use crate::{BesselError, Scaling, bessel_i, bessel_j, hankel};
 
 use complex_bessel_rs::bessel_i::bessel_i as bessel_i_ref;
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_ref;
-use utils::{check_against_fortran, check_complex_arrays_equal};
+pub use utils::{check_against_fortran, check_complex_arrays_equal};
+
+#[cfg(feature = "random_tests")]
+pub use utils::fortran_bess_loop;
 
 #[cfg(feature = "random_tests")]
 mod random_tests;
