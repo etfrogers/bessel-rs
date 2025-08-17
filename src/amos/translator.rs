@@ -243,9 +243,6 @@ pub fn zbesh(z: Complex64, order: f64, KODE: Scaling, M: HankelKind, N: usize) -
     //   AA = DSQRT(AA);
     AA = AA.sqrt();
     let partial_loss_of_significance = abs_z > AA || order > AA;
-    if partial_loss_of_significance {
-        todo!()
-    }
     //   if (AZ > AA) IERR=3;
     //   if (FN > AA) IERR=3;
     //-----------------------------------------------------------------------;
@@ -281,7 +278,11 @@ pub fn zbesh(z: Complex64, order: f64, KODE: Scaling, M: HankelKind, N: usize) -
                     }
                     //GO TO 230;
                     else {
-                        Ok((cy, NZ))
+                        if partial_loss_of_significance {
+                            Err(BesselError::PartialLossOfSignificance { y: cy, nz: NZ })
+                        } else {
+                            Ok((cy, NZ))
+                        }
                     };
                     //   RETURN;
                 }
@@ -410,7 +411,12 @@ pub fn zbesh(z: Complex64, order: f64, KODE: Scaling, M: HankelKind, N: usize) -
         // CSGNI = CSGNR * ZTI;
         // CSGNR = STR;
     }
-    Ok((cy, NZ))
+    if partial_loss_of_significance {
+        Err(BesselError::PartialLossOfSignificance { y: cy, nz: NZ })
+    } else {
+        Ok((cy, NZ))
+    }
+
     //   130 CONTINUE;
     // RETURN;
     //   140 CONTINUE;
