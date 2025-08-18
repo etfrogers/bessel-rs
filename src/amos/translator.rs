@@ -297,33 +297,33 @@ pub fn zbesh(z: Complex64, order: f64, KODE: Scaling, M: HankelKind, N: usize) -
                 } //GO TO 230;
             }
             //   GO TO 70;
-
-            //    70 CONTINUE;
-            if !((zn.re < 0.0) || (zn.re == 0.0 && zn.im < 0.0 && M == HankelKind::Second)) {
-                //GO TO 80;
-                //-----------------------------------------------------------------------;
-                //     RIGHT HALF PLANE COMPUTATION, XN >= 0. && (XN != 0. ||;
-                //     YN >= 0. || M=1);
-                //-----------------------------------------------------------------------;
-                //   CALL ZBKNU(ZNR, ZNI, FNU, KODE, NN, CYR, CYI, NZ, TOL, ELIM, ALIM);
-                ZBKNU(zn, order, KODE, NN)?
-            //   GO TO 110;
-            //-----------------------------------------------------------------------;
-            //     LEFT HALF PLANE COMPUTATION;
-            //-----------------------------------------------------------------------;
-            } else {
-                //    80 CONTINUE;
-                //   MR = -MM;
-
-                //   CALL ZACON(ZNR, ZNI, FNU, KODE, MR, NN, CYR, CYI, NW, RL, FNUL, TOL, ELIM, ALIM);
-                analytic_continuation(zn, order, KODE, -MM, NN)?
-                //   if (NW < 0) GO TO 240;
-                //   NZ=NW;
-            }
-        } else {
-            (c_zeros(N), 0)
         }
-    //   GO TO 110;
+        //    70 CONTINUE;
+        if !((zn.re < 0.0) || (zn.re == 0.0 && zn.im < 0.0 && M == HankelKind::Second)) {
+            //GO TO 80;
+            //-----------------------------------------------------------------------;
+            //     RIGHT HALF PLANE COMPUTATION, XN >= 0. && (XN != 0. ||;
+            //     YN >= 0. || M=1);
+            //-----------------------------------------------------------------------;
+            //   CALL ZBKNU(ZNR, ZNI, FNU, KODE, NN, CYR, CYI, NZ, TOL, ELIM, ALIM);
+            ZBKNU(zn, order, KODE, NN)?
+        //   GO TO 110;
+        //-----------------------------------------------------------------------;
+        //     LEFT HALF PLANE COMPUTATION;
+        //-----------------------------------------------------------------------;
+        } else {
+            //    80 CONTINUE;
+            //   MR = -MM;
+
+            //   CALL ZACON(ZNR, ZNI, FNU, KODE, MR, NN, CYR, CYI, NW, RL, FNUL, TOL, ELIM, ALIM);
+            analytic_continuation(zn, order, KODE, -MM, NN)?
+            //   if (NW < 0) GO TO 240;
+            //   NZ=NW;
+        }
+        // } else {
+        //     (c_zeros(N), 0)
+        // }
+        //   GO TO 110;
     } else {
         //    90 CONTINUE;
         //-----------------------------------------------------------------------;
