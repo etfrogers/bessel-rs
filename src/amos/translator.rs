@@ -2648,7 +2648,7 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
                 return Ok((y, NZ));
             }
             let mut KK = NZ; // + 1;
-            y[KK - 1] *= MACHINE_CONSTANTS.reciprocal_scaling_factors[0];
+            y[KK] *= MACHINE_CONSTANTS.reciprocal_scaling_factors[0];
             if INU == 1 {
                 return Ok((y, NZ));
             }
