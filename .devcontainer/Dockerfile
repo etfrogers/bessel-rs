@@ -19,5 +19,5 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y --
 RUN pipx install fortls
 # RUN export PATH="/root/.cargo/bin:${PATH}"
 # Add .cargo/bin to PATH
-ENV PATH="/root/.cargo/bin:${PATH}"
+ENV PATH="/root/.cargo/bin:/root/.local/bin:${PATH}"
 WORKDIR /workspace
