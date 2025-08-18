@@ -62,6 +62,9 @@ type BesselFortranSig = fn(f64, Complex64, Scaling, usize) -> (Vec<Complex64>, u
 #[case(5.007e-14, 4.401331657952316e-5, -3.6e-6)]
 #[case(1719.3, 920.1, 0.0)]
 #[case(3.5695132850479827e3, -2.2313404290100934e3, 8.646324128723001e3)]
+#[case(0.28008208034835413, -2435.84398720043, -9106.813568430613)] // 35
+#[case(35.42423142304685, 2689.1019240048972, -688.7899868054337)]
+#[case(1.0111752223029848, 7037.518427975952, -685.0803465010631)]
 fn bessel_j_cases(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {}
 
 #[apply(bessel_j_cases)]
@@ -109,13 +112,14 @@ fn test_bessel_h(
 ) {
     let z = Complex64::new(zr, zi);
     let actual = hankel(order, z, kind);
-    dbg!(&actual);
+    // dbg!(&actual);
     if actual == Err(BesselError::NotYetImplemented) {
         return;
         //todo!()
     }
 
     let expected = bessel_h_ref(order, z.into(), kind);
+    // dbg!(&expected);
     if let Ok(actual) = actual {
         check_complex_arrays_equal(&actual, &expected.unwrap(), &Vec::new());
     } else {
@@ -193,7 +197,6 @@ fn zbesh_fortran_second(
     zbesh_fortran(order, z, scaling, HankelKind::Second, n)
 }
 
-// #[apply(bessel_types)]
 #[rstest]
 fn test_bessel_extremes(
     #[values(
