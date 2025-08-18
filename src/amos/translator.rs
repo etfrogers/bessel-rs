@@ -4057,13 +4057,12 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
                 // CALL ZUunderflowCHK(S2R, S2I, NW, BRY(1), TOL);
                 // if (NW != 0) GO TO 60;
                 //    50   CONTINUE;
-                if of != Overflow::NearUnder
-                    || !will_z_underflow(
-                        s2,
-                        MACHINE_CONSTANTS.bry[0],
-                        MACHINE_CONSTANTS.abs_error_tolerance,
-                    )
-                {
+                let will_underflow = will_z_underflow(
+                    s2,
+                    MACHINE_CONSTANTS.bry[0],
+                    MACHINE_CONSTANTS.abs_error_tolerance,
+                );
+                if of != Overflow::NearUnder || !will_underflow {
                     cy[KDFLG as usize] = s2;
                     // CYR(KDFLG) = S2R;
                     // CYI(KDFLG) = S2I;
@@ -4074,6 +4073,25 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
                         break;
                     } //GO TO 75;
                     KDFLG = true;
+                } else if will_underflow {
+                    if z.re < 0.0 {
+                        return Err(Overflow);
+                    } //GO TO 300;
+                    // KDFLG = false;
+                    y[i] = c_zero();
+                    // YR(I)=ZEROR;
+                    // YI(I)=ZEROI;
+                    NZ += 1;
+                    if i > 0 && y[i - 1] != c_zero() {
+                        // if (I == 1) GO TO 70;
+                        // if ((YR(I-1) == ZEROR)&&(YI(I-1) == ZEROI)) GO TO 70;
+                        // YR(I-1)=ZEROR;
+                        // YI(I-1)=ZEROI;
+                        // NZ=NZ+1;
+                        y[i - 1] = c_zero();
+                        NZ += 1
+                    }
+                    //    70 CONTINUE;
                 }
                 of
             }
