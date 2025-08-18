@@ -2504,9 +2504,9 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
             cs = cs.conj() / cs.abs();
             s1 *= coef * cs;
             if INU <= 0 && N <= 1 {
-                if underflow_occurred {
-                    todo!()
-                }
+                // if underflow_occurred {
+                //     todo!()
+                // }
                 skip_to_240 = true;
             } else {
                 //-----------------------------------------------------------------------;
@@ -2536,79 +2536,84 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
 
     'l225: loop {
         if !skip_to_240 {
-            if !(INU <= 0 && N <= 1) {
-                let mut P1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG];
-                let mut ASCLE = MACHINE_CONSTANTS.bry[KFLAG];
-                for _ in INUB..=INU {
-                    let st = s2;
-                    s2 = ck * s2 + s1;
-                    s1 = st;
-                    ck += rz;
-                    if KFLAG >= 2 {
-                        continue;
-                    }
-                    let p2 = s2 * P1R;
-                    if max_abs_component(p2) <= ASCLE {
-                        continue;
-                    }
-                    KFLAG += 1;
-                    ASCLE = MACHINE_CONSTANTS.bry[KFLAG];
-                    s1 *= P1R;
-                    s2 = p2;
-                    s1 *= MACHINE_CONSTANTS.scaling_factors[KFLAG];
-                    s2 *= MACHINE_CONSTANTS.scaling_factors[KFLAG];
-                    P1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG];
-                }
-            } else if underflow_occurred {
-                //-----------------------------------------------------------------------;
-                //     underflow_occured=1 CASES, FORWARD RECURRENCE ON SCALED VALUES ON UNDERFLOW;
-                //-----------------------------------------------------------------------;
-                let mut cy = c_zeros(2);
-                let HELIM = 0.5 * MACHINE_CONSTANTS.exponent_limit;
-                let ELM = (-MACHINE_CONSTANTS.exponent_limit).exp();
-                let CELMR = ELM;
-                let ASCLE = MACHINE_CONSTANTS.bry[0];
-                let mut zd = z;
-                let mut IC: isize = -2;
-                let mut J = 1;
-                let mut I = 0;
-                for i in 0..INU {
-                    I = i + 1;
-                    let st = s2;
-                    s2 = s2 * ck + s1;
-                    s1 = st;
-                    ck += rz;
-                    let ALAS = s2.abs().ln();
-                    if -zd.re + ALAS >= -MACHINE_CONSTANTS.exponent_limit {
-                        let p2 = -zd + s2.ln();
-                        let p1 = (p2.re.exp() / MACHINE_CONSTANTS.abs_error_tolerance)
-                            * Complex64::cis(p2.im);
-                        if will_z_underflow(p1, ASCLE, MACHINE_CONSTANTS.abs_error_tolerance) {
-                            J = 1 - J;
-                            cy[J] = p1;
-                            // IF(IC.EQ.(I-1)) GO TO 264
-                            // below implies we got here twice in a row
-                            if IC == i - 1 {
-                                underflow_occurred = true; //implies 270
-                                IC = i;
+            if INU > 0 {
+                if underflow_occurred {
+                    underflow_occurred = false;
+                    //-----------------------------------------------------------------------;
+                    //     underflow_occured=1 CASES, FORWARD RECURRENCE ON SCALED VALUES ON UNDERFLOW;
+                    //-----------------------------------------------------------------------;
+                    let mut cy = c_zeros(2);
+                    let HELIM = 0.5 * MACHINE_CONSTANTS.exponent_limit;
+                    let ELM = (-MACHINE_CONSTANTS.exponent_limit).exp();
+                    let CELMR = ELM;
+                    let ASCLE = MACHINE_CONSTANTS.bry[0];
+                    let mut zd = z;
+                    let mut IC: isize = -1;
+                    let mut J = 1;
+                    let mut I = 0;
+                    for i in 0..INU {
+                        I = i + 1;
+                        let st = s2;
+                        s2 = s2 * ck + s1;
+                        s1 = st;
+                        ck += rz;
+                        let ALAS = s2.abs().ln();
+                        if -zd.re + ALAS >= -MACHINE_CONSTANTS.exponent_limit {
+                            let p2 = -zd + s2.ln();
+                            let p1 = (p2.re.exp() / MACHINE_CONSTANTS.abs_error_tolerance)
+                                * Complex64::cis(p2.im);
+                            if !will_z_underflow(p1, ASCLE, MACHINE_CONSTANTS.abs_error_tolerance) {
+                                J = 1 - J;
+                                cy[J] = p1;
+                                // IF(IC.EQ.(I-1)) GO TO 264
+                                // below implies we got here twice in a row
+                                if IC == I - 1 {
+                                    // underflow_occurred = true; //implies 270
+                                    break;
+                                } else {
+                                    IC = I;
+                                    continue;
+                                }
+                            }
+                            if ALAS < HELIM {
                                 continue;
                             }
+                            zd.re -= MACHINE_CONSTANTS.exponent_limit;
+                            s1 *= CELMR;
+                            s2 *= CELMR;
                         }
-                        if ALAS < HELIM {
+                    }
+                    KFLAG = 0;
+                    INUB = I + 1;
+                    s2 = cy[J];
+                    J = 1 - J;
+                    s1 = cy[J];
+                    if INUB <= INU {
+                        continue 'l225;
+                    }
+                } else {
+                    let mut P1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG];
+                    let mut ASCLE = MACHINE_CONSTANTS.bry[KFLAG];
+                    for _ in INUB..=INU {
+                        let st = s2;
+                        s2 = ck * s2 + s1;
+                        s1 = st;
+                        ck += rz;
+                        if KFLAG >= 2 {
                             continue;
                         }
-                        zd.re -= MACHINE_CONSTANTS.exponent_limit;
-                        s1 *= CELMR;
-                        s2 *= CELMR;
+                        let p2 = s2 * P1R;
+                        if max_abs_component(p2) <= ASCLE {
+                            continue;
+                        }
+                        KFLAG += 1;
+                        ASCLE = MACHINE_CONSTANTS.bry[KFLAG];
+                        s1 *= P1R;
+                        s2 = p2;
+                        s1 *= MACHINE_CONSTANTS.scaling_factors[KFLAG];
+                        s2 *= MACHINE_CONSTANTS.scaling_factors[KFLAG];
+                        P1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG];
                     }
-                }
-                KFLAG = 0;
-                INUB = I + 1;
-                s2 = cy[J];
-                J = 1 - J;
-                s1 = cy[J];
-                if INUB <= INU {
-                    continue 'l225;
                 }
             }
             if N == 1 {
