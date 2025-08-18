@@ -2677,7 +2677,7 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
             p2 = s2 * P1R;
             y[I] = p2;
             if KFLAG >= 2 {
-                return Err(LossOfSignificance);
+                continue;
             };
             if max_abs_component(p2) <= ASCLE {
                 continue;
