@@ -2648,16 +2648,18 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
                 return Ok((y, NZ));
             }
             let mut KK = NZ; // + 1;
+            s1 = y[KK];
             y[KK] *= MACHINE_CONSTANTS.reciprocal_scaling_factors[0];
             if INU == 1 {
                 return Ok((y, NZ));
             }
             KK = NZ + 1;
+            s2 = y[KK];
             y[KK] *= MACHINE_CONSTANTS.reciprocal_scaling_factors[0];
             if INU == 2 {
                 return Ok((y, NZ));
             }
-            ck = (order + ((KK - 1) as f64)) * rz;
+            ck = (order + (KK as f64)) * rz;
             KFLAG = 0;
             (KK, y)
         };
@@ -2749,7 +2751,7 @@ fn ZKSCL(
     if N == 1 {
         return;
     }
-    if IC <= 1 {
+    if IC < 1 {
         y[0] = c_zero();
         *NZ = 2;
     }
@@ -3353,7 +3355,9 @@ fn analytic_continuation(
     //   CALL ZBKNU(ZNR, ZNI, FNU, KODE, NN, CYR, CYI, NW, TOL, ELIM, ALIM);
     //   if (NW != 0) GO TO 90;
     if NW > 0 {
-        todo!()
+        return Err(Overflow);
+        // the NW = -1 or -2 is handled by ZBNKU returning an error,
+        // but the amos code defaults to an overflow, if NW != 0
     }
     let mut s1 = cy[0];
     //   S1R = CYR(1);
