@@ -4026,7 +4026,12 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         };
         //    30   CONTINUE;
 
-        KFLAG = match Overflow::find_overflow(s1.re, phi[J]) {
+        let new_KFLAG = Overflow::find_overflow(s1.re, phi[J]);
+        if !KDFLG {
+            KFLAG = new_KFLAG;
+        }
+
+        match new_KFLAG {
             Overflow::Over => return Err(Overflow),
             Overflow::Under => {
                 if z.re < 0.0 {
@@ -4035,9 +4040,8 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
                 KDFLG = false;
                 y[i] = c_zero();
                 NZ += 1;
-                Overflow::Under
             }
-            of @ Overflow::None | of @ Overflow::NearOver | of @ Overflow::NearUnder => {
+            Overflow::None | Overflow::NearOver | Overflow::NearUnder => {
                 //-----------------------------------------------------------------------;
                 //     SCALE S1 TO KEEP INTERMEDIATE ARITHMETIC ON SCALE NEAR;
                 //     EXPONENT EXTREMES;
@@ -4048,7 +4052,7 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
                 ////////
                 // TODO from_polar -> s1.exp()?!
                 ////////
-                s1 = MACHINE_CONSTANTS.scaling_factors[of]
+                s1 = MACHINE_CONSTANTS.scaling_factors[KFLAG]
                     * Complex64::from_polar(s1.re.exp(), s1.im);
                 // STR = DEXP(S1R)*CSSR(KFLAG);
                 // S1R = STR*DCOS(S1I);
@@ -4066,11 +4070,11 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
                     MACHINE_CONSTANTS.bry[0],
                     MACHINE_CONSTANTS.abs_error_tolerance,
                 );
-                if of != Overflow::NearUnder || !will_underflow {
+                if KFLAG != Overflow::NearUnder || !will_underflow {
                     cy[KDFLG as usize] = s2;
                     // CYR(KDFLG) = S2R;
                     // CYI(KDFLG) = S2I;
-                    y[i] = s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[of];
+                    y[i] = s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[KFLAG];
                     // YR(I) = S2R*CSRR(KFLAG);
                     // YI(I) = S2I*CSRR(KFLAG);
                     if KDFLG {
@@ -4097,7 +4101,6 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
                     }
                     //    70 CONTINUE;
                 }
-                of
             }
         };
         // let mut RS1 = s1.re;
