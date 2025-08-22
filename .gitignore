@@ -2,3 +2,4 @@
 **/*/a.out*
 .DS_Store
 *.vsix
+lcov.info
