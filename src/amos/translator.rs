@@ -244,10 +244,10 @@ pub fn zbesh(z: Complex64, order: f64, KODE: Scaling, M: HankelKind, N: usize) -
                     };
                 }
             }
-            if abs_z <= MACHINE_CONSTANTS.abs_error_tolerance {
-                if -FN * (0.5 * abs_z).ln() > MACHINE_CONSTANTS.exponent_limit {
-                    return Err(Overflow);
-                }
+            if abs_z <= MACHINE_CONSTANTS.abs_error_tolerance
+                && -FN * (0.5 * abs_z).ln() > MACHINE_CONSTANTS.exponent_limit
+            {
+                return Err(Overflow);
             }
         }
         if !((zn.re < 0.0) || (zn.re == 0.0 && zn.im < 0.0 && M == HankelKind::Second)) {
@@ -295,16 +295,14 @@ pub fn zbesh(z: Complex64, order: f64, KODE: Scaling, M: HankelKind, N: usize) -
     if half_int_order % 2 != 0 {
         csgn = -csgn;
     }
-    for i in 0..NN {
-        let mut loop_y = cy[i];
-        let ATOL = if max_abs_component(loop_y) < MACHINE_CONSTANTS.absolute_approximation_limit {
-            loop_y *= MACHINE_CONSTANTS.rtol;
+    for element in cy.iter_mut().take(NN) {
+        let ATOL = if max_abs_component(*element) < MACHINE_CONSTANTS.absolute_approximation_limit {
+            *element *= MACHINE_CONSTANTS.rtol;
             MACHINE_CONSTANTS.abs_error_tolerance
         } else {
             1.0
         };
-        let st = loop_y * csgn;
-        cy[i] = st * ATOL;
+        *element *= csgn * ATOL;
         csgn *= Complex64::I * -FMM;
     }
     if partial_loss_of_significance {
@@ -505,16 +503,16 @@ pub fn zbesi(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult 
         //-----------------------------------------------------------------------
         //     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE
         //-----------------------------------------------------------------------
-        for i in 0..remaining_n {
+        for element in cy.iter_mut().take(remaining_n) {
             let correction =
-                if max_abs_component(cy[i]) <= MACHINE_CONSTANTS.absolute_approximation_limit {
-                    cy[i] *= MACHINE_CONSTANTS.rtol;
+                if max_abs_component(*element) <= MACHINE_CONSTANTS.absolute_approximation_limit {
+                    *element *= MACHINE_CONSTANTS.rtol;
                     MACHINE_CONSTANTS.abs_error_tolerance
                 } else {
                     1.0
                 };
-            cy[i] *= csgn;
-            cy[i] *= correction;
+            *element *= csgn;
+            *element *= correction;
             csgn = -csgn;
         }
     }
@@ -2035,9 +2033,9 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
             //-----------------------------------------------------------------------;
             let mut ak = 1.0;
             let mut sum = CC[0];
-            for k in 1..8 {
+            for cc in CC[1..].iter() {
                 ak *= DNU2;
-                let TM = CC[k] * ak;
+                let TM = cc * ak;
                 sum += TM;
                 if TM.abs() < MACHINE_CONSTANTS.abs_error_tolerance {
                     break;
@@ -2495,9 +2493,9 @@ fn ZKSCL(
     //     FIND TWO CONSECUTIVE Y VALUES ON SCALE. SCALE RECURRENCE if
     //     S2 GETS LARGER THAN EXP(ELIM/2)
     let mut skip_to_40 = false;
-    let mut KK = 0;
+    let mut I = 0;
     for i in 2..N {
-        KK = i + 1;
+        I = i;
         let mut cs = s2;
         s2 = cs * ck + s1;
         s1 = cs;
@@ -2511,11 +2509,11 @@ fn ZKSCL(
             if !will_z_underflow(cs, ASCLE, MACHINE_CONSTANTS.abs_error_tolerance) {
                 y[i] = cs;
                 *NZ -= 1;
-                if IC == KK - 1 {
+                if IC == i - 1 {
                     skip_to_40 = true;
                     break;
                 }
-                IC = KK;
+                IC = i;
                 continue;
             }
         }
@@ -2533,10 +2531,10 @@ fn ZKSCL(
             *NZ = N - 1
         };
     } else {
-        *NZ = KK - 2;
+        *NZ = I - 2;
     }
-    for i in 0..*NZ {
-        y[i] = c_zero();
+    for element in y.iter_mut().take(*NZ) {
+        *element = c_zero();
     }
 }
 
@@ -2867,8 +2865,8 @@ fn i_miller(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
     let AP = p2.abs();
     ck = p1.exp() / AP;
     let cnorm = ck * p2.conj() / AP;
-    for i in 0..N {
-        y[i] *= cnorm;
+    for element in y.iter_mut() {
+        *element *= cnorm;
     }
     Ok((y, NZ))
 }
