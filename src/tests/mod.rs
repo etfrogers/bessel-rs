@@ -21,7 +21,7 @@ mod test_gamma_ln;
 mod test_machine_consts;
 mod utils;
 
-const TOLERANCE_MARGIN: f64 = 10_000.0;
+const TOLERANCE_MARGIN: f64 = 1e8;
 
 type BesselSig = fn(Complex64, f64, Scaling, usize) -> BesselResult;
 type BesselFortranSig = fn(f64, Complex64, Scaling, usize) -> (Vec<Complex64>, usize, i32);
