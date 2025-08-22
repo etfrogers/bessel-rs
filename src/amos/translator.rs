@@ -2139,9 +2139,7 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
                 underflow_occurred = true;
                 KFLAG = 1;
             } else {
-                coef *= (-z.re).exp()
-                    * MACHINE_CONSTANTS.scaling_factors[KFLAG]
-                    * Complex64::cis(z.im).conj();
+                coef *= MACHINE_CONSTANTS.scaling_factors[KFLAG] * (-z).exp();
             }
         }
         let mut AK = (DNU * PI).cos().abs();
@@ -2464,7 +2462,7 @@ fn ZKSCL(
             continue;
         }
         let mut cs = s1.ln() - zr;
-        cs = Complex64::from_polar(cs.re.exp() / MACHINE_CONSTANTS.abs_error_tolerance, cs.im);
+        cs = cs.exp() / MACHINE_CONSTANTS.abs_error_tolerance;
 
         if will_z_underflow(cs, ASCLE, MACHINE_CONSTANTS.abs_error_tolerance) {
             continue;
@@ -2509,7 +2507,7 @@ fn ZKSCL(
         y[i] = Complex64::zero();
         if -zd.re + s2.abs().ln() >= -MACHINE_CONSTANTS.exponent_limit {
             cs = s2.ln() - zd;
-            cs = Complex64::from_polar(cs.re.exp() / MACHINE_CONSTANTS.abs_error_tolerance, cs.im);
+            cs = cs.exp() / MACHINE_CONSTANTS.abs_error_tolerance;
             if !will_z_underflow(cs, ASCLE, MACHINE_CONSTANTS.abs_error_tolerance) {
                 y[i] = cs;
                 *NZ -= 1;
@@ -3305,11 +3303,7 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
                 //     EXPONENT EXTREMES
                 //-----------------------------------------------------------------------
                 let mut s2 = phi[J] * sum[J];
-                ////////
-                // TODO from_polar -> s1.exp()?!
-                ////////
-                s1 = MACHINE_CONSTANTS.scaling_factors[KFLAG]
-                    * Complex64::from_polar(s1.re.exp(), s1.im);
+                s1 = MACHINE_CONSTANTS.scaling_factors[KFLAG] * s1.exp();
                 s2 *= s1;
                 let will_underflow = will_z_underflow(
                     s2,
@@ -3459,10 +3453,7 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
                     let inner_flag = if KDFLG { IFLAG } else { of };
                     let st = phid * sumd;
                     let mut s2 = Complex64::I * st * CSGNI;
-                    s1 = Complex64::from_polar(
-                        s1.re.exp() * MACHINE_CONSTANTS.scaling_factors[inner_flag],
-                        s1.im,
-                    );
+                    s1 = s1.exp() * MACHINE_CONSTANTS.scaling_factors[inner_flag];
                     s2 *= s1;
                     if inner_flag == Overflow::NearUnder
                         && will_z_underflow(
@@ -4326,7 +4317,7 @@ fn ZUNI1(
             //     SCALE S1 if CABS(S1) < ASCLE
             //-----------------------------------------------------------------------
             let mut s2 = phi * sum;
-            s1 = s1.re.exp() * MACHINE_CONSTANTS.scaling_factors[IFLAG] * Complex64::cis(s1.im);
+            s1 = MACHINE_CONSTANTS.scaling_factors[IFLAG] * s1.exp();
             s2 *= s1;
             if IFLAG == 0
                 && will_z_underflow(
@@ -4560,8 +4551,7 @@ fn ZUNI2(
             };
 
             let mut s2 = phi * (d_airy * bsum + a_airy * asum);
-            let s1 = MACHINE_CONSTANTS.scaling_factors[IFLAG]
-                * Complex64::from_polar(s1.re.exp(), s1.im);
+            let s1 = MACHINE_CONSTANTS.scaling_factors[IFLAG] * s1.exp();
             s2 *= s1;
             if IFLAG == 0
                 && will_z_underflow(
