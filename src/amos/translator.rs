@@ -4504,6 +4504,7 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
                     //   230   CONTINUE;},
                 }
             };
+            // TODO use new_flag logic from above as cleaner
             if !KDFLG && let Some(new_val) = new_iflag {
                 IFLAG = new_val;
             }
@@ -4544,7 +4545,7 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
             let c2 = s2;
             // C2R = S2R;
             // C2I = S2I;
-            s2 *= MACHINE_CONSTANTS.scaling_factors[IFLAG];
+            s2 *= MACHINE_CONSTANTS.reciprocal_scaling_factors[IFLAG];
             // S2R = S2R*CSRR(IFLAG);
             // S2I = S2I*CSRR(IFLAG);
             //-----------------------------------------------------------------------;
