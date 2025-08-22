@@ -277,12 +277,10 @@ pub fn zbesh(z: Complex64, order: f64, KODE: Scaling, M: HankelKind, N: usize) -
                         Err(Overflow)
                     }
                     //GO TO 230;
-                    else {
-                        if partial_loss_of_significance {
-                            Err(BesselError::PartialLossOfSignificance { y: cy, nz: NZ })
-                        } else {
-                            Ok((cy, NZ))
-                        }
+                    else if partial_loss_of_significance {
+                        Err(BesselError::PartialLossOfSignificance { y: cy, nz: NZ })
+                    } else {
+                        Ok((cy, NZ))
                     };
                     //   RETURN;
                 }
@@ -2260,7 +2258,6 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
     let mut NZ = 0;
     let mut underflow_occurred = false;
     let mut KFLAG;
-    let mut KODED = KODE;
     let rz = 2.0 * z.conj() / CAZ.powi(2);
     let mut INU = (order + 0.5) as isize; // round to nearest int
     let DNU = order - (INU as f64); // signed fractional part (-0.5 < DNU < 0.5 )
@@ -2341,7 +2338,7 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
                 }
             }
             let mut y = s1;
-            if KODED == Scaling::Scaled {
+            if KODE == Scaling::Scaled {
                 y *= z.exp();
             }
             return Ok((vec![y], NZ));
@@ -2379,7 +2376,7 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
         };
         s2 *= MACHINE_CONSTANTS.scaling_factors[KFLAG] * rz;
         s1 *= MACHINE_CONSTANTS.scaling_factors[KFLAG];
-        if KODED == Scaling::Scaled {
+        if KODE == Scaling::Scaled {
             let z_exp = z.exp();
             s1 *= z_exp;
             s2 *= z_exp;
@@ -2395,9 +2392,8 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
         //-----------------------------------------------------------------------;
         let mut coef = Complex64::new(RTFRAC_PI_2, 0.0) / z.sqrt();
         KFLAG = 1;
-        if KODED == Scaling::Unscaled {
+        if KODE == Scaling::Unscaled {
             if z.re > MACHINE_CONSTANTS.approximation_limit {
-                KODED = Scaling::Scaled;
                 underflow_occurred = true;
                 KFLAG = 1;
             } else {
@@ -3408,7 +3404,7 @@ fn analytic_continuation(
         let NW = ZS1S2(zn, &mut c1, &mut c2, &mut IUF);
         //   CALL ZS1S2(ZNR, ZNI, C1R, C1I, C2R, C2I, NW, ASCLE, ALIM, IUF);
         NZ += NW;
-        sc1 = c1;
+
         //   SC1R = C1R;
         //   SC1I = C1I;
     }
@@ -4222,8 +4218,8 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
     let mut ck = FN * rz;
     //   CKR = FN*RZR;
     //   CKI = FN*RZI;
-    let mut IB = I + 1;
-    if N - 1 >= IB {
+    let IB = I + 1;
+    if N > IB {
         //GO TO 160;
         //-----------------------------------------------------------------------;
         //     TEST LAST MEMBER FOR UNDERFLOW AND OVERFLOW. SET SEQUENCE TO ZERO;
@@ -4391,7 +4387,6 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         //   let KK = N;
         KDFLG = false;
         let mut IFLAG = Overflow::None;
-        IB -= 1;
         // let IC = IB - 1;
         //   DO 270 K=1,N;
         let mut left_early = false;
