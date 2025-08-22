@@ -1790,14 +1790,13 @@ fn ZAIRY(
         //--------------------------------------------------------------------------;
         //     TEST FOR PROPER RANGE;
         //-----------------------------------------------------------------------;
-        let mut AA = 0.5 / MACHINE_CONSTANTS.abs_error_tolerance;
-        AA = AA.min(i32::MAX as f64 / 2.0);
-        AA = AA.pow(TWO_THIRDS);
-        if abs_z > AA {
+        let significance_loss_threshold = (0.5 / MACHINE_CONSTANTS.abs_error_tolerance)
+            .min(i32::MAX as f64 / 2.0)
+            .pow(TWO_THIRDS);
+        if abs_z > significance_loss_threshold {
             return Err(LossOfSignificance);
         };
-        AA = AA.sqrt();
-        let significance_loss = abs_z > AA;
+        let significance_loss = abs_z > significance_loss_threshold.sqrt();
         let csq = z.sqrt();
         let mut zta = TWO_THIRDS * z * csq;
         //-----------------------------------------------------------------------;
@@ -5673,12 +5672,30 @@ fn ZUNI2(
             let a_airy = match ZAIRY(arg, false, Scaling::Scaled) {
                 Ok((y, _)) => y,
                 Err(PartialLossOfSignificance { y, nz: _ }) => y[0],
-                _ => panic!("This case is not handled by the Amos code"),
+                // If loss of significance, Fortran code would continue with un-initialised y,
+                // which is usually ~=0. Also long as it is << d_airy, the logic below means
+                // it will not matter what the precise value is
+                Err(LossOfSignificance) => c_zero(),
+                Err(err) => {
+                    panic!(
+                        "An error {:?} was generated, which is not handled by the Amos code",
+                        err
+                    )
+                }
             };
             let d_airy = match ZAIRY(arg, true, Scaling::Scaled) {
                 Ok((y, _)) => y,
                 Err(PartialLossOfSignificance { y, nz: _ }) => y[0],
-                _ => panic!("This case is not handled by the Amos code"),
+                // If loss of significance, Fortran code would continue with un-initialised y,
+                // which is usually ~=0. Also long as it is << a_airy, the logic below means
+                // it will not matter what the precise value is
+                Err(LossOfSignificance) => c_zero(),
+                Err(err) => {
+                    panic!(
+                        "An error {:?} was generated, which is not handled by the Amos code",
+                        err
+                    )
+                }
             };
 
             let mut s2 = phi * (d_airy * bsum + a_airy * asum);

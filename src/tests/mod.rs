@@ -70,6 +70,7 @@ type BesselFortranSig = fn(f64, Complex64, Scaling, usize) -> (Vec<Complex64>, u
 #[case(6.946702885186345e-149, 0e0, -6.691424259254966e2)] // 40
 #[case(3.684122892548987e3, -5.107972475729046e3, 5.916387337090975e3)]
 #[case(7.107636998006379e3, -1.867258055869096e3, 4.865284129480511e3)]
+#[case(172302836.50840142, 1.2494954195932068e-254, -981457506.31791925)]
 fn bessel_j_cases(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {}
 
 #[apply(bessel_j_cases)]
