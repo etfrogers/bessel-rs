@@ -24,28 +24,19 @@ pub enum Overflow {
 
 impl Overflow {
     pub fn find_overflow(rs1: f64, phi: Complex64) -> Self {
-        // let choose_under_or_over = |rs: f64| return if rs>0.0{Self::Overflow } else {Self::Underflow};
-        //-----------------------------------------------------------------------;
-        //     TEST FOR UNDERFLOW AND OVERFLOW;
-        //-----------------------------------------------------------------------;
-        if rs1.abs() > MACHINE_CONSTANTS.exponent_limit
-        //GO TO 260;
-        {
+        //-----------------------------------------------------------------------
+        //     TEST FOR UNDERFLOW AND OVERFLOW
+        //-----------------------------------------------------------------------
+        if rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
             return if rs1 > 0.0 { Self::Over } else { Self::Under };
         }
-        // if (KDFLG == 1) IFLAG = 2;
         if rs1.abs() < MACHINE_CONSTANTS.approximation_limit {
             return Self::None;
-        } //GO TO 220;
-
-        //-----------------------------------------------------------------------;
-        //     REFINE  TEST AND SCALE;
-        //-----------------------------------------------------------------------;
-        // APHI = ZABS(PHIDR,PHIDI);
-        // RS1 = RS1 + DLOG(APHI);
-
+        }
+        //-----------------------------------------------------------------------
+        //     REFINE  TEST AND SCALE
+        //-----------------------------------------------------------------------
         let refined_rs1 = rs1 + phi.abs().ln();
-        //GO TO 260;
         if refined_rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
             return if refined_rs1 > 0.0 {
                 Self::Over
@@ -53,15 +44,11 @@ impl Overflow {
                 Self::Under
             };
         }
-
         if refined_rs1 > 0.0 {
             Self::NearOver
         } else {
             Self::NearUnder
         }
-        // if (KDFLG == 1) IFLAG = 1;
-        // if (RS1 < 0.0) GO TO 220;
-        // if (KDFLG == 1) IFLAG = 3;
     }
 
     pub fn increment(&mut self) {
@@ -91,21 +78,12 @@ impl Index<Overflow> for [f64] {
     }
 }
 
-// impl AddAssign<i64> for Overflow {
-//     fn add_assign(&mut self, rhs: i64) {
-//         assert!(
-//             rhs == 1,
-//             "Overflow add assign is only implemented for steps of 1"
-//         )
-//     }
-// }
-
 pub fn zuoik(
     z: Complex64,
-    order: f64, //ZR, ZI, FNU,
+    order: f64,
     kode: Scaling,
     ikflg: IKType,
-    n: usize, //YR, YI, NUF,
+    n: usize,
     y: &mut [Complex64],
 ) -> BesselResult<usize> {
     // ***BEGIN PROLOGUE  ZUOIK
@@ -149,11 +127,11 @@ pub fn zuoik(
         let gnn = order + fnn - 1.0;
         gnu = gnn.max(fnn);
     }
-    //-----------------------------------------------------------------------;
-    //     ONLY THE MAGNITUDE OF ARG AND PHI ARE NEEDED ALONG WITH THE;
-    //     REAL PARTS OF ZETA1, ZETA2 AND ZB. NO ATTEMPT IS MADE TO GET;
-    //     THE SIGN OF THE IMAGINARY PART CORRECT.;
-    //-----------------------------------------------------------------------;
+    //-----------------------------------------------------------------------
+    //     ONLY THE MAGNITUDE OF ARG AND PHI ARE NEEDED ALONG WITH THE
+    //     REAL PARTS OF ZETA1, ZETA2 AND ZB. NO ATTEMPT IS MADE TO GET
+    //     THE SIGN OF THE IMAGINARY PART CORRECT.
+    //-----------------------------------------------------------------------
     let mut zn = None;
     let (mut cz, phi, arg, aarg) = if iform == 1 {
         let (phi, zeta1, zeta2, _) = zunik(zr, gnu, ikflg, true);
@@ -179,9 +157,9 @@ pub fn zuoik(
     let aphi = phi.abs();
     let mut rcz = cz.re;
     // TODO refactor using other overflow tests
-    //-----------------------------------------------------------------------;
-    //     OVERFLOW TEST;
-    //-----------------------------------------------------------------------;
+    //-----------------------------------------------------------------------
+    //     OVERFLOW TEST
+    //-----------------------------------------------------------------------
     if rcz > MACHINE_CONSTANTS.exponent_limit {
         return Err(Overflow);
     }
@@ -194,9 +172,9 @@ pub fn zuoik(
             return Err(Overflow);
         }
     } else {
-        //-----------------------------------------------------------------------;
-        //     UNDERFLOW TEST;
-        //-----------------------------------------------------------------------;
+        //-----------------------------------------------------------------------
+        //     UNDERFLOW TEST
+        //-----------------------------------------------------------------------
         if rcz < -MACHINE_CONSTANTS.exponent_limit {
             y[0..nn].iter_mut().for_each(|v| *v = c_zero());
             return Ok(nn);
@@ -227,9 +205,9 @@ pub fn zuoik(
     if ikflg == IKType::K || n == 1 {
         return Ok(nuf);
     }
-    //-----------------------------------------------------------------------;
-    //     SET UNDERFLOWS ON I SEQUENCE;
-    //-----------------------------------------------------------------------;
+    //-----------------------------------------------------------------------
+    //     SET UNDERFLOWS ON I SEQUENCE
+    //-----------------------------------------------------------------------
     let mut go_to_180 = false;
     let mut skip_to_190;
     'outer: loop {
@@ -398,9 +376,9 @@ pub fn zunik(
         }
     }
 
-    //-----------------------------------------------------------------------;
-    //     OVERFLOW TEST (ZR/FNU TOO SMALL);
-    //-----------------------------------------------------------------------;
+    //-----------------------------------------------------------------------
+    //     OVERFLOW TEST (ZR/FNU TOO SMALL)
+    //-----------------------------------------------------------------------
     let uflow_test = order * MACHINE_CONSTANTS.underflow_limit;
     if zr.re.abs() < uflow_test && zr.im.abs() < uflow_test {
         let zeta1 = Complex64::new(
@@ -429,9 +407,9 @@ pub fn zunik(
         );
     }
 
-    //-----------------------------------------------------------------------;
-    //     INITIALIZE ALL VARIABLES;
-    //-----------------------------------------------------------------------;
+    //-----------------------------------------------------------------------
+    //     INITIALIZE ALL VARIABLES
+    //-----------------------------------------------------------------------
     let reciprocal_order = 1.0 / order;
     let t = zr * reciprocal_order;
     let s = c_one() + t * t;
@@ -484,7 +462,7 @@ pub fn zunik(
             && test < MACHINE_CONSTANTS.abs_error_tolerance
         {
             break 'l20;
-        } //GO TO 30;
+        }
     }
 
     let (sum_i, sum_k, sum) = match ikflg {
@@ -519,7 +497,6 @@ pub fn zunhj(
     only_phi_zeta: bool,
     tol: f64,
 ) -> (
-    //returns: phi, arg, zeta1, zeta2, asum, bsum
     Complex64,
     Complex64,
     Complex64,
@@ -577,9 +554,9 @@ pub fn zunhj(
     }
     let zb = z * rfnu;
     let rfnu2 = rfnu * rfnu;
-    //-----------------------------------------------------------------------;
-    //     COMPUTE IN THE FOURTH QUADRANT;
-    //-----------------------------------------------------------------------;
+    //-----------------------------------------------------------------------
+    //     COMPUTE IN THE FOURTH QUADRANT
+    //-----------------------------------------------------------------------
     let fn13 = order.powf(EX1);
     let fn23 = fn13 * fn13;
     let rfn13 = 1.0 / fn13;
@@ -587,9 +564,9 @@ pub fn zunhj(
     let aw2 = w2.abs();
 
     if aw2 <= 0.25 {
-        //-----------------------------------------------------------------------;
-        //     POWER SERIES FOR CABS(W2) <= 0.25;
-        //-----------------------------------------------------------------------;
+        //-----------------------------------------------------------------------
+        //     POWER SERIES FOR CABS(W2) <= 0.25
+        //-----------------------------------------------------------------------
         let mut k = 0;
         let mut p = c_zeros(30);
         let mut ap = vec![0.0; 30];
@@ -618,9 +595,9 @@ pub fn zunhj(
         if only_phi_zeta {
             return (phi, arg, zeta1, zeta2, None, None);
         }
-        //-----------------------------------------------------------------------;
-        //     SUM SERIES FOR ASUM AND BSUM;
-        //-----------------------------------------------------------------------;
+        //-----------------------------------------------------------------------
+        //     SUM SERIES FOR ASUM AND BSUM
+        //-----------------------------------------------------------------------
         let sumb: Complex64 = p[..kmax].iter().zip(BETA).map(|(p, b)| p * b).sum();
         let mut asum = c_zero();
         let mut bsum = sumb;
@@ -632,83 +609,50 @@ pub fn zunhj(
         let mut a_converged = false;
         let mut b_converged = false;
         if rfnu2 >= tol {
-            //GO TO 110;
-            // DO 100 IS=2,7;
             for _ in 1..7 {
                 atol /= rfnu2;
                 pp *= rfnu2;
                 if !a_converged {
-                    //GO TO 60;
                     let mut suma = c_zero();
-                    //   SUMAR = ZEROR;
-                    //   SUMAI = ZEROI;
-                    //   DO 40 K=1,KMAX;
                     for k in 0..kmax {
-                        //     let M = L1 + K;
                         suma += p[k] * ALFA[l1 + k];
-                        //     SUMAR = SUMAR + PR(K)*ALFA(M);
-                        //     SUMAI = SUMAI + PI(K)*ALFA(M);
                         if ap[k] < atol {
                             break;
-                        } //GO TO 50;
+                        }
                     }
-                    //    40   CONTINUE;
-                    //    50   CONTINUE;
                     asum += suma * pp;
-                    //   ASUMR = ASUMR + SUMAR*PP;
-                    //   ASUMI = ASUMI + SUMAI*PP;
                     if pp < tol {
                         a_converged = true
                     };
                 }
-                //    60   CONTINUE;
                 if !b_converged {
-                    //GO TO 90;
                     let mut sumb = c_zero();
-                    //   SUMBR = ZEROR;
-                    //   SUMBI = ZEROI;
-                    //   DO 70 K=1,KMAX;
                     for k in 0..kmax {
-                        //     let M = L2 + K;
                         sumb += p[k] * BETA[l2 + k];
-                        //     SUMBR = SUMBR + PR(K)*BETA(M);
-                        //     SUMBI = SUMBI + PI(K)*BETA(M);
                         if ap[k] < atol {
                             break;
-                        } //GO TO 80;
+                        }
                     }
-                    //    70   CONTINUE;
-                    //    80   CONTINUE;
                     bsum += sumb * pp;
-                    //   BSUMR = BSUMR + SUMBR*PP;
-                    //   BSUMI = BSUMI + SUMBI*PP;
                     if pp < btol {
                         b_converged = true;
                     }
                 }
-                //    90   CONTINUE;
                 if a_converged && b_converged {
                     break;
-                } //GO TO 110;
+                }
                 l1 += 30;
                 l2 += 30;
             }
-            //   100 CONTINUE;
         }
-        //   110 CONTINUE;
         asum += 1.0;
-        // ASUMR = ASUMR + CONER;
         pp = rfnu * rfn13;
         bsum *= pp;
-        // BSUMR = BSUMR*PP;
-        // BSUMI = BSUMI*PP;
-        //   120 CONTINUE;
-        //       RETURN;
         (phi, arg, zeta1, zeta2, Some(asum), Some(bsum))
     } else {
-        //-----------------------------------------------------------------------;
-        //     CABS(W2) > 0.25;
-        //-----------------------------------------------------------------------;
+        //-----------------------------------------------------------------------
+        //     CABS(W2) > 0.25
+        //-----------------------------------------------------------------------
         let mut w = w2.sqrt();
         if w.re < 0.0 {
             w.re = 0.0
@@ -745,50 +689,20 @@ pub fn zunhj(
         }
 
         let raw = 1.0 / aw2.sqrt();
-        // STR = WR*RAW;
-        // STI = -WI*RAW;
         let tfn = w.conj() * raw * raw * rfnu;
-        // TFNR = STR*RFNU*RAW;
-        // TFNI = STI*RFNU*RAW;
         let razth = 1.0 / azth;
-        // STR = ZTHR*RAZTH;
-        // STI = -ZTHI*RAZTH;
         let rzth = zth.conj() * razth * razth * rfnu;
-        // RZTHR = STR*RAZTH*RFNU;
-        // RZTHI = STI*RAZTH*RFNU;
         let zc = rzth * AR[1];
-        // ZCR = RZTHR*AR(2);
-        // ZCI = RZTHI*AR(2);
         let raw2 = 1.0 / aw2;
-        // STR = W2R*RAW2;
-        // STI = -W2I*RAW2;
         let t2 = w2.conj() * raw2 * raw2;
-        // T2R = STR*RAW2;
-        // T2I = STI*RAW2;
-        // let st = t2 * C_ZUNHJ[1] + C_ZUNHJ[2];
-        // STR = T2R*C(2) + C(3);
-        // STI = T2I*C(2);
         let mut up = c_zeros(14);
         up[1] = (t2 * C_ZUNHJ[1] + C_ZUNHJ[2]) * tfn;
-        // UPR(2) = STR*TFNR - STI*TFNI;
-        // UPI(2) = STR*TFNI + STI*TFNR;
         let mut bsum = up[1] + zc;
-        // BSUMR = UPR(2) + ZCR;
-        // BSUMI = UPI(2) + ZCI;
         let mut asum = c_zero();
-        // ASUMR = ZEROR;
-        // ASUMI = ZEROI;
         if rfnu >= tol {
-            //GO TO 220;
             let mut przth = rzth;
-            // PRZTHR = RZTHR;
-            // PRZTHI = RZTHI;
             let mut ptfn = tfn;
-            // PTFNR = TFNR;
-            // PTFNI = TFNI;
             up[0] = c_one();
-            // UPR(1) = CONER;
-            // UPI(1) = CONEI;
             pp = 1.0;
             let btol = tol * (bsum.re.abs() + bsum.im.abs());
             let mut ks = 0;
@@ -798,110 +712,61 @@ pub fn zunhj(
             let mut ibs = false;
             let mut cr = c_zeros(14);
             let mut dr = c_zeros(14);
-            // DO 210 LR=2,12,2;
             for lr in (2..=12).step_by(2) {
                 let lrp1 = lr + 1;
-                //-----------------------------------------------------------------------;
-                //     COMPUTE TWO ADDITIONAL CR, DR, AND UP FOR TWO MORE TERMS IN;
-                //     NEXT SUMA AND SUMB;
-                //-----------------------------------------------------------------------;
-                //   DO 160 K=LR,LRP1;
+                //-----------------------------------------------------------------------
+                //     COMPUTE TWO ADDITIONAL CR, DR, AND UP FOR TWO MORE TERMS IN
+                //     NEXT SUMA AND SUMB
+                //-----------------------------------------------------------------------
                 for _k in lr..=lrp1 {
                     ks += 1;
                     kp1 += 1;
                     l += 1;
                     let mut za = Complex64::new(C_ZUNHJ[l], 0.0);
-                    //     ZAR = C(L);
-                    //     ZAI = ZEROI;
-                    //     DO 150 J=2,KP1;
                     for _j in 2..=kp1 {
                         l += 1;
-                        // STR = ZAR*T2R - T2I*ZAI + C(L);
-                        // ZAI = ZAR*T2I + ZAI*T2R;
-                        // ZAR = STR;
                         za = za * t2 + C_ZUNHJ[l];
                     }
-                    //   150     CONTINUE;
                     ptfn *= tfn;
-                    //     STR = PTFNR*TFNR - PTFNI*TFNI;
-                    //     PTFNI = PTFNR*TFNI + PTFNI*TFNR;
-                    //     PTFNR = STR;
                     up[kp1 - 1] = ptfn * za;
-                    //     UPR(KP1) = PTFNR*ZAR - PTFNI*ZAI;
-                    //     UPI(KP1) = PTFNI*ZAR + PTFNR*ZAI;
                     cr[ks - 1] = przth * BR[ks];
-                    //     CRR(KS) = PRZTHR*BR(KS+1);
-                    //     CRI(KS) = PRZTHI*BR(KS+1);
                     przth *= rzth;
-                    //     STR = PRZTHR*RZTHR - PRZTHI*RZTHI;
-                    //     PRZTHI = PRZTHR*RZTHI + PRZTHI*RZTHR;
-                    //     PRZTHR = STR;
                     dr[ks - 1] = przth * AR[ks + 1];
-                    //     DRR(KS) = PRZTHR*AR(KS+2);
-                    //     DRI(KS) = PRZTHI*AR(KS+2);
                 }
-                //   160   CONTINUE;
                 pp *= rfnu2;
                 if !ias {
-                    //GO TO 180;
                     let mut suma = up[lrp1 - 1];
-                    //   SUMAR = UPR(LRP1);
-                    //   SUMAI = UPI(LRP1);
                     let mut ju = lrp1;
-                    //   DO 170 JR=1,LR;
                     for jr in 0..lr {
                         ju -= 1;
                         suma += cr[jr] * up[ju - 1];
-                        //     SUMAR = SUMAR + CRR(JR)*UPR(JU) - CRI(JR)*UPI(JU);
-                        //     SUMAI = SUMAI + CRR(JR)*UPI(JU) + CRI(JR)*UPR(JU);
                     }
-                    //   170   CONTINUE;
                     asum += suma;
-                    //   ASUMR = ASUMR + SUMAR;
-                    //   ASUMI = ASUMI + SUMAI;
                     let test = suma.re.abs() + suma.im.abs();
                     if pp < tol && test < tol {
                         ias = true
                     };
                 }
-                //   180   CONTINUE;
                 if !ibs {
-                    //GO TO 200;
                     let mut sumb = up[lr + 1] + up[lrp1 - 1] * zc;
-                    //   SUMBR = UPR(LR+2) + UPR(LRP1)*ZCR - UPI(LRP1)*ZCI;
-                    //   SUMBI = UPI(LR+2) + UPR(LRP1)*ZCI + UPI(LRP1)*ZCR;
                     let mut ju = lrp1;
                     for jr in 0..lr {
-                        //   DO 190 JR=1,LR;
                         ju -= 1;
                         sumb += dr[jr] * up[ju - 1];
-                        //     SUMBR = SUMBR + DRR(JR)*UPR(JU) - DRI(JR)*UPI(JU);
-                        //     SUMBI = SUMBI + DRR(JR)*UPI(JU) + DRI(JR)*UPR(JU);
                     }
-                    //   190   CONTINUE;
                     bsum += sumb;
-                    //   BSUMR = BSUMR + SUMBR;
-                    //   BSUMI = BSUMI + SUMBI;
                     let test = sumb.re.abs() + sumb.im.abs();
                     if pp < btol && test < btol {
                         ibs = true
                     };
-                    //   200   CONTINUE;
                 }
                 if ias && ibs {
                     break;
                 }
-                //   210 CONTINUE;
             }
         }
-        //   220 CONTINUE;
         asum += c_one();
-        // ASUMR = ASUMR + CONER;
         bsum = (-bsum * rfn13) / rtzt;
-        // STR = -BSUMR*RFN13;
-        // STI = -BSUMI*RFN13;
-        // CALL ZDIV(STR, STI, RTZTR, RTZTI, BSUMR, BSUMI);
-        // GO TO 120;
         (phi, arg, zeta1, zeta2, Some(asum), Some(bsum))
     }
 }
