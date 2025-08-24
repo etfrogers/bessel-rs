@@ -4,17 +4,19 @@ use rstest_reuse::{apply, template};
 use num::complex::Complex64;
 use rstest::rstest;
 
-use crate::amos::{BesselResult, HankelKind, zbesh, zbesi, zbesj};
+use crate::amos::{BesselResult, HankelKind, zbesi, zbesj};
 use crate::{BesselError, Scaling, bessel_i, bessel_j, hankel};
 
+pub use bessel_h_wrappers::*;
 use complex_bessel_rs::bessel_i::bessel_i as bessel_i_ref;
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_ref;
-pub use fortran_calls::{zbesh_fortran, zbesi_fortran, zbesj_fortran};
+pub use fortran_calls::*;
 pub use utils::{check_against_fortran, check_complex_arrays_equal};
 
 #[cfg(feature = "random_tests")]
 pub use utils::fortran_bess_loop;
 
+mod bessel_h_wrappers;
 mod fortran_calls;
 #[cfg(feature = "random_tests")]
 mod random_tests;
@@ -176,32 +178,6 @@ fn test_bessel_large_n_complex(
 ) {
     let z = Complex64::new(zr, zi);
     check_against_fortran(order, z, scaling, n, rust_fn, fortran_fn);
-}
-
-fn zbesh_first(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
-    zbesh(z, order, scaling, HankelKind::First, n)
-}
-
-fn zbesh_fortran_first(
-    order: f64,
-    z: Complex64,
-    scaling: Scaling,
-    n: usize,
-) -> (Vec<Complex64>, usize, i32) {
-    zbesh_fortran(order, z, scaling, HankelKind::First, n)
-}
-
-fn zbesh_second(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
-    zbesh(z, order, scaling, HankelKind::Second, n)
-}
-
-fn zbesh_fortran_second(
-    order: f64,
-    z: Complex64,
-    scaling: Scaling,
-    n: usize,
-) -> (Vec<Complex64>, usize, i32) {
-    zbesh_fortran(order, z, scaling, HankelKind::Second, n)
 }
 
 #[rstest]
