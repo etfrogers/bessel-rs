@@ -4,17 +4,18 @@ use rstest_reuse::{apply, template};
 use num::complex::Complex64;
 use rstest::rstest;
 
-use crate::amos::bindings::{zbesh_wrap, zbesi_wrap, zbesj_wrap};
 use crate::amos::{BesselResult, HankelKind, zbesh, zbesi, zbesj};
 use crate::{BesselError, Scaling, bessel_i, bessel_j, hankel};
 
 use complex_bessel_rs::bessel_i::bessel_i as bessel_i_ref;
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_ref;
+pub use fortran_calls::{zbesh_fortran, zbesi_fortran, zbesj_fortran};
 pub use utils::{check_against_fortran, check_complex_arrays_equal};
 
 #[cfg(feature = "random_tests")]
 pub use utils::fortran_bess_loop;
 
+mod fortran_calls;
 #[cfg(feature = "random_tests")]
 mod random_tests;
 mod test_gamma_ln;
@@ -243,117 +244,7 @@ fn test_bessel_extremes(
     check_against_fortran(order, z, scaling, n, rust_fn, fortran_fn);
 }
 
-fn zbesj_fortran(
-    order: f64,
-    z: Complex64,
-    scaling: Scaling,
-    n: usize,
-) -> (Vec<Complex64>, usize, i32) {
-    let mut cyr: Vec<f64> = Vec::with_capacity(n);
-    let mut cyi: Vec<f64> = Vec::with_capacity(n);
-    let mut nz = 0;
-    let mut ierr = 0;
-
-    let r_uninit = cyr.spare_capacity_mut();
-    let i_uninit = cyi.spare_capacity_mut();
-    unsafe {
-        zbesj_wrap(
-            z.re,
-            z.im,
-            order,
-            scaling as i32,
-            n.try_into().unwrap(),
-            r_uninit.as_mut_ptr().cast(),
-            i_uninit.as_mut_ptr().cast(),
-            &mut nz,
-            &mut ierr,
-        );
-        cyr.set_len(n);
-        cyi.set_len(n);
-    }
-    let cy = cyr
-        .into_iter()
-        .zip(cyi)
-        .map(|(r, i)| Complex64::new(r, i))
-        .collect();
-    (cy, nz.try_into().unwrap(), ierr)
-}
-
-fn zbesi_fortran(
-    order: f64,
-    z: Complex64,
-    scaling: Scaling,
-    n: usize,
-) -> (Vec<Complex64>, usize, i32) {
-    let mut cyr: Vec<f64> = Vec::with_capacity(n);
-    let mut cyi: Vec<f64> = Vec::with_capacity(n);
-    let mut nz = 0;
-    let mut ierr = 0;
-
-    let r_uninit = cyr.spare_capacity_mut();
-    let i_uninit = cyi.spare_capacity_mut();
-    unsafe {
-        zbesi_wrap(
-            z.re,
-            z.im,
-            order,
-            scaling as i32,
-            n.try_into().unwrap(),
-            r_uninit.as_mut_ptr().cast(),
-            i_uninit.as_mut_ptr().cast(),
-            &mut nz,
-            &mut ierr,
-        );
-        cyr.set_len(n);
-        cyi.set_len(n);
-    }
-    let cy = cyr
-        .into_iter()
-        .zip(cyi)
-        .map(|(r, i)| Complex64::new(r, i))
-        .collect();
-    (cy, nz.try_into().unwrap(), ierr)
-}
-
 fn bessel_h_ref(order: f64, z: Complex64, kind: HankelKind) -> Result<Complex64, i32> {
     let (y, _, ierr) = zbesh_fortran(order, z, Scaling::Unscaled, kind, 1);
     if ierr != 0 { Err(ierr) } else { Ok(y[0]) }
-}
-
-fn zbesh_fortran(
-    order: f64,
-    z: Complex64,
-    scaling: Scaling,
-    kind: HankelKind,
-    n: usize,
-) -> (Vec<Complex64>, usize, i32) {
-    let mut cyr: Vec<f64> = Vec::with_capacity(n);
-    let mut cyi: Vec<f64> = Vec::with_capacity(n);
-    let mut nz = 0;
-    let mut ierr = 0;
-
-    let r_uninit = cyr.spare_capacity_mut();
-    let i_uninit = cyi.spare_capacity_mut();
-    unsafe {
-        zbesh_wrap(
-            z.re,
-            z.im,
-            order,
-            scaling as i32,
-            kind.into(),
-            n.try_into().unwrap(),
-            r_uninit.as_mut_ptr().cast(),
-            i_uninit.as_mut_ptr().cast(),
-            &mut nz,
-            &mut ierr,
-        );
-        cyr.set_len(n);
-        cyi.set_len(n);
-    }
-    let cy = cyr
-        .into_iter()
-        .zip(cyi)
-        .map(|(r, i)| Complex64::new(r, i))
-        .collect();
-    (cy, nz.try_into().unwrap(), ierr)
 }
