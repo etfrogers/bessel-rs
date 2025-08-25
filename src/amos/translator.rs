@@ -3269,7 +3269,6 @@ fn ZUNK1(z: Complex64, order: f64, scaling: Scaling, MR: i64, N: usize) -> Besse
         let sum_opt;
         (phi[J], zeta1[J], zeta2[J], sum_opt) = zunik(zr, modified_order, IKType::K, false);
         sum[J] = sum_opt.unwrap();
-        // TODO scaling
         let mut s1 = -scaling.scale_zetas(zr, modified_order, zeta1[J], zeta2[J]);
         let new_KFLAG = Overflow::find_overflow(s1.re, phi[J]);
         if !KDFLG {
