@@ -10,10 +10,14 @@ use approx::assert_relative_eq;
 
 use super::{
     BesselFortranSig, BesselSig, bessel_h_ref, check_against_fortran, check_complex_arrays_equal,
-    fortran_bess_loop, zbesh_first, zbesh_fortran_first, zbesh_fortran_second, zbesh_second, zbesi,
-    zbesi_fortran, zbesj, zbesj_fortran,
+    fortran_bess_loop, zbesh_first, zbesh_fortran_first, zbesh_fortran_second, zbesh_second,
+    zbesi_fortran, zbesj_fortran,
 };
-use crate::{BesselError, HankelKind, Scaling, bessel_i, bessel_j, hankel};
+use crate::{
+    BesselError, HankelKind, Scaling,
+    amos::{zbesi, zbesj},
+    bessel_i, bessel_j, hankel,
+};
 
 const RANDOM_LIMIT: f64 = 10_000.0;
 
