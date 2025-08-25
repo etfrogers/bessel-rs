@@ -66,7 +66,7 @@ pub fn i_power_series(
     let mut sent_to_30 = false;
     let mut skip_to_40 = false;
     'l20: loop {
-        let mut dfnu = order + ((nn - 1) as f64); // TODO can this and the line below be deleted? check when tests pass
+        let mut dfnu = order + ((nn - 1) as f64);
         fnup = dfnu + 1.0;
         if !sent_to_30 {
             //-----------------------------------------------------------------------;
