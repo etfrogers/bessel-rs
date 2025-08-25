@@ -133,7 +133,7 @@ pub fn zuoik(
     //     THE SIGN OF THE IMAGINARY PART CORRECT.
     //-----------------------------------------------------------------------
     let mut zn = None;
-    let (mut cz, phi, arg, aarg) = if iform == 1 {
+    let (mut cz, phi, arg, abs_arg) = if iform == 1 {
         let (phi, zeta1, zeta2, _) = zunik(zr, gnu, ikflg, true);
         (-zeta1 + zeta2, phi, c_zero(), 0.0)
     } else {
@@ -144,9 +144,7 @@ pub fn zuoik(
         let (phi, arg, zeta1, zeta2, _, _) =
             zunhj(zn_, gnu, true, MACHINE_CONSTANTS.abs_error_tolerance);
         zn = Some(zn_);
-        let cz = -zeta1 + zeta2;
-        let aarg = arg.abs();
-        (cz, phi, arg, aarg)
+        (-zeta1 + zeta2, phi, arg, arg.abs())
     };
     if kode == Scaling::Scaled {
         cz -= zb;
@@ -160,13 +158,14 @@ pub fn zuoik(
     //-----------------------------------------------------------------------
     //     OVERFLOW TEST
     //-----------------------------------------------------------------------
+    //TODO overflow logic
     if rcz > MACHINE_CONSTANTS.exponent_limit {
         return Err(Overflow);
     }
     if rcz >= MACHINE_CONSTANTS.approximation_limit {
         rcz += aphi.ln();
         if iform == 2 {
-            rcz = rcz - 0.25 * aarg.ln() - AIC
+            rcz = rcz - 0.25 * abs_arg.ln() - AIC
         };
         if rcz > MACHINE_CONSTANTS.exponent_limit {
             return Err(Overflow);
@@ -182,7 +181,7 @@ pub fn zuoik(
         if rcz <= -MACHINE_CONSTANTS.approximation_limit {
             rcz += aphi.ln();
             if iform == 2 {
-                rcz = rcz - 0.25 * aarg.ln() - AIC
+                rcz = rcz - 0.25 * abs_arg.ln() - AIC
             };
             if rcz <= -MACHINE_CONSTANTS.exponent_limit {
                 return Ok(nn);

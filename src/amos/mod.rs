@@ -1,12 +1,17 @@
+use num::{
+    Complex, One, Zero,
+    complex::{Complex64, ComplexFloat},
+    traits::Pow,
+};
 use std::f64::consts::PI;
+use thiserror::Error;
 
 pub use gamma_ln::{GammaError, gamma_ln};
 pub use i_power_series::i_power_series;
-use num::{Complex, One, Zero, complex::Complex64};
-use thiserror::Error;
-pub use translator::{zbesh, zbesi, zbesj};
-pub(crate) mod bindings;
 pub(crate) use machine::MACHINE_CONSTANTS;
+pub use translator::{zbesh, zbesi, zbesj};
+
+pub(crate) mod bindings;
 mod gamma_ln;
 mod i_power_series;
 mod machine;
@@ -127,6 +132,25 @@ impl From<HankelKind> for i32 {
 pub enum Scaling {
     Unscaled = 1,
     Scaled = 2,
+}
+
+impl Scaling {
+    pub fn scale_zetas(
+        &self,
+        z: Complex64,
+        modified_order: f64,
+        zeta1: Complex64,
+        zeta2: Complex64,
+    ) -> Complex64 {
+        match self {
+            Scaling::Unscaled => -zeta1 + zeta2,
+            Scaling::Scaled => {
+                let mut st = z + zeta2;
+                st = st.conj() * (modified_order / st.abs()).pow(2);
+                -zeta1 + st
+            }
+        }
+    }
 }
 
 pub(crate) type BesselValues<T = usize> = (Vec<Complex64>, T);

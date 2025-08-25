@@ -3228,7 +3228,7 @@ fn ZACAI(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
     Ok((y, NZ))
 }
 
-fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselResult {
+fn ZUNK1(z: Complex64, order: f64, scaling: Scaling, MR: i64, N: usize) -> BesselResult {
     // ***BEGIN PROLOGUE  ZUNK1
     // ***REFER TO  ZBESK
     //
@@ -3253,7 +3253,7 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
     let mut sum = c_zeros(2);
     let mut cy = [c_zero(); 2];
     let mut I = 0;
-    let mut FN = 0.0;
+    let mut modified_order = 0.0;
     let mut y = c_zeros(N);
     let mut KFLAG = Overflow::NearUnder;
 
@@ -3264,21 +3264,13 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         //     In Rust this is 0 and 1
         //-----------------------------------------------------------------------
         J = 1 - J;
-        FN = order + (i as f64);
+        modified_order = order + (i as f64);
 
         let sum_opt;
-        (phi[J], zeta1[J], zeta2[J], sum_opt) = zunik(zr, FN, IKType::K, false);
+        (phi[J], zeta1[J], zeta2[J], sum_opt) = zunik(zr, modified_order, IKType::K, false);
         sum[J] = sum_opt.unwrap();
         // TODO scaling
-        let mut s1 = if KODE == Scaling::Scaled {
-            let mut st = zr + zeta2[J];
-            st = st.conj() * (FN / st.abs()).pow(2);
-            zeta1[J] - st
-        } else {
-            // TODO refcctor common rescaling of -?(zeta1 - zeta2)
-            zeta1[J] - zeta2[J]
-        };
-
+        let mut s1 = -scaling.scale_zetas(zr, modified_order, zeta1[J], zeta2[J]);
         let new_KFLAG = Overflow::find_overflow(s1.re, phi[J]);
         if !KDFLG {
             KFLAG = new_KFLAG;
@@ -3333,26 +3325,18 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         I = N;
     }
     let rz = 2.0 * zr.conj() / zr.abs().powi(2);
-    let mut ck = FN * rz;
+    let mut ck = modified_order * rz;
     let IB = I + 1;
     if N > IB {
         //-----------------------------------------------------------------------
         //     TEST LAST MEMBER FOR UNDERFLOW AND OVERFLOW. SET SEQUENCE TO ZERO
         //     ON UNDERFLOW.
         //-----------------------------------------------------------------------
-        FN = order + ((N - 1) as f64);
-        let (phi, zet1d, zet2d, _sumd) = zunik(zr, FN, IKType::K, MR == 0);
-        // TODO scaling
-        let s1 = if KODE == Scaling::Scaled {
-            let mut st = zr + zet2d;
-            let rast = FN / st.abs();
-            st = st.conj() * (rast.pow(2));
-            zet1d - st
-        } else {
-            zet1d - zet2d
-        };
+        modified_order = order + ((N - 1) as f64);
+        let (phi, zet1d, zet2d, _sumd) = zunik(zr, modified_order, IKType::K, MR == 0);
+        let overflow_test = -scaling.scale_zetas(zr, modified_order, zet1d, zet2d);
 
-        match Overflow::find_overflow(s1.re.abs(), phi) {
+        match Overflow::find_overflow(overflow_test.re.abs(), phi) {
             Overflow::Over => return Err(Overflow),
             Overflow::Under => {
                 return if z.re < 0.0 {
@@ -3420,22 +3404,14 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         let mut completed_k = 0;
         for k in (0..N).rev() {
             completed_k = N - k;
-            FN = order + (k as f64);
+            modified_order = order + (k as f64);
             //-----------------------------------------------------------------------
             //     LOGIC TO SORT OUT CASES WHOSE PARAMETERS WERE SET FOR THE K
             //     FUNCTION ABOVE
             //-----------------------------------------------------------------------
-            let (phid, zet1d, zet2d, sumd) = zunik(zr, FN, IKType::I, false); //, &mut INITD);
+            let (phid, zet1d, zet2d, sumd) = zunik(zr, modified_order, IKType::I, false); //, &mut INITD);
             let sumd = sumd.unwrap();
-            let mut s1 = if KODE == Scaling::Scaled {
-                // TODO scaling repeated code
-                let st = zr + zet2d;
-                let rast = FN / st.abs();
-                let st = st.conj() * rast * rast;
-                -zet1d + st
-            } else {
-                -zet1d + zet2d
-            };
+            let mut s1 = scaling.scale_zetas(zr, modified_order, zet1d, zet2d);
             //-----------------------------------------------------------------------
             //     TEST FOR UNDERFLOW AND OVERFLOW
             //-----------------------------------------------------------------------
@@ -3476,7 +3452,7 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
             //     ADD I AND K FUNCTIONS, K SEQUENCE IN Y(I), I=1,N
             //-----------------------------------------------------------------------
             s1 = y[k];
-            if KODE == Scaling::Scaled {
+            if scaling == Scaling::Scaled {
                 let NW = ZS1S2(zr, &mut s1, &mut s2, &mut IUF);
                 NZ += NW;
             }
@@ -3507,18 +3483,18 @@ fn ZUNK1(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         let mut s2 = cy[1];
         let mut csr = MACHINE_CONSTANTS.scaling_factors[IFLAG];
         let mut ASCLE = MACHINE_CONSTANTS.bry[IFLAG];
-        FN = INU as f64 + IL as f64;
+        modified_order = INU as f64 + IL as f64;
         let mut KK = N - completed_k;
         for _ in 0..IL {
             let mut c2 = s2;
-            s2 = s1 + (FN * order_frac) * (rz * c2);
+            s2 = s1 + (modified_order * order_frac) * (rz * c2);
             s1 = c2;
-            FN -= 1.0;
+            modified_order -= 1.0;
             c2 = s2 * csr;
             let ck = c2;
 
             let mut c1 = y[KK];
-            if KODE == Scaling::Scaled {
+            if scaling == Scaling::Scaled {
                 let NW = ZS1S2(zr, &mut c1, &mut c2, &mut IUF);
                 NZ += NW;
             }
@@ -4207,7 +4183,7 @@ fn ZBUNI(
 fn ZUNI1(
     z: Complex64,
     order: f64,
-    KODE: Scaling,
+    scaling: Scaling,
     N: usize,
     y: &mut [Complex64],
 ) -> BesselResult<(usize, usize)> {
@@ -4229,16 +4205,9 @@ fn ZUNI1(
     //-----------------------------------------------------------------------
     //     CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER
     //-----------------------------------------------------------------------
-    let mut FN = order.max(1.0);
-    let (_, zeta1, zeta2, _) = zunik(z, FN, IKType::I, true);
-    let s1 = if KODE == Scaling::Scaled {
-        let mut st = z + zeta2;
-        let rast = FN / st.abs();
-        st = st.conj() * (rast.pow(2));
-        -zeta1 + st
-    } else {
-        -zeta1 + zeta2
-    };
+    let mut modified_order = order.max(1.0);
+    let (_, zeta1, zeta2, _) = zunik(z, modified_order, IKType::I, true);
+    let s1 = scaling.scale_zetas(z, modified_order, zeta1, zeta2);
     let rs1 = s1.re;
     if rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
         if rs1 > 0.0 {
@@ -4246,6 +4215,7 @@ fn ZUNI1(
         }
         return Ok((N, NLAST));
     }
+    // TODO make IFLAG an overflow type
     let mut IFLAG = 0; // this value should never be used
     let mut cy = [c_zero(); 2];
     let mut set_underflow_and_update = false;
@@ -4260,30 +4230,28 @@ fn ZUNI1(
             if ND == 0 {
                 return Ok((NZ, NLAST));
             }
-            let NUF = zuoik(z, order, KODE, IKType::I, ND, y)?;
+            let NUF = zuoik(z, order, scaling, IKType::I, ND, y)?;
             ND -= NUF;
             NZ += NUF;
             if ND == 0 {
                 return Ok((NZ, NLAST));
             }
-            FN = order + ((ND - 1) as f64);
-            if FN < MACHINE_CONSTANTS.asymptotic_order_limit {
+            modified_order = order + ((ND - 1) as f64);
+            if modified_order < MACHINE_CONSTANTS.asymptotic_order_limit {
                 return Ok((NZ, ND));
             }
         }
 
         for i in 0..2.min(ND) {
-            FN = order + ((ND - (i + 1)) as f64);
-            let (phi, zeta1, zeta2, sum) = zunik(z, FN, IKType::I, false);
+            modified_order = order + ((ND - (i + 1)) as f64);
+            let (phi, zeta1, zeta2, sum) = zunik(z, modified_order, IKType::I, false);
             let sum = sum.unwrap();
-            let mut s1 = if KODE == Scaling::Scaled {
-                let mut st = z + zeta2;
-                let rast = FN / st.abs();
-                st = st.conj() * rast.pow(2);
-                -zeta1 + st + Complex64::new(0.0, z.im)
-            } else {
-                -zeta1 + zeta2
-            };
+            let mut s1 = scaling.scale_zetas(z, modified_order, zeta1, zeta2);
+            if scaling == Scaling::Scaled {
+                s1 += Complex64::new(0.0, z.im);
+            }
+
+            // TODO overflow logic
             //-----------------------------------------------------------------------
             //     TEST FOR UNDERFLOW AND OVERFLOW
             //-----------------------------------------------------------------------
@@ -4340,15 +4308,15 @@ fn ZUNI1(
     let mut C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[IFLAG];
     let mut ASCLE = MACHINE_CONSTANTS.bry[IFLAG];
     let mut K = ND - 2;
-    FN = K as f64;
+    modified_order = K as f64;
     for _ in 2..ND {
         let mut c2 = s2;
-        s2 = s1 + (order + FN) * (rz * c2);
+        s2 = s1 + (order + modified_order) * (rz * c2);
         s1 = c2;
         c2 = s2 * C1R;
         y[K - 1] = c2;
         K -= 1;
-        FN -= 1.0;
+        modified_order -= 1.0;
         if IFLAG >= 2 {
             continue;
         }
@@ -4369,7 +4337,7 @@ fn ZUNI1(
 fn ZUNI2(
     z: Complex64,
     order: f64,
-    KODE: Scaling,
+    scaling: Scaling,
     N: usize,
     y: &mut [Complex64],
 ) -> BesselResult<(usize, usize)> {
@@ -4420,17 +4388,17 @@ fn ZUNI2(
     //-----------------------------------------------------------------------
     //     CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER
     //-----------------------------------------------------------------------
-    let mut FN = order.max(1.0);
-    let (_, _, zeta1, zeta2, _, _) = zunhj(zn, FN, true, MACHINE_CONSTANTS.abs_error_tolerance);
+    let mut modified_order = order.max(1.0);
+    let (_, _, zeta1, zeta2, _, _) = zunhj(
+        zn,
+        modified_order,
+        true,
+        MACHINE_CONSTANTS.abs_error_tolerance,
+    );
 
-    let s1 = if KODE == Scaling::Scaled {
-        let mut st = zb + zeta2;
-        let RAST = FN / st.abs();
-        st = st.conj() * RAST.pow(2);
-        -zeta1 + st
-    } else {
-        -zeta1 + zeta2
-    };
+    let s1 = scaling.scale_zetas(zb, modified_order, zeta1, zeta2);
+
+    // TODO overflow logic
     let mut rs1 = s1.re.abs();
     if rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
         return if s1.re > 0.0 {
@@ -4454,14 +4422,14 @@ fn ZUNI2(
             if ND == 0 {
                 return Ok((NZ, NLAST));
             }
-            let NUF = zuoik(z, order, KODE, IKType::I, ND, y)?;
+            let NUF = zuoik(z, order, scaling, IKType::I, ND, y)?;
             ND -= NUF;
             NZ += NUF;
             if ND == 0 {
                 return Ok((NZ, NLAST));
             }
-            FN = order + ((ND - 1) as f64);
-            if FN < MACHINE_CONSTANTS.asymptotic_order_limit {
+            modified_order = order + ((ND - 1) as f64);
+            if modified_order < MACHINE_CONSTANTS.asymptotic_order_limit {
                 return Ok((NZ, ND));
             }
             let index = (INU + ND - 1) % 4;
@@ -4473,19 +4441,19 @@ fn ZUNI2(
         let mut IFLAG = 0;
         let mut cy = [c_zero(); 2];
         for i in 0..ND.min(2) {
-            FN = order + ((ND - (i + 1)) as f64);
-            let (phi, arg, zeta1, zeta2, asum, bsum) =
-                zunhj(zn, FN, false, MACHINE_CONSTANTS.abs_error_tolerance);
+            modified_order = order + ((ND - (i + 1)) as f64);
+            let (phi, arg, zeta1, zeta2, asum, bsum) = zunhj(
+                zn,
+                modified_order,
+                false,
+                MACHINE_CONSTANTS.abs_error_tolerance,
+            );
             let asum = asum.unwrap();
             let bsum = bsum.unwrap();
-            let s1 = if KODE == Scaling::Scaled {
-                let mut st = zb + zeta2;
-                let RAST = FN / st.abs();
-                st = st.conj() * RAST.pow(2);
-                -zeta1 + st + Complex64::I * z.im.abs()
-            } else {
-                -zeta1 + zeta2
-            };
+            let mut s1 = scaling.scale_zetas(zb, modified_order, zeta1, zeta2);
+            if scaling == Scaling::Scaled {
+                s1 += Complex64::I * z.im.abs();
+            }
             //-----------------------------------------------------------------------
             //     TEST FOR UNDERFLOW AND OVERFLOW
             //-----------------------------------------------------------------------
