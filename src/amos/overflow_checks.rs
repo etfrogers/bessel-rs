@@ -111,7 +111,7 @@ pub fn zuoik(
     //
     // ***ROUTINES CALLED  ZUunderflowCHK,ZUNHJ,ZUNIK,d1mach,ZABS,ZLOG
     // ***END PROLOGUE  ZUOIK
-    const AIC: f64 = 1.265512123484645396e+00;
+    const AIC: f64 = 1.265512123484645396e+00; //TODO gammaln(-0.5)?
     let mut nuf = 0;
     let mut nn = n;
     let zr = if z.re < 0.0 { -z } else { z };
@@ -158,7 +158,6 @@ pub fn zuoik(
     //-----------------------------------------------------------------------
     //     OVERFLOW TEST
     //-----------------------------------------------------------------------
-    //TODO overflow logic
     if rcz > MACHINE_CONSTANTS.exponent_limit {
         return Err(Overflow);
     }
@@ -299,6 +298,7 @@ fn cache_key(z: Complex64, order: f64) -> CacheKey {
     (z.re.to_bits(), z.im.to_bits(), order.to_bits())
 }
 
+//TODO move to a more appropriate files (after renames)
 pub fn zunik(
     zr: Complex64,
     order: f64,
