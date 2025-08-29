@@ -4380,15 +4380,13 @@ fn ZUNI2(
 
     let s1 = scaling.scale_zetas(zb, modified_order, zeta1, zeta2);
 
-    // TODO overflow logic
-    let mut rs1 = s1.re.abs();
-    if rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
-        return if s1.re > 0.0 {
-            Err(Overflow)
-        } else {
-            Ok((N, NLAST))
-        };
+    // phi is chosen here for refined tests to equal the orignial tests as we don't care about refinement here.
+    match Overflow::find_overflow(s1.re, c_one()) {
+        Overflow::Over => return Err(Overflow),
+        Overflow::Under => return Ok((N, NLAST)),
+        _ => (),
     }
+    let mut rs1 = s1.re.abs();
     let mut set_underflow_and_update = false;
     'l40: loop {
         if set_underflow_and_update {
