@@ -1,9 +1,10 @@
 #![allow(clippy::excessive_precision)]
-use num::complex::Complex64;
+use num::{complex::Complex64, pow::Pow};
 
 use super::{BesselError, BesselResult, MACHINE_CONSTANTS};
 
 pub const RTPI: f64 = 0.159154943091895336;
+pub const TWO_THIRDS: f64 = 6.66666666666666666e-01;
 
 pub fn will_z_underflow(
     y: Complex64, //YR, YI,
@@ -39,14 +40,21 @@ pub fn will_z_underflow(
     }
 }
 
-pub fn is_sigificance_lost(z_abs: f64, reduced_order: f64) -> BesselResult<bool> {
+pub fn is_sigificance_lost(
+    z_abs: f64,
+    modified_order: f64,
+    modify_threshold: bool,
+) -> BesselResult<bool> {
     let f64_precision_limit = 0.5 / MACHINE_CONSTANTS.abs_error_tolerance;
     // TODO the below is limited to i32: could push to 64 later, but would change compare to fortran
     let integer_size_limit = (i32::MAX as f64) * 0.5;
-    let upper_size_limit = f64_precision_limit.min(integer_size_limit);
-    if z_abs > upper_size_limit || reduced_order > upper_size_limit {
+    let mut upper_size_limit = f64_precision_limit.min(integer_size_limit);
+    if modify_threshold {
+        upper_size_limit = upper_size_limit.pow(TWO_THIRDS);
+    }
+    if z_abs > upper_size_limit || modified_order > upper_size_limit {
         return Err(BesselError::LossOfSignificance);
     }
     let scaling_limit = upper_size_limit.sqrt();
-    Ok((z_abs > scaling_limit) || (reduced_order > scaling_limit))
+    Ok((z_abs > scaling_limit) || (modified_order > scaling_limit))
 }

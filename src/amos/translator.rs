@@ -3,7 +3,7 @@ use super::{
     BesselError, BesselResult, HankelKind, IKType, Scaling, c_one, c_zero, c_zeros, gamma_ln,
     i_power_series,
     overflow_checks::{zunik, zuoik},
-    utils::{is_sigificance_lost, will_z_underflow},
+    utils::{TWO_THIRDS, is_sigificance_lost, will_z_underflow},
 };
 use crate::amos::{
     BesselError::*,
@@ -20,8 +20,6 @@ use std::{
     cmp::min,
     f64::consts::{FRAC_PI_2, PI},
 };
-
-const TWO_THIRDS: f64 = 6.66666666666666666e-01;
 
 pub fn zbesh(z: Complex64, order: f64, KODE: Scaling, M: HankelKind, N: usize) -> BesselResult {
     // ***BEGIN PROLOGUE  ZBESH
@@ -206,16 +204,7 @@ pub fn zbesh(z: Complex64, order: f64, KODE: Scaling, M: HankelKind, N: usize) -
     //     TEST FOR PROPER RANGE
     //-----------------------------------------------------------------------
     let abs_z = z.abs();
-    let mut AA = 0.5 / MACHINE_CONSTANTS.abs_error_tolerance;
-    AA = AA.min(i32::MAX as f64 / 2.0);
-    if abs_z > AA {
-        return Err(LossOfSignificance);
-    };
-    if FN > AA {
-        return Err(LossOfSignificance);
-    };
-    AA = AA.sqrt();
-    let partial_loss_of_significance = abs_z > AA || order > AA;
+    let partial_loss_of_significance = is_sigificance_lost(abs_z, FN, false)?;
     //-----------------------------------------------------------------------
     //     OVERFLOW TEST ON THE LAST MEMBER OF THE SEQUENCE
     //-----------------------------------------------------------------------
@@ -480,7 +469,7 @@ pub fn zbesi(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult 
     //-----------------------------------------------------------------------
     let AZ = z.abs();
     let FN = order + ((N - 1) as f64);
-    let partial_significance_loss = is_sigificance_lost(AZ, FN)?;
+    let partial_significance_loss = is_sigificance_lost(AZ, FN, false)?;
 
     let (zn, mut csgn) = if z.re >= 0.0 {
         (z, c_one())
@@ -691,9 +680,7 @@ pub fn zbesj(
     //-----------------------------------------------------------------------
     //     TEST FOR PROPER RANGE
     //-----------------------------------------------------------------------
-    let z_abs = z.abs(); //ZABS(ZR, ZI);
-    let reduced_order = order + ((n - 1) as f64);
-    let partial_significance_loss = is_sigificance_lost(z_abs, reduced_order)?;
+    let partial_significance_loss = is_sigificance_lost(z.abs(), order + ((n - 1) as f64), false)?;
     //-----------------------------------------------------------------------
     //     CALCULATE CSGN=EXP(FNU*FRAC_PI_2*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
     //     WHEN FNU IS LARGE
@@ -1527,20 +1514,15 @@ fn ZAIRY(
         //--------------------------------------------------------------------------
         //     TEST FOR PROPER RANGE
         //-----------------------------------------------------------------------
-        // TODO replace AA elsewhere with this approach - maybe a function
-        let significance_loss_threshold = (0.5 / MACHINE_CONSTANTS.abs_error_tolerance)
-            .min(i32::MAX as f64 / 2.0)
-            .pow(TWO_THIRDS);
-        if abs_z > significance_loss_threshold {
-            return Err(LossOfSignificance);
-        };
-        let significance_loss = abs_z > significance_loss_threshold.sqrt();
+        // significance loss only tested against z, not order, so 0.0 is used to never cause significance loss
+        let partial_loss_of_significance = is_sigificance_lost(abs_z, 0.0, true)?;
+
         let csq = z.sqrt();
         let mut zta = TWO_THIRDS * z * csq;
         //-----------------------------------------------------------------------
         //     RE(ZTA) <= 0 WHEN RE(Z) < 0, ESPECIALLY WHEN IM(Z) IS SMALL
         //-----------------------------------------------------------------------
-        let mut IFLAG = 0;
+        let mut IFLAG = 0; // TODO overflow type
         let mut SFAC = 1.0;
         if z.re < 0.0 {
             zta.re = -zta.re.abs();
@@ -1550,6 +1532,7 @@ fn ZAIRY(
         }
         let mut AA = zta.re;
         let (cy, NZ) = if !(AA >= 0.0 && z.re > 0.0) {
+            // TODO overflow
             //-----------------------------------------------------------------------
             //     OVERFLOW TEST
             //-----------------------------------------------------------------------
@@ -1589,7 +1572,7 @@ fn ZAIRY(
             s1 *= if return_derivative { -z } else { csq };
             (s1 / SFAC, NZ)
         };
-        if significance_loss {
+        if partial_loss_of_significance {
             Err(PartialLossOfSignificance {
                 y: vec![retval.0],
                 nz: retval.1,
@@ -1997,7 +1980,7 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
     let CAZ = z.abs();
     let mut NZ = 0;
     let mut underflow_occurred = false;
-    let mut KFLAG;
+    let mut KFLAG; // TODO make overflow type
     let rz = 2.0 * z.conj() / CAZ.powi(2);
     let mut INU = (order + 0.5) as isize; // round to nearest int
     let DNU = order - (INU as f64); // signed fractional part (-0.5 < DNU < 0.5 )
@@ -2237,9 +2220,6 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
             cs = cs.conj() / cs.abs();
             s1 *= coef * cs;
             if INU <= 0 && N <= 1 {
-                // if underflow_occurred {
-                //     todo!()
-                // }
                 skip_to_240 = true;
             } else {
                 //-----------------------------------------------------------------------;
@@ -4094,6 +4074,7 @@ fn ZBUNI(
             1.0 / MACHINE_CONSTANTS.absolute_approximation_limit,
             1.0 / MACHINE_CONSTANTS.absolute_approximation_limit,
         ];
+        // TODO make IFLAG overflow type
         let (mut IFLAG, mut ASCLE, mut CSCLR) = if cy[0].abs() <= local_bry[0] {
             (0, local_bry[0], 1.0 / MACHINE_CONSTANTS.abs_error_tolerance)
         } else if cy[0].abs() >= local_bry[1] {
@@ -4207,6 +4188,7 @@ fn ZUNI1(
     let mut modified_order = order.max(1.0);
     let (_, zeta1, zeta2, _) = zunik(z, modified_order, IKType::I, true);
     let s1 = scaling.scale_zetas(z, modified_order, zeta1, zeta2);
+    // TODO overflow logic
     let rs1 = s1.re;
     if rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
         if rs1 > 0.0 {
@@ -4437,6 +4419,7 @@ fn ZUNI2(
                 c2 = c2.conj();
             }
         }
+        // TODO make IFLAG overflow type
         let mut IFLAG = 0;
         let mut cy = [c_zero(); 2];
         for i in 0..ND.min(2) {
