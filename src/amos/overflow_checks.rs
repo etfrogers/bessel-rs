@@ -96,9 +96,9 @@ pub fn zuoik(
     //     ZUOIK COMPUTES THE LEADING TERMS OF THE UNIFORM ASYMPTOTIC
     //     EXPANSIONS FOR THE I AND K FUNCTIONS AND COMPARES THEM
     //     (IN LOGARITHMIC FORM) TO ALIM AND ELIM FOR OVER AND UNDERFLOW
-    //     WHERE ALIM < ELIM. if THE MAGNITUDE, BASED ON THE LEADING
+    //     WHERE ALIM < ELIM. IF THE MAGNITUDE, BASED ON THE LEADING
     //     EXPONENTIAL, IS LESS THAN ALIM OR GREATER THAN -ALIM, THEN
-    //     THE RESULT IS ON SCALE. if NOT, THEN A REFINED TEST USING OTHER
+    //     THE RESULT IS ON SCALE. IF NOT, THEN A REFINED TEST USING OTHER
     //     MULTIPLIERS (IN LOGARITHMIC FORM) IS MADE BASED ON ELIM. HERE
     //     EXP(-ELIM)=SMALLEST MACHINE NUMBER*1.0E+3 AND EXP(-ALIM)=
     //     EXP(-ELIM)/TOL
@@ -116,39 +116,41 @@ pub fn zuoik(
     // ***ROUTINES CALLED  ZUunderflowCHK,ZUNHJ,ZUNIK,d1mach,ZABS,ZLOG
     // ***END PROLOGUE  ZUOIK
     const AIC: f64 = 1.265512123484645396e+00; //TODO gammaln(-0.5)?
+
     let mut nuf = 0;
     let mut nn = n;
     let zr = if z.re < 0.0 { -z } else { z };
-    let zb = zr;
-    let iform = if z.im.abs() > z.re.abs() * 1.7321 {
-        2
+    let zn = if z.im <= 0.0 {
+        -Complex64::I * zr.conj()
     } else {
-        1
+        -Complex64::I * zr
     };
-    let mut gnu = order.max(1.0);
+    let zb = zr;
+    let imaginary_dominant = z.im.abs() > z.re.abs() * 1.7321;
+    let mut modified_order = order.max(1.0);
     if ikflg == IKType::K {
         let fnn = nn as f64;
         let gnn = order + fnn - 1.0;
-        gnu = gnn.max(fnn);
+        modified_order = gnn.max(fnn);
     }
     //-----------------------------------------------------------------------
     //     ONLY THE MAGNITUDE OF ARG AND PHI ARE NEEDED ALONG WITH THE
     //     REAL PARTS OF ZETA1, ZETA2 AND ZB. NO ATTEMPT IS MADE TO GET
     //     THE SIGN OF THE IMAGINARY PART CORRECT.
     //-----------------------------------------------------------------------
-    let mut zn = None;
-    let (mut cz, phi, arg, abs_arg) = if iform == 1 {
-        let (phi, zeta1, zeta2, _) = zunik(zr, gnu, ikflg, true);
-        (-zeta1 + zeta2, phi, c_zero(), 0.0)
-    } else {
-        let mut zn_ = Complex64::new(zr.im, -zr.re);
-        if z.im <= 0.0 {
-            zn_.re = -zn_.re;
-        }
-        let (phi, arg, zeta1, zeta2, _, _) =
-            zunhj(zn_, gnu, true, MACHINE_CONSTANTS.abs_error_tolerance);
-        zn = Some(zn_);
+    // First checks the last element (nn = n)
+
+    let (mut cz, phi, arg, abs_arg) = if imaginary_dominant {
+        let (phi, arg, zeta1, zeta2, _, _) = zunhj(
+            zn,
+            modified_order,
+            true,
+            MACHINE_CONSTANTS.abs_error_tolerance,
+        );
         (-zeta1 + zeta2, phi, arg, arg.abs())
+    } else {
+        let (phi, zeta1, zeta2, _) = zunik(zr, modified_order, ikflg, true);
+        (-zeta1 + zeta2, phi, c_zero(), 0.0)
     };
     if kode == Scaling::Scaled {
         cz -= zb;
@@ -160,7 +162,7 @@ pub fn zuoik(
     //-----------------------------------------------------------------------
     //     OVERFLOW TEST
     //-----------------------------------------------------------------------
-    let extra_refinement = if iform == 2 {
+    let extra_refinement = if imaginary_dominant {
         -0.25 * abs_arg.ln() - AIC
     } else {
         0.0
@@ -175,7 +177,7 @@ pub fn zuoik(
         }
         Overflow::NearUnder => {
             cz += phi.ln();
-            if iform == 2 {
+            if imaginary_dominant {
                 cz -= 0.25 * arg.ln() + AIC
             }
             cz = cz.exp() / MACHINE_CONSTANTS.abs_error_tolerance;
@@ -196,6 +198,8 @@ pub fn zuoik(
     //-----------------------------------------------------------------------
     //     SET UNDERFLOWS ON I SEQUENCE
     //-----------------------------------------------------------------------
+    // Starts from nn = 1 and works downwards.
+    // TODO unroll loops?
     let mut go_to_180 = false;
     let mut skip_to_190;
     'outer: loop {
@@ -203,27 +207,27 @@ pub fn zuoik(
         'l140: loop {
             skip_to_190 = false;
             if !go_to_180 {
-                gnu = order + ((nn - 1) as f64);
-                let (phi, cz_, abs_arg) = if iform == 1 {
-                    let (phi, zeta1, zeta2, _) = zunik(zr, gnu, ikflg, true);
-                    let cz_inner = -zeta1 + zeta2;
-                    (phi, cz_inner, 0.0)
-                } else {
+                modified_order = order + ((nn - 1) as f64);
+                let (phi, cz_, abs_arg) = if imaginary_dominant {
                     let (phi, arg, zeta1, zeta2, _, _) = zunhj(
-                        zn.unwrap(),
-                        gnu,
+                        zn,
+                        modified_order,
                         true,
                         MACHINE_CONSTANTS.abs_error_tolerance,
                     );
                     let cz_inner = -zeta1 + zeta2;
                     let aarg = arg.abs();
                     (phi, cz_inner, aarg)
+                } else {
+                    let (phi, zeta1, zeta2, _) = zunik(zr, modified_order, ikflg, true);
+                    let cz_inner = -zeta1 + zeta2;
+                    (phi, cz_inner, 0.0)
                 };
                 cz = cz_;
                 if kode == Scaling::Scaled {
                     cz -= zb;
                 }
-                let extra_refinement = if iform == 2 {
+                let extra_refinement = if imaginary_dominant {
                     -0.25 * abs_arg.ln() - AIC
                 } else {
                     0.0
@@ -251,7 +255,7 @@ pub fn zuoik(
             }
         }
         cz += phi.ln();
-        if iform != 1 {
+        if imaginary_dominant {
             cz -= 0.25 * arg.ln() + AIC
         }
         cz = cz.exp() / MACHINE_CONSTANTS.abs_error_tolerance;
