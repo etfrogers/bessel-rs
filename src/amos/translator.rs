@@ -3218,6 +3218,7 @@ fn ZUNK1(z: Complex64, order: f64, scaling: Scaling, MR: i64, N: usize) -> Besse
     //     NZ=-1 MEANS AN OVERFLOW WILL OCCUR
     //
 
+    // TODO better name for KDFLAG
     let mut KDFLG = false; // = 1;
     let mut NZ = 0;
     //-----------------------------------------------------------------------
@@ -3249,13 +3250,11 @@ fn ZUNK1(z: Complex64, order: f64, scaling: Scaling, MR: i64, N: usize) -> Besse
         (phi[J], zeta1[J], zeta2[J], sum_opt) = zunik(zr, modified_order, IKType::K, false);
         sum[J] = sum_opt.unwrap();
         let mut s1 = -scaling.scale_zetas(zr, modified_order, zeta1[J], zeta2[J]);
-        let new_of = Overflow::find_overflow(s1.re, phi[J], 0.0);
+        let of = Overflow::find_overflow(s1.re, phi[J], 0.0);
         if !KDFLG {
-            k_overflow_state = new_of;
+            k_overflow_state = of;
         }
-
-        // TODO sync new_xFLAG logic throughout
-        match new_of {
+        match of {
             Overflow::Over => return Err(Overflow),
             Overflow::Under => {
                 if z.re < 0.0 {
@@ -3393,21 +3392,21 @@ fn ZUNK1(z: Complex64, order: f64, scaling: Scaling, MR: i64, N: usize) -> Besse
             //-----------------------------------------------------------------------
             //     TEST FOR UNDERFLOW AND OVERFLOW
             //-----------------------------------------------------------------------
-
-            // TODO sync new_xFLAG logic
-            let (mut s2, new_of) = match Overflow::find_overflow(s1.re, phid, 0.0) {
+            let of = Overflow::find_overflow(s1.re, phid, 0.0);
+            if !KDFLG && of != Overflow::Under {
+                i_overflow_state = of;
+            }
+            let mut s2 = match of {
                 Overflow::Over => {
                     return Err(Overflow);
                 }
-
-                Overflow::Under => (c_zero(), None),
-                of @ Overflow::NearOver | of @ Overflow::NearUnder | of @ Overflow::None => {
-                    let inner_flag = if KDFLG { i_overflow_state } else { of };
+                Overflow::Under => c_zero(),
+                Overflow::NearOver | Overflow::NearUnder | Overflow::None => {
                     let st = phid * sumd;
                     let mut s2 = Complex64::I * st * CSGNI;
-                    s1 = s1.exp() * MACHINE_CONSTANTS.scaling_factors[inner_flag];
+                    s1 = s1.exp() * MACHINE_CONSTANTS.scaling_factors[i_overflow_state];
                     s2 *= s1;
-                    if inner_flag == Overflow::NearUnder
+                    if i_overflow_state == Overflow::NearUnder
                         && will_z_underflow(
                             s2,
                             MACHINE_CONSTANTS.bry[0],
@@ -3416,13 +3415,9 @@ fn ZUNK1(z: Complex64, order: f64, scaling: Scaling, MR: i64, N: usize) -> Besse
                     {
                         s2 = c_zero();
                     }
-                    (s2, Some(of))
+                    s2
                 }
             };
-            // TODO use new_flag logic from above as cleaner
-            if !KDFLG && let Some(new_val) = new_of {
-                i_overflow_state = new_val;
-            }
             cy[KDFLG as usize] = s2;
             let c2 = s2;
             s2 *= MACHINE_CONSTANTS.reciprocal_scaling_factors[i_overflow_state];
@@ -4200,6 +4195,7 @@ fn ZUNI1(
     let mut overflow_state = Overflow::None; // this value should never be used
     let mut cy = [c_zero(); 2];
     let mut set_underflow_and_update = false;
+    // Unroll loop here and ZUNI2. Check ZUNK1, 2 as well.
     'l30: loop {
         if set_underflow_and_update {
             y[ND - 1] = c_zero();
