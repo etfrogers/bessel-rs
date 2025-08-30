@@ -5,8 +5,13 @@ use super::{BesselError, BesselResult, MACHINE_CONSTANTS};
 
 pub const RTPI: f64 = 0.159154943091895336;
 pub const TWO_THIRDS: f64 = 6.66666666666666666e-01;
+pub const RT_THREE: f64 = 1.73205080757;
 
-pub fn will_z_underflow(
+pub(crate) fn imaginary_dominant(z: Complex64) -> bool {
+    z.im.abs() > z.re.abs() * RT_THREE
+}
+
+pub(crate) fn will_z_underflow(
     y: Complex64, //YR, YI,
     // Outputs: NZ
     ascle: f64,

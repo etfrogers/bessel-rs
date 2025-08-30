@@ -9,6 +9,7 @@ use crate::amos::{
     BesselError::*,
     MACHINE_CONSTANTS, max_abs_component,
     overflow_checks::{Overflow, zunhj},
+    utils::imaginary_dominant,
     z_asymptotic_i::z_asymptotic_i,
 };
 use num::{
@@ -2669,15 +2670,7 @@ fn ZBUNK(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
     //     ACCORDING TO THE UNIFORM ASYMPTOTIC EXPANSION FOR K(FNU,Z)
     //     IN ZUNK1 AND THE EXPANSION FOR H(2,FNU,Z) IN ZUNK2
     //
-    let AX = z.re.abs() * 1.7321;
-    let AY = z.im.abs();
-    if AY <= AX {
-        //-----------------------------------------------------------------------
-        //     ASYMPTOTIC EXPANSION FOR K(FNU,Z) FOR LARGE FNU APPLIED IN
-        //     -PI/3 <= ARG(Z) <= PI/3
-        //-----------------------------------------------------------------------
-        ZUNK1(z, order, KODE, MR, N)
-    } else {
+    if imaginary_dominant(z) {
         //-----------------------------------------------------------------------
         //     ASYMPTOTIC EXPANSION FOR H(2,FNU,Z*EXP(M*FRAC_PI_2)) FOR LARGE FNU
         //     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I
@@ -2686,6 +2679,12 @@ fn ZBUNK(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         // ZUNK2(z, order, KODE, MR, N)
         Err(BesselError::NotYetImplemented)
         // ZUNK2(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM, ALIM)
+    } else {
+        //-----------------------------------------------------------------------
+        //     ASYMPTOTIC EXPANSION FOR K(FNU,Z) FOR LARGE FNU APPLIED IN
+        //     -PI/3 <= ARG(Z) <= PI/3
+        //-----------------------------------------------------------------------
+        ZUNK1(z, order, KODE, MR, N)
     }
 }
 
@@ -4035,27 +4034,26 @@ fn ZBUNI(
     //
     // ***ROUTINES CALLED  ZUNI1,ZUNI2,ZABS,d1mach
     // ***END PROLOGUE  ZBUNI
-    let AX = z.re.abs() * 1.7321;
-    let AY = z.im.abs();
-    let IFORM = if AY > AX { 2 } else { 1 };
+
+    let imaginary_dominant = imaginary_dominant(z);
     if NUI != 0 {
         let mut FNUI = NUI as f64;
         let DFNU = order + ((N - 1) as f64);
         let GNU = DFNU + FNUI;
         let mut cy = c_zeros(2);
-        let (NW, NLAST) = if IFORM != 2 {
-            //-----------------------------------------------------------------------
-            //     ASYMPTOTIC EXPANSION FOR I(FNU,Z) FOR LARGE FNU APPLIED IN
-            //     -PI/3 <= ARG(Z) <= PI/3
-            //-----------------------------------------------------------------------
-            ZUNI1(z, GNU, KODE, 2, &mut cy)?
-        } else {
+        let (NW, NLAST) = if imaginary_dominant {
             //-----------------------------------------------------------------------
             //     ASYMPTOTIC EXPANSION FOR J(FNU,Z*EXP(M*FRAC_PI_2)) FOR LARGE FNU
             //     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I
             //     AND FRAC_PI_2=PI/2
             //-----------------------------------------------------------------------
             ZUNI2(z, GNU, KODE, 2, &mut cy)?
+        } else {
+            //-----------------------------------------------------------------------
+            //     ASYMPTOTIC EXPANSION FOR I(FNU,Z) FOR LARGE FNU APPLIED IN
+            //     -PI/3 <= ARG(Z) <= PI/3
+            //-----------------------------------------------------------------------
+            ZUNI1(z, GNU, KODE, 2, &mut cy)?
         };
         if NW != 0 {
             return Ok((0, N));
@@ -4139,19 +4137,19 @@ fn ZBUNI(
         }
         return Ok((0, NLAST));
     }
-    let (NW, NLAST) = if IFORM != 2 {
-        //-----------------------------------------------------------------------
-        //     ASYMPTOTIC EXPANSION FOR I(FNU,Z) FOR LARGE FNU APPLIED IN
-        //     -PI/3 <= ARG(Z) <= PI/3
-        //-----------------------------------------------------------------------
-        ZUNI1(z, order, KODE, N, y)?
-    } else {
+    let (NW, NLAST) = if imaginary_dominant {
         //-----------------------------------------------------------------------
         //     ASYMPTOTIC EXPANSION FOR J(FNU,Z*EXP(M*FRAC_PI_2)) FOR LARGE FNU
         //     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I
         //     AND FRAC_PI_2=PI/2
         //-----------------------------------------------------------------------
         ZUNI2(z, order, KODE, N, y)?
+    } else {
+        //-----------------------------------------------------------------------
+        //     ASYMPTOTIC EXPANSION FOR I(FNU,Z) FOR LARGE FNU APPLIED IN
+        //     -PI/3 <= ARG(Z) <= PI/3
+        //-----------------------------------------------------------------------
+        ZUNI1(z, order, KODE, N, y)?
     };
 
     Ok((NW, NLAST))
