@@ -3255,8 +3255,8 @@ fn ZUNK1(z: Complex64, order: f64, scaling: Scaling, MR: i64, N: usize) -> Besse
             k_overflow_state = of;
         }
         match of {
-            Overflow::Over => return Err(Overflow),
-            Overflow::Under => {
+            Overflow::Over(_) => return Err(Overflow),
+            Overflow::Under(_) => {
                 if z.re < 0.0 {
                     return Err(Overflow);
                 }
@@ -3314,8 +3314,8 @@ fn ZUNK1(z: Complex64, order: f64, scaling: Scaling, MR: i64, N: usize) -> Besse
         let overflow_test = -scaling.scale_zetas(zr, modified_order, zet1d, zet2d);
 
         match Overflow::find_overflow(overflow_test.re.abs(), phi, 0.0) {
-            Overflow::Over => return Err(Overflow),
-            Overflow::Under => {
+            Overflow::Over(_) => return Err(Overflow),
+            Overflow::Under(_) => {
                 return if z.re < 0.0 {
                     Err(Overflow)
                 } else {
@@ -3393,14 +3393,14 @@ fn ZUNK1(z: Complex64, order: f64, scaling: Scaling, MR: i64, N: usize) -> Besse
             //     TEST FOR UNDERFLOW AND OVERFLOW
             //-----------------------------------------------------------------------
             let of = Overflow::find_overflow(s1.re, phid, 0.0);
-            if !KDFLG && of != Overflow::Under {
+            if !KDFLG && !matches!(of, Overflow::Under(_)) {
                 i_overflow_state = of;
             }
             let mut s2 = match of {
-                Overflow::Over => {
+                Overflow::Over(_) => {
                     return Err(Overflow);
                 }
-                Overflow::Under => c_zero(),
+                Overflow::Under(_) => c_zero(),
                 Overflow::NearOver | Overflow::NearUnder | Overflow::None => {
                     let st = phid * sumd;
                     let mut s2 = Complex64::I * st * CSGNI;
@@ -4188,8 +4188,8 @@ fn ZUNI1(
     // phi is chosen here for refined tests to equal the original tests
     // which don't test refinement
     match Overflow::find_overflow(s1.re, c_one(), 0.0) {
-        Overflow::Over => return Err(Overflow),
-        Overflow::Under => return Ok((N, NLAST)),
+        Overflow::Over(_) => return Err(Overflow),
+        Overflow::Under(_) => return Ok((N, NLAST)),
         _ => (),
     }
     let mut overflow_state = Overflow::None; // this value should never be used
@@ -4230,8 +4230,8 @@ fn ZUNI1(
                 overflow_state = of;
             }
             match of {
-                Overflow::Over => return Err(Overflow),
-                Overflow::Under => {
+                Overflow::Over(_) => return Err(Overflow),
+                Overflow::Under(_) => {
                     set_underflow_and_update = true;
                     continue 'l30;
                 }
@@ -4359,8 +4359,8 @@ fn ZUNI2(
     // phi is chosen here for refined tests to equal the original tests
     // which don't test refinement
     match Overflow::find_overflow(s1.re, c_one(), 0.0) {
-        Overflow::Over => return Err(Overflow),
-        Overflow::Under => return Ok((N, NLAST)),
+        Overflow::Over(_) => return Err(Overflow),
+        Overflow::Under(_) => return Ok((N, NLAST)),
         _ => (),
     }
     let mut set_underflow_and_update = false;
@@ -4416,8 +4416,8 @@ fn ZUNI2(
                 overflow_state = of;
             }
             match of {
-                Overflow::Over => return Err(Overflow),
-                Overflow::Under => {
+                Overflow::Over(_) => return Err(Overflow),
+                Overflow::Under(_) => {
                     set_underflow_and_update = true;
                     continue 'l40;
                 }

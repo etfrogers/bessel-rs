@@ -15,9 +15,9 @@ use super::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Overflow {
-    Over,
+    Over(bool),
     NearOver,
-    Under,
+    Under(bool),
     NearUnder,
     None,
 }
@@ -28,7 +28,11 @@ impl Overflow {
         //     TEST FOR UNDERFLOW AND OVERFLOW
         //-----------------------------------------------------------------------
         if rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
-            return if rs1 > 0.0 { Self::Over } else { Self::Under };
+            return if rs1 > 0.0 {
+                Self::Over(false)
+            } else {
+                Self::Under(false)
+            };
         }
         if rs1.abs() < MACHINE_CONSTANTS.approximation_limit {
             return Self::None;
@@ -39,9 +43,9 @@ impl Overflow {
         let refined_rs1 = rs1 + phi.abs().ln() + extra_refinement;
         if refined_rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
             return if refined_rs1 > 0.0 {
-                Self::Over
+                Self::Over(true)
             } else {
-                Self::Under
+                Self::Under(true)
             };
         }
         if refined_rs1 > 0.0 {
@@ -53,7 +57,7 @@ impl Overflow {
 
     pub fn increment(&mut self) {
         match self {
-            Overflow::Over | Overflow::Under => {
+            Overflow::Over(_) | Overflow::Under(_) => {
                 panic!("Overflow and underflow are not valid for incrementation")
             }
             Overflow::NearOver => panic!("NearOver is the largest possible overflow condition"),
@@ -68,7 +72,7 @@ impl Index<Overflow> for [f64] {
 
     fn index(&self, index: Overflow) -> &Self::Output {
         match index {
-            Overflow::Over | Overflow::Under => {
+            Overflow::Over(_) | Overflow::Under(_) => {
                 panic!("Overflow and underflow are not valid indices")
             }
             Overflow::NearOver => &self[2],
@@ -152,39 +156,24 @@ pub fn zuoik(
     if ikflg == IKType::K {
         cz = -cz;
     }
-    let aphi = phi.abs();
-    let mut rcz = cz.re;
-    // TODO refactor using other overflow tests
+
     //-----------------------------------------------------------------------
     //     OVERFLOW TEST
     //-----------------------------------------------------------------------
-    if rcz > MACHINE_CONSTANTS.exponent_limit {
-        return Err(Overflow);
-    }
-    if rcz >= MACHINE_CONSTANTS.approximation_limit {
-        rcz += aphi.ln();
-        if iform == 2 {
-            rcz = rcz - 0.25 * abs_arg.ln() - AIC
-        };
-        if rcz > MACHINE_CONSTANTS.exponent_limit {
-            return Err(Overflow);
-        }
+    let extra_refinement = if iform == 2 {
+        -0.25 * abs_arg.ln() - AIC
     } else {
-        //-----------------------------------------------------------------------
-        //     UNDERFLOW TEST
-        //-----------------------------------------------------------------------
-        if rcz < -MACHINE_CONSTANTS.exponent_limit {
-            y[0..nn].iter_mut().for_each(|v| *v = c_zero());
+        0.0
+    };
+    match Overflow::find_overflow(cz.re, phi, extra_refinement) {
+        Overflow::Over(_) => return Err(Overflow),
+        Overflow::Under(was_refined) => {
+            if !was_refined {
+                y[0..nn].iter_mut().for_each(|v| *v = c_zero());
+            }
             return Ok(nn);
         }
-        if rcz <= -MACHINE_CONSTANTS.approximation_limit {
-            rcz += aphi.ln();
-            if iform == 2 {
-                rcz = rcz - 0.25 * abs_arg.ln() - AIC
-            };
-            if rcz <= -MACHINE_CONSTANTS.exponent_limit {
-                return Ok(nn);
-            }
+        Overflow::NearUnder => {
             cz += phi.ln();
             if iform == 2 {
                 cz -= 0.25 * arg.ln() + AIC
@@ -199,6 +188,7 @@ pub fn zuoik(
                 return Ok(nn);
             }
         }
+        Overflow::None | Overflow::NearOver => (),
     }
     if ikflg == IKType::K || n == 1 {
         return Ok(nuf);
@@ -214,7 +204,7 @@ pub fn zuoik(
             skip_to_190 = false;
             if !go_to_180 {
                 gnu = order + ((nn - 1) as f64);
-                let (phi, cz_, aarg) = if iform == 1 {
+                let (phi, cz_, abs_arg) = if iform == 1 {
                     let (phi, zeta1, zeta2, _) = zunik(zr, gnu, ikflg, true);
                     let cz_inner = -zeta1 + zeta2;
                     (phi, cz_inner, 0.0)
@@ -233,19 +223,19 @@ pub fn zuoik(
                 if kode == Scaling::Scaled {
                     cz -= zb;
                 }
-                let aphi = phi.abs();
-                rcz = cz.re;
-                if rcz >= -MACHINE_CONSTANTS.exponent_limit {
-                    if rcz > -MACHINE_CONSTANTS.approximation_limit {
-                        return Ok(nuf);
-                    };
-                    rcz += aphi.ln();
-                    if iform == 2 {
-                        rcz = rcz - 0.25 * aarg.ln() - AIC;
+                let extra_refinement = if iform == 2 {
+                    -0.25 * abs_arg.ln() - AIC
+                } else {
+                    0.0
+                };
+                match Overflow::find_overflow(cz.re, phi, extra_refinement) {
+                    Overflow::Under(was_refined) => {
+                        if was_refined {
+                            skip_to_190 = true;
+                        }
                     }
-                    if rcz > -MACHINE_CONSTANTS.exponent_limit {
-                        skip_to_190 = true
-                    }
+                    Overflow::NearUnder => (),
+                    Overflow::None | Overflow::NearOver | Overflow::Over(_) => return Ok(nuf),
                 }
             }
             go_to_180 = false;
