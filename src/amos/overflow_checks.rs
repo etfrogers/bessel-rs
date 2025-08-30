@@ -8,6 +8,8 @@ use std::{
 
 use num::complex::{Complex64, ComplexFloat};
 
+use crate::amos::utils::imaginary_dominant;
+
 use super::{
     BesselError::*, BesselResult, IKType, MACHINE_CONSTANTS, PositiveArg, Scaling, c_one, c_zero,
     c_zeros, utils::will_z_underflow,
@@ -82,11 +84,12 @@ impl Index<Overflow> for [f64] {
     }
 }
 
+/// Originally ZUIOK
 pub fn zuoik(
     z: Complex64,
     order: f64,
-    kode: Scaling,
-    ikflg: IKType,
+    scaling: Scaling,
+    ik_type: IKType,
     n: usize,
     y: &mut [Complex64],
 ) -> BesselResult<usize> {
@@ -113,12 +116,10 @@ pub fn zuoik(
     //     IKFLG=2 AND 0 < NUF < N NOT CONSIDERED. Y MUST BE SET BY
     //             ANOTHER ROUTINE
     //
-    // ***ROUTINES CALLED  ZUunderflowCHK,ZUNHJ,ZUNIK,d1mach,ZABS,ZLOG
-    // ***END PROLOGUE  ZUOIK
+
     const AIC: f64 = 1.265512123484645396e+00; //TODO gammaln(-0.5)?
 
-    let mut nuf = 0;
-    let mut nn = n;
+    let mut n_underflow = 0;
     let zr = if z.re < 0.0 { -z } else { z };
     let zn = if z.im <= 0.0 {
         -Complex64::I * zr.conj()
@@ -126,36 +127,47 @@ pub fn zuoik(
         -Complex64::I * zr
     };
     let zb = zr;
-    let imaginary_dominant = z.im.abs() > z.re.abs() * 1.7321;
-    let mut modified_order = order.max(1.0);
-    if ikflg == IKType::K {
-        let fnn = nn as f64;
-        let gnn = order + fnn - 1.0;
-        modified_order = gnn.max(fnn);
-    }
+    let imaginary_dominant = imaginary_dominant(z);
     //-----------------------------------------------------------------------
     //     ONLY THE MAGNITUDE OF ARG AND PHI ARE NEEDED ALONG WITH THE
     //     REAL PARTS OF ZETA1, ZETA2 AND ZB. NO ATTEMPT IS MADE TO GET
     //     THE SIGN OF THE IMAGINARY PART CORRECT.
     //-----------------------------------------------------------------------
-    // First checks the last element (nn = n)
 
-    let (mut cz, phi, arg, abs_arg) = if imaginary_dominant {
-        let (phi, arg, zeta1, zeta2, _, _) = zunhj(
-            zn,
-            modified_order,
-            true,
-            MACHINE_CONSTANTS.abs_error_tolerance,
-        );
-        (-zeta1 + zeta2, phi, arg, arg.abs())
-    } else {
-        let (phi, zeta1, zeta2, _) = zunik(zr, modified_order, ikflg, true);
-        (-zeta1 + zeta2, phi, c_zero(), 0.0)
+    // This piece of code is used in two places, where there is essentially as switch on which function to use,
+    // based on whether z is imaginary dominant or real dominant
+    let get_parameters = |modified_order: f64| {
+        let (mut cz, phi, arg, abs_arg) = if imaginary_dominant {
+            let (phi, arg, zeta1, zeta2, _, _) = zunhj(
+                zn,
+                modified_order,
+                true,
+                MACHINE_CONSTANTS.abs_error_tolerance,
+            );
+            (-zeta1 + zeta2, phi, arg, arg.abs())
+        } else {
+            let (phi, zeta1, zeta2, _) = zunik(zr, modified_order, ik_type, true);
+            (-zeta1 + zeta2, phi, c_zero(), 0.0)
+        };
+        if scaling == Scaling::Scaled {
+            cz -= zb;
+        }
+        (cz, phi, arg, abs_arg)
     };
-    if kode == Scaling::Scaled {
-        cz -= zb;
-    }
-    if ikflg == IKType::K {
+
+    // First checks the last element
+    let modified_order = match ik_type {
+        IKType::K => {
+            let fnn = n as f64;
+            let gnn = order + fnn - 1.0;
+            gnn.max(fnn)
+        }
+        IKType::I => order.max(1.0),
+    };
+
+    let (mut cz, phi, arg, abs_arg) = get_parameters(modified_order);
+
+    if ik_type == IKType::K {
         cz = -cz;
     }
 
@@ -171,9 +183,9 @@ pub fn zuoik(
         Overflow::Over(_) => return Err(Overflow),
         Overflow::Under(was_refined) => {
             if !was_refined {
-                y[0..nn].iter_mut().for_each(|v| *v = c_zero());
+                y[0..n].iter_mut().for_each(|v| *v = c_zero());
             }
-            return Ok(nn);
+            return Ok(n);
         }
         Overflow::NearUnder => {
             cz += phi.ln();
@@ -186,90 +198,54 @@ pub fn zuoik(
                 MACHINE_CONSTANTS.absolute_approximation_limit,
                 MACHINE_CONSTANTS.abs_error_tolerance,
             ) {
-                y[0..nn].iter_mut().for_each(|v| *v = c_zero());
-                return Ok(nn);
+                y[0..n].iter_mut().for_each(|v| *v = c_zero());
+                return Ok(n);
             }
         }
         Overflow::None | Overflow::NearOver => (),
     }
-    if ikflg == IKType::K || n == 1 {
-        return Ok(nuf);
+    // On K type, we only check the max n value, as per function documentation
+    if ik_type == IKType::K || n == 1 {
+        return Ok(n_underflow);
     }
     //-----------------------------------------------------------------------
     //     SET UNDERFLOWS ON I SEQUENCE
     //-----------------------------------------------------------------------
-    // Starts from nn = 1 and works downwards.
-    // TODO unroll loops?
-    let mut go_to_180 = false;
-    let mut skip_to_190;
-    'outer: loop {
-        let mut cz: Complex64 = c_zero(); // value cannot be used TODO fix loop logic to show this.
-        'l140: loop {
-            skip_to_190 = false;
-            if !go_to_180 {
-                modified_order = order + ((nn - 1) as f64);
-                let (phi, cz_, abs_arg) = if imaginary_dominant {
-                    let (phi, arg, zeta1, zeta2, _, _) = zunhj(
-                        zn,
-                        modified_order,
-                        true,
-                        MACHINE_CONSTANTS.abs_error_tolerance,
-                    );
-                    let cz_inner = -zeta1 + zeta2;
-                    let aarg = arg.abs();
-                    (phi, cz_inner, aarg)
-                } else {
-                    let (phi, zeta1, zeta2, _) = zunik(zr, modified_order, ikflg, true);
-                    let cz_inner = -zeta1 + zeta2;
-                    (phi, cz_inner, 0.0)
-                };
-                cz = cz_;
-                if kode == Scaling::Scaled {
-                    cz -= zb;
-                }
-                let extra_refinement = if imaginary_dominant {
-                    -0.25 * abs_arg.ln() - AIC
-                } else {
-                    0.0
-                };
-                match Overflow::find_overflow(cz.re, phi, extra_refinement) {
-                    Overflow::Under(was_refined) => {
-                        if was_refined {
-                            skip_to_190 = true;
-                        }
-                    }
-                    Overflow::NearUnder => (),
-                    Overflow::None | Overflow::NearOver | Overflow::Over(_) => return Ok(nuf),
-                }
-            }
-            go_to_180 = false;
-            if !skip_to_190 {
-                y[nn - 1] = c_zero();
-                nn -= 1;
-                nuf += 1;
-                if nn == 0 {
-                    return Ok(nuf);
-                }
-            } else {
-                break 'l140;
-            }
-        }
-        cz += phi.ln();
-        if imaginary_dominant {
-            cz -= 0.25 * arg.ln() + AIC
-        }
-        cz = cz.exp() / MACHINE_CONSTANTS.abs_error_tolerance;
-        if will_z_underflow(
-            cz,
-            MACHINE_CONSTANTS.absolute_approximation_limit,
-            MACHINE_CONSTANTS.abs_error_tolerance,
-        ) {
-            go_to_180 = true;
+    for nn in (0..n).rev() {
+        let modified_order = order + (nn as f64);
+        let (mut cz, phi, _arg, abs_arg) = get_parameters(modified_order);
+        let extra_refinement = if imaginary_dominant {
+            -0.25 * abs_arg.ln() - AIC
         } else {
-            break 'outer;
+            0.0
+        };
+        // Match below says that first time we get here and no underflow is found, we immediately return
+        match Overflow::find_overflow(cz.re, phi, extra_refinement) {
+            Overflow::Under(was_refined) => {
+                if was_refined {
+                    // Now do a similar overflow check, but on complex values, rather
+                    // than the absolute values used in find_overflow
+                    cz += phi.ln();
+                    if imaginary_dominant {
+                        cz -= 0.25 * arg.ln() + AIC
+                    }
+                    cz = cz.exp() / MACHINE_CONSTANTS.abs_error_tolerance;
+                    if !will_z_underflow(
+                        cz,
+                        MACHINE_CONSTANTS.absolute_approximation_limit,
+                        MACHINE_CONSTANTS.abs_error_tolerance,
+                    ) {
+                        return Ok(n_underflow);
+                    }
+                }
+            }
+            Overflow::NearUnder => (),
+            Overflow::None | Overflow::NearOver | Overflow::Over(_) => return Ok(n_underflow),
         }
+        y[nn] = c_zero();
+        n_underflow += 1;
     }
-    Ok(nuf)
+    Ok(n_underflow)
 }
 
 struct UniformAssymptoticParameters {
