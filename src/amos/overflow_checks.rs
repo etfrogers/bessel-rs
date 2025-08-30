@@ -23,7 +23,7 @@ pub enum Overflow {
 }
 
 impl Overflow {
-    pub fn find_overflow(rs1: f64, phi: Complex64) -> Self {
+    pub fn find_overflow(rs1: f64, phi: Complex64, extra_refinement: f64) -> Self {
         //-----------------------------------------------------------------------
         //     TEST FOR UNDERFLOW AND OVERFLOW
         //-----------------------------------------------------------------------
@@ -36,7 +36,7 @@ impl Overflow {
         //-----------------------------------------------------------------------
         //     REFINE  TEST AND SCALE
         //-----------------------------------------------------------------------
-        let refined_rs1 = rs1 + phi.abs().ln();
+        let refined_rs1 = rs1 + phi.abs().ln() + extra_refinement;
         if refined_rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
             return if refined_rs1 > 0.0 {
                 Self::Over

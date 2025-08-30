@@ -3249,7 +3249,7 @@ fn ZUNK1(z: Complex64, order: f64, scaling: Scaling, MR: i64, N: usize) -> Besse
         (phi[J], zeta1[J], zeta2[J], sum_opt) = zunik(zr, modified_order, IKType::K, false);
         sum[J] = sum_opt.unwrap();
         let mut s1 = -scaling.scale_zetas(zr, modified_order, zeta1[J], zeta2[J]);
-        let new_of = Overflow::find_overflow(s1.re, phi[J]);
+        let new_of = Overflow::find_overflow(s1.re, phi[J], 0.0);
         if !KDFLG {
             k_overflow_state = new_of;
         }
@@ -3314,7 +3314,7 @@ fn ZUNK1(z: Complex64, order: f64, scaling: Scaling, MR: i64, N: usize) -> Besse
         let (phi, zet1d, zet2d, _sumd) = zunik(zr, modified_order, IKType::K, MR == 0);
         let overflow_test = -scaling.scale_zetas(zr, modified_order, zet1d, zet2d);
 
-        match Overflow::find_overflow(overflow_test.re.abs(), phi) {
+        match Overflow::find_overflow(overflow_test.re.abs(), phi, 0.0) {
             Overflow::Over => return Err(Overflow),
             Overflow::Under => {
                 return if z.re < 0.0 {
@@ -3395,7 +3395,7 @@ fn ZUNK1(z: Complex64, order: f64, scaling: Scaling, MR: i64, N: usize) -> Besse
             //-----------------------------------------------------------------------
 
             // TODO sync new_xFLAG logic
-            let (mut s2, new_of) = match Overflow::find_overflow(s1.re, phid) {
+            let (mut s2, new_of) = match Overflow::find_overflow(s1.re, phid, 0.0) {
                 Overflow::Over => {
                     return Err(Overflow);
                 }
@@ -4190,22 +4190,18 @@ fn ZUNI1(
     let mut modified_order = order.max(1.0);
     let (_, zeta1, zeta2, _) = zunik(z, modified_order, IKType::I, true);
     let s1 = scaling.scale_zetas(z, modified_order, zeta1, zeta2);
-    // TODO overflow logic
-    let rs1 = s1.re;
-    if rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
-        if rs1 > 0.0 {
-            return Err(Overflow);
-        }
-        return Ok((N, NLAST));
+    // phi is chosen here for refined tests to equal the original tests
+    // which don't test refinement
+    match Overflow::find_overflow(s1.re, c_one(), 0.0) {
+        Overflow::Over => return Err(Overflow),
+        Overflow::Under => return Ok((N, NLAST)),
+        _ => (),
     }
     let mut overflow_state = Overflow::None; // this value should never be used
     let mut cy = [c_zero(); 2];
     let mut set_underflow_and_update = false;
     'l30: loop {
         if set_underflow_and_update {
-            if rs1 > 0.0 {
-                return Err(Overflow);
-            }
             y[ND - 1] = c_zero();
             NZ += 1;
             ND -= 1;
@@ -4233,33 +4229,17 @@ fn ZUNI1(
                 s1 += Complex64::new(0.0, z.im);
             }
 
-            // TODO overflow logic
-            //-----------------------------------------------------------------------
-            //     TEST FOR UNDERFLOW AND OVERFLOW
-            //-----------------------------------------------------------------------
-            let mut rs1 = s1.re;
-            if rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
-                set_underflow_and_update = true;
-                continue 'l30;
-            }
+            let of = Overflow::find_overflow(s1.re, phi, 0.0);
             if i == 0 {
-                overflow_state = Overflow::None;
+                overflow_state = of;
             }
-            if rs1.abs() > MACHINE_CONSTANTS.approximation_limit {
-                //-----------------------------------------------------------------------
-                //     REFINE  TEST AND SCALE
-                //-----------------------------------------------------------------------
-                rs1 += phi.abs().ln();
-                if rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
+            match of {
+                Overflow::Over => return Err(Overflow),
+                Overflow::Under => {
                     set_underflow_and_update = true;
                     continue 'l30;
                 }
-                if i == 0 {
-                    overflow_state = Overflow::NearUnder;
-                }
-                if rs1 >= 0.0 && i == 0 {
-                    overflow_state = Overflow::NearOver;
-                }
+                _ => (),
             }
             //-----------------------------------------------------------------------
             //     SCALE S1 if CABS(S1) < ASCLE
@@ -4380,19 +4360,16 @@ fn ZUNI2(
 
     let s1 = scaling.scale_zetas(zb, modified_order, zeta1, zeta2);
 
-    // phi is chosen here for refined tests to equal the orignial tests as we don't care about refinement here.
-    match Overflow::find_overflow(s1.re, c_one()) {
+    // phi is chosen here for refined tests to equal the original tests
+    // which don't test refinement
+    match Overflow::find_overflow(s1.re, c_one(), 0.0) {
         Overflow::Over => return Err(Overflow),
         Overflow::Under => return Ok((N, NLAST)),
         _ => (),
     }
-    let mut rs1 = s1.re.abs();
     let mut set_underflow_and_update = false;
     'l40: loop {
         if set_underflow_and_update {
-            if rs1 > 0.0 {
-                return Err(Overflow);
-            }
             //-----------------------------------------------------------------------
             //     SET UNDERFLOW AND UPDATE PARAMETERS
             //-----------------------------------------------------------------------
@@ -4434,33 +4411,21 @@ fn ZUNI2(
             if scaling == Scaling::Scaled {
                 s1 += Complex64::I * z.im.abs();
             }
+
             //-----------------------------------------------------------------------
             //     TEST FOR UNDERFLOW AND OVERFLOW
             //-----------------------------------------------------------------------
-            // TODO overflow logic: search for rs1!
-            rs1 = s1.re;
-            if rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
-                set_underflow_and_update = true;
-                continue 'l40;
-            }
+            let of = Overflow::find_overflow(s1.re, phi, -0.25 * arg.abs().ln() - AIC);
             if i == 0 {
-                overflow_state = Overflow::None;
-            };
-            if rs1.abs() >= MACHINE_CONSTANTS.approximation_limit {
-                //-----------------------------------------------------------------------
-                //     REFINE  TEST AND SCALE
-                //-----------------------------------------------------------------------
-                rs1 += phi.abs().ln() - 0.25 * arg.abs().ln() - AIC;
-                if rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
+                overflow_state = of;
+            }
+            match of {
+                Overflow::Over => return Err(Overflow),
+                Overflow::Under => {
                     set_underflow_and_update = true;
                     continue 'l40;
                 }
-                if i == 0 {
-                    overflow_state = Overflow::NearUnder;
-                }
-                if rs1 >= 0.0 && i == 0 {
-                    overflow_state = Overflow::NearOver;
-                }
+                _ => (),
             }
             //-----------------------------------------------------------------------
             //     SCALE S1 TO KEEP INTERMEDIATE ARITHMETIC ON SCALE NEAR
