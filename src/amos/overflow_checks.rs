@@ -417,9 +417,9 @@ pub fn zunik(
     let mut crfn = c_one();
     let mut ac = 1.0;
     let mut l = 0;
-    'l20: for k in 1..15 {
+    for k in 1..15 {
         let mut s = c_zero();
-        '_l10: for _ in 0..=k {
+        for _ in 0..=k {
             l += 1;
             s = s * t2 + C_ZUNIK[l];
         }
@@ -430,7 +430,7 @@ pub fn zunik(
         if ac < MACHINE_CONSTANTS.abs_error_tolerance
             && test < MACHINE_CONSTANTS.abs_error_tolerance
         {
-            break 'l20;
+            break;
         }
     }
 
