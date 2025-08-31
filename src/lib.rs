@@ -1,4 +1,4 @@
-#![feature(float_gamma)]
+#![feature(float_gamma, test)]
 mod amos;
 pub use amos::{BesselError, GammaError, Scaling};
 use amos::{zbesh, zbesi, zbesj};
@@ -26,3 +26,6 @@ pub fn hankel<T: Into<Complex64>>(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod bench;
