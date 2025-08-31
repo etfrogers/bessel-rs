@@ -3330,23 +3330,19 @@ fn ZUNK1(z: Complex64, order: f64, scaling: Scaling, MR: i64, N: usize) -> Besse
         let mut C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[k_overflow_state];
         let mut ASCLE = MACHINE_CONSTANTS.bry[k_overflow_state];
         for i in IB..N {
-            let ct = s2;
-            s2 = ck * s2 + s1;
-            s1 = ct;
+            (s1, s2) = (s2, ck * s2 + s1);
             ck += rz;
-            let ct = s2 * C1R;
-            y[i] = ct;
-
+            y[i] = s2 * C1R;
             if k_overflow_state == Overflow::NearOver {
                 continue;
             }
-            if max_abs_component(ct) <= ASCLE {
+            if max_abs_component(y[i]) <= ASCLE {
                 continue;
             }
             k_overflow_state.increment();
             ASCLE = MACHINE_CONSTANTS.bry[k_overflow_state];
             s1 *= C1R;
-            s2 = ct;
+            s2 = y[i];
             s1 *= MACHINE_CONSTANTS.scaling_factors[k_overflow_state];
             s2 *= MACHINE_CONSTANTS.scaling_factors[k_overflow_state];
             C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[k_overflow_state];

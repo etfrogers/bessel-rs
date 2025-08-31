@@ -177,23 +177,17 @@ pub fn i_power_series(
         let mut l = 0;
         debug_assert!(nn >= 3);
         for l_inner in 2..nn {
-            let ck = s2;
-            s2 = s1 + (ak + order) * (rz * ck);
-            s1 = ck;
-            let ck = s2 * crscr;
-            y[k - 1] = ck;
+            (s1, s2) = (s2, s1 + (ak + order) * (rz * s2));
+            y[k - 1] = s2 * crscr;
             ak -= 1.0;
             k = k.saturating_sub(1);
             l = l_inner + 1;
-            if ck.abs() > MACHINE_CONSTANTS.absolute_approximation_limit {
+            if y[k].abs() > MACHINE_CONSTANTS.absolute_approximation_limit {
                 to_return = false;
                 break;
             }
         }
-        if to_return {
-            return Ok((y, nz));
-        }
-        if l + 1 > nn {
+        if to_return || l + 1 > nn {
             return Ok((y, nz));
         };
         l + 1
