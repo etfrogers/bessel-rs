@@ -12,13 +12,11 @@ pub fn zbesj_fortran(
     scaling: Scaling,
     n: usize,
 ) -> (Vec<Complex64>, usize, i32) {
-    let mut cyr: Vec<f64> = Vec::with_capacity(n);
-    let mut cyi: Vec<f64> = Vec::with_capacity(n);
+    let mut cyr = vec![0.0; n];
+    let mut cyi = vec![0.0; n];
     let mut nz = 0;
     let mut ierr = 0;
 
-    let r_uninit = cyr.spare_capacity_mut();
-    let i_uninit = cyi.spare_capacity_mut();
     unsafe {
         zbesj_wrap(
             z.re,
@@ -26,13 +24,11 @@ pub fn zbesj_fortran(
             order,
             scaling as i32,
             n.try_into().unwrap(),
-            r_uninit.as_mut_ptr().cast(),
-            i_uninit.as_mut_ptr().cast(),
+            cyr.as_mut_ptr(),
+            cyi.as_mut_ptr(),
             &mut nz,
             &mut ierr,
         );
-        cyr.set_len(n);
-        cyi.set_len(n);
     }
     let cy = cyr
         .into_iter()
@@ -48,13 +44,11 @@ pub fn zbesi_fortran(
     scaling: Scaling,
     n: usize,
 ) -> (Vec<Complex64>, usize, i32) {
-    let mut cyr: Vec<f64> = Vec::with_capacity(n);
-    let mut cyi: Vec<f64> = Vec::with_capacity(n);
+    let mut cyr = vec![0.0; n];
+    let mut cyi = vec![0.0; n];
     let mut nz = 0;
     let mut ierr = 0;
 
-    let r_uninit = cyr.spare_capacity_mut();
-    let i_uninit = cyi.spare_capacity_mut();
     unsafe {
         zbesi_wrap(
             z.re,
@@ -62,13 +56,11 @@ pub fn zbesi_fortran(
             order,
             scaling as i32,
             n.try_into().unwrap(),
-            r_uninit.as_mut_ptr().cast(),
-            i_uninit.as_mut_ptr().cast(),
+            cyr.as_mut_ptr(),
+            cyi.as_mut_ptr(),
             &mut nz,
             &mut ierr,
         );
-        cyr.set_len(n);
-        cyi.set_len(n);
     }
     let cy = cyr
         .into_iter()
@@ -85,13 +77,11 @@ pub fn zbesh_fortran(
     kind: HankelKind,
     n: usize,
 ) -> (Vec<Complex64>, usize, i32) {
-    let mut cyr: Vec<f64> = Vec::with_capacity(n);
-    let mut cyi: Vec<f64> = Vec::with_capacity(n);
+    let mut cyr = vec![0.0; n];
+    let mut cyi = vec![0.0; n];
     let mut nz = 0;
     let mut ierr = 0;
 
-    let r_uninit = cyr.spare_capacity_mut();
-    let i_uninit = cyi.spare_capacity_mut();
     unsafe {
         zbesh_wrap(
             z.re,
@@ -100,13 +90,11 @@ pub fn zbesh_fortran(
             scaling as i32,
             kind.into(),
             n.try_into().unwrap(),
-            r_uninit.as_mut_ptr().cast(),
-            i_uninit.as_mut_ptr().cast(),
+            cyr.as_mut_ptr(),
+            cyi.as_mut_ptr(),
             &mut nz,
             &mut ierr,
         );
-        cyr.set_len(n);
-        cyi.set_len(n);
     }
     let cy = cyr
         .into_iter()
