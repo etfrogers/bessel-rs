@@ -706,16 +706,14 @@ pub fn zbesj(
         sign_selector = -sign_selector;
     }
     let (mut cy, nz) = ZBINU(zn, order, KODE, n)?;
-    for i in 0..n - nz {
-        let mut cyi = cy[i];
+    for cyi in cy.iter_mut().take(n - nz) {
         let mut ATOL = 1.0;
         // TODO is the below a pattern?
-        if (max_abs_component(cyi)) <= MACHINE_CONSTANTS.absolute_approximation_limit {
-            cyi *= MACHINE_CONSTANTS.rtol;
+        if (max_abs_component(*cyi)) <= MACHINE_CONSTANTS.absolute_approximation_limit {
+            *cyi *= MACHINE_CONSTANTS.rtol;
             ATOL = MACHINE_CONSTANTS.abs_error_tolerance;
         }
-        let st = cyi * csgn;
-        cy[i] = st * ATOL;
+        *cyi *= csgn * ATOL;
         csgn *= sign_selector * Complex64::I;
     }
     if partial_significance_loss {
