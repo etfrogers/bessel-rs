@@ -101,7 +101,11 @@ fn rust_bess_loop(
     let mut y = vec![Complex64::zero(); n];
     let mut nz = 0;
     for i in 0..n {
-        let (yi, nzi) = func(z, order + i as f64, scaling, 1)?;
+        let (yi, nzi) = match func(z, order + i as f64, scaling, 1) {
+            Ok((y_, nz_)) => (y_, nz_),
+            Err(BesselError::PartialLossOfSignificance { y, nz }) => (y, nz),
+            Err(err) => return Err(err),
+        };
         y[i] = yi[0];
         nz += nzi;
     }
