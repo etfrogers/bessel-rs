@@ -73,9 +73,9 @@ pub fn gamma_ln(z: f64) -> Result<f64, GammaError> {
     if zp >= working_tolerance {
         let zsq = zp * zp;
         let test = term1 * working_tolerance;
-        for k in 1..22 {
+        for coeff in COEFFS.iter().skip(1) {
             zp *= zsq;
-            let term = COEFFS[k] * zp;
+            let term = coeff * zp;
             if term.abs() < test {
                 break;
             }
