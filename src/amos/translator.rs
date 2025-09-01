@@ -3651,8 +3651,8 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
     let mut arg = [c_zero(); 2];
     let mut zeta1 = [c_zero(); 2];
     let mut zeta2 = [c_zero(); 2];
-    let mut asum = [c_zero(); 2];
-    let mut bsum = [c_zero(); 2];
+    let mut asum = [None; 2];
+    let mut bsum = [None; 2];
     let mut cy = [c_zero(); 2];
     let mut J = 1;
     let mut overflow_state_k = Overflow::None;
@@ -3670,16 +3670,12 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         J = 1 - J;
         modified_order = order + (i as f64);
         // FN = FNU + ((I-1) as f64);
-        let asum_opt;
-        let bsum_opt;
-        (phi[J], arg[J], zeta1[J], zeta2[J], asum_opt, bsum_opt) = zunhj(
+        (phi[J], arg[J], zeta1[J], zeta2[J], asum[J], bsum[J]) = zunhj(
             zn,
             modified_order,
             false,
             MACHINE_CONSTANTS.abs_error_tolerance,
         );
-        asum[J] = asum_opt.unwrap();
-        bsum[J] = bsum_opt.unwrap();
         //     CALL ZUNHJ(ZNR, ZNI, FN, 0, TOL, PHIR(J), PHII(J), ARGR(J),;
         //  *   ARGI(J), ZETA1R(J), ZETA1I(J), ZETA2R(J), ZETA2I(J), ASUMR(J),;
         //  *   ASUMI(J), BSUMR(J), BSUMI(J));
@@ -3699,7 +3695,7 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         //    40   CONTINUE;
         let of = Overflow::find_overflow(s1.re, phi[J], -0.25 * arg[J].abs().ln() - AIC);
 
-        let mut handle_underflow = |kd_flag_:&mut bool,  cs_:&mut Complex64| {
+        let mut handle_underflow = |kd_flag_: &mut bool, cs_: &mut Complex64| {
             //-----------------------------------------------------------------------;
             //     FOR ZR < 0.0, THE I FUNCTION TO BE ADDED WILL OVERFLOW;
             //-----------------------------------------------------------------------;
@@ -3752,7 +3748,7 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
                 // let st = d_airy * bsum[J];
                 // let pt = (d_airy * bsum[J]) *c2;
                 // let st = (d_airy * bsum[J]) *c2 + (airy*asum[J]);
-                let pt = ((d_airy * bsum[J]) * CR2 + (airy * asum[J])) * phi[J];
+                let pt = ((d_airy * bsum[J].unwrap()) * CR2 + (airy * asum[J].unwrap())) * phi[J];
                 let mut s2 = pt * cs;
                 let s1 = s1.exp() * MACHINE_CONSTANTS.scaling_factors[overflow_state_k];
                 s2 *= s1;
@@ -3882,11 +3878,11 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
     //   CKI = FN*RZI;
     let mut IB = I + 1;
     let mut phid = c_zero();
-    let mut argd= c_zero();
-    let mut zeta1d= c_zero();
-    let mut zeta2d= c_zero();
-    let mut asumd_opt= None;
-    let mut bsumd_opt= None;
+    let mut argd = c_zero();
+    let mut zeta1d = c_zero();
+    let mut zeta2d = c_zero();
+    let mut asumd = None;
+    let mut bsumd = None;
     if IB <= N {
         //GO TO 180; //TODO == left_early?
         //-----------------------------------------------------------------------;
@@ -3898,7 +3894,7 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
 
         //   let IPARD = if MR == 0 {1} else {0};
         //   if (MR != 0) IPARD = 0;
-        (phid, argd, zeta1d, zeta2d, asumd_opt, bsumd_opt) = zunhj(
+        (phid, argd, zeta1d, zeta2d, asumd, bsumd) = zunhj(
             zn,
             modified_order,
             MR == 0,
@@ -4012,14 +4008,12 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         }
         //   130 CONTINUE;
     }
-    //   180 CONTINUE;
-
     if MR == 0 {
         return Ok((y, NZ));
-    } //RETURN;
-    //-----------------------------------------------------------------------;
-    //     ANALYTIC CONTINUATION FOR RE(Z) < 0.0;
-    //-----------------------------------------------------------------------;
+    }
+    //-----------------------------------------------------------------------
+    //     ANALYTIC CONTINUATION FOR RE(Z) < 0.0
+    //-----------------------------------------------------------------------
     NZ = 0;
     let FMR = MR as f64;
     //   SGN = -DSIGN(PI,FMR);
@@ -4076,7 +4070,7 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
     left_early = false;
     let mut K = 1;
     for k in 0..N {
-        K = k+1;
+        K = k + 1;
         modified_order = order + ((KK - 1) as f64);
         //-----------------------------------------------------------------------;
         //     LOGIC TO SORT OUT CASES WHOSE PARAMETERS WERE SET FOR THE K;
@@ -4089,8 +4083,8 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
             argd = arg[J];
             zeta1d = zeta1[J];
             zeta2d = zeta2[J];
-            asumd_opt = Some(asum[J]);
-            bsumd_opt = Some(bsum[J]);
+            asumd = asum[J];
+            bsumd = bsum[J];
             J = 1 - J;
         // PHIDR = PHIR(J);
         // PHIDI = PHII(J);
@@ -4107,7 +4101,7 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         // J = 3 - J;
         } else if !((KK == N) && (IB < N)) && !((KK == IB) || (KK == IC)) {
             //GO TO 210;
-            (phid, argd, zeta1d, zeta2d, asumd_opt, bsumd_opt) = zunhj(
+            (phid, argd, zeta1d, zeta2d, asumd, bsumd) = zunhj(
                 zn,
                 modified_order,
                 false,
@@ -4142,15 +4136,19 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         //     TEST FOR UNDERFLOW AND OVERFLOW;
         //-----------------------------------------------------------------------;
         let of = Overflow::find_overflow(s1.re, phid, -0.25 * argd.abs().ln() - AIC);
-        if !KDFLG  {
-            overflow_state_i = if matches!(of, Overflow::Under(_)) {Overflow::None} else{of};
+        if !KDFLG {
+            overflow_state_i = if matches!(of, Overflow::Under(_)) {
+                Overflow::None
+            } else {
+                of
+            };
         }
         let mut s2 = match of {
             Overflow::Over(_) => return Err(Overflow),
             Overflow::Under(_) => c_zero(),
             Overflow::NearOver | Overflow::None | Overflow::NearUnder => {
                 let (airy, d_airy) = airy_pair(argd);
-                let pt = ((d_airy * bsumd_opt.unwrap()) + (airy * asumd_opt.unwrap())) * phid;
+                let pt = ((d_airy * bsumd.unwrap()) + (airy * asumd.unwrap())) * phid;
                 // let pt = st * phid;
                 // CALL ZAIRY(ARGDR, ARGDI, 0, 2, AIR, AII, NAI, IDUM);
                 //         CALL ZAIRY(ARGDR, ARGDI, 1, 2, DAIR, DAII, NDAI, IDUM);
@@ -4242,7 +4240,7 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         //-----------------------------------------------------------------------;
         //     ADD I AND K FUNCTIONS, K SEQUENCE IN Y(I), I=1,N;
         //-----------------------------------------------------------------------;
-        s1 = y[KK-1];
+        s1 = y[KK - 1];
         // S1R = YR(KK);
         // S1I = YI(KK);
         if KODE == Scaling::Scaled {
@@ -4252,7 +4250,7 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
             // NZ = NZ + NW;
         }
         //   270   CONTINUE;
-        y[KK-1] = s1 * cspn + s2;
+        y[KK - 1] = s1 * cspn + s2;
         // YR(KK) = S1R*CSPNR - S1I*CSPNI + S2R;
         // YI(KK) = S1R*CSPNI + S1I*CSPNR + S2I;
         // KK = KK - 1;
@@ -4271,7 +4269,7 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         }
         // GO TO 290;
         //   255   CONTINUE;
-        if KDFLG  {
+        if KDFLG {
             left_early = true;
             break;
         } //GO TO 295;
@@ -4294,11 +4292,12 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
     if IL == 0 {
         return Ok((y, NZ));
     } //RETURN;
-    //-----------------------------------------------------------------------;
-    //     RECUR BACKWARD FOR REMAINDER OF I SEQUENCE AND ADD IN THE;
-    //     K FUNCTIONS, SCALING THE I SEQUENCE DURING RECURRENCE TO KEEP;
-    //     INTERMEDIATE ARITHMETIC ON SCALE NEAR EXPONENT EXTREMES.;
-    //-----------------------------------------------------------------------;
+
+    //-----------------------------------------------------------------------
+    //     RECUR BACKWARD FOR REMAINDER OF I SEQUENCE AND ADD IN THE
+    //     K FUNCTIONS, SCALING THE I SEQUENCE DURING RECURRENCE TO KEEP
+    //     INTERMEDIATE ARITHMETIC ON SCALE NEAR EXPONENT EXTREMES.
+    //-----------------------------------------------------------------------
     let [mut s1, mut s2] = cy;
 
     //   S1R = CYR(1);
@@ -4328,7 +4327,7 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         let ck = c2;
         // CKR = C2R;
         // CKI = C2I;
-        let mut c1 = y[KK-1];
+        let mut c1 = y[KK - 1];
         // C1R = YR(KK);
         // C1I = YI(KK);
         if KODE == Scaling::Scaled {
@@ -4338,7 +4337,7 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         // CALL ZS1S2(ZRR, ZRI, C1R, C1I, C2R, C2I, NW, ASC, ALIM, IUF);
         // NZ = NZ + NW;
         //   300   CONTINUE;
-        y[KK-1] = c1 * cspn + c2;
+        y[KK - 1] = c1 * cspn + c2;
         // YR(KK) = C1R*CSPNR - C1I*CSPNI + C2R;
         // YI(KK) = C1R*CSPNI + C1I*CSPNR + C2I;
         KK -= 1;
@@ -4359,7 +4358,7 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         // IFLAG = IFLAG + 1;
         ascle = MACHINE_CONSTANTS.bry[overflow_state_i];
         // ASCLE = BRY(IFLAG);
-        s1*=recip_scale_factor;
+        s1 *= recip_scale_factor;
         // S1R = S1R * CSR;
         // S1I = S1I * CSR;
         s2 = ck;

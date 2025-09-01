@@ -94,6 +94,7 @@ impl IKType {
     }
 }
 
+// TODO move to repr(i32) and remove From traits
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum HankelKind {
     First,
