@@ -32,7 +32,11 @@ pub fn check_against_fortran(
         let cy_loop_rust = match rust_bess_loop(order, z, scaling, n, rust_func) {
             Ok((data, _)) => data,
             Err(BesselError::NotYetImplemented) => vec![Complex64::new(f64::NAN, f64::NAN); n],
-            _ => todo!(),
+            Err(err) => {
+                panic!(
+                    "Error generated in looped rust that was not present in unlooped case: {err:?}"
+                );
+            }
         };
         println!("Order: {order:e}\nz: {z:e}\nscaling: {scaling:?}\nn: {n}");
         println!("#[case({:e}, {:e}, {:e})]", order, z.re, z.im);
