@@ -3484,7 +3484,6 @@ fn ZUNK1(z: Complex64, order: f64, scaling: Scaling, MR: i64, N: usize) -> Besse
     Ok((y, NZ))
 }
 
-// TODO use throughout
 fn airy_pair(z: Complex64) -> (Complex64, Complex64) {
     //note that ZAIRY calls in fortran code ignore IERR (using IDUM)
     let airy = match ZAIRY(z, false, Scaling::Scaled) {
@@ -4765,35 +4764,7 @@ fn ZUNI2(
             //     SCALE S1 TO KEEP INTERMEDIATE ARITHMETIC ON SCALE NEAR
             //     EXPONENT EXTREMES
             //-----------------------------------------------------------------------
-            //note that ZAIRY calls in fortran code ignore IERR (using IDUM)
-            let a_airy = match ZAIRY(arg, false, Scaling::Scaled) {
-                Ok((y, _)) => y,
-                Err(PartialLossOfSignificance { y, nz: _ }) => y[0],
-                // If loss of significance, Fortran code would continue with un-initialised y,
-                // which is usually ~=0. Also long as it is << d_airy, the logic below means
-                // it will not matter what the precise value is
-                Err(LossOfSignificance) => c_zero(),
-                Err(err) => {
-                    panic!(
-                        "An error {:?} was generated, which is not handled by the Amos code",
-                        err
-                    )
-                }
-            };
-            let d_airy = match ZAIRY(arg, true, Scaling::Scaled) {
-                Ok((y, _)) => y,
-                Err(PartialLossOfSignificance { y, nz: _ }) => y[0],
-                // If loss of significance, Fortran code would continue with un-initialised y,
-                // which is usually ~=0. Also long as it is << a_airy, the logic below means
-                // it will not matter what the precise value is
-                Err(LossOfSignificance) => c_zero(),
-                Err(err) => {
-                    panic!(
-                        "An error {:?} was generated, which is not handled by the Amos code",
-                        err
-                    )
-                }
-            };
+            let (a_airy, d_airy) = airy_pair(arg);
 
             let mut s2 = phi * (d_airy * bsum + a_airy * asum);
             let s1 = MACHINE_CONSTANTS.scaling_factors[overflow_state] * s1.exp();
