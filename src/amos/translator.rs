@@ -3517,6 +3517,13 @@ fn airy_pair(z: Complex64) -> (Complex64, Complex64) {
     (airy, d_airy)
 }
 
+const CIP: [Complex64; 4] = [
+    Complex64::new(1.0, 0.0),
+    Complex64::new(0.0, 1.0),
+    Complex64::new(-1.0, 0.0),
+    Complex64::new(0.0, -1.0),
+];
+
 // TODO MR -> bool? and name
 fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselResult {
     //ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
@@ -3538,12 +3545,6 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
     const CR2: Complex64 = Complex64::new(-0.5, -8.66025403784438647e-01);
     const AIC: f64 = 1.26551212348464539e+00;
 
-    const CIP: [Complex64; 4] = [
-        Complex64::new(1.0, 0.0),
-        Complex64::new(0.0, 1.0),
-        Complex64::new(-1.0, 0.0),
-        Complex64::new(0.0, -1.0),
-    ];
     let mut KDFLG = false;
     let mut NZ = 0;
     let mut y = c_zeros(N);
@@ -3574,16 +3575,15 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
     let mut cy = [c_zero(); 2];
     let mut J = 1;
     let mut overflow_state_k = Overflow::None;
-    let mut left_early = false;
     let mut modified_order = 0.0;
-    let mut I = 0;
+    let mut n_elements_set = 0;
 
     for i in 0..N {
         //-----------------------------------------------------------------------;
         //     J FLIP FLOPS BETWEEN 1 AND 2 IN J = 3 - J;
         //      rust this is 0 and 1
         //-----------------------------------------------------------------------;
-        I = i + 1;
+        n_elements_set = i + 1;
         J = 1 - J;
         modified_order = order + (i as f64);
         (phi[J], arg[J], zeta1[J], zeta2[J], asum[J], bsum[J]) = zunhj(zn, modified_order, false);
@@ -3644,27 +3644,23 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
                 y[i] = s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_k];
                 cs = -Complex64::I * cs;
                 if KDFLG {
-                    left_early = true;
                     break;
                 }
                 KDFLG = true;
             }
         };
     }
-    if !left_early {
-        I = N; // TODO this seems to have no effect
-    }
+
     let rz = 2.0 * zr.conj() / zr.abs().powi(2);
     let mut ck = modified_order * rz;
-    let mut IB = I + 1;
+    let mut first_unset_index = n_elements_set + 1;
     let mut phid = c_zero();
     let mut argd = c_zero();
     let mut zeta1d = c_zero();
     let mut zeta2d = c_zero();
     let mut asumd = None;
     let mut bsumd = None;
-    if IB <= N {
-        //GO TO 180; //TODO == left_early?
+    if first_unset_index <= N {
         //-----------------------------------------------------------------------;
         //     TEST LAST MEMBER FOR UNDERFLOW AND OVERFLOW. SET SEQUENCE TO ZERO;
         //     ON UNDERFLOW.;
@@ -3687,7 +3683,7 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         let mut recip_scaling = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_k];
         let mut ascle = MACHINE_CONSTANTS.bry[overflow_state_k];
         // TODO loop -=> iterator?
-        for i in IB..=N {
+        for i in first_unset_index..=N {
             (s1, s2) = (s2, s2 * ck + s1);
             ck += rz;
             c2 = s2 * recip_scaling;
@@ -3743,11 +3739,10 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
     let mut IUF = 0;
     let mut KK = N;
     KDFLG = false;
-    IB -= 1;
-    let IC = IB - 1;
+    first_unset_index -= 1;
+    let IC = first_unset_index - 1;
     let mut overflow_state_i = Overflow::None;
     // TODO suspect this iterates using KK (so k is reversed)
-    left_early = false;
     let mut K = 1;
     for k in 0..N {
         K = k + 1;
@@ -3756,7 +3751,10 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         //     LOGIC TO SORT OUT CASES WHOSE PARAMETERS WERE SET FOR THE K;
         //     FUNCTION ABOVE;
         //-----------------------------------------------------------------------;
-        if N <= 2 || (!((KK == N) && (IB < N)) && ((KK == IB) || (KK == IC))) {
+        if N <= 2
+            || (!((KK == N) && (first_unset_index < N))
+                && ((KK == first_unset_index) || (KK == IC)))
+        {
             phid = phi[J];
             argd = arg[J];
             zeta1d = zeta1[J];
@@ -3764,7 +3762,9 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
             asumd = asum[J];
             bsumd = bsum[J];
             J = 1 - J;
-        } else if !((KK == N) && (IB < N)) && !((KK == IB) || (KK == IC)) {
+        } else if !((KK == N) && (first_unset_index < N))
+            && !((KK == first_unset_index) || (KK == IC))
+        {
             (phid, argd, zeta1d, zeta2d, asumd, bsumd) = zunhj(zn, modified_order, false);
         }
         let mut s1 = KODE.scale_zetas(zb, modified_order, zeta1d, zeta2d);
@@ -3820,15 +3820,9 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
             continue;
         }
         if KDFLG {
-            left_early = true;
             break;
         }
         KDFLG = true;
-    }
-    if !left_early {
-        // TODO does this do anything (it's a common pattern)
-        debug_assert!(K == N);
-        K = N;
     }
 
     let IL = N - K;
@@ -4171,13 +4165,7 @@ fn ZUNI2(
     //
     // ***ROUTINES CALLED  ZAIRY,ZUunderflowCHK,ZUNHJ,ZUOIK,d1mach,ZABS
     // ***END PROLOGUE  ZUNI2
-    const CIP: [num::Complex<f64>; 4] = [
-        // TODO extract as global const?
-        Complex64::new(1.0, 0.0),
-        Complex64::new(0.0, 1.0),
-        Complex64::new(-1.0, 0.0),
-        Complex64::new(0.0, -1.0),
-    ];
+
     const AIC: f64 = 1.265512123484645396; // TODO extract as global const
     let mut NZ = 0;
     let mut ND = N;
