@@ -138,12 +138,7 @@ pub fn zuoik(
     // based on whether z is imaginary dominant or real dominant
     let get_parameters = |modified_order: f64| {
         let (mut cz, phi, arg, abs_arg) = if imaginary_dominant {
-            let (phi, arg, zeta1, zeta2, _, _) = zunhj(
-                zn,
-                modified_order,
-                true,
-                MACHINE_CONSTANTS.abs_error_tolerance,
-            );
+            let (phi, arg, zeta1, zeta2, _, _) = zunhj(zn, modified_order, true);
             (-zeta1 + zeta2, phi, arg, arg.abs())
         } else {
             let (phi, zeta1, zeta2, _) = zunik(zr, modified_order, ik_type, true);
@@ -464,7 +459,6 @@ pub fn zunhj(
     z: Complex64,
     order: f64,
     only_phi_zeta: bool,
-    tol: f64, // TODO remove TOL!
 ) -> (
     Complex64,
     Complex64,
@@ -542,13 +536,13 @@ pub fn zunhj(
         p[0] = c_one();
         let mut suma = Complex64::new(GAMA[0], 0.0);
         ap[0] = 1.0;
-        if aw2 >= tol {
+        if aw2 >= MACHINE_CONSTANTS.abs_error_tolerance {
             for k_ in 1..30 {
                 k = k_;
                 p[k_] = p[k_ - 1] * w2;
                 suma += p[k_] * GAMA[k_];
                 ap[k_] = ap[k_ - 1] * aw2;
-                if ap[k_] < tol {
+                if ap[k_] < MACHINE_CONSTANTS.abs_error_tolerance {
                     break;
                 }
             }
@@ -572,12 +566,12 @@ pub fn zunhj(
         let mut bsum = sumb;
         let mut l1 = 0;
         let mut l2 = 30;
-        let btol = tol * (bsum.re.abs() + bsum.im.abs());
-        let mut atol = tol;
+        let btol = MACHINE_CONSTANTS.abs_error_tolerance * (bsum.re.abs() + bsum.im.abs());
+        let mut atol = MACHINE_CONSTANTS.abs_error_tolerance;
         let mut pp = 1.0;
         let mut a_converged = false;
         let mut b_converged = false;
-        if rfnu2 >= tol {
+        if rfnu2 >= MACHINE_CONSTANTS.abs_error_tolerance {
             for _ in 1..7 {
                 atol /= rfnu2;
                 pp *= rfnu2;
@@ -590,7 +584,7 @@ pub fn zunhj(
                         }
                     }
                     asum += suma * pp;
-                    if pp < tol {
+                    if pp < MACHINE_CONSTANTS.abs_error_tolerance {
                         a_converged = true
                     };
                 }
@@ -668,12 +662,12 @@ pub fn zunhj(
         up[1] = (t2 * C_ZUNHJ[1] + C_ZUNHJ[2]) * tfn;
         let mut bsum = up[1] + zc;
         let mut asum = c_zero();
-        if rfnu >= tol {
+        if rfnu >= MACHINE_CONSTANTS.abs_error_tolerance {
             let mut przth = rzth;
             let mut ptfn = tfn;
             up[0] = c_one();
             pp = 1.0;
-            let btol = tol * (bsum.re.abs() + bsum.im.abs());
+            let btol = MACHINE_CONSTANTS.abs_error_tolerance * (bsum.re.abs() + bsum.im.abs());
             let mut ks = 0;
             let mut kp1 = 2;
             let mut l = 2; //3;
@@ -712,7 +706,9 @@ pub fn zunhj(
                     }
                     asum += suma;
                     let test = suma.re.abs() + suma.im.abs();
-                    if pp < tol && test < tol {
+                    if pp < MACHINE_CONSTANTS.abs_error_tolerance
+                        && test < MACHINE_CONSTANTS.abs_error_tolerance
+                    {
                         ias = true
                     };
                 }

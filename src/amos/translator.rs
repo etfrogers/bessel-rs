@@ -7,8 +7,7 @@ use super::{
 };
 use crate::amos::{
     BesselError::*,
-    MACHINE_CONSTANTS,
-    max_abs_component,
+    MACHINE_CONSTANTS, max_abs_component,
     overflow_checks::{Overflow, zunhj},
     utils::imaginary_dominant,
     z_asymptotic_i::z_asymptotic_i,
@@ -3668,12 +3667,7 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         J = 1 - J;
         modified_order = order + (i as f64);
         // FN = FNU + ((I-1) as f64);
-        (phi[J], arg[J], zeta1[J], zeta2[J], asum[J], bsum[J]) = zunhj(
-            zn,
-            modified_order,
-            false,
-            MACHINE_CONSTANTS.abs_error_tolerance,
-        );
+        (phi[J], arg[J], zeta1[J], zeta2[J], asum[J], bsum[J]) = zunhj(zn, modified_order, false);
         //     CALL ZUNHJ(ZNR, ZNI, FN, 0, TOL, PHIR(J), PHII(J), ARGR(J),;
         //  *   ARGI(J), ZETA1R(J), ZETA1I(J), ZETA2R(J), ZETA2I(J), ASUMR(J),;
         //  *   ASUMI(J), BSUMR(J), BSUMI(J));
@@ -3892,12 +3886,7 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
 
         //   let IPARD = if MR == 0 {1} else {0};
         //   if (MR != 0) IPARD = 0;
-        (phid, argd, zeta1d, zeta2d, asumd, bsumd) = zunhj(
-            zn,
-            modified_order,
-            MR == 0,
-            MACHINE_CONSTANTS.abs_error_tolerance,
-        );
+        (phid, argd, zeta1d, zeta2d, asumd, bsumd) = zunhj(zn, modified_order, MR == 0);
         let s1 = -KODE.scale_zetas(zb, modified_order, zeta1d, zeta2d);
 
         //   CALL ZUNHJ(ZNR, ZNI, FN, IPARD, TOL, PHIDR, PHIDI, ARGDR, ARGDI,;
@@ -4099,12 +4088,7 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         // J = 3 - J;
         } else if !((KK == N) && (IB < N)) && !((KK == IB) || (KK == IC)) {
             //GO TO 210;
-            (phid, argd, zeta1d, zeta2d, asumd, bsumd) = zunhj(
-                zn,
-                modified_order,
-                false,
-                MACHINE_CONSTANTS.abs_error_tolerance,
-            );
+            (phid, argd, zeta1d, zeta2d, asumd, bsumd) = zunhj(zn, modified_order, false);
 
             // GO TO 210;
             //   175   CONTINUE;
@@ -4711,12 +4695,7 @@ fn ZUNI2(
     //     CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER
     //-----------------------------------------------------------------------
     let mut modified_order = order.max(1.0);
-    let (_, _, zeta1, zeta2, _, _) = zunhj(
-        zn,
-        modified_order,
-        true,
-        MACHINE_CONSTANTS.abs_error_tolerance,
-    );
+    let (_, _, zeta1, zeta2, _, _) = zunhj(zn, modified_order, true);
 
     let s1 = scaling.scale_zetas(zb, modified_order, zeta1, zeta2);
 
@@ -4759,12 +4738,7 @@ fn ZUNI2(
         let mut cy = [c_zero(); 2];
         for i in 0..ND.min(2) {
             modified_order = order + ((ND - (i + 1)) as f64);
-            let (phi, arg, zeta1, zeta2, asum, bsum) = zunhj(
-                zn,
-                modified_order,
-                false,
-                MACHINE_CONSTANTS.abs_error_tolerance,
-            );
+            let (phi, arg, zeta1, zeta2, asum, bsum) = zunhj(zn, modified_order, false);
             let asum = asum.unwrap();
             let bsum = bsum.unwrap();
             let mut s1 = scaling.scale_zetas(zb, modified_order, zeta1, zeta2);
