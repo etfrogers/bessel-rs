@@ -8,7 +8,7 @@ use std::{
 
 use num::complex::{Complex64, ComplexFloat};
 
-use crate::amos::utils::imaginary_dominant;
+use crate::amos::utils::{AIC, imaginary_dominant};
 
 use super::{
     BesselError::*, BesselResult, IKType, MACHINE_CONSTANTS, PositiveArg, Scaling, c_one, c_zero,
@@ -116,8 +116,6 @@ pub fn zuoik(
     //     IKFLG=2 AND 0 < NUF < N NOT CONSIDERED. Y MUST BE SET BY
     //             ANOTHER ROUTINE
     //
-
-    const AIC: f64 = 1.265512123484645396e+00; //TODO gammaln(-0.5)?
 
     let mut n_underflow = 0;
     let zr = if z.re < 0.0 { -z } else { z };

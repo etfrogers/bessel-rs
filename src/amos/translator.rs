@@ -3,7 +3,7 @@ use super::{
     BesselError, BesselResult, HankelKind, IKType, Scaling, c_one, c_zero, c_zeros, gamma_ln,
     i_power_series,
     overflow_checks::{zunik, zuoik},
-    utils::{TWO_THIRDS, is_sigificance_lost, will_z_underflow},
+    utils::{AIC, TWO_THIRDS, is_sigificance_lost, will_z_underflow},
 };
 use crate::amos::{
     BesselError::*,
@@ -3543,7 +3543,6 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
 
     const CR1: Complex64 = Complex64::new(1.0, 1.73205080756887729);
     const CR2: Complex64 = Complex64::new(-0.5, -8.66025403784438647e-01);
-    const AIC: f64 = 1.26551212348464539e+00;
 
     let mut KDFLG = false;
     let mut NZ = 0;
@@ -4166,7 +4165,6 @@ fn ZUNI2(
     // ***ROUTINES CALLED  ZAIRY,ZUunderflowCHK,ZUNHJ,ZUOIK,d1mach,ZABS
     // ***END PROLOGUE  ZUNI2
 
-    const AIC: f64 = 1.265512123484645396; // TODO extract as global const
     let mut NZ = 0;
     let mut ND = N;
     let NLAST = 0;
