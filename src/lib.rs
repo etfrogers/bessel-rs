@@ -1,4 +1,4 @@
-#![feature(float_gamma, test)]
+#![feature(test)]
 mod amos;
 pub use amos::{BesselError, GammaError, Scaling};
 use amos::{zbesh, zbesi, zbesj};
