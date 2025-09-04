@@ -3,7 +3,7 @@ use super::{
     BesselError, BesselResult, HankelKind, IKType, Scaling, c_one, c_zero, c_zeros, gamma_ln,
     i_power_series,
     overflow_checks::{zunik, zuoik},
-    utils::{AIC, TWO_THIRDS, is_sigificance_lost, will_z_underflow},
+    utils::{AIC, TWO_THIRDS, is_sigificance_lost, will_underflow},
 };
 use crate::amos::{
     BesselError::*,
@@ -2274,7 +2274,7 @@ fn ZBKNU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
                             let p2 = -zd + s2.ln();
                             let p1 = (p2.re.exp() / MACHINE_CONSTANTS.abs_error_tolerance)
                                 * Complex64::cis(p2.im);
-                            if !will_z_underflow(p1, ASCLE, MACHINE_CONSTANTS.abs_error_tolerance) {
+                            if !will_underflow(p1, ASCLE, MACHINE_CONSTANTS.abs_error_tolerance) {
                                 J = 1 - J;
                                 cy[J] = p1;
                                 // IF(IC.EQ.(I-1)) GO TO 264
@@ -2441,7 +2441,7 @@ fn ZKSCL(
         let mut cs = s1.ln() - zr;
         cs = cs.exp() / MACHINE_CONSTANTS.abs_error_tolerance;
 
-        if will_z_underflow(cs, ASCLE, MACHINE_CONSTANTS.abs_error_tolerance) {
+        if will_underflow(cs, ASCLE, MACHINE_CONSTANTS.abs_error_tolerance) {
             continue;
         }
         y[i] = cs;
@@ -2485,7 +2485,7 @@ fn ZKSCL(
         if -zd.re + s2.abs().ln() >= -MACHINE_CONSTANTS.exponent_limit {
             cs = s2.ln() - zd;
             cs = cs.exp() / MACHINE_CONSTANTS.abs_error_tolerance;
-            if !will_z_underflow(cs, ASCLE, MACHINE_CONSTANTS.abs_error_tolerance) {
+            if !will_underflow(cs, ASCLE, MACHINE_CONSTANTS.abs_error_tolerance) {
                 y[i] = cs;
                 *NZ -= 1;
                 if IC == i - 1 {
@@ -3268,7 +3268,7 @@ fn ZUNK1(z: Complex64, order: f64, scaling: Scaling, MR: i64, N: usize) -> Besse
                 let mut s2 = phi[J] * sum[J];
                 s1 = MACHINE_CONSTANTS.scaling_factors[k_overflow_state] * s1.exp();
                 s2 *= s1;
-                let will_underflow = will_z_underflow(
+                let will_underflow = will_underflow(
                     s2,
                     MACHINE_CONSTANTS.bry[0],
                     MACHINE_CONSTANTS.abs_error_tolerance,
@@ -3399,7 +3399,7 @@ fn ZUNK1(z: Complex64, order: f64, scaling: Scaling, MR: i64, N: usize) -> Besse
                     s1 = s1.exp() * MACHINE_CONSTANTS.scaling_factors[i_overflow_state];
                     s2 *= s1;
                     if i_overflow_state == Overflow::NearUnder
-                        && will_z_underflow(
+                        && will_underflow(
                             s2,
                             MACHINE_CONSTANTS.bry[0],
                             MACHINE_CONSTANTS.abs_error_tolerance,
@@ -3628,7 +3628,7 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
                 let s1 = s1.exp() * MACHINE_CONSTANTS.scaling_factors[overflow_state_k];
                 s2 *= s1;
                 if overflow_state_k == Overflow::NearUnder {
-                    if will_z_underflow(
+                    if will_underflow(
                         s2,
                         MACHINE_CONSTANTS.bry[0],
                         MACHINE_CONSTANTS.abs_error_tolerance,
@@ -3786,7 +3786,7 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
                 s1 = s1.exp() * MACHINE_CONSTANTS.scaling_factors[overflow_state_i];
                 s2 *= s1;
                 if overflow_state_i == Overflow::NearUnder
-                    && will_z_underflow(
+                    && will_underflow(
                         s2,
                         MACHINE_CONSTANTS.bry[0],
                         MACHINE_CONSTANTS.abs_error_tolerance,
@@ -4094,7 +4094,7 @@ fn ZUNI1(
             s1 = MACHINE_CONSTANTS.scaling_factors[overflow_state] * s1.exp();
             s2 *= s1;
             if overflow_state == Overflow::NearUnder
-                && will_z_underflow(
+                && will_underflow(
                     s2,
                     MACHINE_CONSTANTS.bry[0],
                     MACHINE_CONSTANTS.abs_error_tolerance,
@@ -4267,7 +4267,7 @@ fn ZUNI2(
             let s1 = MACHINE_CONSTANTS.scaling_factors[overflow_state] * s1.exp();
             s2 *= s1;
             if overflow_state == Overflow::NearUnder
-                && will_z_underflow(
+                && will_underflow(
                     s2,
                     MACHINE_CONSTANTS.bry[0],
                     MACHINE_CONSTANTS.abs_error_tolerance,

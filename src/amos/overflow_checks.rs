@@ -12,7 +12,7 @@ use crate::amos::utils::{AIC, imaginary_dominant};
 
 use super::{
     BesselError::*, BesselResult, IKType, MACHINE_CONSTANTS, PositiveArg, Scaling, c_one, c_zero,
-    c_zeros, utils::will_z_underflow,
+    c_zeros, utils::will_underflow,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -186,7 +186,7 @@ pub fn zuoik(
                 cz -= 0.25 * arg.ln() + AIC
             }
             cz = cz.exp() / MACHINE_CONSTANTS.abs_error_tolerance;
-            if will_z_underflow(
+            if will_underflow(
                 cz,
                 MACHINE_CONSTANTS.absolute_approximation_limit,
                 MACHINE_CONSTANTS.abs_error_tolerance,
@@ -223,7 +223,7 @@ pub fn zuoik(
                         cz -= 0.25 * arg.ln() + AIC
                     }
                     cz = cz.exp() / MACHINE_CONSTANTS.abs_error_tolerance;
-                    if !will_z_underflow(
+                    if !will_underflow(
                         cz,
                         MACHINE_CONSTANTS.absolute_approximation_limit,
                         MACHINE_CONSTANTS.abs_error_tolerance,

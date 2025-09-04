@@ -12,29 +12,17 @@ pub(crate) fn imaginary_dominant(z: Complex64) -> bool {
     z.im.abs() > z.re.abs() * RT_THREE
 }
 
-pub(crate) fn will_z_underflow(
-    y: Complex64, //YR, YI,
-    // Outputs: NZ
-    ascle: f64,
-    tol: f64,
-) -> bool {
-    // ***BEGIN PROLOGUE  ZUunderflowCHK
-    // ***REFER TO z_power_series,ZUOIK,ZUNK1,ZUNK2,ZUNI1,ZUNI2,ZKSCL
-    //
-    //      Y ENTERS AS A SCALED QUANTITY WHOSE MAGNITUDE IS GREATER THAN
-    //      EXP(-ALIM)=ASCLE=1.0E+3*d1mach(1)/TOL. THE TEST IS MADE TO SEE
-    //      if THE MAGNITUDE OF THE REAL OR IMAGINARY PART WOULD UNDERFLOW
-    //      WHEN Y IS SCALED (BY TOL) TO ITS PROPER VALUE. Y IS ACCEPTED
-    //      if THE UNDERFLOW IS AT LEAST ONE PRECISION BELOW THE MAGNITUDE
-    //      OF THE LARGEST COMPONENT; OTHERWISE THE PHASE ANGLE DOES NOT HAVE
-    //      ABSOLUTE ACCURACY AND AN UNDERFLOW IS ASSUMED.
-    //
-    // ***ROUTINES CALLED  (NONE)
-    // ***END PROLOGUE  ZUunderflowCHK
-    //
-    //     COMPLEX Y
-    // DOUBLE PRECISION ASCLE, SS, ST, TOL, WR, WI, YR, YI
-    // INTEGER NZ
+/// `y` enters as a scaled quantity whose magnitude is greater than
+/// (all names below are from [MachineConsts])
+/// `(-approximation_limit).exp() = absolute_approximation_limit
+///  = 2.0 * f64::MIN_POSITIVE/abs_error_tolerance`.
+/// The test is made to see
+/// if the magnitude of the real or imaginary part would underflow
+/// when y is scaled (by tol) to its proper value. `y` is accepted
+/// if the underflow is at least one precision below the magnitude
+/// of the largest component; otherwise the phase angle does not have
+/// absolute accuracy and an underflow is assumed
+pub(crate) fn will_underflow(y: Complex64, ascle: f64, tol: f64) -> bool {
     let re_abs = y.re.abs();
     let im_abs = y.im.abs();
     let min_abs_component = re_abs.min(im_abs);

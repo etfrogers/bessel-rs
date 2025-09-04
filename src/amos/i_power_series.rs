@@ -2,7 +2,7 @@ use num::complex::{Complex64, ComplexFloat};
 
 use super::{
     BesselResult, BesselValues, MACHINE_CONSTANTS, Scaling, c_one, c_zero, c_zeros, gamma_ln,
-    utils::will_z_underflow,
+    utils::will_underflow,
 };
 
 pub fn i_power_series(
@@ -140,7 +140,7 @@ pub fn i_power_series(
             let s2 = s1 * coef;
             w[i] = s2;
             if underflow_would_occur
-                && will_z_underflow(
+                && will_underflow(
                     s2,
                     MACHINE_CONSTANTS.absolute_approximation_limit,
                     MACHINE_CONSTANTS.abs_error_tolerance,
