@@ -7,7 +7,7 @@ use super::{
 };
 use crate::amos::{
     BesselError::*,
-    MACHINE_CONSTANTS, max_abs_component,
+    MACHINE_CONSTANTS, RotationDirection, max_abs_component,
     overflow_checks::{Overflow, zunhj},
     utils::imaginary_dominant,
     z_asymptotic_i::z_asymptotic_i,
@@ -204,9 +204,10 @@ pub fn zbesh(
 
     let mut NN = N;
     let FN = order + ((NN - 1) as f64);
-    let MM: i64 = 3_i64 - 2 * hankel_kind as i64;
-    let FMM = MM as f64;
-    let mut zn = -Complex64::I * FMM * z;
+
+    let rotation = hankel_kind.get_rotation();
+    let rotation_f64: f64 = rotation.into();
+    let mut zn = -Complex64::I * rotation_f64 * z;
     //-----------------------------------------------------------------------
     //     TEST FOR PROPER RANGE
     //-----------------------------------------------------------------------
@@ -256,21 +257,21 @@ pub fn zbesh(
             //-----------------------------------------------------------------------
             //     LEFT HALF PLANE COMPUTATION
             //-----------------------------------------------------------------------
-            analytic_continuation(zn, order, scaling, -MM, NN)?
+            analytic_continuation(zn, order, scaling, -rotation, NN)?
         }
     } else {
         //-----------------------------------------------------------------------
         //     UNIFORM ASYMPTOTIC EXPANSIONS FOR FNU > FNUL
         //-----------------------------------------------------------------------
-        let mut MR = 0;
+        let mut asymptotic_rotation = RotationDirection::None;
         if !((zn.re >= 0.0) && (zn.re != 0.0 || zn.im >= 0.0 || hankel_kind != HankelKind::Second))
         {
-            MR = -MM;
+            asymptotic_rotation = -rotation;
             if !(zn.re != 0.0 || zn.im >= 0.0) {
                 zn = -zn;
             }
         }
-        let (cy, NW) = ZBUNK(zn, order, scaling, MR, NN)?;
+        let (cy, NW) = ZBUNK(zn, order, scaling, asymptotic_rotation, NN)?;
         NZ += NW;
         (cy, NZ)
     };
@@ -279,7 +280,7 @@ pub fn zbesh(
     //
     //     ZT=EXP(-FMM*FRAC_PI_2*I) = CMPLX(0.0,-FMM), FMM=3-2*M, M=1,2
     //-----------------------------------------------------------------------
-    let sign = -FRAC_PI_2 * FMM.signum();
+    let sign = -FRAC_PI_2 * rotation.signum();
     //-----------------------------------------------------------------------
     //     CALCULATE EXP(FNU*FRAC_PI_2*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
     //     WHEN FNU IS LARGE
@@ -300,7 +301,7 @@ pub fn zbesh(
             1.0
         };
         *element *= csgn * ATOL;
-        csgn *= Complex64::I * -FMM;
+        csgn *= Complex64::I * -rotation_f64;
     }
     if partial_loss_of_significance {
         Err(BesselError::PartialLossOfSignificance { y: cy, nz: NZ })
@@ -1552,8 +1553,12 @@ fn ZAIRY(
             //-----------------------------------------------------------------------
             //     CBKNU AND CACON RETURN EXP(ZTA)*K(FNU,ZTA) ON KODE=2
             //-----------------------------------------------------------------------
-            let MR = if z.im < 0.0 { -1 } else { 1 };
-            ZACAI(zta, FNU, scaling, MR, 1)?
+            let rotation = if z.im < 0.0 {
+                RotationDirection::Left
+            } else {
+                RotationDirection::Right
+            };
+            ZACAI(zta, FNU, scaling, rotation, 1)?
         } else {
             //-----------------------------------------------------------------------
             //     UNDERFLOW TEST
@@ -2665,7 +2670,13 @@ fn ZS1S2(zr: Complex64, s1: &mut Complex64, s2: &mut Complex64, IUF: &mut isize)
     }
 }
 
-fn ZBUNK(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselResult {
+fn ZBUNK(
+    z: Complex64,
+    order: f64,
+    scaling: Scaling,
+    rotation: RotationDirection,
+    N: usize,
+) -> BesselResult {
     //ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
     // * ALIM)
     // ***BEGIN PROLOGUE  ZBUNK
@@ -2681,13 +2692,13 @@ fn ZBUNK(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         //     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I
         //     AND FRAC_PI_2=PI/2
         //-----------------------------------------------------------------------
-        ZUNK2(z, order, KODE, MR, N)
+        ZUNK2(z, order, scaling, rotation, N)
     } else {
         //-----------------------------------------------------------------------
         //     ASYMPTOTIC EXPANSION FOR K(FNU,Z) FOR LARGE FNU APPLIED IN
         //     -PI/3 <= ARG(Z) <= PI/3
         //-----------------------------------------------------------------------
-        ZUNK1(z, order, KODE, MR, N)
+        ZUNK1(z, order, scaling, rotation, N)
     }
 }
 
@@ -2918,8 +2929,8 @@ fn i_wronksian(
 fn analytic_continuation(
     z: Complex64,
     order: f64,
-    KODE: Scaling,
-    MR: i64,
+    scaling: Scaling,
+    rotation: RotationDirection,
     N: usize,
 ) -> BesselResult {
     // ***BEGIN PROLOGUE  ZACON
@@ -2936,22 +2947,21 @@ fn analytic_continuation(
 
     let mut NZ = 0;
     let zn = -z;
-    let (mut y, _) = ZBINU(zn, order, KODE, N)?;
+    let (mut y, _) = ZBINU(zn, order, scaling, N)?;
     //-----------------------------------------------------------------------
     //     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE FOR THE K FUNCTION
     //-----------------------------------------------------------------------
     let NN = 2.min(N);
-    let (cy, NW) = ZBKNU(zn, order, KODE, NN)?;
+    let (cy, NW) = ZBKNU(zn, order, scaling, NN)?;
     if NW > 0 {
         return Err(Overflow);
         // the NW = -1 or -2 is handled by ZBNKU returning an error,
         // but the amos code defaults to an overflow, if NW != 0
     }
     let mut s1 = cy[0];
-    let FMR = MR as f64;
-    let SGN = -PI * FMR.signum();
+    let SGN = -PI * rotation.signum();
     let mut csgn = Complex64::new(0.0, SGN);
-    if KODE == Scaling::Scaled {
+    if scaling == Scaling::Scaled {
         csgn *= Complex64::cis(-zn.im);
     }
     //-----------------------------------------------------------------------
@@ -2966,7 +2976,7 @@ fn analytic_continuation(
     let mut c1 = s1;
     let mut c2 = y[0];
     let mut sc1;
-    if KODE == Scaling::Scaled {
+    if scaling == Scaling::Scaled {
         let NW = ZS1S2(zn, &mut c1, &mut c2, &mut IUF);
         NZ += NW;
     }
@@ -2982,7 +2992,7 @@ fn analytic_continuation(
     c2 = y[1];
     // this value never used, as initialised and used if scaling is needed
     let mut sc2 = c_zero() * f64::NAN;
-    if KODE == Scaling::Scaled {
+    if scaling == Scaling::Scaled {
         let NW = ZS1S2(zn, &mut c1, &mut c2, &mut IUF);
         NZ += NW;
         sc2 = c1;
@@ -3020,7 +3030,7 @@ fn analytic_continuation(
         c1 = s2 * CSR;
         let mut st = c1;
         c2 = y[i];
-        if KODE == Scaling::Scaled && IUF >= 0 {
+        if scaling == Scaling::Scaled && IUF >= 0 {
             let NW = ZS1S2(zn, &mut c1, &mut c2, &mut IUF);
             NZ += NW;
             sc1 = sc2;
@@ -3141,7 +3151,13 @@ fn ZBINU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
     }
 }
 
-fn ZACAI(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselResult {
+fn ZACAI(
+    z: Complex64,
+    order: f64,
+    KODE: Scaling,
+    rotation: RotationDirection,
+    N: usize,
+) -> BesselResult {
     // ***BEGIN PROLOGUE  ZACAI
     // ***REFER TO  ZAIRY
     //
@@ -3184,7 +3200,7 @@ fn ZACAI(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
     //     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE FOR THE K FUNCTION
     //-----------------------------------------------------------------------s
     let (cy, _) = ZBKNU(zn, order, KODE, 1)?;
-    let SGN = -PI * (MR as f64).signum();
+    let SGN = -PI * rotation.signum();
     let mut csgn = Complex64::new(0.0, SGN);
     if KODE == Scaling::Scaled {
         csgn = Complex64::I * csgn.im * Complex64::cis(-zn.im);
@@ -3209,7 +3225,13 @@ fn ZACAI(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
     Ok((y, NZ))
 }
 
-fn ZUNK1(z: Complex64, order: f64, scaling: Scaling, MR: i64, N: usize) -> BesselResult {
+fn ZUNK1(
+    z: Complex64,
+    order: f64,
+    scaling: Scaling,
+    rotation: RotationDirection,
+    N: usize,
+) -> BesselResult {
     //     ZUNK1 COMPUTES K(FNU,Z) AND ITS ANALYTIC CONTINUATION FROM THE
     //     RIGHT HALF PLANE TO THE LEFT HALF PLANE BY MEANS OF THE
     //     UNIFORM ASYMPTOTIC EXPANSION.
@@ -3307,7 +3329,12 @@ fn ZUNK1(z: Complex64, order: f64, scaling: Scaling, MR: i64, N: usize) -> Besse
         //     ON UNDERFLOW.
         //-----------------------------------------------------------------------
         modified_order = order + ((N - 1) as f64);
-        let (phi, zet1d, zet2d, _sumd) = zunik(zr, modified_order, IKType::K, MR == 0);
+        let (phi, zet1d, zet2d, _sumd) = zunik(
+            zr,
+            modified_order,
+            IKType::K,
+            rotation == RotationDirection::None,
+        );
         let overflow_test = -scaling.scale_zetas(zr, modified_order, zet1d, zet2d);
 
         match Overflow::find_overflow(overflow_test.re.abs(), phi, 0.0) {
@@ -3345,15 +3372,14 @@ fn ZUNK1(z: Complex64, order: f64, scaling: Scaling, MR: i64, N: usize) -> Besse
             s2 *= MACHINE_CONSTANTS.scaling_factors[k_overflow_state];
             C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[k_overflow_state];
         }
-        if MR == 0 {
+        if rotation == RotationDirection::None {
             return Ok((y, NZ));
         }
         //-----------------------------------------------------------------------
         //     ANALYTIC CONTINUATION FOR RE(Z) < 0.0
         //-----------------------------------------------------------------------
         NZ = 0;
-        let FMR = MR as f64;
-        let SGN = -PI * FMR.signum();
+        let SGN = -PI * rotation.signum();
         //-----------------------------------------------------------------------
         //     CSPN AND CSGN ARE COEFF OF K AND I FUNCTIONS RESP.
         //-----------------------------------------------------------------------
@@ -3525,13 +3551,13 @@ const CIP: [Complex64; 4] = [
     Complex64::new(0.0, -1.0),
 ];
 
-// TODO MR -> bool? and name
-fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselResult {
-    //ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM,
-    // * ALIM)
-    // ***BEGIN PROLOGUE  ZUNK2
-    // ***REFER TO  ZBESK
-    //
+fn ZUNK2(
+    z: Complex64,
+    order: f64,
+    KODE: Scaling,
+    rotation: RotationDirection,
+    N: usize,
+) -> BesselResult {
     //     ZUNK2 COMPUTES K(FNU,Z) AND ITS ANALYTIC CONTINUATION FROM THE
     //     RIGHT HALF PLANE TO THE LEFT HALF PLANE BY MEANS OF THE
     //     UNIFORM ASYMPTOTIC EXPANSIONS FOR H(KIND,FNU,ZN) AND J(FNU,ZN)
@@ -3539,8 +3565,6 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
     //     -1. HERE ZN=ZR*I OR -ZR*I WHERE ZR=Z if Z IS IN THE RIGHT
     //     HALF PLANE OR ZR=-Z if Z IS IN THE LEFT HALF PLANE. MR INDIC-
     //     ATES THE DIRECTION OF ROTATION FOR ANALYTIC CONTINUATION.
-    //     NZ=-1 MEANS AN OVERFLOW WILL OCCUR
-    //
 
     const CR1: Complex64 = Complex64::new(1.0, 1.73205080756887729);
     const CR2: Complex64 = Complex64::new(-0.5, -8.66025403784438647e-01);
@@ -3666,7 +3690,8 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         //     ON UNDERFLOW.;
         //-----------------------------------------------------------------------;
         modified_order = order + ((N - 1) as f64);
-        (phid, argd, zeta1d, zeta2d, asumd, bsumd) = zunhj(zn, modified_order, MR == 0);
+        (phid, argd, zeta1d, zeta2d, asumd, bsumd) =
+            zunhj(zn, modified_order, rotation == RotationDirection::None);
         let s1 = -KODE.scale_zetas(zb, modified_order, zeta1d, zeta2d);
         match Overflow::find_overflow(s1.re, phid, 0.0) {
             Overflow::Over(_) => return Err(Overflow),
@@ -3703,15 +3728,14 @@ fn ZUNK2(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
             recip_scaling = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_k];
         }
     }
-    if MR == 0 {
+    if rotation == RotationDirection::None {
         return Ok((y, NZ));
     }
     //-----------------------------------------------------------------------
     //     ANALYTIC CONTINUATION FOR RE(Z) < 0.0
     //-----------------------------------------------------------------------
     NZ = 0;
-    let FMR = MR as f64;
-    let sgn = -PI * FMR.signum();
+    let sgn = -PI * rotation.signum();
     //-----------------------------------------------------------------------
     //     CSPN AND CSGN ARE COEFF OF K AND I FUNCIONS RESP.
     //-----------------------------------------------------------------------

@@ -3,7 +3,7 @@ use num::{
     complex::{Complex64, ComplexFloat},
     traits::Pow,
 };
-use std::f64::consts::PI;
+use std::{f64::consts::PI, ops::Neg};
 use thiserror::Error;
 
 pub use gamma_ln::{GammaError, gamma_ln};
@@ -81,6 +81,15 @@ pub enum HankelKind {
     Second = 2,
 }
 
+impl HankelKind {
+    pub fn get_rotation(&self) -> RotationDirection {
+        match self {
+            HankelKind::First => RotationDirection::Right,
+            HankelKind::Second => RotationDirection::Left,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(i32)]
 pub enum Scaling {
@@ -103,6 +112,38 @@ impl Scaling {
                 st = st.conj() * (modified_order / st.abs()).pow(2);
                 -zeta1 + st
             }
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[repr(i32)]
+pub enum RotationDirection {
+    Left = -1,
+    None = 0,
+    Right = 1,
+}
+
+impl RotationDirection {
+    pub fn signum(&self) -> f64 {
+        (*self as i32 as f64).signum()
+    }
+}
+
+impl From<RotationDirection> for f64 {
+    fn from(value: RotationDirection) -> Self {
+        value as i32 as f64
+    }
+}
+
+impl Neg for RotationDirection {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        match self {
+            RotationDirection::Left => RotationDirection::Right,
+            RotationDirection::None => RotationDirection::None,
+            RotationDirection::Right => RotationDirection::Left,
         }
     }
 }
