@@ -22,7 +22,13 @@ use std::{
     f64::consts::{FRAC_PI_2, PI},
 };
 
-pub fn zbesh(z: Complex64, order: f64, KODE: Scaling, M: HankelKind, N: usize) -> BesselResult {
+pub fn zbesh(
+    z: Complex64,
+    order: f64,
+    scaling: Scaling,
+    hankel_kind: HankelKind,
+    N: usize,
+) -> BesselResult {
     // ***BEGIN PROLOGUE  ZBESH
     // ***DATE WRITTEN   830501   (YYMMDD)
     // ***REVISION DATE  890801, 930101   (YYMMDD)
@@ -198,7 +204,7 @@ pub fn zbesh(z: Complex64, order: f64, KODE: Scaling, M: HankelKind, N: usize) -
 
     let mut NN = N;
     let FN = order + ((NN - 1) as f64);
-    let MM: i64 = 3_i64 - 2 * <HankelKind as Into<i64>>::into(M);
+    let MM: i64 = 3_i64 - 2 * hankel_kind as i64;
     let FMM = MM as f64;
     let mut zn = -Complex64::I * FMM * z;
     //-----------------------------------------------------------------------
@@ -216,7 +222,7 @@ pub fn zbesh(z: Complex64, order: f64, KODE: Scaling, M: HankelKind, N: usize) -
         if FN > 1.0 {
             if FN > 2.0 {
                 let mut cy = c_zeros(N);
-                let NUF = zuoik(zn, order, KODE, IKType::K, NN, &mut cy)?;
+                let NUF = zuoik(zn, order, scaling, IKType::K, NN, &mut cy)?;
 
                 NZ += NUF;
                 NN -= NUF;
@@ -240,30 +246,31 @@ pub fn zbesh(z: Complex64, order: f64, KODE: Scaling, M: HankelKind, N: usize) -
                 return Err(Overflow);
             }
         }
-        if !((zn.re < 0.0) || (zn.re == 0.0 && zn.im < 0.0 && M == HankelKind::Second)) {
+        if !((zn.re < 0.0) || (zn.re == 0.0 && zn.im < 0.0 && hankel_kind == HankelKind::Second)) {
             //-----------------------------------------------------------------------
             //     RIGHT HALF PLANE COMPUTATION, XN >= 0. && (XN != 0. ||
             //     YN >= 0. || M=1)
             //-----------------------------------------------------------------------
-            ZBKNU(zn, order, KODE, NN)?
+            ZBKNU(zn, order, scaling, NN)?
         } else {
             //-----------------------------------------------------------------------
             //     LEFT HALF PLANE COMPUTATION
             //-----------------------------------------------------------------------
-            analytic_continuation(zn, order, KODE, -MM, NN)?
+            analytic_continuation(zn, order, scaling, -MM, NN)?
         }
     } else {
         //-----------------------------------------------------------------------
         //     UNIFORM ASYMPTOTIC EXPANSIONS FOR FNU > FNUL
         //-----------------------------------------------------------------------
         let mut MR = 0;
-        if !((zn.re >= 0.0) && (zn.re != 0.0 || zn.im >= 0.0 || M != HankelKind::Second)) {
+        if !((zn.re >= 0.0) && (zn.re != 0.0 || zn.im >= 0.0 || hankel_kind != HankelKind::Second))
+        {
             MR = -MM;
             if !(zn.re != 0.0 || zn.im >= 0.0) {
                 zn = -zn;
             }
         }
-        let (cy, NW) = ZBUNK(zn, order, KODE, MR, NN)?;
+        let (cy, NW) = ZBUNK(zn, order, scaling, MR, NN)?;
         NZ += NW;
         (cy, NZ)
     };
@@ -2675,7 +2682,6 @@ fn ZBUNK(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
         //     AND FRAC_PI_2=PI/2
         //-----------------------------------------------------------------------
         ZUNK2(z, order, KODE, MR, N)
-        // ZUNK2(ZR, ZI, FNU, KODE, MR, N, YR, YI, NZ, TOL, ELIM, ALIM)
     } else {
         //-----------------------------------------------------------------------
         //     ASYMPTOTIC EXPANSION FOR K(FNU,Z) FOR LARGE FNU APPLIED IN
@@ -3204,15 +3210,10 @@ fn ZACAI(z: Complex64, order: f64, KODE: Scaling, MR: i64, N: usize) -> BesselRe
 }
 
 fn ZUNK1(z: Complex64, order: f64, scaling: Scaling, MR: i64, N: usize) -> BesselResult {
-    // ***BEGIN PROLOGUE  ZUNK1
-    // ***REFER TO  ZBESK
-    //
     //     ZUNK1 COMPUTES K(FNU,Z) AND ITS ANALYTIC CONTINUATION FROM THE
     //     RIGHT HALF PLANE TO THE LEFT HALF PLANE BY MEANS OF THE
     //     UNIFORM ASYMPTOTIC EXPANSION.
     //     MR INDICATES THE DIRECTION OF ROTATION FOR ANALYTIC CONTINUATION.
-    //     NZ=-1 MEANS AN OVERFLOW WILL OCCUR
-    //
 
     // TODO better name for KDFLAG
     let mut KDFLG = false; // = 1;

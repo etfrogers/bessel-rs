@@ -88,7 +88,7 @@ pub fn zbesh_fortran(
             z.im,
             order,
             scaling as i32,
-            kind.into(),
+            kind as i32,
             n.try_into().unwrap(),
             cyr.as_mut_ptr(),
             cyi.as_mut_ptr(),

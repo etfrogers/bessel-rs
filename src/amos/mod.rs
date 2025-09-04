@@ -7,7 +7,7 @@ use std::f64::consts::PI;
 use thiserror::Error;
 
 pub use gamma_ln::{GammaError, gamma_ln};
-pub use i_power_series::i_power_series;
+pub(crate) use i_power_series::i_power_series;
 pub(crate) use machine::MACHINE_CONSTANTS;
 pub use translator::{zbesh, zbesi, zbesj};
 
@@ -74,58 +74,11 @@ pub enum IKType {
     K = 2,
 }
 
-impl From<IKType> for usize {
-    fn from(value: IKType) -> Self {
-        match value {
-            IKType::I => 1,
-            IKType::K => 2,
-        }
-    }
-}
-impl From<&IKType> for usize {
-    fn from(value: &IKType) -> Self {
-        (*value).into()
-    }
-}
-
-impl IKType {
-    pub fn index(&self) -> usize {
-        self.into()
-    }
-}
-
-// TODO move to repr(i32) and remove From traits
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[repr(usize)]
 pub enum HankelKind {
-    First,
-    Second,
-}
-
-impl From<HankelKind> for f64 {
-    fn from(value: HankelKind) -> Self {
-        match value {
-            HankelKind::First => 1.0,
-            HankelKind::Second => 2.0,
-        }
-    }
-}
-
-impl From<HankelKind> for i64 {
-    fn from(value: HankelKind) -> Self {
-        match value {
-            HankelKind::First => 1,
-            HankelKind::Second => 2,
-        }
-    }
-}
-
-impl From<HankelKind> for i32 {
-    fn from(value: HankelKind) -> Self {
-        match value {
-            HankelKind::First => 1,
-            HankelKind::Second => 2,
-        }
-    }
+    First = 1,
+    Second = 2,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
