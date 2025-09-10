@@ -669,8 +669,8 @@ pub fn zunhj(
             let mut ks = 0;
             let mut kp1 = 2;
             let mut l = 2; //3;
-            let mut ias = false;
-            let mut ibs = false;
+            let mut a_converged = false;
+            let mut b_converged = false;
             let mut cr = c_zeros(14);
             let mut dr = c_zeros(14);
             for lr in (2..=12).step_by(2) {
@@ -684,7 +684,7 @@ pub fn zunhj(
                     kp1 += 1;
                     l += 1;
                     let mut za = Complex64::new(C_ZUNHJ[l], 0.0);
-                    for _j in 2..=kp1 {
+                    for _ in 1..kp1 {
                         l += 1;
                         za = za * t2 + C_ZUNHJ[l];
                     }
@@ -695,7 +695,7 @@ pub fn zunhj(
                     dr[ks - 1] = przth * AR[ks + 1];
                 }
                 pp *= rfnu2;
-                if !ias {
+                if !a_converged {
                     let mut suma = up[lrp1 - 1];
                     let mut ju = lrp1;
                     for jr in 0..lr {
@@ -707,10 +707,10 @@ pub fn zunhj(
                     if pp < MACHINE_CONSTANTS.abs_error_tolerance
                         && test < MACHINE_CONSTANTS.abs_error_tolerance
                     {
-                        ias = true
+                        a_converged = true
                     };
                 }
-                if !ibs {
+                if !b_converged {
                     let mut sumb = up[lr + 1] + up[lrp1 - 1] * zc;
                     let mut ju = lrp1;
                     for jr in 0..lr {
@@ -720,10 +720,10 @@ pub fn zunhj(
                     bsum += sumb;
                     let test = sumb.re.abs() + sumb.im.abs();
                     if pp < btol && test < btol {
-                        ibs = true
+                        b_converged = true
                     };
                 }
-                if ias && ibs {
+                if a_converged && b_converged {
                     break;
                 }
             }
