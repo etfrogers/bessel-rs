@@ -3354,20 +3354,20 @@ fn ZUNK1(
         let [mut s1, mut s2] = cy;
         let mut C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[k_overflow_state];
         let mut ASCLE = MACHINE_CONSTANTS.bry[k_overflow_state];
-        for i in IB..N {
+        for item in y[IB..N].iter_mut() {
             (s1, s2) = (s2, ck * s2 + s1);
             ck += rz;
-            y[i] = s2 * C1R;
+            *item = s2 * C1R;
             if k_overflow_state == Overflow::NearOver {
                 continue;
             }
-            if max_abs_component(y[i]) <= ASCLE {
+            if max_abs_component(*item) <= ASCLE {
                 continue;
             }
             k_overflow_state.increment();
             ASCLE = MACHINE_CONSTANTS.bry[k_overflow_state];
             s1 *= C1R;
-            s2 = y[i];
+            s2 = *item;
             s1 *= MACHINE_CONSTANTS.scaling_factors[k_overflow_state];
             s2 *= MACHINE_CONSTANTS.scaling_factors[k_overflow_state];
             C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[k_overflow_state];
@@ -3652,14 +3652,14 @@ fn ZUNK2(
                 let mut s2 = pt * cs;
                 let s1 = s1.exp() * MACHINE_CONSTANTS.scaling_factors[overflow_state_k];
                 s2 *= s1;
-                if overflow_state_k == Overflow::NearUnder {
-                    if will_underflow(
+                if overflow_state_k == Overflow::NearUnder
+                    && will_underflow(
                         s2,
                         MACHINE_CONSTANTS.bry[0],
                         MACHINE_CONSTANTS.abs_error_tolerance,
-                    ) {
-                        handle_underflow(&mut KDFLG, &mut cs)?
-                    }
+                    )
+                {
+                    handle_underflow(&mut KDFLG, &mut cs)?
                 }
                 if zr.im <= 0.0 {
                     s2 = s2.conj();
