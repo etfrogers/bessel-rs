@@ -3079,7 +3079,7 @@ fn ZBINU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
         //-----------------------------------------------------------------------
         let NW;
         (cy, NW) = i_power_series(z, order, KODE, NN)?;
-        let INW: usize = NW.abs().try_into().unwrap();
+        let INW: usize = NW.unsigned_abs();
         NZ += INW;
         NN -= INW;
         if NN == 0 || NW >= 0 {
