@@ -1,203 +1,163 @@
-use num::complex::{Complex64, ComplexFloat};
+use num::{
+    complex::{Complex64, ComplexFloat},
+    traits::Pow,
+};
 
 use super::{
     BesselResult, BesselValues, MACHINE_CONSTANTS, Scaling, c_one, c_zero, c_zeros, gamma_ln,
     utils::will_underflow,
 };
 
+/// z_power_series computes the i bessel function for `real(z) >= 0.0`` by
+/// means of the power series for large `z.abs()` in the
+/// region `z.abs() <= 2*sqrt(fnu+1)`. nz=0 is a normal return.
+/// nz > 0 means that the last nz components were set to zero
+/// due to underflow. nz < 0 means underflow occurred, but the
+/// condition cabs(z) <= 2*sqrt(fnu+1) was violated and the
+/// computation must be completed in another routine with n=n-abs(nz).
+///
+/// Originally ZSERI
 pub fn i_power_series(
     z: Complex64,
     order: f64,
     kode: Scaling,
     n: usize,
 ) -> BesselResult<BesselValues<isize>> {
-    // ***BEGIN PROLOGUE  z_power_series - was ZSERI
-    // ***REFER TO  ZBESI,ZBESK
-    //
-    //     z_power_series COMPUTES THE I BESSEL FUNCTION FOR REAL(Z) >= 0.0 BY
-    //     MEANS OF THE POWER SERIES FOR LARGE CABS(Z) IN THE
-    //     REGION CABS(Z) <= 2*SQRT(FNU+1). NZ=0 IS A NORMAL RETURN.
-    //     NZ > 0 MEANS THAT THE LAST NZ COMPONENTS WERE SET TO ZERO
-    //     DUE TO UNDERFLOW. NZ < 0 MEANS UNDERFLOW OCCURRED, BUT THE
-    //     CONDITION CABS(Z) <= 2*SQRT(FNU+1) WAS VIOLATED AND THE
-    //     COMPUTATION MUST BE COMPLETED IN ANOTHER ROUTINE WITH N=N-ABS(NZ).
-    //
-    // ***ROUTINES CALLED  gamma_ln,d1mach,ZUunderflowCHK,ZABS,ZDIV,ZLOG,ZMLT
-    // ***END PROLOGUE  z_power_series
     let mut nz = 0;
-    let az = z.abs(); //ZABS(ZR,ZI)
+    let abs_z = z.abs();
     let mut y = c_zeros(n);
-    let mut w = [c_zero(); 2];
-    if az == 0.0 {
-        // Not setting zero below, as was set in initialisation of y above
+
+    if abs_z < MACHINE_CONSTANTS.underflow_limit {
+        // If z is zero or very small, can return straight away.
+        // If its zero, then nz = 0 (as y==0), but if its very small but nonzero, then
+        // we underflowed, so set nz = n. This is then adjusted for order = 0,
+        // as we can set y[0] to one, and return one less nz.
         if order == 0.0 {
             y[0] = c_one();
         }
+        if abs_z != 0.0 {
+            nz = n.try_into().unwrap();
+            if order == 0.0 {
+                nz -= 1;
+            }
+        }
         return Ok((y, nz));
     }
-    let rtr1 = MACHINE_CONSTANTS.underflow_limit.sqrt();
-    let mut crscr = 1.0;
-    let mut underflow_would_occur = false;
-    if az < MACHINE_CONSTANTS.underflow_limit {
-        nz = n.try_into().unwrap();
-        if order == 0.0 {
-            nz -= 1;
-        }
-        // Not setting zero below, as was set in initialisation of y above
-        if order == 0.0 {
-            y[0] = c_one();
-        }
-        // Not setting zero below, as was set in initialisation of y above
-        return Ok((y, nz));
-    }
-    let hz = 0.5 * z;
-    let mut cz = c_zero();
-    if az > rtr1 {
-        cz = (hz).powu(2);
-    }
 
-    let acz = cz.abs();
-    let mut nn = n;
-    let ck = hz.ln();
+    let mut scale_factor = 1.0;
+    let mut near_underflow = false;
+    let mut first_entries_scaled: Vec<Complex64> = vec![];
+    let half_z = 0.5 * z;
+    let cz = if abs_z > MACHINE_CONSTANTS.underflow_limit.sqrt() {
+        half_z.pow(2.0)
+    } else {
+        c_zero()
+    };
+    let rz = 2.0 * z.conj() / (abs_z.pow(2));
 
-    let mut ak1 = c_zero();
-    let mut fnup;
-    let mut ak;
-    let mut sent_to_30 = false;
-    let mut skip_to_40 = false;
-    'l20: loop {
-        let mut dfnu = order + ((nn - 1) as f64);
-        fnup = dfnu + 1.0;
-        if !sent_to_30 {
-            //-----------------------------------------------------------------------;
-            //     UNDERFLOW TEST
-            //     recur down (setting y to zero) from N until underflow no longer found, then skip to 40
-            //-----------------------------------------------------------------------;
-            ak1 = ck * dfnu;
-            ak = gamma_ln(fnup).unwrap();
-            ak1.re -= ak;
+    let abs_cz = cz.abs();
+    let ln_half_z = half_z.ln();
+
+    let [mut s1, mut s2] = [c_zero(); 2];
+    for k in (0..n).rev() {
+        if first_entries_scaled.len() < 2 {
+            let modified_order = order + (k as f64);
+            // UNDERFLOW TEST
+            // Recur down (setting y to zero) from N until underflow no longer found,
+            // then move on to more set last two elements (though still being careful of
+            // potential underflow)
+            let mut ak1 = ln_half_z * modified_order;
+            ak1.re -= gamma_ln(modified_order + 1.0).unwrap();
             if kode == Scaling::Scaled {
                 ak1.re -= z.re;
             }
-            skip_to_40 = ak1.re > -MACHINE_CONSTANTS.exponent_limit;
-        } else {
-            sent_to_30 = false;
-        }
-        if !skip_to_40 {
-            nz += 1;
-            y[nn - 1] = c_zero();
-            if acz > dfnu {
-                return Ok((y, -nz));
-                // Feels like this should return an error, but the amos code effectively
-                // ignores the negative return value anyway. Treating it like an error
-                // changes the behavior of the code
-                // if nz == 2 {
-                //     return Err(DidNotConverge);
-                // } else {
-                //     return Err(Overflow);
-                // };
-            }
-            nn -= 1;
-            if nn == 0 {
-                return Ok((y, nz));
-            }
-            continue 'l20;
-        } else {
-            skip_to_40 = false; // should only skip once until sent back to 'l20
-        }
-        if ak1.re <= (-MACHINE_CONSTANTS.approximation_limit) {
-            underflow_would_occur = true;
-            crscr = MACHINE_CONSTANTS.abs_error_tolerance;
-        }
-        let mut aa = ak1.re.exp();
-        if underflow_would_occur {
-            aa *= MACHINE_CONSTANTS.rtol
-        };
-        let mut coef = Complex64::from_polar(aa, ak1.im);
-        let atol = MACHINE_CONSTANTS.abs_error_tolerance * acz / fnup;
-        let il = 2.min(nn);
-        for i in 0..il {
-            dfnu = order + ((nn - (i + 1)) as f64);
-            fnup = dfnu + 1.0;
-            let mut s1 = c_one();
-            if acz >= MACHINE_CONSTANTS.abs_error_tolerance * fnup {
-                ak1 = c_one();
-                ak = fnup + 2.0;
-                let mut s = fnup;
-                aa = 2.0;
-                '_l60: loop {
-                    let rs = 1.0 / s;
-                    ak1 = ak1 * cz * rs;
-                    s1 += ak1;
-                    s += ak;
-                    ak += 2.0;
-                    aa = aa * acz * rs;
-                    if aa <= atol {
-                        break;
-                    }
+            if ak1.re <= -MACHINE_CONSTANTS.exponent_limit {
+                nz += 1;
+                y[k] = c_zero();
+                if k == 0 || abs_cz > modified_order {
+                    return Ok((y, nz));
                 }
+                continue;
             }
-            let s2 = s1 * coef;
-            w[i] = s2;
-            if underflow_would_occur
+
+            // Now do a more refined underflow test.
+            // Note that near_undeflow latches: it does not reset to false on
+            // a second pass through this block, only later is it explicitly reset
+            if ak1.re <= (-MACHINE_CONSTANTS.approximation_limit) {
+                near_underflow = true;
+                scale_factor = MACHINE_CONSTANTS.abs_error_tolerance;
+            }
+
+            let mut coeff = ak1.exp();
+            if near_underflow {
+                coeff *= MACHINE_CONSTANTS.rtol
+            };
+            let s1 = single_n_iteration(modified_order, cz);
+            let s2 = s1 * coeff;
+            first_entries_scaled.push(s2);
+            if near_underflow
                 && will_underflow(
                     s2,
                     MACHINE_CONSTANTS.absolute_approximation_limit,
                     MACHINE_CONSTANTS.abs_error_tolerance,
                 )
             {
-                sent_to_30 = true;
-                continue 'l20;
+                nz += 1;
+                y[k] = c_zero();
+                if k == 0 || abs_cz > modified_order {
+                    return Ok((y, nz));
+                }
+                continue;
             }
-            let m = nn - i - 1;
-            y[m] = s2 * crscr;
-            if i != (il - 1) {
-                coef = coef.fdiv(hz) * dfnu; //normal div underflows, fdiv more accurate
-            }
+            y[k] = s2 * scale_factor;
+            continue;
         }
-        break 'l20;
-    }
-    if nn <= 2 {
-        return Ok((y, nz));
-    }
-    let mut k = nn - 2;
-    ak = k as f64;
-    let rz = 2.0 * z.conj() / (az.powi(2));
-    let ib = if underflow_would_occur {
-        //-----------------------------------------------------------------------;
-        //     RECUR BACKWARD WITH SCALED VALUES;
-        //-----------------------------------------------------------------------;
-        //-----------------------------------------------------------------------;
-        //     EXP(-ALIM)=EXP(-ELIM)/TOL=APPROX. ONE PRECISION ABOVE THE;
-        //     UNDERFLOW LIMIT = ASCLE = d1mach(1)*SS*1.0D+3;
-        //-----------------------------------------------------------------------;
-        let mut s1 = w[0];
-        let mut s2 = w[1];
-        let mut to_return = true;
-        let mut l = 0;
-        debug_assert!(nn >= 3);
-        for l_inner in 2..nn {
-            (s1, s2) = (s2, s1 + (ak + order) * (rz * s2));
-            y[k - 1] = s2 * crscr;
-            ak -= 1.0;
-            k = k.saturating_sub(1);
-            l = l_inner + 1;
+
+        // Continue recurring backward. If underflow was close previously, use scaled values,
+        // but the first time that we get out of the underflow region, we can switch
+        // to using the unscaled values
+        if first_entries_scaled.len() == 2 {
+            s1 = first_entries_scaled[0];
+            s2 = first_entries_scaled[1];
+            // the line below makes len == 3, so this block is not called again.
+            first_entries_scaled.push(c_zero());
+        }
+
+        let modified_order = ((k + 1) as f64) + order;
+        if near_underflow {
+            // ... using scaled values
+            (s1, s2) = (s2, s1 + modified_order * (rz * s2));
+            y[k] = s2 * scale_factor;
             if y[k].abs() > MACHINE_CONSTANTS.absolute_approximation_limit {
-                to_return = false;
-                break;
+                near_underflow = false;
             }
+        } else {
+            // .. using unscaled values
+            y[k] = modified_order * (rz * y[k + 1]) + y[k + 2];
         }
-        if to_return || l + 1 > nn {
-            return Ok((y, nz));
-        };
-        l + 1
-    } else {
-        3
-    };
-    for _ in ib..=nn {
-        y[k - 1] = (ak + order) * (rz * y[k]) + y[k + 1];
-        ak -= 1.0;
-        k -= 1;
     }
     Ok((y, nz))
+}
+
+fn single_n_iteration(modified_order: f64, cz: Complex64) -> Complex64 {
+    let fnup = modified_order + 1.0;
+    let abs_cz = cz.abs();
+    let atol = MACHINE_CONSTANTS.abs_error_tolerance * abs_cz / fnup;
+
+    let fnup = modified_order + 1.0;
+    let mut s1 = c_one();
+    if abs_cz >= MACHINE_CONSTANTS.abs_error_tolerance * fnup {
+        let mut ak2 = c_one();
+        let mut ak = fnup + 2.0;
+        let mut s = fnup;
+        let mut aa = 2.0;
+        while aa > atol {
+            ak2 *= cz / s;
+            s1 += ak2;
+            s += ak;
+            ak += 2.0;
+            aa *= abs_cz / s;
+        }
+    }
+    s1
 }
