@@ -58,10 +58,11 @@ pub fn i_power_series(
     let abs_cz = cz.abs();
     let ln_half_z = half_z.ln();
 
-    let [mut s1, mut s2] = [c_zero(); 2];
+    let [mut y_k_plus_2, mut y_k_plus_1] = [c_zero(); 2];
     for k in (0..n).rev() {
         if first_entries_scaled.len() < 2 {
             let modified_order = order + (k as f64);
+
             // UNDERFLOW TEST
             // Recur down (setting y to zero) from N until underflow no longer found,
             // then move on to more set last two elements (though still being careful of
@@ -74,8 +75,8 @@ pub fn i_power_series(
             if ak1.re <= -MACHINE_CONSTANTS.exponent_limit {
                 nz += 1;
                 y[k] = c_zero();
-                if k == 0 || abs_cz > modified_order {
-                    return Ok((y, nz));
+                if abs_cz > modified_order {
+                    break;
                 }
                 continue;
             }
@@ -104,36 +105,33 @@ pub fn i_power_series(
             {
                 nz += 1;
                 y[k] = c_zero();
-                if k == 0 || abs_cz > modified_order {
-                    return Ok((y, nz));
-                }
                 continue;
             }
             y[k] = s2 * scale_factor;
-            continue;
-        }
-
-        // Continue recurring backward. If underflow was close previously, use scaled values,
-        // but the first time that we get out of the underflow region, we can switch
-        // to using the unscaled values
-        if first_entries_scaled.len() == 2 {
-            s1 = first_entries_scaled[0];
-            s2 = first_entries_scaled[1];
-            // the line below makes len == 3, so this block is not called again.
-            first_entries_scaled.push(c_zero());
-        }
-
-        let modified_order = ((k + 1) as f64) + order;
-        if near_underflow {
-            // ... using scaled values
-            (s1, s2) = (s2, s1 + modified_order * (rz * s2));
-            y[k] = s2 * scale_factor;
-            if y[k].abs() > MACHINE_CONSTANTS.absolute_approximation_limit {
-                near_underflow = false;
-            }
         } else {
-            // .. using unscaled values
-            y[k] = modified_order * (rz * y[k + 1]) + y[k + 2];
+            // Continue recurring backward. If underflow was close previously, use scaled values,
+            // but the first time that we get out of the underflow region, we can switch
+            // to using the unscaled values
+            if first_entries_scaled.len() == 2 {
+                y_k_plus_2 = first_entries_scaled[0];
+                y_k_plus_1 = first_entries_scaled[1];
+                // the line below makes len == 3, so this block is not called again.
+                first_entries_scaled.push(c_zero());
+            }
+
+            let modified_order = ((k + 1) as f64) + order;
+            if near_underflow {
+                // ... using scaled values
+                (y_k_plus_2, y_k_plus_1) =
+                    (y_k_plus_1, modified_order * (rz * y_k_plus_1) + y_k_plus_2);
+                y[k] = y_k_plus_1 * scale_factor;
+                if y[k].abs() > MACHINE_CONSTANTS.absolute_approximation_limit {
+                    near_underflow = false;
+                }
+            } else {
+                // .. using unscaled values
+                y[k] = modified_order * (rz * y[k + 1]) + y[k + 2];
+            }
         }
     }
     Ok((y, nz))
