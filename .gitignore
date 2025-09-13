@@ -3,3 +3,4 @@
 .DS_Store
 *.vsix
 lcov.info
+profile.json
