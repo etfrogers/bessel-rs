@@ -45,7 +45,7 @@ impl MachineConsts {
     fn new() -> Self {
         // Here we use approximate value, rather than calculating `10.0_f64.ln()`, as
         // this matches the the Fotran code, and the exact value causes subtle differences
-        // in output (should just be what values are accpeted, but cause tetst to fail)
+        // in output (should just be what values are accepted, but cause tests to fail)
         let ln_10: f64 = 2.303;
 
         let underflow_limit = 1.0e+3 * 2.0 * f64::MIN_POSITIVE;
@@ -76,8 +76,6 @@ impl MachineConsts {
         //     NITUDE ARE SCALED TO KEEP INTERMEDIATE ARITHMETIC ON SCALE,
         //     EXP(ALIM)=EXP(ELIM)*TOL
         //-----------------------------------------------------------------------
-        // let CSCL = machine_consts.rtol;
-        // let CRSC = machine_consts.abs_error_tolerance;
         let scaling_factors = [rtol, 1.0, abs_error_tolerance];
         let reciprocal_scaling_factors = [abs_error_tolerance, 1.0, rtol];
         let bry = [
