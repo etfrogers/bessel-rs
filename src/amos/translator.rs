@@ -2,7 +2,7 @@
 use super::{
     BesselError, BesselResult, HankelKind, IKType, Scaling, c_one, c_zero, c_zeros, gamma_ln,
     i_power_series,
-    overflow_checks::{zunik, zuoik},
+    overflow_checks::{check_underflow_uniform_asymp_params, zunik},
     utils::{AIC, TWO_THIRDS, is_sigificance_lost, will_underflow},
 };
 use crate::amos::{
@@ -209,7 +209,14 @@ pub fn complex_bessel_h(
         if modified_order > 1.0 {
             if modified_order > 2.0 {
                 let mut cy = c_zeros(n);
-                let NUF = zuoik(zn, order, scaling, IKType::K, NN, &mut cy)?;
+                let NUF = check_underflow_uniform_asymp_params(
+                    zn,
+                    order,
+                    scaling,
+                    IKType::K,
+                    NN,
+                    &mut cy,
+                )?;
 
                 nz += NUF;
                 NN -= NUF;
@@ -3089,7 +3096,7 @@ fn ZBINU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
         //-----------------------------------------------------------------------
         //     OVERFLOW AND UNDERFLOW TEST ON I SEQUENCE FOR MILLER ALGORITHM
         //-----------------------------------------------------------------------
-        let nw = zuoik(z, order, KODE, IKType::I, NN, &mut cy)?;
+        let nw = check_underflow_uniform_asymp_params(z, order, KODE, IKType::I, NN, &mut cy)?;
         NZ += nw;
         NN -= nw;
         if NN == 0 {
@@ -3125,7 +3132,9 @@ fn ZBINU(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
     //-----------------------------------------------------------------------
     //     OVERFLOW TEST ON K FUNCTIONS USED IN WRONSKIAN
     //-----------------------------------------------------------------------
-    if let Ok(NW) = zuoik(z, order, KODE, IKType::K, 2, &mut [c_one(); 2]) {
+    if let Ok(NW) =
+        check_underflow_uniform_asymp_params(z, order, KODE, IKType::K, 2, &mut [c_one(); 2])
+    {
         if NW > 0 {
             Err(Overflow)
         } else {
@@ -4065,7 +4074,7 @@ fn ZUNI1(
             if ND == 0 {
                 return Ok((NZ, NLAST));
             }
-            let NUF = zuoik(z, order, scaling, IKType::I, ND, y)?;
+            let NUF = check_underflow_uniform_asymp_params(z, order, scaling, IKType::I, ND, y)?;
             ND -= NUF;
             NZ += NUF;
             if ND == 0 {
@@ -4225,7 +4234,7 @@ fn ZUNI2(
             if ND == 0 {
                 return Ok((NZ, NLAST));
             }
-            let NUF = zuoik(z, order, scaling, IKType::I, ND, y)?;
+            let NUF = check_underflow_uniform_asymp_params(z, order, scaling, IKType::I, ND, y)?;
             ND -= NUF;
             NZ += NUF;
             if ND == 0 {

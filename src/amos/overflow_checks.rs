@@ -15,6 +15,9 @@ use super::{
     c_zeros, utils::will_underflow,
 };
 
+#[allow(unused_imports)]
+use super::machine::MachineConsts;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Overflow {
     Over(bool),
@@ -84,8 +87,38 @@ impl Index<Overflow> for [f64] {
     }
 }
 
+/// zuoik computes the leading terms of the uniform asymptotic
+/// expansions for the I and K functions and compares them
+/// (in logarithmic form) to [MachineConsts::approximation_limit]
+/// and [MachineConsts::exponent_limit] for over and underflow
+///
+/// If the magnitude, based on the leading
+/// exponential, is less than alim or greater than -approximation_limit, then
+/// the result is on scale. If not, then a refined test using other
+/// multipliers (in logarithmic form) is made based on exponent_limit.
+///
+/// It sets the appropriate input y values to zero on underflow.
+///
+/// Returns Err(Overflow) on overflow
+///
+/// ik_type specifies the type o squence to test ([I](IKType::I) or [K](IKType::K))
+///
+/// Below the returned value is designated n_underflow.
+///
+/// n_underflow = 0 means the last member of the sequence is on scale
+///
+/// `ik_type == IKType::I && n_underflow > 0` means the last
+///     `n_underflow` y values were set to zero.
+///     The first `(n - n_underflow)` values must be set by another routine
+///
+/// `ik_type == IKType::K && n_underflow == n` means all y values were set to zero
+///
+/// `ik_type = IKType::K && 0 < n_underflow < n` not considered (it is not
+///     a possible return value). y must be set by
+///     another routine
+///
 /// Originally ZUIOK
-pub fn zuoik(
+pub fn check_underflow_uniform_asymp_params(
     z: Complex64,
     order: f64,
     scaling: Scaling,
@@ -93,30 +126,6 @@ pub fn zuoik(
     n: usize,
     y: &mut [Complex64],
 ) -> BesselResult<usize> {
-    // ***BEGIN PROLOGUE  ZUOIK
-    // ***REFER TO  ZBESI,ZBESK,ZBESH
-    //
-    //     ZUOIK COMPUTES THE LEADING TERMS OF THE UNIFORM ASYMPTOTIC
-    //     EXPANSIONS FOR THE I AND K FUNCTIONS AND COMPARES THEM
-    //     (IN LOGARITHMIC FORM) TO ALIM AND ELIM FOR OVER AND UNDERFLOW
-    //     WHERE ALIM < ELIM. IF THE MAGNITUDE, BASED ON THE LEADING
-    //     EXPONENTIAL, IS LESS THAN ALIM OR GREATER THAN -ALIM, THEN
-    //     THE RESULT IS ON SCALE. IF NOT, THEN A REFINED TEST USING OTHER
-    //     MULTIPLIERS (IN LOGARITHMIC FORM) IS MADE BASED ON ELIM. HERE
-    //     EXP(-ELIM)=SMALLEST MACHINE NUMBER*1.0E+3 AND EXP(-ALIM)=
-    //     EXP(-ELIM)/TOL
-    //
-    //     IKFLG=1 MEANS THE I SEQUENCE IS TESTED
-    //          =2 MEANS THE K SEQUENCE IS TESTED
-    //     NUF = 0 MEANS THE LAST MEMBER OF THE SEQUENCE IS ON SCALE
-    //         =-1 MEANS AN OVERFLOW WOULD OCCUR
-    //     IKFLG=1 AND NUF > 0 MEANS THE LAST NUF Y VALUES WERE SET TO ZERO
-    //             THE FIRST N-NUF VALUES MUST BE SET BY ANOTHER ROUTINE
-    //     IKFLG=2 AND NUF == N MEANS ALL Y VALUES WERE SET TO ZERO
-    //     IKFLG=2 AND 0 < NUF < N NOT CONSIDERED. Y MUST BE SET BY
-    //             ANOTHER ROUTINE
-    //
-
     let mut n_underflow = 0;
     let zr = if z.re < 0.0 { -z } else { z };
     let zn = if z.im <= 0.0 {
@@ -127,9 +136,9 @@ pub fn zuoik(
     let zb = zr;
     let imaginary_dominant = imaginary_dominant(z);
     //-----------------------------------------------------------------------
-    //     ONLY THE MAGNITUDE OF ARG AND PHI ARE NEEDED ALONG WITH THE
-    //     REAL PARTS OF ZETA1, ZETA2 AND ZB. NO ATTEMPT IS MADE TO GET
-    //     THE SIGN OF THE IMAGINARY PART CORRECT.
+    //     only the magnitude of arg and phi are needed along with the
+    //     real parts of zeta1, zeta2 and zb. no attempt is made to get
+    //     the sign of the imaginary part correct.
     //-----------------------------------------------------------------------
 
     // This piece of code is used in two places, where there is essentially as switch on which function to use,
