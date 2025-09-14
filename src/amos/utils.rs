@@ -52,3 +52,23 @@ pub fn is_sigificance_lost(
     let scaling_limit = upper_size_limit.sqrt();
     Ok((z_abs > scaling_limit) || (modified_order > scaling_limit))
 }
+
+pub(crate) fn sanitise_inputs(z: Complex64, order: f64, n: usize) -> Result<(), BesselError> {
+    let mut err = None;
+    if z.re == 0.0 && z.im == 0.0 {
+        err = Some("z must not be zero");
+    }
+    if order < 0.0_f64 {
+        err = Some("order must be positive");
+    };
+    if n < 1 {
+        err = Some("N must be >= 1");
+    };
+    if let Some(details) = err {
+        Err(BesselError::InvalidInput {
+            details: details.to_owned(),
+        })
+    } else {
+        Ok(())
+    }
+}
