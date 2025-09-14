@@ -21,24 +21,25 @@ pub(crate) struct MachineConsts {
     pub underflow_limit: f64,
     /// Originally ASCLE
     pub absolute_approximation_limit: f64,
-    /// TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0E-18.
-    pub abs_error_tolerance: f64, // TOL
-    /// ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT
+    /// Originally TOL. The approximate unit roundoff limited to 1.0e-18.
+    pub abs_error_tolerance: f64,
+    /// Originally ELIM. The approximate exponential over- and under-flow limit
     pub exponent_limit: f64,
     /// Originally ALIM
     pub approximation_limit: f64,
-    /// DIG NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).
-    pub _significant_digits: f64, // DIG
-    /// RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.
-    pub asymptotic_z_limit: f64, // RL
-    /// FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU.
-    pub asymptotic_order_limit: f64, // FNUL
+    /// Originally DIG. Number of base 10 digits in abs_error_tolerance = 10.pow(-dig).
+    pub _significant_digits: f64,
+    /// Originally RL. The lower boundary of the asymptotic expansion for large z.
+    pub asymptotic_z_limit: f64,
+    /// Originally FNUL.  The lower boundary of the asymptotic series for large order.
+    pub asymptotic_order_limit: f64,
     pub rtol: f64,
-    /// CSSR
+    /// Originally CSSR
     pub scaling_factors: [f64; 3],
-    /// CSRR
+    /// Originally CSRR
     pub reciprocal_scaling_factors: [f64; 3],
-    pub bry: [f64; 3],
+    /// Originally BRY
+    pub smallness_threshold: [f64; 3],
 }
 
 impl MachineConsts {
@@ -78,7 +79,7 @@ impl MachineConsts {
         //-----------------------------------------------------------------------
         let scaling_factors = [rtol, 1.0, abs_error_tolerance];
         let reciprocal_scaling_factors = [abs_error_tolerance, 1.0, rtol];
-        let bry = [
+        let smallness_threshold = [
             absolute_approximation_limit,
             1.0 / absolute_approximation_limit,
             f64::MAX / 2.0,
@@ -95,7 +96,7 @@ impl MachineConsts {
             rtol,
             scaling_factors,
             reciprocal_scaling_factors,
-            bry,
+            smallness_threshold,
         }
     }
 }
