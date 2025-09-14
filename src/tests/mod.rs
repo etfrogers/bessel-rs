@@ -36,3 +36,5 @@ fn bessel_h_ref(order: f64, z: Complex64, kind: HankelKind) -> Result<Complex64,
     let (y, _, ierr) = zbesh_fortran(order, z, Scaling::Unscaled, kind, 1);
     if ierr != 0 { Err(ierr) } else { Ok(y[0]) }
 }
+
+// TODO test bad inputs
