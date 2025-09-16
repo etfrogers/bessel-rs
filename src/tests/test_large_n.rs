@@ -7,7 +7,7 @@ use super::{
 };
 use crate::{
     Scaling,
-    amos::{zbesi, zbesj},
+    amos::{complex_bessel_j, zbesi},
 };
 use num::complex::Complex64;
 
@@ -20,7 +20,7 @@ fn test_bessel_large_n_real(
     #[values(3, 4, 9, 100)] n: usize,
     #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
     #[values(
-        (zbesj as BesselSig, zbesj_fortran as BesselFortranSig),
+        (complex_bessel_j as BesselSig, zbesj_fortran as BesselFortranSig),
         (zbesi as BesselSig, zbesi_fortran as BesselFortranSig),
         (zbesh_first as BesselSig , zbesh_fortran_first as BesselFortranSig),
         (zbesh_second as BesselSig , zbesh_fortran_second as BesselFortranSig),
@@ -42,7 +42,7 @@ fn test_bessel_large_n_complex(
     #[values(3, 4, 9, 100)] n: usize,
     #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
     #[values(
-        (zbesj as BesselSig, zbesj_fortran as BesselFortranSig),
+        (complex_bessel_j as BesselSig, zbesj_fortran as BesselFortranSig),
         (zbesi as BesselSig, zbesi_fortran as BesselFortranSig),
         (zbesh_first as BesselSig , zbesh_fortran_first as BesselFortranSig),
         (zbesh_second as BesselSig , zbesh_fortran_second as BesselFortranSig),

@@ -53,9 +53,14 @@ pub fn is_sigificance_lost(
     Ok((z_abs > scaling_limit) || (modified_order > scaling_limit))
 }
 
-pub(crate) fn sanitise_inputs(z: Complex64, order: f64, n: usize) -> Result<(), BesselError> {
+pub(crate) fn sanitise_inputs(
+    z: Complex64,
+    order: f64,
+    n: usize,
+    check_z_zero: bool,
+) -> Result<(), BesselError> {
     let mut err = None;
-    if z.re == 0.0 && z.im == 0.0 {
+    if check_z_zero && z.re == 0.0 && z.im == 0.0 {
         err = Some("z must not be zero");
     }
     if order < 0.0_f64 {

@@ -29,13 +29,13 @@ use std::{
 /// OR 2, REAL, NONNEGATIVE ORDERS FNU+J-1, J=1,...,N, AND COMPLEX
 /// Z != CMPLX(0.0,0.0) IN THE CUT PLANE -PI < ARG(Z) <= PI.
 /// ON KODE=2, ZBESH RETURNS THE SCALED HANKEL FUNCTIONS
-//
+///
 /// CY(I)=EXP(-MM*Z*I)*H(M,FNU+J-1,Z)       MM=3-2*M,   I**2=-1.
-//
+///
 /// WHICH REMOVES THE EXPONENTIAL BEHAVIOR IN BOTH THE UPPER AND
 /// LOWER HALF PLANES. DEFINITIONS AND NOTATION ARE FOUND IN THE
 /// NBS HANDBOOK OF MATHEMATICAL FUNCTIONS (REF. 1).
-//
+///
 /// INPUT      ZR,ZI,FNU ARE DOUBLE PRECISION
 ///   ZR,ZI  - Z=CMPLX(ZR,ZI), Z != CMPLX(0.0,0.0),
 ///            -PT < ARG(Z) <= PI
@@ -48,7 +48,7 @@ use std::{
 ///                          J=1,...,N  ,  I**2=-1
 ///   M      - KIND OF HANKEL FUNCTION, M=1 OR 2
 ///   N      - NUMBER OF MEMBERS IN THE SEQUENCE, N >= 1
-//
+///
 /// OUTPUT     CYR,CYI ARE DOUBLE PRECISION
 ///   CYR,CYI- DOUBLE PRECISION VECTORS WHOSE FIRST N COMPONENTS
 ///            CONTAIN REAL AND IMAGINARY PARTS FOR THE SEQUENCE
@@ -77,37 +77,37 @@ use std::{
 ///                    CANCE BY ARGUMENT REDUCTION
 ///            IERR=5, ERROR              - NO COMPUTATION,
 ///                    ALGORITHM TERMINATION CONDITION NOT MET
-//
-// ***LONG DESCRIPTION
-//
+///
+/// ***LONG DESCRIPTION
+///
 /// THE COMPUTATION IS CARRIED OUT BY THE RELATION
-//
+///
 /// H(M,FNU,Z)=(1/MP)*EXP(-MP*FNU)*K(FNU,Z*EXP(-MP))
 ///     MP=MM*FRAC_PI_2*I,  MM=3-2*M,  FRAC_PI_2=PI/2,  I**2=-1
-//
+///
 /// FOR M=1 OR 2 WHERE THE K BESSEL FUNCTION IS COMPUTED FOR THE
 /// RIGHT HALF PLANE RE(Z) >= 0.0. THE K FUNCTION IS CONTINUED
 /// TO THE LEFT HALF PLANE BY THE RELATION
-//
+///
 /// K(FNU,Z*EXP(MP)) = EXP(-MP*FNU)*K(FNU,Z)-MP*I(FNU,Z)
 /// MP=MR*PI*I, MR=+1 OR -1, RE(Z) > 0, I**2=-1
-//
+///
 /// WHERE I(FNU,Z) IS THE I BESSEL FUNCTION.
-//
+///
 /// EXPONENTIAL DECAY OF H(M,FNU,Z) OCCURS IN THE UPPER HALF Z
 /// PLANE FOR M=1 AND THE LOWER HALF Z PLANE FOR M=2.  EXPONENTIAL
 /// GROWTH OCCURS IN THE COMPLEMENTARY HALF PLANES.  SCALING
 /// BY EXP(-MM*Z*I) REMOVES THE EXPONENTIAL BEHAVIOR IN THE
 /// WHOLE Z PLANE FOR Z TO INFINITY.
-//
+///
 /// FOR NEGATIVE ORDERS,THE FORMULAE
-//
-///       H(1,-FNU,Z) = H(1,FNU,Z)*CEXP( PI*FNU*I)
-///       H(2,-FNU,Z) = H(2,FNU,Z)*CEXP(-PI*FNU*I)
+///
+///   H(1,-FNU,Z) = H(1,FNU,Z)*CEXP( PI*FNU*I)
+///   H(2,-FNU,Z) = H(2,FNU,Z)*CEXP(-PI*FNU*I)
 ///                 I**2=-1
-//
+///
 /// CAN BE USED.
-//
+///
 /// IN MOST COMPLEX VARIABLE COMPUTATION, ONE MUST EVALUATE ELE-
 /// MENTARY FUNCTIONS. WHEN THE MAGNITUDE OF Z OR FNU+N-1 IS
 /// LARGE, LOSSES OF SIGNIFICANCE BY ARGUMENT REDUCTION OCCUR.
@@ -147,28 +147,26 @@ use std::{
 /// MAGNITUDE OF THE LARGER COMPONENT. IN THESE EXTREME CASES,
 /// THE PRINCIPAL PHASE ANGLE IS ON THE ORDER OF +P, -P, PI/2-P,
 /// OR -PI/2+P.
-//
-// ***REFERENCES  HANDBOOK OF MATHEMATICAL FUNCTIONS BY M. ABRAMOWITZ
+///
+/// ***REFERENCES
+///   HANDBOOK OF MATHEMATICAL FUNCTIONS BY M. ABRAMOWITZ
 ///         AND I. A. STEGUN, NBS AMS SERIES 55, U.S. DEPT. OF
 ///         COMMERCE, 1955.
-//
-///       COMPUTATION OF BESSEL FUNCTIONS OF COMPLEX ARGUMENT
+///
+///   COMPUTATION OF BESSEL FUNCTIONS OF COMPLEX ARGUMENT
 ///         BY D. E. AMOS, SAND83-0083, MAY, 1983.
-//
-///       COMPUTATION OF BESSEL FUNCTIONS OF COMPLEX ARGUMENT
+///
+///   COMPUTATION OF BESSEL FUNCTIONS OF COMPLEX ARGUMENT
 ///         AND LARGE ORDER BY D. E. AMOS, SAND83-0643, MAY, 1983
-//
-///       A SUBROUTINE PACKAGE FOR BESSEL FUNCTIONS OF A COMPLEX
+///
+///   A SUBROUTINE PACKAGE FOR BESSEL FUNCTIONS OF A COMPLEX
 ///         ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, SAND85-
 ///         1018, MAY, 1985
-//
-///       A PORTABLE PACKAGE FOR BESSEL FUNCTIONS OF A COMPLEX
+///
+///   A PORTABLE PACKAGE FOR BESSEL FUNCTIONS OF A COMPLEX
 ///         ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, ACM
 ///         TRANS. MATH. SOFTWARE, VOL. 12, NO. 3, SEPTEMBER 1986,
 ///         PP 265-273.
-//
-
-///
 ///
 /// Original metadata:
 /// - Name:  ZBESH
@@ -185,11 +183,10 @@ pub fn complex_bessel_h(
     hankel_kind: HankelKind,
     n: usize,
 ) -> BesselResult {
-    sanitise_inputs(z, order, n)?;
+    sanitise_inputs(z, order, n, true)?;
     let mut nz = 0;
 
-    let mut NN = n;
-    let modified_order = order + ((NN - 1) as f64);
+    let modified_order = order + ((n - 1) as f64);
 
     let rotation = hankel_kind.get_rotation();
     let rotation_f64: f64 = rotation.into();
@@ -209,22 +206,22 @@ pub fn complex_bessel_h(
         if modified_order > 1.0 {
             if modified_order > 2.0 {
                 let mut cy = c_zeros(n);
-                let NUF = check_underflow_uniform_asymp_params(
+                let n_underflow = check_underflow_uniform_asymp_params(
                     zn,
                     order,
                     scaling,
                     IKType::K,
-                    NN,
+                    n,
                     &mut cy,
                 )?;
 
-                nz += NUF;
-                NN -= NUF;
-                //-----------------------------------------------------------------------
-                //     HERE NN=N OR NN=0 SINCE NUF=0,NN, OR -1 ON RETURN FROM CUOIK
-                //     if NUF=NN, THEN CY(I)=CZERO FOR ALL I
-                //-----------------------------------------------------------------------
-                if NN == 0 {
+                nz += n_underflow;
+
+                // Here nn=n or nn=0 since n_undeflow=(0 or nn) on return from
+                // check_underflow_uniform_asymp_params (for ik_type = k)
+                //
+                // if nuf=nn, then cy[i]=c_zero() for all i
+                if n == n_underflow {
                     return if zn.re < 0.0 {
                         Err(Overflow)
                     } else if partial_loss_of_significance {
@@ -245,12 +242,12 @@ pub fn complex_bessel_h(
             //     RIGHT HALF PLANE COMPUTATION, XN >= 0. && (XN != 0. ||
             //     YN >= 0. || M=1)
             //-----------------------------------------------------------------------
-            k_right_half_plane(zn, order, scaling, NN)?
+            k_right_half_plane(zn, order, scaling, n)?
         } else {
             //-----------------------------------------------------------------------
             //     LEFT HALF PLANE COMPUTATION
             //-----------------------------------------------------------------------
-            analytic_continuation(zn, order, scaling, -rotation, NN)?
+            analytic_continuation(zn, order, scaling, -rotation, n)?
         }
     } else {
         //-----------------------------------------------------------------------
@@ -264,7 +261,7 @@ pub fn complex_bessel_h(
                 zn = -zn;
             }
         }
-        let (cy, NW) = ZBUNK(zn, order, scaling, asymptotic_rotation, NN)?;
+        let (cy, NW) = ZBUNK(zn, order, scaling, asymptotic_rotation, n)?;
         nz += NW;
         (cy, nz)
     };
@@ -286,7 +283,7 @@ pub fn complex_bessel_h(
     if half_int_order % 2 != 0 {
         csgn = -csgn;
     }
-    for element in cy.iter_mut().take(NN) {
+    for element in cy.iter_mut() {
         let ATOL = if max_abs_component(*element) < MACHINE_CONSTANTS.absolute_approximation_limit {
             *element *= MACHINE_CONSTANTS.rtol;
             MACHINE_CONSTANTS.abs_error_tolerance
@@ -303,7 +300,7 @@ pub fn complex_bessel_h(
     }
 }
 
-pub fn zbesi(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
+pub fn zbesi(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
     // ***BEGIN PROLOGUE  ZBESI
     // ***DATE WRITTEN   830501   (YYMMDD)
     // ***REVISION DATE  890801, 930101   (YYMMDD)
@@ -453,25 +450,11 @@ pub fn zbesi(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult 
     //                 TRANS. MATH. SOFTWARE, VOL. 12, NO. 3, SEPTEMBER 1986,
     //                 PP 265-273.
 
-    let mut err = None;
-    if order < 0.0_f64 {
-        err = Some("order must be positive")
-    };
-    if N < 1 {
-        err = Some("N must be >= 1")
-    };
-    if let Some(details) = err {
-        return Err(BesselError::InvalidInput {
-            details: details.to_owned(),
-        });
-    }
+    sanitise_inputs(z, order, n, false)?;
 
-    //-----------------------------------------------------------------------------
-    //     TEST FOR PROPER RANGE
-    //-----------------------------------------------------------------------
-    let AZ = z.abs();
-    let FN = order + ((N - 1) as f64);
-    let partial_significance_loss = is_sigificance_lost(AZ, FN, false)?;
+    let abs_z = z.abs();
+    let modified_order = order + ((n - 1) as f64);
+    let partial_significance_loss = is_sigificance_lost(abs_z, modified_order, false)?;
 
     let (zn, mut csgn) = if z.re >= 0.0 {
         (z, c_one())
@@ -480,16 +463,16 @@ pub fn zbesi(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult 
         //     CALCULATE CSGN=EXP(FNU*PI*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
         //     WHEN FNU IS LARGE
         //-----------------------------------------------------------------------
-        let INU = order as usize;
-        let ARG = order.fract() * PI * if z.im < 0.0 { -1.0 } else { 1.0 };
-        let mut csgn = Complex64::cis(ARG);
-        if !INU.is_multiple_of(2) {
+        let integer_order = order as usize;
+        let arg = order.fract() * PI * if z.im < 0.0 { -1.0 } else { 1.0 };
+        let mut csgn = Complex64::cis(arg);
+        if !integer_order.is_multiple_of(2) {
             csgn = -csgn;
         }
         (-z, csgn)
     };
-    let (mut cy, nz) = i_right_half_plane(zn, order, KODE, N)?;
-    let remaining_n = N - nz;
+    let (mut cy, nz) = i_right_half_plane(zn, order, scaling, n)?;
+    let remaining_n = n - nz;
     if z.re < 0.0 && remaining_n > 0 {
         //-----------------------------------------------------------------------
         //     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE
@@ -515,13 +498,7 @@ pub fn zbesi(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult 
     }
 }
 
-pub fn zbesj(
-    z: Complex64, //ZR, ZI,
-    order: f64,   //FNU,
-    KODE: Scaling,
-    n: usize,
-) -> BesselResult {
-    // ouputs: CYR, CYI, NZ, IERR)
+pub fn complex_bessel_j(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
     // ***BEGIN PROLOGUE  ZBESJ
     // ***DATE WRITTEN   830501   (YYMMDD)
     // ***REVISION DATE  890801, 930101   (YYMMDD)
@@ -666,22 +643,8 @@ pub fn zbesj(
     //                 PP 265-273.
     //
 
-    let mut err = None;
-    if order < 0.0_f64 {
-        err = Some("order must be positive")
-    };
-    if n < 1 {
-        err = Some("N must be >= 1")
-    };
-    if let Some(details) = err {
-        return Err(BesselError::InvalidInput {
-            details: details.to_owned(),
-        });
-    }
+    sanitise_inputs(z, order, n, false)?;
 
-    //-----------------------------------------------------------------------
-    //     TEST FOR PROPER RANGE
-    //-----------------------------------------------------------------------
     let partial_significance_loss = is_sigificance_lost(z.abs(), order + ((n - 1) as f64), false)?;
     //-----------------------------------------------------------------------
     //     CALCULATE CSGN=EXP(FNU*FRAC_PI_2*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
@@ -705,7 +668,7 @@ pub fn zbesj(
         csgn.im = -csgn.im;
         sign_selector = -sign_selector;
     }
-    let (mut cy, nz) = i_right_half_plane(zn, order, KODE, n)?;
+    let (mut cy, nz) = i_right_half_plane(zn, order, scaling, n)?;
     for cyi in cy.iter_mut().take(n - nz) {
         let mut ATOL = 1.0;
         // TODO is the below a pattern?

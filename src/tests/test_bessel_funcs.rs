@@ -8,7 +8,7 @@ use complex_bessel_rs::bessel_j::bessel_j as bessel_j_ref;
 
 use crate::{
     BesselError, HankelKind, Scaling,
-    amos::{zbesi, zbesj},
+    amos::{zbesi, complex_bessel_j},
     bessel_i, bessel_j, hankel,
 };
 use num::complex::Complex64;
@@ -78,7 +78,7 @@ fn test_bessel_h(
 #[rstest]
 fn test_bessel_extremes(
     #[values(
-        (zbesj as BesselSig, zbesj_fortran as BesselFortranSig),
+        (complex_bessel_j as BesselSig, zbesj_fortran as BesselFortranSig),
         (zbesi as BesselSig, zbesi_fortran as BesselFortranSig),
         (zbesh_first as BesselSig , zbesh_fortran_first as BesselFortranSig),
         (zbesh_second as BesselSig , zbesh_fortran_second as BesselFortranSig),

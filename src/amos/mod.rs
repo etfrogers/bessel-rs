@@ -9,7 +9,7 @@ use thiserror::Error;
 pub use gamma_ln::{GammaError, gamma_ln};
 pub(crate) use i_power_series::i_power_series;
 pub(crate) use machine::MACHINE_CONSTANTS;
-pub use translator::{complex_bessel_h, zbesi, zbesj};
+pub use translator::{complex_bessel_h, zbesi, complex_bessel_j};
 
 pub(crate) mod bindings;
 mod gamma_ln;
