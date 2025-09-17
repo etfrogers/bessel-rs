@@ -1,15 +1,16 @@
 use super::{
     BesselFortranSig, BesselSig, bessel_cases, bessel_h_ref, check_against_fortran,
     check_complex_arrays_equal, zbesh_first, zbesh_fortran_first, zbesh_fortran_second,
-    zbesh_second, zbesi_fortran, zbesj_fortran,
+    zbesh_second, zbesi_fortran, zbesj_fortran, zbesk_fortran,
 };
 use complex_bessel_rs::bessel_i::bessel_i as bessel_i_ref;
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_ref;
+use complex_bessel_rs::bessel_k::bessel_k as bessel_k_ref;
 
 use crate::{
     BesselError, HankelKind, Scaling,
-    amos::{zbesi, complex_bessel_j},
-    bessel_i, bessel_j, hankel,
+    amos::{ZBESK, complex_bessel_j, zbesi},
+    bessel_i, bessel_j, bessel_k, hankel,
 };
 use num::complex::Complex64;
 use rstest::rstest;
@@ -52,6 +53,24 @@ fn test_bessel_i(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
 
 #[apply(bessel_cases)]
 #[trace]
+fn test_bessel_k(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
+    let z = Complex64::new(zr, zi);
+    let actual = bessel_k(order, z);
+
+    if actual == Err(BesselError::NotYetImplemented) {
+        todo!()
+    }
+
+    let expected = bessel_k_ref(order, z.into());
+    if let Ok(actual) = actual {
+        check_complex_arrays_equal(&actual, &expected.unwrap(), &Vec::new());
+    } else {
+        assert_eq!(actual.unwrap_err().error_code(), expected.unwrap_err())
+    }
+}
+
+#[apply(bessel_cases)]
+#[trace]
 fn test_bessel_h(
     #[case] order: f64,
     #[case] zr: f64,
@@ -82,6 +101,7 @@ fn test_bessel_extremes(
         (zbesi as BesselSig, zbesi_fortran as BesselFortranSig),
         (zbesh_first as BesselSig , zbesh_fortran_first as BesselFortranSig),
         (zbesh_second as BesselSig , zbesh_fortran_second as BesselFortranSig),
+        (ZBESK as BesselSig, zbesk_fortran as BesselFortranSig),
     )]
     (rust_fn, fortran_fn): (BesselSig, BesselFortranSig),
 

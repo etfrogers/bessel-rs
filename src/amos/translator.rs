@@ -686,290 +686,361 @@ pub fn complex_bessel_j(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
     }
 }
 
+pub fn ZBESK(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
+    //CYR, CYI, NZ, IERR)
+
+    // ***BEGIN PROLOGUE  ZBESK
+    // ***DATE WRITTEN   830501   (YYMMDD)
+    // ***REVISION DATE  890801, 930101   (YYMMDD)
+    // ***CATEGORY NO.  B5K
+    // ***KEYWORDS  K-BESSEL FUNCTION,COMPLEX BESSEL FUNCTION,
+    //             MODIFIED BESSEL FUNCTION OF THE SECOND KIND,
+    //             BESSEL FUNCTION OF THE THIRD KIND
+    // ***AUTHOR  AMOS, DONALD E., SANDIA NATIONAL LABORATORIES
+    // ***PURPOSE  TO COMPUTE K-BESSEL FUNCTIONS OF COMPLEX ARGUMENT
+    // ***DESCRIPTION
+    //
+    //                      ***A DOUBLE PRECISION ROUTINE***
+    //
+    //         ON KODE=1, ZBESK COMPUTES AN N MEMBER SEQUENCE OF COMPLEX
+    //         BESSEL FUNCTIONS CY(J)=K(FNU+J-1,Z) FOR REAL, NONNEGATIVE
+    //         ORDERS FNU+J-1, J=1,...,N AND COMPLEX Z != CMPLX(0.0,0.0)
+    //         IN THE CUT PLANE -PI < ARG(Z) <= PI. ON KODE=2, ZBESK
+    //         RETURNS THE SCALED K FUNCTIONS,
+    //
+    //         CY(J)=EXP(Z)*K(FNU+J-1,Z) , J=1,...,N,
+    //
+    //         WHICH REMOVE THE EXPONENTIAL BEHAVIOR IN BOTH THE LEFT AND
+    //         RIGHT HALF PLANES FOR Z TO INFINITY. DEFINITIONS AND
+    //         NOTATION ARE FOUND IN THE NBS HANDBOOK OF MATHEMATICAL
+    //         FUNCTIONS (REF. 1).
+    //
+    //         INPUT      ZR,ZI,FNU ARE DOUBLE PRECISION
+    //           ZR,ZI  - Z=CMPLX(ZR,ZI), Z != CMPLX(0.0,0.0),
+    //                    -PI < ARG(Z) <= PI
+    //           FNU    - ORDER OF INITIAL K FUNCTION, FNU >= 0.0
+    //           N      - NUMBER OF MEMBERS OF THE SEQUENCE, N >= 1
+    //           KODE   - A PARAMETER TO INDICATE THE SCALING OPTION
+    //                    KODE= 1  RETURNS
+    //                             CY(I)=K(FNU+I-1,Z), I=1,...,N
+    //                        = 2  RETURNS
+    //                             CY(I)=K(FNU+I-1,Z)*EXP(Z), I=1,...,N
+    //
+    //         OUTPUT     CYR,CYI ARE DOUBLE PRECISION
+    //           CYR,CYI- DOUBLE PRECISION VECTORS WHOSE FIRST N COMPONENTS
+    //                    CONTAIN REAL AND IMAGINARY PARTS FOR THE SEQUENCE
+    //                    CY(I)=K(FNU+I-1,Z), I=1,...,N OR
+    //                    CY(I)=K(FNU+I-1,Z)*EXP(Z), I=1,...,N
+    //                    DEPENDING ON KODE
+    //           NZ     - NUMBER OF COMPONENTS SET TO ZERO DUE TO UNDERFLOW.
+    //                    NZ= 0   , NORMAL RETURN
+    //                    NZ > 0 , FIRST NZ COMPONENTS OF CY SET TO ZERO DUE
+    //                              TO UNDERFLOW, CY(I)=CMPLX(0.0,0.0),
+    //                              I=1,...,N WHEN X >= 0.0. WHEN X < 0.0
+    //                              NZ STATES ONLY THE NUMBER OF UNDERFLOWS
+    //                              IN THE SEQUENCE.
+    //
+    //           IERR   - ERROR FLAG
+    //                    IERR=0, NORMAL RETURN - COMPUTATION COMPLETED
+    //                    IERR=1, INPUT ERROR   - NO COMPUTATION
+    //                    IERR=2, OVERFLOW      - NO COMPUTATION, FNU IS
+    //                            TOO LARGE OR CABS(Z) IS TOO SMALL OR BOTH
+    //                    IERR=3, CABS(Z) OR FNU+N-1 LARGE - COMPUTATION DONE
+    //                            BUT LOSSES OF SIGNIFCANCE BY ARGUMENT
+    //                            REDUCTION PRODUCE LESS THAN HALF OF MACHINE
+    //                            ACCURACY
+    //                    IERR=4, CABS(Z) OR FNU+N-1 TOO LARGE - NO COMPUTA-
+    //                            TION BECAUSE OF COMPLETE LOSSES OF SIGNIFI-
+    //                            CANCE BY ARGUMENT REDUCTION
+    //                    IERR=5, ERROR              - NO COMPUTATION,
+    //                            ALGORITHM TERMINATION CONDITION NOT MET
+    //
+    // ***LONG DESCRIPTION
+    //
+    //         EQUATIONS OF THE REFERENCE ARE IMPLEMENTED FOR SMALL ORDERS
+    //         DNU AND DNU+1.0 IN THE RIGHT HALF PLANE X >= 0.0. FORWARD
+    //         RECURRENCE GENERATES HIGHER ORDERS. K IS CONTINUED TO THE LEFT
+    //         HALF PLANE BY THE RELATION
+    //
+    //         K(FNU,Z*EXP(MP)) = EXP(-MP*FNU)*K(FNU,Z)-MP*I(FNU,Z)
+    //         MP=MR*PI*I, MR=+1 OR -1, RE(Z) > 0, I**2=-1
+    //
+    //         WHERE I(FNU,Z) IS THE I BESSEL FUNCTION.
+    //
+    //         FOR LARGE ORDERS, FNU > FNUL, THE K FUNCTION IS COMPUTED
+    //         BY MEANS OF ITS UNIFORM ASYMPTOTIC EXPANSIONS.
+    //
+    //         FOR NEGATIVE ORDERS, THE FORMULA
+    //
+    //                       K(-FNU,Z) = K(FNU,Z)
+    //
+    //         CAN BE USED.
+    //
+    //         ZBESK ASSUMES THAT A SIGNIFICANT DIGIT SINH(X) FUNCTION IS
+    //         AVAILABLE.
+    //
+    //         IN MOST COMPLEX VARIABLE COMPUTATION, ONE MUST EVALUATE ELE-
+    //         MENTARY FUNCTIONS. WHEN THE MAGNITUDE OF Z OR FNU+N-1 IS
+    //         LARGE, LOSSES OF SIGNIFICANCE BY ARGUMENT REDUCTION OCCUR.
+    //         CONSEQUENTLY, if EITHER ONE EXCEEDS U1=SQRT(0.5/UR), THEN
+    //         LOSSES EXCEEDING HALF PRECISION ARE LIKELY AND AN ERROR FLAG
+    //         IERR=3 IS TRIGGERED WHERE UR=DMAX1(d1mach(4),1.0e-18) IS
+    //         DOUBLE PRECISION UNIT ROUNDOFF LIMITED TO 18 DIGITS PRECISION.
+    //         if EITHER IS LARGER THAN U2=0.5/UR, THEN ALL SIGNIFICANCE IS
+    //         LOST AND IERR=4. IN ORDER TO USE THE INT FUNCTION, ARGUMENTS
+    //         MUST BE FURTHER RESTRICTED NOT TO EXCEED THE LARGEST MACHINE
+    //         INTEGER, U3=i1mach(9). THUS, THE MAGNITUDE OF Z AND FNU+N-1 IS
+    //         RESTRICTED BY MIN(U2,U3). ON 32 BIT MACHINES, U1,U2, AND U3
+    //         ARE APPROXIMATELY 2.0E+3, 4.2E+6, 2.1E+9 IN SINGLE PRECISION
+    //         ARITHMETIC AND 1.3E+8, 1.8E+16, 2.1E+9 IN DOUBLE PRECISION
+    //         ARITHMETIC RESPECTIVELY. THIS MAKES U2 AND U3 LIMITING IN
+    //         THEIR RESPECTIVE ARITHMETICS. THIS MEANS THAT ONE CAN EXPECT
+    //         TO RETAIN, IN THE WORST CASES ON 32 BIT MACHINES, NO DIGITS
+    //         IN SINGLE AND ONLY 7 DIGITS IN DOUBLE PRECISION ARITHMETIC.
+    //         SIMILAR CONSIDERATIONS HOLD FOR OTHER MACHINES.
+    //
+    //         THE APPROXIMATE RELATIVE ERROR IN THE MAGNITUDE OF A COMPLEX
+    //         BESSEL FUNCTION CAN BE EXPRESSED BY P*10**S WHERE P=MAX(UNIT
+    //         ROUNDOFF,1.0E-18) IS THE NOMINAL PRECISION AND 10**S REPRE-
+    //         SENTS THE INCREASE IN ERROR DUE TO ARGUMENT REDUCTION IN THE
+    //         ELEMENTARY FUNCTIONS. HERE, S=MAX(1,ABS(LOG10(CABS(Z))),
+    //         ABS(LOG10(FNU))) APPROXIMATELY (I.E. S=MAX(1,ABS(EXPONENT OF
+    //         CABS(Z),ABS(EXPONENT OF FNU)) ). HOWEVER, THE PHASE ANGLE MAY
+    //         HAVE ONLY ABSOLUTE ACCURACY. THIS IS MOST LIKELY TO OCCUR WHEN
+    //         ONE COMPONENT (IN ABSOLUTE VALUE) IS LARGER THAN THE OTHER BY
+    //         SEVERAL ORDERS OF MAGNITUDE. if ONE COMPONENT IS 10**K LARGER
+    //         THAN THE OTHER, THEN ONE CAN EXPECT ONLY MAX(ABS(LOG10(P))-K,
+    //         0) SIGNIFICANT DIGITS; OR, STATED ANOTHER WAY, WHEN K EXCEEDS
+    //         THE EXPONENT OF P, NO SIGNIFICANT DIGITS REMAIN IN THE SMALLER
+    //         COMPONENT. HOWEVER, THE PHASE ANGLE RETAINS ABSOLUTE ACCURACY
+    //         BECAUSE, IN COMPLEX ARITHMETIC WITH PRECISION P, THE SMALLER
+    //         COMPONENT WILL NOT (AS A RULE) DECREASE BELOW P TIMES THE
+    //         MAGNITUDE OF THE LARGER COMPONENT. IN THESE EXTREME CASES,
+    //         THE PRINCIPAL PHASE ANGLE IS ON THE ORDER OF +P, -P, PI/2-P,
+    //         OR -PI/2+P.
+    //
+    // ***REFERENCES  HANDBOOK OF MATHEMATICAL FUNCTIONS BY M. ABRAMOWITZ
+    //                 AND I. A. STEGUN, NBS AMS SERIES 55, U.S. DEPT. OF
+    //                 COMMERCE, 1955.
+    //
+    //               COMPUTATION OF BESSEL FUNCTIONS OF COMPLEX ARGUMENT
+    //                 BY D. E. AMOS, SAND83-0083, MAY, 1983.
+    //
+    //               COMPUTATION OF BESSEL FUNCTIONS OF COMPLEX ARGUMENT
+    //                 AND LARGE ORDER BY D. E. AMOS, SAND83-0643, MAY, 1983.
+    //
+    //               A SUBROUTINE PACKAGE FOR BESSEL FUNCTIONS OF A COMPLEX
+    //                 ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, SAND85-
+    //                 1018, MAY, 1985
+    //
+    //               A PORTABLE PACKAGE FOR BESSEL FUNCTIONS OF A COMPLEX
+    //                 ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, ACM
+    //                 TRANS. MATH. SOFTWARE, VOL. 12, NO. 3, SEPTEMBER 1986,
+    //                 PP 265-273.
+    //
+    // ***ROUTINES CALLED  ZACON,ZBKNU,ZBUNK,ZUOIK,ZABS,i1mach,d1mach
+    // ***END PROLOGUE  ZBESK
+    //
+    //     COMPLEX CY,Z
+    //   EXTERNAL ZABS
+    //   DOUBLE PRECISION AA, ALIM, ALN, ARG, AZ, CYI, CYR, DIG, ELIM, FN,
+    //  * FNU, FNUL, RL, R1M5, TOL, UFL, ZI, ZR, d1mach, ZABS, BB
+    //   INTEGER IERR, K, KODE, K1, K2, MR, N, NN, NUF, NW, NZ, i1mach
+    //   DIMENSION CYR(N), CYI(N)
+    // ***FIRST EXECUTABLE STATEMENT  ZBESK
+    sanitise_inputs(z, order, n, true)?;
+
+    //-----------------------------------------------------------------------;
+    //     SET PARAMETERS RELATED TO MACHINE CONSTANTS.;
+    //     TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0E-18.;
+    //     ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.;
+    //     EXP(-ELIM) < EXP(-ALIM)=EXP(-ELIM)/TOL    AND;
+    //     EXP(ELIM) > EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR;
+    //     UNDERFLOW AND OVERFLOW LIMITS WHERE SCALED ARITHMETIC IS DONE.;
+    //     RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.;
+    //     DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).;
+    //     FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU;
+    //-----------------------------------------------------------------------;
+    //   TOL = DMAX1(d1mach(4),1.0e-18);
+    //   K1 = i1mach(15);
+    //   K2 = i1mach(16);
+    //   R1M5 = d1mach(5);
+    //   K = MIN0(K1.abs(),K2.abs());
+    //   ELIM = 2.303*(K as f64)*R1M5-3.0);
+    //   K1 = i1mach(14) - 1;
+    //   AA = R1M5*(K1 as f64);
+    //   DIG = DMIN1(AA,18.0);
+    //   AA = AA*2.303;
+    //   ALIM = ELIM + DMAX1(-AA,-41.45);
+    //   FNUL = 10.0 + 6.0*(DIG-3.0);
+    //   RL = 1.2*DIG + 3.0;
+    //-----------------------------------------------------------------------------;
+    //     TEST FOR PROPER RANGE;
+    //-----------------------------------------------------------------------;
+    let abs_z = z.abs();
+    //   AZ = ZABS(ZR,ZI);
+    //   FN = FNU + ((NN-1) as f64);
+    let modified_order = order + ((n - 1) as f64);
+    //   AA = 0.5/TOL;
+    //   BB=DBLE(FLOAT(i1mach(9)))*0.5;
+    //   AA = DMIN1(AA,BB);
+    let partial_significance_loss = is_sigificance_lost(abs_z, modified_order, false)?;
+
+    // let AA =
+    //   if (AZ > AA) {return Err(LossOfSignificance);};
+    //   if (FN > AA) {return Err(LossOfSignificance);};
+    //   AA = DSQRT(AA);
+    //   if (AZ > AA) IERR=3;
+    //   if (FN > AA) IERR=3;
+    //-----------------------------------------------------------------------;
+    //     OVERFLOW TEST ON THE LAST MEMBER OF THE SEQUENCE;
+    //-----------------------------------------------------------------------;
+    //     UFL = DEXP(-ELIM);
+    //   UFL = d1mach(1)*1.0e+3;
+    if abs_z < MACHINE_CONSTANTS.underflow_limit {
+        //GO TO 180;
+        return Err(Overflow);
+    }
+
+    let mut nz = 0;
+    if order > MACHINE_CONSTANTS.asymptotic_order_limit
+    //GO TO 80;
+    {
+        //-----------------------------------------------------------------------
+        //     UNIFORM ASYMPTOTIC EXPANSIONS FOR FNU > FNUL
+        //-----------------------------------------------------------------------
+        //    80 CONTINUE;
+        let rotation = if z.re >= 0.0 {
+            RotationDirection::None
+        } else if z.im < 0.0 {
+            RotationDirection::Left
+        } else {
+            RotationDirection::Right
+        };
+
+        //   MR = 0;
+        //   if (ZR >= 0.0) GO TO 90;
+        //   MR = 1;
+        //   if (ZI < 0.0) MR = -1;
+        //    90 CONTINUE;
+        let (y, nz) = ZBUNK(z, order, scaling, rotation, n)?;
+        return if partial_significance_loss {
+            Err(PartialLossOfSignificance { y, nz })
+        } else {
+            Ok((y, nz))
+        };
+        //   CALL ZBUNK(ZR, ZI, FNU, KODE, MR, NN, CYR, CYI, NW, TOL, ELIM,;
+        //  * ALIM);
+        //   if (NW < 0) GO TO 200;
+        //   NZ = NZ + NW;
+        //   RETURN;
+    }
+
+    if modified_order > 2.0 {
+        // 50 CONTINUE;
+        let mut y = c_zeros(n);
+        let NUF = check_underflow_uniform_asymp_params(z, order, scaling, IKType::K, n, &mut y)?;
+        //   CALL ZUOIK(ZR, ZI, FNU, KODE, 2, NN, CYR, CYI, NUF, TOL, ELIM,;
+        //  * ALIM);
+        //   if (NUF < 0) GO TO 180;
+        nz += NUF;
+
+        //-----------------------------------------------------------------------;
+        //     HERE NN=N OR NN=0 SINCE NUF=0,NN, OR -1 ON RETURN FROM CUOIK;
+        //     if NUF=NN, THEN CY(I)=CZERO FOR ALL I;
+        //-----------------------------------------------------------------------;
+        if NUF == n {
+            //GO TO 100;
+            return if z.re < 0.0 {
+                Err(Overflow)
+            } else {
+                if partial_significance_loss {
+                    Err(PartialLossOfSignificance { y, nz })
+                } else {
+                    Ok((y, nz))
+                }
+            };
+        }
+    }
+    if (modified_order > 1.0) && abs_z <= MACHINE_CONSTANTS.abs_error_tolerance {
+        //   if (FN > 2.0) GO TO 50;
+        //   if (AZ <= TOL) GO TO 60;
+        let half_abs_z = 0.5 * abs_z;
+        //   ALN = -FN*DLOG(ARG);
+        if -modified_order * half_abs_z.ln() > MACHINE_CONSTANTS.exponent_limit {
+            return Err(Overflow);
+        } //GO TO 180;
+    }
+    //   GO TO 60;
+    //    50 CONTINUE;
+    //       CALL ZUOIK(ZR, ZI, FNU, KODE, 2, NN, CYR, CYI, NUF, TOL, ELIM,;
+    //      * ALIM);
+    //       if (NUF < 0) GO TO 180;
+    //       NZ = NZ + NUF;
+    //       NN = NN - NUF;
+    // //-----------------------------------------------------------------------;
+    // //     HERE NN=N OR NN=0 SINCE NUF=0,NN, OR -1 ON RETURN FROM CUOIK;
+    // //     if NUF=NN, THEN CY(I)=CZERO FOR ALL I;
+    // //-----------------------------------------------------------------------;
+    //       if (NN == 0) GO TO 100;
+    //    60 CONTINUE;
+    let (y, nz) = if z.re >= 0.0 {
+        // GO TO 70;
+        //-----------------------------------------------------------------------;
+        //     RIGHT HALF PLANE COMPUTATION, REAL(Z) >= 0.;
+        //-----------------------------------------------------------------------;
+        k_right_half_plane(z, order, scaling, n)?
+    //   CALL ZBKNU(ZR, ZI, FNU, KODE, NN, CYR, CYI, NW, TOL, ELIM, ALIM);
+    //   if (NW < 0) GO TO 200;
+    //   NZ=NW;
+    //   RETURN;
+    } else {
+        //-----------------------------------------------------------------------;
+        //     LEFT HALF PLANE COMPUTATION;
+        //     PI/2 < ARG(Z) <= PI AND -PI < ARG(Z) < -PI/2.;
+        //-----------------------------------------------------------------------;
+        //    70 CONTINUE;
+        if nz != 0 {
+            return Err(Overflow);
+        } //GO TO 180;
+        let rotation = if z.im < 0.0 {
+            RotationDirection::Left
+        } else {
+            RotationDirection::Right
+        };
+        //   MR = 1;
+        //   if (ZI < 0.0) MR = -1;
+        analytic_continuation(z, order, scaling, rotation, n)?
+        //   CALL ZACON(ZR, ZI, FNU, KODE, MR, NN, CYR, CYI, NW, RL, FNUL,;
+        //  * TOL, ELIM, ALIM);
+        //   if (NW < 0) GO TO 200;
+        //   NZ=NW;
+        //   RETURN;
+    };
+    if partial_significance_loss {
+        Err(PartialLossOfSignificance { y, nz })
+    } else {
+        Ok((y, nz))
+    }
+    //   100 CONTINUE;
+    //       if (ZR < 0.0) GO TO 180;
+    //       RETURN;
+    //   180 CONTINUE;
+    //       NZ = 0;
+    //       IERR=2;
+    //       RETURN;
+    //   200 CONTINUE;
+    //       if(NW == (-1)) GO TO 180;
+    //       NZ=0;
+    //       IERR=5;
+    //       RETURN;
+    //   260 CONTINUE;
+    //       NZ=0;
+    //       IERR=4;
+    //       RETURN;
+    //       END;
+}
 /*
-fn ZBESK(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, IERR)
-// ***BEGIN PROLOGUE  ZBESK
-// ***DATE WRITTEN   830501   (YYMMDD)
-// ***REVISION DATE  890801, 930101   (YYMMDD)
-// ***CATEGORY NO.  B5K
-// ***KEYWORDS  K-BESSEL FUNCTION,COMPLEX BESSEL FUNCTION,
-//             MODIFIED BESSEL FUNCTION OF THE SECOND KIND,
-//             BESSEL FUNCTION OF THE THIRD KIND
-// ***AUTHOR  AMOS, DONALD E., SANDIA NATIONAL LABORATORIES
-// ***PURPOSE  TO COMPUTE K-BESSEL FUNCTIONS OF COMPLEX ARGUMENT
-// ***DESCRIPTION
-//
-//                      ***A DOUBLE PRECISION ROUTINE***
-//
-//         ON KODE=1, ZBESK COMPUTES AN N MEMBER SEQUENCE OF COMPLEX
-//         BESSEL FUNCTIONS CY(J)=K(FNU+J-1,Z) FOR REAL, NONNEGATIVE
-//         ORDERS FNU+J-1, J=1,...,N AND COMPLEX Z != CMPLX(0.0,0.0)
-//         IN THE CUT PLANE -PI < ARG(Z) <= PI. ON KODE=2, ZBESK
-//         RETURNS THE SCALED K FUNCTIONS,
-//
-//         CY(J)=EXP(Z)*K(FNU+J-1,Z) , J=1,...,N,
-//
-//         WHICH REMOVE THE EXPONENTIAL BEHAVIOR IN BOTH THE LEFT AND
-//         RIGHT HALF PLANES FOR Z TO INFINITY. DEFINITIONS AND
-//         NOTATION ARE FOUND IN THE NBS HANDBOOK OF MATHEMATICAL
-//         FUNCTIONS (REF. 1).
-//
-//         INPUT      ZR,ZI,FNU ARE DOUBLE PRECISION
-//           ZR,ZI  - Z=CMPLX(ZR,ZI), Z != CMPLX(0.0,0.0),
-//                    -PI < ARG(Z) <= PI
-//           FNU    - ORDER OF INITIAL K FUNCTION, FNU >= 0.0
-//           N      - NUMBER OF MEMBERS OF THE SEQUENCE, N >= 1
-//           KODE   - A PARAMETER TO INDICATE THE SCALING OPTION
-//                    KODE= 1  RETURNS
-//                             CY(I)=K(FNU+I-1,Z), I=1,...,N
-//                        = 2  RETURNS
-//                             CY(I)=K(FNU+I-1,Z)*EXP(Z), I=1,...,N
-//
-//         OUTPUT     CYR,CYI ARE DOUBLE PRECISION
-//           CYR,CYI- DOUBLE PRECISION VECTORS WHOSE FIRST N COMPONENTS
-//                    CONTAIN REAL AND IMAGINARY PARTS FOR THE SEQUENCE
-//                    CY(I)=K(FNU+I-1,Z), I=1,...,N OR
-//                    CY(I)=K(FNU+I-1,Z)*EXP(Z), I=1,...,N
-//                    DEPENDING ON KODE
-//           NZ     - NUMBER OF COMPONENTS SET TO ZERO DUE TO UNDERFLOW.
-//                    NZ= 0   , NORMAL RETURN
-//                    NZ > 0 , FIRST NZ COMPONENTS OF CY SET TO ZERO DUE
-//                              TO UNDERFLOW, CY(I)=CMPLX(0.0,0.0),
-//                              I=1,...,N WHEN X >= 0.0. WHEN X < 0.0
-//                              NZ STATES ONLY THE NUMBER OF UNDERFLOWS
-//                              IN THE SEQUENCE.
-//
-//           IERR   - ERROR FLAG
-//                    IERR=0, NORMAL RETURN - COMPUTATION COMPLETED
-//                    IERR=1, INPUT ERROR   - NO COMPUTATION
-//                    IERR=2, OVERFLOW      - NO COMPUTATION, FNU IS
-//                            TOO LARGE OR CABS(Z) IS TOO SMALL OR BOTH
-//                    IERR=3, CABS(Z) OR FNU+N-1 LARGE - COMPUTATION DONE
-//                            BUT LOSSES OF SIGNIFCANCE BY ARGUMENT
-//                            REDUCTION PRODUCE LESS THAN HALF OF MACHINE
-//                            ACCURACY
-//                    IERR=4, CABS(Z) OR FNU+N-1 TOO LARGE - NO COMPUTA-
-//                            TION BECAUSE OF COMPLETE LOSSES OF SIGNIFI-
-//                            CANCE BY ARGUMENT REDUCTION
-//                    IERR=5, ERROR              - NO COMPUTATION,
-//                            ALGORITHM TERMINATION CONDITION NOT MET
-//
-// ***LONG DESCRIPTION
-//
-//         EQUATIONS OF THE REFERENCE ARE IMPLEMENTED FOR SMALL ORDERS
-//         DNU AND DNU+1.0 IN THE RIGHT HALF PLANE X >= 0.0. FORWARD
-//         RECURRENCE GENERATES HIGHER ORDERS. K IS CONTINUED TO THE LEFT
-//         HALF PLANE BY THE RELATION
-//
-//         K(FNU,Z*EXP(MP)) = EXP(-MP*FNU)*K(FNU,Z)-MP*I(FNU,Z)
-//         MP=MR*PI*I, MR=+1 OR -1, RE(Z) > 0, I**2=-1
-//
-//         WHERE I(FNU,Z) IS THE I BESSEL FUNCTION.
-//
-//         FOR LARGE ORDERS, FNU > FNUL, THE K FUNCTION IS COMPUTED
-//         BY MEANS OF ITS UNIFORM ASYMPTOTIC EXPANSIONS.
-//
-//         FOR NEGATIVE ORDERS, THE FORMULA
-//
-//                       K(-FNU,Z) = K(FNU,Z)
-//
-//         CAN BE USED.
-//
-//         ZBESK ASSUMES THAT A SIGNIFICANT DIGIT SINH(X) FUNCTION IS
-//         AVAILABLE.
-//
-//         IN MOST COMPLEX VARIABLE COMPUTATION, ONE MUST EVALUATE ELE-
-//         MENTARY FUNCTIONS. WHEN THE MAGNITUDE OF Z OR FNU+N-1 IS
-//         LARGE, LOSSES OF SIGNIFICANCE BY ARGUMENT REDUCTION OCCUR.
-//         CONSEQUENTLY, if EITHER ONE EXCEEDS U1=SQRT(0.5/UR), THEN
-//         LOSSES EXCEEDING HALF PRECISION ARE LIKELY AND AN ERROR FLAG
-//         IERR=3 IS TRIGGERED WHERE UR=DMAX1(d1mach(4),1.0e-18) IS
-//         DOUBLE PRECISION UNIT ROUNDOFF LIMITED TO 18 DIGITS PRECISION.
-//         if EITHER IS LARGER THAN U2=0.5/UR, THEN ALL SIGNIFICANCE IS
-//         LOST AND IERR=4. IN ORDER TO USE THE INT FUNCTION, ARGUMENTS
-//         MUST BE FURTHER RESTRICTED NOT TO EXCEED THE LARGEST MACHINE
-//         INTEGER, U3=i1mach(9). THUS, THE MAGNITUDE OF Z AND FNU+N-1 IS
-//         RESTRICTED BY MIN(U2,U3). ON 32 BIT MACHINES, U1,U2, AND U3
-//         ARE APPROXIMATELY 2.0E+3, 4.2E+6, 2.1E+9 IN SINGLE PRECISION
-//         ARITHMETIC AND 1.3E+8, 1.8E+16, 2.1E+9 IN DOUBLE PRECISION
-//         ARITHMETIC RESPECTIVELY. THIS MAKES U2 AND U3 LIMITING IN
-//         THEIR RESPECTIVE ARITHMETICS. THIS MEANS THAT ONE CAN EXPECT
-//         TO RETAIN, IN THE WORST CASES ON 32 BIT MACHINES, NO DIGITS
-//         IN SINGLE AND ONLY 7 DIGITS IN DOUBLE PRECISION ARITHMETIC.
-//         SIMILAR CONSIDERATIONS HOLD FOR OTHER MACHINES.
-//
-//         THE APPROXIMATE RELATIVE ERROR IN THE MAGNITUDE OF A COMPLEX
-//         BESSEL FUNCTION CAN BE EXPRESSED BY P*10**S WHERE P=MAX(UNIT
-//         ROUNDOFF,1.0E-18) IS THE NOMINAL PRECISION AND 10**S REPRE-
-//         SENTS THE INCREASE IN ERROR DUE TO ARGUMENT REDUCTION IN THE
-//         ELEMENTARY FUNCTIONS. HERE, S=MAX(1,ABS(LOG10(CABS(Z))),
-//         ABS(LOG10(FNU))) APPROXIMATELY (I.E. S=MAX(1,ABS(EXPONENT OF
-//         CABS(Z),ABS(EXPONENT OF FNU)) ). HOWEVER, THE PHASE ANGLE MAY
-//         HAVE ONLY ABSOLUTE ACCURACY. THIS IS MOST LIKELY TO OCCUR WHEN
-//         ONE COMPONENT (IN ABSOLUTE VALUE) IS LARGER THAN THE OTHER BY
-//         SEVERAL ORDERS OF MAGNITUDE. if ONE COMPONENT IS 10**K LARGER
-//         THAN THE OTHER, THEN ONE CAN EXPECT ONLY MAX(ABS(LOG10(P))-K,
-//         0) SIGNIFICANT DIGITS; OR, STATED ANOTHER WAY, WHEN K EXCEEDS
-//         THE EXPONENT OF P, NO SIGNIFICANT DIGITS REMAIN IN THE SMALLER
-//         COMPONENT. HOWEVER, THE PHASE ANGLE RETAINS ABSOLUTE ACCURACY
-//         BECAUSE, IN COMPLEX ARITHMETIC WITH PRECISION P, THE SMALLER
-//         COMPONENT WILL NOT (AS A RULE) DECREASE BELOW P TIMES THE
-//         MAGNITUDE OF THE LARGER COMPONENT. IN THESE EXTREME CASES,
-//         THE PRINCIPAL PHASE ANGLE IS ON THE ORDER OF +P, -P, PI/2-P,
-//         OR -PI/2+P.
-//
-// ***REFERENCES  HANDBOOK OF MATHEMATICAL FUNCTIONS BY M. ABRAMOWITZ
-//                 AND I. A. STEGUN, NBS AMS SERIES 55, U.S. DEPT. OF
-//                 COMMERCE, 1955.
-//
-//               COMPUTATION OF BESSEL FUNCTIONS OF COMPLEX ARGUMENT
-//                 BY D. E. AMOS, SAND83-0083, MAY, 1983.
-//
-//               COMPUTATION OF BESSEL FUNCTIONS OF COMPLEX ARGUMENT
-//                 AND LARGE ORDER BY D. E. AMOS, SAND83-0643, MAY, 1983.
-//
-//               A SUBROUTINE PACKAGE FOR BESSEL FUNCTIONS OF A COMPLEX
-//                 ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, SAND85-
-//                 1018, MAY, 1985
-//
-//               A PORTABLE PACKAGE FOR BESSEL FUNCTIONS OF A COMPLEX
-//                 ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, ACM
-//                 TRANS. MATH. SOFTWARE, VOL. 12, NO. 3, SEPTEMBER 1986,
-//                 PP 265-273.
-//
-// ***ROUTINES CALLED  ZACON,ZBKNU,ZBUNK,ZUOIK,ZABS,i1mach,d1mach
-// ***END PROLOGUE  ZBESK
-//
-//     COMPLEX CY,Z
-      EXTERNAL ZABS
-      DOUBLE PRECISION AA, ALIM, ALN, ARG, AZ, CYI, CYR, DIG, ELIM, FN,
-     * FNU, FNUL, RL, R1M5, TOL, UFL, ZI, ZR, d1mach, ZABS, BB
-      INTEGER IERR, K, KODE, K1, K2, MR, N, NN, NUF, NW, NZ, i1mach
-      DIMENSION CYR(N), CYI(N)
-// ***FIRST EXECUTABLE STATEMENT  ZBESK
-      IERR = 0
-      NZ=0
-      if (ZI == 0.0E0 && ZR == 0.0E0) IERR=1
-      if (FNU < 0.0) IERR=1
-      if (KODE < 1 || KODE > 2) IERR=1
-      if (N < 1) IERR=1
-      if (IERR != 0) RETURN
-      NN = N
-//-----------------------------------------------------------------------
-//     SET PARAMETERS RELATED TO MACHINE CONSTANTS.
-//     TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0E-18.
-//     ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.
-//     EXP(-ELIM) < EXP(-ALIM)=EXP(-ELIM)/TOL    AND
-//     EXP(ELIM) > EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR
-//     UNDERFLOW AND OVERFLOW LIMITS WHERE SCALED ARITHMETIC IS DONE.
-//     RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.
-//     DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).
-//     FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU
-//-----------------------------------------------------------------------
-      TOL = DMAX1(d1mach(4),1.0e-18)
-      K1 = i1mach(15)
-      K2 = i1mach(16)
-      R1M5 = d1mach(5)
-      K = MIN0(K1.abs(),K2.abs())
-      ELIM = 2.303*(K as f64)*R1M5-3.0)
-      K1 = i1mach(14) - 1
-      AA = R1M5*(K1 as f64)
-      DIG = DMIN1(AA,18.0)
-      AA = AA*2.303
-      ALIM = ELIM + DMAX1(-AA,-41.45)
-      FNUL = 10.0 + 6.0*(DIG-3.0)
-      RL = 1.2*DIG + 3.0
-//-----------------------------------------------------------------------------
-//     TEST FOR PROPER RANGE
-//-----------------------------------------------------------------------
-      AZ = ZABS(ZR,ZI)
-      FN = FNU + ((NN-1) as f64)
-      AA = 0.5/TOL
-      BB=DBLE(FLOAT(i1mach(9)))*0.5
-      AA = DMIN1(AA,BB)
-      if (AZ > AA) {return Err(LossOfSignificance);}
-      if (FN > AA) {return Err(LossOfSignificance);}
-      AA = DSQRT(AA)
-      if (AZ > AA) IERR=3
-      if (FN > AA) IERR=3
-//-----------------------------------------------------------------------
-//     OVERFLOW TEST ON THE LAST MEMBER OF THE SEQUENCE
-//-----------------------------------------------------------------------
-//     UFL = DEXP(-ELIM)
-      UFL = d1mach(1)*1.0e+3
-      if (AZ < UFL) GO TO 180
-      if (FNU > FNUL) GO TO 80
-      if (FN <= 1.0) GO TO 60
-      if (FN > 2.0) GO TO 50
-      if (AZ > TOL) GO TO 60
-      ARG = 0.5*AZ
-      ALN = -FN*DLOG(ARG)
-      if (ALN > ELIM) GO TO 180
-      GO TO 60
-   50 CONTINUE
-      CALL ZUOIK(ZR, ZI, FNU, KODE, 2, NN, CYR, CYI, NUF, TOL, ELIM,
-     * ALIM)
-      if (NUF < 0) GO TO 180
-      NZ = NZ + NUF
-      NN = NN - NUF
-//-----------------------------------------------------------------------
-//     HERE NN=N OR NN=0 SINCE NUF=0,NN, OR -1 ON RETURN FROM CUOIK
-//     if NUF=NN, THEN CY(I)=CZERO FOR ALL I
-//-----------------------------------------------------------------------
-      if (NN == 0) GO TO 100
-   60 CONTINUE
-      if (ZR < 0.0) GO TO 70
-//-----------------------------------------------------------------------
-//     RIGHT HALF PLANE COMPUTATION, REAL(Z) >= 0.
-//-----------------------------------------------------------------------
-      CALL ZBKNU(ZR, ZI, FNU, KODE, NN, CYR, CYI, NW, TOL, ELIM, ALIM)
-      if (NW < 0) GO TO 200
-      NZ=NW
-      RETURN
-//-----------------------------------------------------------------------
-//     LEFT HALF PLANE COMPUTATION
-//     PI/2 < ARG(Z) <= PI AND -PI < ARG(Z) < -PI/2.
-//-----------------------------------------------------------------------
-   70 CONTINUE
-      if (NZ != 0) GO TO 180
-      MR = 1
-      if (ZI < 0.0) MR = -1
-      CALL ZACON(ZR, ZI, FNU, KODE, MR, NN, CYR, CYI, NW, RL, FNUL,
-     * TOL, ELIM, ALIM)
-      if (NW < 0) GO TO 200
-      NZ=NW
-      RETURN
-//-----------------------------------------------------------------------
-//     UNIFORM ASYMPTOTIC EXPANSIONS FOR FNU > FNUL
-//-----------------------------------------------------------------------
-   80 CONTINUE
-      MR = 0
-      if (ZR >= 0.0) GO TO 90
-      MR = 1
-      if (ZI < 0.0) MR = -1
-   90 CONTINUE
-      CALL ZBUNK(ZR, ZI, FNU, KODE, MR, NN, CYR, CYI, NW, TOL, ELIM,
-     * ALIM)
-      if (NW < 0) GO TO 200
-      NZ = NZ + NW
-      RETURN
-  100 CONTINUE
-      if (ZR < 0.0) GO TO 180
-      RETURN
-  180 CONTINUE
-      NZ = 0
-      IERR=2
-      RETURN
-  200 CONTINUE
-      if(NW == (-1)) GO TO 180
-      NZ=0
-      IERR=5
-      RETURN
-  260 CONTINUE
-      NZ=0
-      IERR=4
-      RETURN
-      END
 fn ZBESY(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, CWRKR,
      *           CWRKI, IERR)
 // ***BEGIN PROLOGUE  ZBESY
@@ -1390,6 +1461,8 @@ fn ZAIRY(
     //
     // ***ROUTINES CALLED  ZACAI,ZBKNU,ZEXP,ZSQRT,ZABS,i1mach,d1mach
     // ***END PROLOGUE  ZAIRY
+
+    // TODO test ZAIRY directly?
     const C1: f64 = 3.55028053887817240e-01;
     const C2: f64 = 2.58819403792806799e-01;
     const COEFF: f64 = 1.83776298473930683e-01;
