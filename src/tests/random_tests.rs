@@ -12,13 +12,13 @@ use std::f64::consts::{FRAC_PI_2, PI};
 use approx::assert_relative_eq;
 
 use super::{
-    BesselFortranSig, BesselSig, bessel_h_ref, check_against_fortran, check_complex_arrays_equal,
-    fortran_bess_loop, zbesh_first, zbesh_fortran_first, zbesh_fortran_second, zbesh_second,
-    zbesi_fortran, zbesj_fortran, zbesk_fortran,
+    BesselFortranSig, BesselSig, TOLERANCE_MARGIN, airy_ref, bessel_h_ref, check_against_fortran,
+    check_complex_arrays_equal, fortran_bess_loop, zbesh_first, zbesh_fortran_first,
+    zbesh_fortran_second, zbesh_second, zbesi_fortran, zbesj_fortran, zbesk_fortran,
 };
 use crate::{
-    BesselError, HankelKind, Scaling,
-    amos::{ZBESK, complex_bessel_j, zbesi},
+    BesselError, HankelKind, Scaling, airy, airyp,
+    amos::{MACHINE_CONSTANTS, ZBESK, complex_bessel_j, zbesi},
     bessel_i, bessel_j, bessel_k, hankel,
 };
 
@@ -125,8 +125,8 @@ fn test_bessel_h_random(
         let zr = random_val_rng(&mut rng);
         let zi = random_val_rng(&mut rng);
         let z = Complex64::new(zr, zi);
-        dbg!(order, &z);
-        println!("#[case({}, {}, {})]", order, z.re, z.im);
+        // dbg!(order, &z);
+        // println!("#[case({}, {}, {})]", order, z.re, z.im);
         let ans = hankel(order, z, kind);
         let expected = bessel_h_ref(order, z, kind);
         if let Ok(actual) = ans {
@@ -141,6 +141,30 @@ fn test_bessel_h_random(
             }
             // dbg!(&err, &expected);
             assert_eq!(err.error_code(), expected.unwrap_err());
+        }
+    }
+}
+
+#[rstest]
+fn test_airy_random(mut rng: SmallRng, #[values(true, false)] is_derivative: bool) {
+    for _ in 0..1000000 {
+        let zr = random_val_rng(&mut rng);
+        let zi = random_val_rng(&mut rng);
+
+        let z = Complex64::new(zr, zi);
+        // dbg!(&z);
+        // println!("#[case({}, {}, {})]", 1, z.re, z.im);
+
+        let actual = if is_derivative { airyp(z) } else { airy(z) };
+        let expected = airy_ref(z, is_derivative);
+        if let Ok(actual) = actual {
+            assert_relative_eq!(
+                actual,
+                &expected.unwrap(),
+                max_relative = MACHINE_CONSTANTS.abs_error_tolerance * TOLERANCE_MARGIN
+            );
+        } else {
+            assert_eq!(actual.unwrap_err().error_code(), expected.unwrap_err())
         }
     }
 }

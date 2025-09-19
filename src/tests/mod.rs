@@ -37,4 +37,9 @@ fn bessel_h_ref(order: f64, z: Complex64, kind: HankelKind) -> Result<Complex64,
     if ierr != 0 { Err(ierr) } else { Ok(y[0]) }
 }
 
+fn airy_ref(z: Complex64, is_derivative: bool) -> Result<Complex64, i32> {
+    let (y, _, ierr) = zairy_fortran(z, is_derivative, Scaling::Unscaled);
+    if ierr != 0 { Err(ierr) } else { Ok(y) }
+}
+
 // TODO test bad inputs

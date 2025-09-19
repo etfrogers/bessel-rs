@@ -1328,7 +1328,7 @@ fn ZBESY(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, CWRKR,
       END
       */
 
-fn ZAIRY(
+pub fn ZAIRY(
     z: Complex64,
     return_derivative: bool,
     scaling: Scaling,
@@ -1469,7 +1469,13 @@ fn ZAIRY(
 
     let abs_z = z.abs();
     let float_is_derivative = if return_derivative { 1.0 } else { 0.0 };
-    if abs_z <= 1.0 {
+    //--------------------------------------------------------------------------
+    //     TEST FOR PROPER RANGE
+    //-----------------------------------------------------------------------
+    // significance loss only tested against z, not order, so 0.0 is used to never cause significance loss
+    let partial_loss_of_significance = is_sigificance_lost(abs_z, 0.0, true)?;
+
+    let retval = if abs_z <= 1.0 {
         //-----------------------------------------------------------------------
         //     POWER SERIES FOR CABS(Z) <= 1.
         //-----------------------------------------------------------------------
@@ -1477,20 +1483,28 @@ fn ZAIRY(
         let mut s2 = c_one();
         if abs_z < MACHINE_CONSTANTS.abs_error_tolerance {
             s1 = c_zero();
-            return if return_derivative {
+            let retval = if return_derivative {
                 let mut ai = Complex64::new(-C2, 0.0);
 
                 if abs_z > MACHINE_CONSTANTS.underflow_limit.sqrt() {
                     s1 = z.pow(2.0) / 2.0;
                 }
                 ai += C1 * s1;
-                Ok((ai, 0))
+                (ai, 0)
             } else {
                 if abs_z > MACHINE_CONSTANTS.underflow_limit {
                     s1 = C2 * z;
                 }
                 let ai = C1 - s1;
-                Ok((ai, 0))
+                (ai, 0)
+            };
+            return if partial_loss_of_significance {
+                Err(PartialLossOfSignificance {
+                    y: vec![retval.0],
+                    nz: retval.1,
+                })
+            } else {
+                Ok(retval)
             };
         }
         let abs_z_sq = abs_z * abs_z;
@@ -1540,18 +1554,13 @@ fn ZAIRY(
         if scaling == Scaling::Scaled {
             ai *= (TWO_THIRDS * z * z.sqrt()).exp();
         }
-        Ok((ai, 0))
+        (ai, 0)
     } else {
         //-----------------------------------------------------------------------
         //     CASE FOR CABS(Z) > 1.0
         //-----------------------------------------------------------------------
         let FNU = (1.0 + float_is_derivative) / 3.0;
         let ln_abs_z = abs_z.ln();
-        //--------------------------------------------------------------------------
-        //     TEST FOR PROPER RANGE
-        //-----------------------------------------------------------------------
-        // significance loss only tested against z, not order, so 0.0 is used to never cause significance loss
-        let partial_loss_of_significance = is_sigificance_lost(abs_z, 0.0, true)?;
 
         let csq = z.sqrt();
         let mut zta = TWO_THIRDS * z * csq;
@@ -1592,33 +1601,35 @@ fn ZAIRY(
             //-----------------------------------------------------------------------
             //     UNDERFLOW TEST
             //-----------------------------------------------------------------------
+            let mut retval = None;
             if scaling == Scaling::Unscaled && AA > MACHINE_CONSTANTS.approximation_limit {
                 AA = -AA - 0.25 * ln_abs_z;
                 overflow_state = Overflow::NearUnder;
                 scale_factor = 1.0 / MACHINE_CONSTANTS.abs_error_tolerance;
                 if AA < -MACHINE_CONSTANTS.exponent_limit {
-                    return Ok((c_zero(), 1));
+                    retval = Some(Ok((c_zeros(1), 1)));
                 }
             }
-            k_right_half_plane(zta, FNU, scaling, 1)?
+            retval.unwrap_or_else(|| k_right_half_plane(zta, FNU, scaling, 1))?
         };
+
         let mut s1 = cy[0] * COEFF;
-        let retval = if overflow_state == Overflow::None {
+        if overflow_state == Overflow::None {
             let ai = if return_derivative { -z * s1 } else { csq * s1 };
             (ai, NZ)
         } else {
             s1 *= scale_factor;
             s1 *= if return_derivative { -z } else { csq };
             (s1 / scale_factor, NZ)
-        };
-        if partial_loss_of_significance {
-            Err(PartialLossOfSignificance {
-                y: vec![retval.0],
-                nz: retval.1,
-            })
-        } else {
-            Ok(retval)
         }
+    };
+    if partial_loss_of_significance {
+        Err(PartialLossOfSignificance {
+            y: vec![retval.0],
+            nz: retval.1,
+        })
+    } else {
+        Ok(retval)
     }
 }
 /*
@@ -3193,7 +3204,10 @@ fn ZACAI(
     //-----------------------------------------------------------------------
     //     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE FOR THE K FUNCTION
     //-----------------------------------------------------------------------s
-    let (cy, _) = k_right_half_plane(zn, order, KODE, 1)?;
+    let (cy, nz) = k_right_half_plane(zn, order, KODE, 1)?;
+    if nz != 0 {
+        return Err(Overflow);
+    }
     let SGN = -PI * rotation.signum();
     let mut csgn = Complex64::new(0.0, SGN);
     if KODE == Scaling::Scaled {

@@ -1,15 +1,16 @@
 use super::{
-    BesselFortranSig, BesselSig, bessel_cases, bessel_h_ref, check_against_fortran,
-    check_complex_arrays_equal, zbesh_first, zbesh_fortran_first, zbesh_fortran_second,
-    zbesh_second, zbesi_fortran, zbesj_fortran, zbesk_fortran,
+    BesselFortranSig, BesselSig, TOLERANCE_MARGIN, airy_ref, bessel_cases, bessel_h_ref,
+    check_against_fortran, check_complex_arrays_equal, zbesh_first, zbesh_fortran_first,
+    zbesh_fortran_second, zbesh_second, zbesi_fortran, zbesj_fortran, zbesk_fortran,
 };
+use approx::assert_relative_eq;
 use complex_bessel_rs::bessel_i::bessel_i as bessel_i_ref;
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_ref;
 use complex_bessel_rs::bessel_k::bessel_k as bessel_k_ref;
 
 use crate::{
-    BesselError, HankelKind, Scaling,
-    amos::{ZBESK, complex_bessel_j, zbesi},
+    BesselError, HankelKind, Scaling, airy, airyp,
+    amos::{MACHINE_CONSTANTS, ZBESK, complex_bessel_j, zbesi},
     bessel_i, bessel_j, bessel_k, hankel,
 };
 use num::complex::Complex64;
@@ -89,6 +90,28 @@ fn test_bessel_h(
     // dbg!(&expected);
     if let Ok(actual) = actual {
         check_complex_arrays_equal(&actual, &expected.unwrap(), &Vec::new());
+    } else {
+        assert_eq!(actual.unwrap_err().error_code(), expected.unwrap_err())
+    }
+}
+
+#[apply(bessel_cases)]
+fn test_airy(
+    #[case] _order: f64,
+    #[case] zr: f64,
+    #[case] zi: f64,
+    #[values(true, false)] is_derivative: bool,
+) {
+    let z = Complex64::new(zr, zi);
+
+    let actual = if is_derivative { airyp(z) } else { airy(z) };
+    let expected = airy_ref(z, is_derivative);
+    if let Ok(actual) = actual {
+        assert_relative_eq!(
+            actual,
+            &expected.unwrap(),
+            max_relative = MACHINE_CONSTANTS.abs_error_tolerance * TOLERANCE_MARGIN
+        );
     } else {
         assert_eq!(actual.unwrap_err().error_code(), expected.unwrap_err())
     }

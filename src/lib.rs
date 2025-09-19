@@ -1,7 +1,7 @@
 #![feature(test)]
 mod amos;
 pub use amos::{BesselError, GammaError, Scaling};
-use amos::{ZBESK, complex_bessel_h, complex_bessel_j, zbesi};
+use amos::{ZAIRY, ZBESK, complex_bessel_h, complex_bessel_j, zbesi};
 use num::complex::Complex64;
 
 use crate::amos::HankelKind;
@@ -26,6 +26,14 @@ pub fn hankel<T: Into<Complex64>>(
     kind: HankelKind,
 ) -> Result<Complex64, BesselError> {
     complex_bessel_h(z.into(), order, Scaling::Unscaled, kind, 1).map(|v| v.0[0])
+}
+
+pub fn airy<T: Into<Complex64>>(z: T) -> Result<Complex64, BesselError> {
+    ZAIRY(z.into(), false, Scaling::Unscaled).map(|v| v.0)
+}
+
+pub fn airyp<T: Into<Complex64>>(z: T) -> Result<Complex64, BesselError> {
+    ZAIRY(z.into(), true, Scaling::Unscaled).map(|v| v.0)
 }
 
 #[cfg(test)]
