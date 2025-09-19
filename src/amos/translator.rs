@@ -687,8 +687,6 @@ pub fn complex_bessel_j(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
 }
 
 pub fn ZBESK(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
-    //CYR, CYI, NZ, IERR)
-
     // ***BEGIN PROLOGUE  ZBESK
     // ***DATE WRITTEN   830501   (YYMMDD)
     // ***REVISION DATE  890801, 930101   (YYMMDD)
@@ -837,79 +835,27 @@ pub fn ZBESK(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResu
     //                 ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, ACM
     //                 TRANS. MATH. SOFTWARE, VOL. 12, NO. 3, SEPTEMBER 1986,
     //                 PP 265-273.
-    //
-    // ***ROUTINES CALLED  ZACON,ZBKNU,ZBUNK,ZUOIK,ZABS,i1mach,d1mach
-    // ***END PROLOGUE  ZBESK
-    //
-    //     COMPLEX CY,Z
-    //   EXTERNAL ZABS
-    //   DOUBLE PRECISION AA, ALIM, ALN, ARG, AZ, CYI, CYR, DIG, ELIM, FN,
-    //  * FNU, FNUL, RL, R1M5, TOL, UFL, ZI, ZR, d1mach, ZABS, BB
-    //   INTEGER IERR, K, KODE, K1, K2, MR, N, NN, NUF, NW, NZ, i1mach
-    //   DIMENSION CYR(N), CYI(N)
-    // ***FIRST EXECUTABLE STATEMENT  ZBESK
-    sanitise_inputs(z, order, n, true)?;
 
-    //-----------------------------------------------------------------------;
-    //     SET PARAMETERS RELATED TO MACHINE CONSTANTS.;
-    //     TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0E-18.;
-    //     ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.;
-    //     EXP(-ELIM) < EXP(-ALIM)=EXP(-ELIM)/TOL    AND;
-    //     EXP(ELIM) > EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR;
-    //     UNDERFLOW AND OVERFLOW LIMITS WHERE SCALED ARITHMETIC IS DONE.;
-    //     RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.;
-    //     DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).;
-    //     FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU;
-    //-----------------------------------------------------------------------;
-    //   TOL = DMAX1(d1mach(4),1.0e-18);
-    //   K1 = i1mach(15);
-    //   K2 = i1mach(16);
-    //   R1M5 = d1mach(5);
-    //   K = MIN0(K1.abs(),K2.abs());
-    //   ELIM = 2.303*(K as f64)*R1M5-3.0);
-    //   K1 = i1mach(14) - 1;
-    //   AA = R1M5*(K1 as f64);
-    //   DIG = DMIN1(AA,18.0);
-    //   AA = AA*2.303;
-    //   ALIM = ELIM + DMAX1(-AA,-41.45);
-    //   FNUL = 10.0 + 6.0*(DIG-3.0);
-    //   RL = 1.2*DIG + 3.0;
+    sanitise_inputs(z, order, n, true)?;
     //-----------------------------------------------------------------------------;
     //     TEST FOR PROPER RANGE;
     //-----------------------------------------------------------------------;
     let abs_z = z.abs();
-    //   AZ = ZABS(ZR,ZI);
-    //   FN = FNU + ((NN-1) as f64);
     let modified_order = order + ((n - 1) as f64);
-    //   AA = 0.5/TOL;
-    //   BB=DBLE(FLOAT(i1mach(9)))*0.5;
-    //   AA = DMIN1(AA,BB);
     let partial_significance_loss = is_sigificance_lost(abs_z, modified_order, false)?;
 
-    // let AA =
-    //   if (AZ > AA) {return Err(LossOfSignificance);};
-    //   if (FN > AA) {return Err(LossOfSignificance);};
-    //   AA = DSQRT(AA);
-    //   if (AZ > AA) IERR=3;
-    //   if (FN > AA) IERR=3;
     //-----------------------------------------------------------------------;
     //     OVERFLOW TEST ON THE LAST MEMBER OF THE SEQUENCE;
     //-----------------------------------------------------------------------;
-    //     UFL = DEXP(-ELIM);
-    //   UFL = d1mach(1)*1.0e+3;
     if abs_z < MACHINE_CONSTANTS.underflow_limit {
-        //GO TO 180;
         return Err(Overflow);
     }
 
     let mut nz = 0;
-    if order > MACHINE_CONSTANTS.asymptotic_order_limit
-    //GO TO 80;
-    {
+    if order > MACHINE_CONSTANTS.asymptotic_order_limit {
         //-----------------------------------------------------------------------
         //     UNIFORM ASYMPTOTIC EXPANSIONS FOR FNU > FNUL
         //-----------------------------------------------------------------------
-        //    80 CONTINUE;
         let rotation = if z.re >= 0.0 {
             RotationDirection::None
         } else if z.im < 0.0 {
@@ -918,31 +864,17 @@ pub fn ZBESK(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResu
             RotationDirection::Right
         };
 
-        //   MR = 0;
-        //   if (ZR >= 0.0) GO TO 90;
-        //   MR = 1;
-        //   if (ZI < 0.0) MR = -1;
-        //    90 CONTINUE;
         let (y, nz) = ZBUNK(z, order, scaling, rotation, n)?;
         return if partial_significance_loss {
             Err(PartialLossOfSignificance { y, nz })
         } else {
             Ok((y, nz))
         };
-        //   CALL ZBUNK(ZR, ZI, FNU, KODE, MR, NN, CYR, CYI, NW, TOL, ELIM,;
-        //  * ALIM);
-        //   if (NW < 0) GO TO 200;
-        //   NZ = NZ + NW;
-        //   RETURN;
     }
 
     if modified_order > 2.0 {
-        // 50 CONTINUE;
         let mut y = c_zeros(n);
         let NUF = check_underflow_uniform_asymp_params(z, order, scaling, IKType::K, n, &mut y)?;
-        //   CALL ZUOIK(ZR, ZI, FNU, KODE, 2, NN, CYR, CYI, NUF, TOL, ELIM,;
-        //  * ALIM);
-        //   if (NUF < 0) GO TO 180;
         nz += NUF;
 
         //-----------------------------------------------------------------------;
@@ -950,7 +882,6 @@ pub fn ZBESK(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResu
         //     if NUF=NN, THEN CY(I)=CZERO FOR ALL I;
         //-----------------------------------------------------------------------;
         if NUF == n {
-            //GO TO 100;
             return if z.re < 0.0 {
                 Err(Overflow)
             } else {
@@ -963,82 +894,36 @@ pub fn ZBESK(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResu
         }
     }
     if (modified_order > 1.0) && abs_z <= MACHINE_CONSTANTS.abs_error_tolerance {
-        //   if (FN > 2.0) GO TO 50;
-        //   if (AZ <= TOL) GO TO 60;
         let half_abs_z = 0.5 * abs_z;
-        //   ALN = -FN*DLOG(ARG);
         if -modified_order * half_abs_z.ln() > MACHINE_CONSTANTS.exponent_limit {
             return Err(Overflow);
-        } //GO TO 180;
+        }
     }
-    //   GO TO 60;
-    //    50 CONTINUE;
-    //       CALL ZUOIK(ZR, ZI, FNU, KODE, 2, NN, CYR, CYI, NUF, TOL, ELIM,;
-    //      * ALIM);
-    //       if (NUF < 0) GO TO 180;
-    //       NZ = NZ + NUF;
-    //       NN = NN - NUF;
-    // //-----------------------------------------------------------------------;
-    // //     HERE NN=N OR NN=0 SINCE NUF=0,NN, OR -1 ON RETURN FROM CUOIK;
-    // //     if NUF=NN, THEN CY(I)=CZERO FOR ALL I;
-    // //-----------------------------------------------------------------------;
-    //       if (NN == 0) GO TO 100;
-    //    60 CONTINUE;
     let (y, nz) = if z.re >= 0.0 {
-        // GO TO 70;
         //-----------------------------------------------------------------------;
         //     RIGHT HALF PLANE COMPUTATION, REAL(Z) >= 0.;
         //-----------------------------------------------------------------------;
         k_right_half_plane(z, order, scaling, n)?
-    //   CALL ZBKNU(ZR, ZI, FNU, KODE, NN, CYR, CYI, NW, TOL, ELIM, ALIM);
-    //   if (NW < 0) GO TO 200;
-    //   NZ=NW;
-    //   RETURN;
     } else {
         //-----------------------------------------------------------------------;
         //     LEFT HALF PLANE COMPUTATION;
         //     PI/2 < ARG(Z) <= PI AND -PI < ARG(Z) < -PI/2.;
         //-----------------------------------------------------------------------;
-        //    70 CONTINUE;
         if nz != 0 {
             return Err(Overflow);
-        } //GO TO 180;
+        }
         let rotation = if z.im < 0.0 {
             RotationDirection::Left
         } else {
             RotationDirection::Right
         };
-        //   MR = 1;
-        //   if (ZI < 0.0) MR = -1;
         analytic_continuation(z, order, scaling, rotation, n)?
-        //   CALL ZACON(ZR, ZI, FNU, KODE, MR, NN, CYR, CYI, NW, RL, FNUL,;
-        //  * TOL, ELIM, ALIM);
-        //   if (NW < 0) GO TO 200;
-        //   NZ=NW;
-        //   RETURN;
     };
     if partial_significance_loss {
         Err(PartialLossOfSignificance { y, nz })
     } else {
         Ok((y, nz))
     }
-    //   100 CONTINUE;
-    //       if (ZR < 0.0) GO TO 180;
-    //       RETURN;
-    //   180 CONTINUE;
-    //       NZ = 0;
-    //       IERR=2;
-    //       RETURN;
-    //   200 CONTINUE;
-    //       if(NW == (-1)) GO TO 180;
-    //       NZ=0;
-    //       IERR=5;
-    //       RETURN;
-    //   260 CONTINUE;
-    //       NZ=0;
-    //       IERR=4;
-    //       RETURN;
-    //       END;
 }
 /*
 fn ZBESY(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, CWRKR,
@@ -1458,11 +1343,7 @@ pub fn ZAIRY(
     //                 ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, ACM
     //                 TRANS. MATH. SOFTWARE, VOL. 12, NO. 3, SEPTEMBER 1986,
     //                 PP 265-273.
-    //
-    // ***ROUTINES CALLED  ZACAI,ZBKNU,ZEXP,ZSQRT,ZABS,i1mach,d1mach
-    // ***END PROLOGUE  ZAIRY
 
-    // TODO test ZAIRY directly?
     const C1: f64 = 3.55028053887817240e-01;
     const C2: f64 = 2.58819403792806799e-01;
     const COEFF: f64 = 1.83776298473930683e-01;
