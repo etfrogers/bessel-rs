@@ -1,6 +1,7 @@
 extern crate test;
-use crate::bessel_j;
+use crate::{bessel_j, bessel_k};
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_fort;
+use complex_bessel_rs::bessel_k::bessel_k as bessel_k_fort;
 use num::Complex;
 use test::Bencher;
 
@@ -28,7 +29,29 @@ fn bench_fortran_besj(b: &mut Bencher) {
     });
 }
 
-const CASES: [(f64, f64, f64); 43] = [
+#[bench]
+fn bench_rust_besk(b: &mut Bencher) {
+    let cases = CASES.map(|(order, re, im)| (order, Complex::new(re, im)));
+    b.iter(|| {
+        for (order, z) in cases {
+            let _ = bessel_k(order, z);
+        }
+        return 0;
+    });
+}
+
+#[bench]
+fn bench_fortran_besk(b: &mut Bencher) {
+    let cases = CASES.map(|(order, re, im)| (order, Complex::new(re, im)));
+    b.iter(|| {
+        for (order, z) in cases {
+            let _ = bessel_k_fort(order, z);
+        }
+        return 0;
+    });
+}
+
+const CASES: [(f64, f64, f64); 46] = [
     (4.0, 2.1, 0.0),
     (5.0, 2.0001, 0.0),
     (340.0, 35.0001, 0.0),
@@ -92,4 +115,7 @@ const CASES: [(f64, f64, f64); 43] = [
         1.2494954195932068e-254,
         -981457506.31791925,
     ),
+    (645.0, -736006017.5, 0.0),
+    (1253.5, 0.0, 2102.4),
+    (1.0, -4816.864663442315, 9.992997770079455),
 ];
