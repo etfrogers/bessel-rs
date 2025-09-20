@@ -2361,105 +2361,103 @@ fn ZKSCL(
     }
 }
 
-fn i_ratios(z: Complex64, order: f64, N: usize) -> Vec<Complex64> {
-    // ***BEGIN PROLOGUE  ZRATI
-    // ***REFER TO  ZBESI,ZBESK,ZBESH
-    //
-    //     ZRATI COMPUTES RATIOS OF I BESSEL FUNCTIONS BY BACKWARD
-    //     RECURRENCE.  THE STARTING INDEX IS DETERMINED BY FORWARD
-    //     RECURRENCE AS DESCRIBED IN J. RES. OF NAT. BUR. OF STANDARDS-B,
-    //     MATHEMATICAL SCIENCES, VOL 77B, P111-114, SEPTEMBER, 1973,
-    //     BESSEL FUNCTIONS I AND J OF COMPLEX ARGUMENT AND INTEGER ORDER,
-    //     BY D. J. SOOKNE.
-    //
-    // ***ROUTINES CALLED  ZABS,ZDIV
-    // ***END PROLOGUE  ZRATI
-    let AZ = z.abs();
-    let INU = order as usize;
-    let IDNU = INU + N - 1;
-    let MAGZ = AZ as isize;
-    let AMAGZ = (MAGZ + 1) as f64;
-    let FDNU = IDNU as f64;
-    let FNUP = AMAGZ.max(FDNU);
-    let mut ID = IDNU as isize - MAGZ - 1;
+/// ratios_i computes ratios of I bessel functions by backward
+/// recurrence. The starting index is determined by forward
+/// recurrence as described in J. Res. of Nat. Bur. of Standards-B,
+/// Mathematical Sciences, vol 77b, p111-114, September, 1973,
+/// Bessel functions I and J of complex argument and integer order,
+/// by D. J. Sookne.
+///
+/// Originally ZRATI
+fn ratios_i(z: Complex64, order: f64, n: usize) -> Vec<Complex64> {
+    let abs_z = z.abs();
+    let integer_order = order as usize;
+    let modified_int_order = integer_order + n - 1;
+    let int_abs_z = abs_z as isize;
+    let FNUP = (int_abs_z + 1).max(modified_int_order as isize) as f64;
+    let ID_ = modified_int_order as isize - int_abs_z - 1;
+    let ID = if ID_ > 0 { 0 } else { ID_ };
+
+    let rz = 2.0 * z.conj() / abs_z.powi(2);
     let mut K = 1;
-    let rz = 2.0 * z.conj() / AZ.powi(2);
-    let mut t1 = rz * FNUP;
-    let mut p2 = -t1;
-    let mut p1 = c_one();
-    t1 += rz;
-    if ID > 0 {
-        ID = 0;
-    }
-    let mut AP2 = p2.abs();
-    let mut AP1 = p1.abs();
-    //-----------------------------------------------------------------------
-    //     THE OVERFLOW TEST ON K(FNU+I-1,Z) BEFORE THE CALL TO CBKNU
-    //     GUARANTEES THAT P2 IS ON SCALE. SCALE TEST1 AND ALL SUBSEQUENT
-    //     P2 VALUES BY AP1 TO ENSURE THAT AN OVERFLOW DOES NOT OCCUR
-    //     PREMATURELY.
-    //-----------------------------------------------------------------------
-    let ARG = (AP2 + AP2) / (AP1 * MACHINE_CONSTANTS.abs_error_tolerance);
-    let TEST1 = ARG.sqrt();
-    let mut TEST = TEST1;
-    p1 /= AP1;
-    p2 /= AP1;
-    AP2 /= AP1;
-    let mut first_pass = true;
-    'l10: loop {
-        K += 1;
-        AP1 = AP2;
-        let pt = p2;
-        p2 = p1 - (t1 * p2);
-        p1 = pt;
+    let mut abs_p2;
+    {
+        let mut t1 = rz * FNUP;
+        let mut p2 = -t1;
+        let mut p1 = c_one();
         t1 += rz;
-        AP2 = p2.abs();
-        if AP1 <= TEST {
-            continue;
+
+        abs_p2 = p2.abs();
+        let mut abs_p1 = p1.abs();
+        //-----------------------------------------------------------------------
+        //     THE OVERFLOW TEST ON K(FNU+I-1,Z) BEFORE THE CALL TO CBKNU
+        //     GUARANTEES THAT P2 IS ON SCALE. SCALE TEST1 AND ALL SUBSEQUENT
+        //     P2 VALUES BY AP1 TO ENSURE THAT AN OVERFLOW DOES NOT OCCUR
+        //     PREMATURELY.
+        //-----------------------------------------------------------------------
+        let ARG = (abs_p2 + abs_p2) / (abs_p1 * MACHINE_CONSTANTS.abs_error_tolerance);
+        let TEST1 = ARG.sqrt();
+        let mut TEST = TEST1;
+        p1 /= abs_p1;
+        p2 /= abs_p1;
+        abs_p2 /= abs_p1;
+        let mut first_pass = true;
+        'l10: loop {
+            K += 1;
+            abs_p1 = abs_p2;
+            (p1, p2) = (p2, p1 - (t1 * p2));
+            t1 += rz;
+            abs_p2 = p2.abs();
+            if abs_p1 <= TEST {
+                continue;
+            }
+            if !first_pass {
+                break 'l10;
+            }
+            {
+                let ak = t1.abs() / 2.0;
+                let flam = ak + (ak.powi(2) - 1.0).sqrt();
+                let rho = abs_p2 / abs_p1.min(flam);
+                TEST = TEST1 * (rho / (rho.powi(2) - 1.0)).sqrt();
+            }
+            first_pass = false;
         }
-        if !first_pass {
-            break 'l10;
+    }
+
+    let mut p1 = Complex64::new(1.0 / abs_p2, 0.0);
+    let mut p2 = c_zero();
+
+    {
+        let kk: usize = (K as isize + 1 - ID).try_into().unwrap();
+        let mut t1 = Complex64::new(kk as f64, 0.0);
+        let modified_order = order + ((n - 1) as f64);
+        for _ in 0..kk {
+            (p1, p2) = (p1 * (rz * (modified_order + t1.re)) + p2, p1);
+            t1.re -= 1.0;
         }
-        let ak = t1.abs() / 2.0;
-        let FLAM = ak + (ak.powi(2) - 1.0).sqrt();
-        let rho = AP2 / AP1.min(FLAM);
-        TEST = TEST1 * (rho / (rho.powi(2) - 1.0)).sqrt();
-        first_pass = false;
+        if p1.re == 0.0 && p1.im == 0.0 {
+            p1 = Complex64::new(
+                MACHINE_CONSTANTS.abs_error_tolerance,
+                MACHINE_CONSTANTS.abs_error_tolerance,
+            );
+        }
     }
-    let KK: usize = (K as isize + 1 - ID).try_into().unwrap();
-    let mut t1 = Complex64::new(KK as f64, 0.0);
-    let DFNU = order + ((N - 1) as f64);
-    p1 = Complex64::new(1.0 / AP2, 0.0);
-    p2 = c_zero();
-    for _ in 0..KK {
-        let pt = p1;
-        let tt = rz * (DFNU + t1.re);
-        p1 = p1 * tt + p2;
-        p2 = pt;
-        t1.re -= 1.0;
-    }
-    if p1.re == 0.0 && p1.im == 0.0 {
-        p1 = Complex64::new(
-            MACHINE_CONSTANTS.abs_error_tolerance,
-            MACHINE_CONSTANTS.abs_error_tolerance,
-        );
-    }
-    let mut cy = c_zeros(N);
-    cy[N - 1] = p2 / p1;
-    if N > 1 {
-        t1 = Complex64::new((N - 1) as f64, 0.0);
+    let mut cy = c_zeros(n);
+    cy[n - 1] = p2 / p1;
+    if n > 1 {
+        let mut t1 = Complex64::new((n - 1) as f64, 0.0);
         let cdfnu = order * rz;
-        for k in (1..N).rev() {
+        for k in (1..n).rev() {
             let mut pt = cdfnu + t1 * rz + cy[k];
-            let mut AK = pt.abs();
-            if AK == 0.0 {
+            let mut abs_pt = pt.abs();
+            if abs_pt == 0.0 {
                 pt = Complex64::new(
                     MACHINE_CONSTANTS.abs_error_tolerance,
                     MACHINE_CONSTANTS.abs_error_tolerance,
                 );
-                AK = pt.abs();
+                abs_pt = pt.abs();
             }
-            cy[k - 1] = pt.conj() / AK.powi(2);
+            cy[k - 1] = pt.conj() / abs_pt.powi(2);
             t1 -= 1.0;
         }
     }
@@ -2715,7 +2713,7 @@ fn i_wronksian(
     //-----------------------------------------------------------------------
     let NZ = 0;
     let (cw, _) = k_right_half_plane(zr, order, KODE, 2)?;
-    let y_ratios = i_ratios(zr, order, N);
+    let y_ratios = ratios_i(zr, order, N);
     //-----------------------------------------------------------------------
     //     RECUR FORWARD ON I(FNU+1,Z) = R(FNU,Z)*I(FNU,Z),
     //     R(FNU+J-1,Z)=Y(J),  J=1,...,N
