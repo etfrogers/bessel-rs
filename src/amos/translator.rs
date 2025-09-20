@@ -1079,24 +1079,20 @@ pub fn ZBESY(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResu
     let zz = if z.im < 0.0 { z.conj() } else { z };
     let zn = -Complex64::I * zz;
     let mut partial_loss_of_significance = false;
-    let (cy, nz1) = match zbesi(zn, order, scaling, n) {
-        Ok((y_, nz_)) => (y_, nz_),
+
+    let mut unwrap_psl = |result: BesselResult| match result {
+        Ok((y_, nz_)) => Ok((y_, nz_)),
         Err(PartialLossOfSignificance { y: y_, nz: nz_ }) => {
             partial_loss_of_significance = true;
-            (y_, nz_)
+            Ok((y_, nz_))
         }
         err => return err,
     };
 
-    let (cwrk, nz2) = match ZBESK(zn, order, scaling, n) {
-        Ok((y_, nz_)) => (y_, nz_),
-        Err(PartialLossOfSignificance { y: y_, nz: nz_ }) => {
-            partial_loss_of_significance = true;
-            (y_, nz_)
-        }
-        err => return err,
-    };
-    let mut nz = nz1.min(nz2); //MIN(NZ1,NZ2);
+    let (bess_i, nz_i) = unwrap_psl(zbesi(zn, order, scaling, n))?;
+    let (bess_k, nz_k) = unwrap_psl(ZBESK(zn, order, scaling, n))?;
+
+    let mut nz = nz_i.min(nz_k);
     let frac_order = order.fract();
     let integer_order = order as usize;
     let ARG = FRAC_PI_2 * frac_order;
@@ -1105,75 +1101,62 @@ pub fn ZBESY(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResu
     csgn *= CIP[index];
     let mut cspn = csgn.conj() * FRAC_2_PI;
     csgn *= Complex64::I;
-    let mut y = c_zeros(n);
-    if scaling == Scaling::Unscaled {
-        for i in 0..n {
-            y[i] = csgn * cy[i] - cspn * cwrk[i];
+
+    let mut ey = 1.0;
+    if scaling == Scaling::Scaled {
+        let ex = Complex64::cis(z.re);
+        let two_abs_z = 2.0 * z.im.abs();
+        ey = if two_abs_z < MACHINE_CONSTANTS.exponent_limit {
+            (-two_abs_z).exp()
+        } else {
+            0.0
+        };
+        cspn *= ex * ey;
+        nz = 0;
+    }
+    let mut y: Vec<Complex64> = bess_i
+        .iter()
+        .zip(bess_k)
+        .map(|(&z_i, z_k)| {
+            //----------------------------------------------------------------------;
+            //       CY(I) = CSGN*CY(I)-CSPN*CWRK(I): PRODUCTS ARE COMPUTED IN;
+            //       SCALED MODE if CY(I) OR CWRK(I) ARE CLOSE TO UNDERFLOW TO;
+            //       PREVENT UNDERFLOW IN AN INTERMEDIATE COMPUTATION.;
+            //----------------------------------------------------------------------;
+            let z_k = scaled_multiply(z_k, cspn, scaling);
+            let z_i = scaled_multiply(z_i, csgn, scaling);
+            let val = z_i - z_k;
+            if scaling == Scaling::Scaled && val == c_zero() && ey == 0.0 {
+                nz += 1;
+            }
             csgn *= Complex64::I;
             cspn *= -Complex64::I;
-        }
-        if z.im < 0.0 {
-            y.iter_mut().for_each(|v| *v = v.conj());
-        }
-        return if partial_loss_of_significance {
-            Err(PartialLossOfSignificance { y, nz })
-        } else {
-            Ok((y, nz))
-        };
-    }
-    let ex = Complex64::cis(z.re);
-    //-----------------------------------------------------------------------;
-    //     ELIM IS THE APPROXIMATE EXPONENTIAL UNDER- AND OVERFLOW LIMIT;
-    //-----------------------------------------------------------------------;
-    let TAY = 2.0 * z.im.abs(); //ABS(ZI+ZI);
-    let EY = if TAY < MACHINE_CONSTANTS.exponent_limit {
-        (-TAY).exp()
-    } else {
-        0.0
-    };
-    cspn *= ex * EY;
-    nz = 0;
-    // TODO Can my refacatored as an iterator map on zipped cwrk and cy
-    // TODO SAme a loop above, but for scaling logic
-    let mut y = c_zeros(n);
-    for i in 0..n {
-        //----------------------------------------------------------------------;
-        //       CY(I) = CSGN*CY(I)-CSPN*CWRK(I): PRODUCTS ARE COMPUTED IN;
-        //       SCALED MODE if CY(I) OR CWRK(I) ARE CLOSE TO UNDERFLOW TO;
-        //       PREVENT UNDERFLOW IN AN INTERMEDIATE COMPUTATION.;
-        //----------------------------------------------------------------------;
-        let mut zv = cwrk[i];
-        let ATOL = if max_abs_component(zv) <= MACHINE_CONSTANTS.absolute_approximation_limit {
-            zv *= MACHINE_CONSTANTS.rtol;
-            MACHINE_CONSTANTS.abs_error_tolerance
-        } else {
-            1.0
-        };
-        zv *= cspn;
-        zv *= ATOL;
-        let mut zu = cy[i];
-        if max_abs_component(zu) <= MACHINE_CONSTANTS.absolute_approximation_limit {
-            zu *= MACHINE_CONSTANTS.rtol;
-            MACHINE_CONSTANTS.abs_error_tolerance
-        } else {
-            1.0
-        };
-        zu *= csgn;
-        zu *= ATOL;
-        y[i] = zu - zv;
-        if z.im < 0.0 {
-            y[i] = y[i].conj()
-        }
-        if y[i] == c_zero() && EY == 0.0 {
-            nz += 1;
-        }
-        csgn *= Complex64::I;
-        cspn *= -Complex64::I;
+            val
+        })
+        .collect();
+
+    if z.im < 0.0 {
+        y.iter_mut().for_each(|v| *v = v.conj());
     }
     if partial_loss_of_significance {
         Err(PartialLossOfSignificance { y, nz })
     } else {
         Ok((y, nz))
+    }
+}
+
+fn scaled_multiply(mut z: Complex64, coeff: Complex64, scaling: Scaling) -> Complex64 {
+    match scaling {
+        Scaling::Unscaled => z * coeff,
+        Scaling::Scaled => {
+            let atol = if max_abs_component(z) <= MACHINE_CONSTANTS.absolute_approximation_limit {
+                z *= MACHINE_CONSTANTS.rtol;
+                MACHINE_CONSTANTS.abs_error_tolerance
+            } else {
+                1.0
+            };
+            (z * coeff) * atol
+        }
     }
 }
 
