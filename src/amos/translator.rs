@@ -299,7 +299,7 @@ pub fn complex_bessel_h(
     }
 }
 
-pub fn zbesi(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
+pub fn complex_bessel_i(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
     // ***BEGIN PROLOGUE  ZBESI
     // ***DATE WRITTEN   830501   (YYMMDD)
     // ***REVISION DATE  890801, 930101   (YYMMDD)
@@ -685,7 +685,7 @@ pub fn complex_bessel_j(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
     }
 }
 
-pub fn ZBESK(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
+pub fn complex_bessel_k(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
     // ***BEGIN PROLOGUE  ZBESK
     // ***DATE WRITTEN   830501   (YYMMDD)
     // ***REVISION DATE  890801, 930101   (YYMMDD)
@@ -923,7 +923,7 @@ pub fn ZBESK(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResu
     }
 }
 
-pub fn ZBESY(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
+pub fn complex_bessel_y(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
     // ***BEGIN PROLOGUE  ZBESY
     // ***DATE WRITTEN   830501   (YYMMDD)
     // ***REVISION DATE  890801, 930101   (YYMMDD)
@@ -1086,8 +1086,8 @@ pub fn ZBESY(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResu
         err => err,
     };
 
-    let (bess_i, nz_i) = unwrap_psl(zbesi(zn, order, scaling, n))?;
-    let (bess_k, nz_k) = unwrap_psl(ZBESK(zn, order, scaling, n))?;
+    let (bess_i, nz_i) = unwrap_psl(complex_bessel_i(zn, order, scaling, n))?;
+    let (bess_k, nz_k) = unwrap_psl(complex_bessel_k(zn, order, scaling, n))?;
 
     let mut nz = nz_i.min(nz_k);
     let frac_order = order.fract();
@@ -1157,7 +1157,7 @@ fn scaled_multiply(mut z: Complex64, coeff: Complex64, scaling: Scaling) -> Comp
     }
 }
 
-pub fn ZAIRY(
+pub fn complex_airy(
     z: Complex64,
     return_derivative: bool,
     scaling: Scaling,
@@ -3341,7 +3341,7 @@ fn ZUNK1(
 
 fn airy_pair(z: Complex64) -> (Complex64, Complex64) {
     //note that ZAIRY calls in fortran code ignore IERR (using IDUM)
-    let airy = match ZAIRY(z, false, Scaling::Scaled) {
+    let airy = match complex_airy(z, false, Scaling::Scaled) {
         Ok((y, _)) => y,
         Err(PartialLossOfSignificance { y, nz: _ }) => y[0],
         // If loss of significance, Fortran code would continue with un-initialised y,
@@ -3355,7 +3355,7 @@ fn airy_pair(z: Complex64) -> (Complex64, Complex64) {
             )
         }
     };
-    let d_airy = match ZAIRY(z, true, Scaling::Scaled) {
+    let d_airy = match complex_airy(z, true, Scaling::Scaled) {
         Ok((y, _)) => y,
         Err(PartialLossOfSignificance { y, nz: _ }) => y[0],
         // If loss of significance, Fortran code would continue with un-initialised y,

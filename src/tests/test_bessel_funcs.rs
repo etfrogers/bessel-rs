@@ -11,7 +11,7 @@ use complex_bessel_rs::bessel_y::bessel_y as bessel_y_ref;
 
 use crate::{
     BesselError, HankelKind, Scaling, airy, airyp,
-    amos::{MACHINE_CONSTANTS, ZBESK, ZBESY, complex_bessel_j, zbesi},
+    amos::{MACHINE_CONSTANTS, complex_bessel_k, complex_bessel_y, complex_bessel_j, complex_bessel_i},
     bessel_i, bessel_j, bessel_k, bessel_y, hankel,
 };
 use num::complex::Complex64;
@@ -140,11 +140,11 @@ fn test_airy(
 fn test_bessel_extremes(
     #[values(
         (complex_bessel_j as BesselSig, zbesj_fortran as BesselFortranSig),
-        (zbesi as BesselSig, zbesi_fortran as BesselFortranSig),
+        (complex_bessel_i as BesselSig, zbesi_fortran as BesselFortranSig),
         (zbesh_first as BesselSig , zbesh_fortran_first as BesselFortranSig),
         (zbesh_second as BesselSig , zbesh_fortran_second as BesselFortranSig),
-        (ZBESK as BesselSig, zbesk_fortran as BesselFortranSig),
-        (ZBESY as BesselSig, zbesy_fortran as BesselFortranSig)
+        (complex_bessel_k as BesselSig, zbesk_fortran as BesselFortranSig),
+        (complex_bessel_y as BesselSig, zbesy_fortran as BesselFortranSig)
     )]
     (rust_fn, fortran_fn): (BesselSig, BesselFortranSig),
 
