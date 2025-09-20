@@ -4,11 +4,11 @@ use rstest_reuse::apply;
 use super::{
     BesselFortranSig, BesselSig, bessel_cases, check_against_fortran, zbesh_first,
     zbesh_fortran_first, zbesh_fortran_second, zbesh_second, zbesi_fortran, zbesj_fortran,
-    zbesk_fortran,
+    zbesk_fortran, zbesy_fortran,
 };
 use crate::{
     Scaling,
-    amos::{ZBESK, complex_bessel_j, zbesi},
+    amos::{ZBESK, ZBESY, complex_bessel_j, zbesi},
 };
 use num::complex::Complex64;
 
@@ -26,6 +26,7 @@ fn test_bessel_large_n_real(
         (zbesh_first as BesselSig , zbesh_fortran_first as BesselFortranSig),
         (zbesh_second as BesselSig , zbesh_fortran_second as BesselFortranSig),
         (ZBESK as BesselSig, zbesk_fortran as BesselFortranSig),
+        (ZBESY as BesselSig, zbesy_fortran as BesselFortranSig)
     )]
     (rust_fn, fortran_fn): (BesselSig, BesselFortranSig),
     // #[values(4)] n: usize,
@@ -49,6 +50,7 @@ fn test_bessel_large_n_complex(
         (zbesh_first as BesselSig , zbesh_fortran_first as BesselFortranSig),
         (zbesh_second as BesselSig , zbesh_fortran_second as BesselFortranSig),
         (ZBESK as BesselSig, zbesk_fortran as BesselFortranSig),
+        (ZBESY as BesselSig, zbesy_fortran as BesselFortranSig)
     )]
     (rust_fn, fortran_fn): (BesselSig, BesselFortranSig),
     // #[values(9)] n: usize,

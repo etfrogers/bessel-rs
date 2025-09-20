@@ -1,6 +1,6 @@
 use complex_bessel_rs::{
     bessel_i::bessel_i as bessel_i_ref, bessel_j::bessel_j as bessel_j_ref,
-    bessel_k::bessel_k as bessel_k_ref,
+    bessel_k::bessel_k as bessel_k_ref, bessel_y::bessel_y as bessel_y_ref,
 };
 use num::complex::Complex64;
 use num::pow::Pow;
@@ -14,12 +14,13 @@ use approx::assert_relative_eq;
 use super::{
     BesselFortranSig, BesselSig, TOLERANCE_MARGIN, airy_ref, bessel_h_ref, check_against_fortran,
     check_complex_arrays_equal, fortran_bess_loop, zbesh_first, zbesh_fortran_first,
-    zbesh_fortran_second, zbesh_second, zbesi_fortran, zbesj_fortran, zbesk_fortran,
+    zbesh_fortran_second, zbesh_second, zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran,
 };
+
 use crate::{
     BesselError, HankelKind, Scaling, airy, airyp,
-    amos::{MACHINE_CONSTANTS, ZBESK, complex_bessel_j, zbesi},
-    bessel_i, bessel_j, bessel_k, hankel,
+    amos::{MACHINE_CONSTANTS, ZBESK, ZBESY, complex_bessel_j, zbesi},
+    bessel_i, bessel_j, bessel_k, bessel_y, hankel,
 };
 
 const RANDOM_LIMIT: f64 = 10_000.0;
@@ -116,6 +117,33 @@ fn test_bessel_k_random(mut rng: SmallRng) {
 }
 
 #[rstest]
+fn test_bessel_y_random(mut rng: SmallRng) {
+    for _ in 0..1000000 {
+        let order = rng.random_range(f64::EPSILON..RANDOM_LIMIT);
+        let zr = random_val_rng(&mut rng);
+        let zi = random_val_rng(&mut rng);
+        let z = Complex64::new(zr, zi);
+        // dbg!(order, &z);
+        // println!("#[case({}, {}, {})]", order, z.re, z.im);
+        let ans = bessel_y(order, z);
+        let expected = bessel_y_ref(order, z);
+        if let Ok(actual) = ans {
+            let (cy_loop_fort, _, _) =
+                fortran_bess_loop(order, z, Scaling::Unscaled, 1, zbesk_fortran);
+            check_complex_arrays_equal(&actual, &expected.unwrap(), &cy_loop_fort);
+        } else {
+            let err = ans.unwrap_err();
+            if err == BesselError::NotYetImplemented {
+                // continue;
+                panic!("NotYetImplemented should not occur")
+            }
+            // dbg!(&err, &expected);
+            assert_eq!(err.error_code(), expected.unwrap_err());
+        }
+    }
+}
+
+#[rstest]
 fn test_bessel_h_random(
     mut rng: SmallRng,
     #[values(HankelKind::First, HankelKind::Second)] kind: HankelKind,
@@ -184,6 +212,7 @@ fn test_bessel_large_n_random(
         (zbesh_first as BesselSig , zbesh_fortran_first as BesselFortranSig),
         (zbesh_second as BesselSig , zbesh_fortran_second as BesselFortranSig),
         (ZBESK as BesselSig, zbesk_fortran as BesselFortranSig),
+        (ZBESY as BesselSig, zbesy_fortran as BesselFortranSig)
     )]
     (rust_fn, fortran_fn): (BesselSig, BesselFortranSig),
     mut rng: SmallRng,
@@ -219,6 +248,7 @@ fn test_bessel_random_logspace(
         (zbesh_first as BesselSig , zbesh_fortran_first as BesselFortranSig),
         (zbesh_second as BesselSig , zbesh_fortran_second as BesselFortranSig),
         (ZBESK as BesselSig, zbesk_fortran as BesselFortranSig),
+        (ZBESY as BesselSig, zbesy_fortran as BesselFortranSig)
     )]
     (rust_fn, fortran_fn): (BesselSig, BesselFortranSig),
 ) {

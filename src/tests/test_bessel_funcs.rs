@@ -1,17 +1,18 @@
 use super::{
     BesselFortranSig, BesselSig, TOLERANCE_MARGIN, airy_ref, bessel_cases, bessel_h_ref,
     check_against_fortran, check_complex_arrays_equal, zbesh_first, zbesh_fortran_first,
-    zbesh_fortran_second, zbesh_second, zbesi_fortran, zbesj_fortran, zbesk_fortran,
+    zbesh_fortran_second, zbesh_second, zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran,
 };
 use approx::assert_relative_eq;
 use complex_bessel_rs::bessel_i::bessel_i as bessel_i_ref;
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_ref;
 use complex_bessel_rs::bessel_k::bessel_k as bessel_k_ref;
+use complex_bessel_rs::bessel_y::bessel_y as bessel_y_ref;
 
 use crate::{
     BesselError, HankelKind, Scaling, airy, airyp,
-    amos::{MACHINE_CONSTANTS, ZBESK, complex_bessel_j, zbesi},
-    bessel_i, bessel_j, bessel_k, hankel,
+    amos::{MACHINE_CONSTANTS, ZBESK, ZBESY, complex_bessel_j, zbesi},
+    bessel_i, bessel_j, bessel_k, bessel_y, hankel,
 };
 use num::complex::Complex64;
 use rstest::rstest;
@@ -63,6 +64,24 @@ fn test_bessel_k(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     }
 
     let expected = bessel_k_ref(order, z.into());
+    if let Ok(actual) = actual {
+        check_complex_arrays_equal(&actual, &expected.unwrap(), &Vec::new());
+    } else {
+        assert_eq!(actual.unwrap_err().error_code(), expected.unwrap_err())
+    }
+}
+
+#[apply(bessel_cases)]
+#[trace]
+fn test_bessel_y(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
+    let z = Complex64::new(zr, zi);
+    let actual = bessel_y(order, z);
+
+    if actual == Err(BesselError::NotYetImplemented) {
+        todo!()
+    }
+
+    let expected = bessel_y_ref(order, z.into());
     if let Ok(actual) = actual {
         check_complex_arrays_equal(&actual, &expected.unwrap(), &Vec::new());
     } else {
@@ -125,6 +144,7 @@ fn test_bessel_extremes(
         (zbesh_first as BesselSig , zbesh_fortran_first as BesselFortranSig),
         (zbesh_second as BesselSig , zbesh_fortran_second as BesselFortranSig),
         (ZBESK as BesselSig, zbesk_fortran as BesselFortranSig),
+        (ZBESY as BesselSig, zbesy_fortran as BesselFortranSig)
     )]
     (rust_fn, fortran_fn): (BesselSig, BesselFortranSig),
 

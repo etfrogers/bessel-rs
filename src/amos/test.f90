@@ -3,21 +3,21 @@
 program test
 
    implicit none
-   double precision :: zr, zi, nu, cyr, cyi
+   double precision :: zr, zi, nu!, cyr, cyi, cwrkr, cwrki
    integer :: kode, n, nz, ierr, kind, id
-   ! double precision, DIMENSION (1:9) :: cyr, cyi
+   double precision, DIMENSION (1:9) :: cyr, cyi, cwrkr, cwrki
    ! x = 10.0
    ! print*, x
 
-   nu = 172302836.50840142
-   zr = -4816.864663442315
-   zi =  9.992997770079455
+   nu = 1.0
+   zr = 1.0
+   zi = 1.0
    kind = 2
    n = 9
 
-   kode = 1
+   kode = 2
    id = 0
-   call zairy(zr, zi, id, kode, cyr, cyi, nz, ierr)
+   call zbesy(zr, zi, nu, kode, n, cyr, cyi, nz, cwrkr, cwrki, ierr)
    print*, cyr
    print*, cyi
    print*, nz
