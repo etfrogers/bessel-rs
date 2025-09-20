@@ -173,9 +173,8 @@ use std::{
 /// - Date written:   830501   (YYMMDD)
 /// - Revision date:  890801, 930101   (YYMMDD)
 /// - Keywords:  h-bessel functions,bessel functions of complex argument,
-///             bessel functions of third kind, hankel functions
+///   bessel functions of third kind, hankel functions
 /// - Author:  Amos, Donald E., Sandia National Laboratories
-
 pub fn complex_bessel_h(
     z: Complex64,
     order: f64,
@@ -884,12 +883,10 @@ pub fn ZBESK(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResu
         if NUF == n {
             return if z.re < 0.0 {
                 Err(Overflow)
+            } else if partial_significance_loss {
+                Err(PartialLossOfSignificance { y, nz })
             } else {
-                if partial_significance_loss {
-                    Err(PartialLossOfSignificance { y, nz })
-                } else {
-                    Ok((y, nz))
-                }
+                Ok((y, nz))
             };
         }
     }
@@ -1086,7 +1083,7 @@ pub fn ZBESY(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResu
             partial_loss_of_significance = true;
             Ok((y_, nz_))
         }
-        err => return err,
+        err => err,
     };
 
     let (bess_i, nz_i) = unwrap_psl(zbesi(zn, order, scaling, n))?;
@@ -2224,7 +2221,7 @@ fn k_right_half_plane(z: Complex64, order: f64, scaling: Scaling, n: usize) -> B
         s2 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
         P1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
     }
-    return Ok((y, nz));
+    Ok((y, nz))
 }
 
 fn k_right_half_plane_helper(
@@ -2856,13 +2853,12 @@ fn analytic_continuation(
     s1 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
     s2 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
     let mut CSR = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
-    for i in 2..N {
-        let st = s2;
-        s2 = ck * s2 + s1;
-        s1 = st;
+    for yi in y.iter_mut().skip(2) {
+        //TODO common pattern below
+        (s1, s2) = (s2, ck * s2 + s1);
         c1 = s2 * CSR;
         let mut st = c1;
-        c2 = y[i];
+        c2 = *yi;
         if scaling == Scaling::Scaled && IUF >= 0 {
             let NW = ZS1S2(zn, &mut c1, &mut c2, &mut IUF);
             NZ += NW;
@@ -2875,7 +2871,7 @@ fn analytic_continuation(
                 st = sc2;
             }
         }
-        y[i] = cspn * c1 + csgn * c2;
+        *yi = cspn * c1 + csgn * c2;
         ck += rz;
         cspn = -cspn;
         if overflow_state == Overflow::NearOver {
@@ -3620,8 +3616,7 @@ fn ZUNK2(
             asumd = asum[J];
             bsumd = bsum[J];
             J = 1 - J;
-        } else if !((KK == N) && (first_unset_index < N))
-            && !((KK == first_unset_index) || (KK == IC))
+        } else if !((KK == first_unset_index) || (KK == IC) || (KK == N) && (first_unset_index < N))
         {
             (phid, argd, zeta1d, zeta2d, asumd, bsumd) = zunhj(zn, modified_order, false);
         }
