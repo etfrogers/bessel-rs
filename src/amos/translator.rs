@@ -1288,8 +1288,7 @@ pub fn complex_airy(
     //                 TRANS. MATH. SOFTWARE, VOL. 12, NO. 3, SEPTEMBER 1986,
     //                 PP 265-273.
 
-    const C1: f64 = 3.55028053887817240e-01;
-    const C2: f64 = 2.58819403792806799e-01;
+    const POWER_SERIES_COEFFS: (f64, f64) = (3.55028053887817240e-01, 2.58819403792806799e-01);
     const COEFF: f64 = 1.83776298473930683e-01;
 
     let abs_z = z.abs();
@@ -1304,96 +1303,26 @@ pub fn complex_airy(
         //-----------------------------------------------------------------------
         //     POWER SERIES FOR CABS(Z) <= 1.
         //-----------------------------------------------------------------------
-        let mut s1 = c_one();
-        let mut s2 = c_one();
-        if abs_z < MACHINE_CONSTANTS.abs_error_tolerance {
-            s1 = c_zero();
-            let retval = if return_derivative {
-                let mut ai = Complex64::new(-C2, 0.0);
-
-                if abs_z > MACHINE_CONSTANTS.underflow_limit.sqrt() {
-                    s1 = z.pow(2.0) / 2.0;
-                }
-                ai += C1 * s1;
-                (ai, 0)
-            } else {
-                if abs_z > MACHINE_CONSTANTS.underflow_limit {
-                    s1 = C2 * z;
-                }
-                let ai = C1 - s1;
-                (ai, 0)
-            };
-            return if partial_loss_of_significance {
-                Err(PartialLossOfSignificance {
-                    y: vec![retval.0],
-                    nz: retval.1,
-                })
-            } else {
-                Ok(retval)
-            };
-        }
-        let abs_z_sq = abs_z * abs_z;
-        if abs_z_sq >= MACHINE_CONSTANTS.abs_error_tolerance / abs_z {
-            // TODO v similar to zbiry
-            let mut term1 = c_one();
-            let mut term2 = c_one();
-            let mut a_term = 1.0;
-            let z3 = z.pow(3.0);
-            let AZ3 = abs_z * abs_z_sq;
-            let (AK, BK, CK, DK) = (
-                2.0 + float_is_derivative,
-                3.0 - 2.0 * float_is_derivative,
-                4.0 - float_is_derivative,
-                3.0 + 2.0 * float_is_derivative,
-            );
-            let mut D1: f64 = AK * DK;
-            let mut D2 = BK * CK;
-            let mut AD = D1.min(D2);
-            let mut AK = 24.0 + 9.0 * float_is_derivative;
-            let mut BK = 30.0 - 9.0 * float_is_derivative;
-            for _ in 0..25 {
-                term1 = term1 * z3 / D1;
-                s1 += term1;
-                term2 = term2 * z3 / D2;
-                s2 += term2;
-                a_term = a_term * AZ3 / AD;
-                D1 += AK;
-                D2 += BK;
-                AD = D1.min(D2);
-                if a_term < MACHINE_CONSTANTS.abs_error_tolerance * AD {
-                    break;
-                }
-                AK += 18.0;
-                BK += 18.0;
-            }
-        }
-        let mut ai = if return_derivative {
-            let mut ai_inner = -s2 * C2;
-            if abs_z > MACHINE_CONSTANTS.abs_error_tolerance {
-                let CC = C1 / (1.0 + float_is_derivative);
-                ai_inner += CC * z.pow(2.0) * s1;
-            }
-            ai_inner
-        } else {
-            s1 * C1 - C2 * z * s2
-        };
-        if scaling == Scaling::Scaled {
-            ai *= (TWO_THIRDS * z * z.sqrt()).exp();
-        }
-        (ai, 0)
+        let ai = airy_power_series(z, return_derivative, POWER_SERIES_COEFFS);
+        (
+            match scaling {
+                Scaling::Scaled => ai * (TWO_THIRDS * z * z.sqrt()).exp(),
+                Scaling::Unscaled => ai,
+            },
+            0,
+        )
     } else {
         //-----------------------------------------------------------------------
         //     CASE FOR CABS(Z) > 1.0
         //-----------------------------------------------------------------------
-        let FNU = (1.0 + float_is_derivative) / 3.0;
+        let order = (1.0 + float_is_derivative) / 3.0;
         let ln_abs_z = abs_z.ln();
 
-        let csq = z.sqrt();
-        let mut zta = TWO_THIRDS * z * csq;
+        let sqrt_z = z.sqrt();
+        let mut zta = TWO_THIRDS * z * sqrt_z;
         //-----------------------------------------------------------------------
         //     RE(ZTA) <= 0 WHEN RE(Z) < 0, ESPECIALLY WHEN IM(Z) IS SMALL
         //-----------------------------------------------------------------------
-        let mut overflow_state = Overflow::None;
         let mut scale_factor = 1.0;
         if z.re < 0.0 {
             zta.re = -zta.re.abs();
@@ -1401,16 +1330,14 @@ pub fn complex_airy(
         if z.im == 0.0 && z.re <= 0.0 {
             zta.re = 0.0;
         }
-        let mut AA = zta.re;
-        let (cy, NZ) = if AA < 0.0 || z.re <= 0.0 {
+        let re_zta = zta.re;
+        let (cy, NZ) = if re_zta < 0.0 || z.re <= 0.0 {
             //-----------------------------------------------------------------------
             //     OVERFLOW TEST
             //-----------------------------------------------------------------------
-            if scaling == Scaling::Unscaled && AA <= -MACHINE_CONSTANTS.approximation_limit {
-                AA = -AA + 0.25 * ln_abs_z;
-                overflow_state = Overflow::NearOver;
+            if scaling == Scaling::Unscaled && re_zta <= -MACHINE_CONSTANTS.approximation_limit {
                 scale_factor = MACHINE_CONSTANTS.abs_error_tolerance;
-                if AA > MACHINE_CONSTANTS.exponent_limit {
+                if (-re_zta + 0.25 * ln_abs_z) > MACHINE_CONSTANTS.exponent_limit {
                     return Err(Overflow);
                 }
             }
@@ -1422,32 +1349,24 @@ pub fn complex_airy(
             } else {
                 RotationDirection::Right
             };
-            ZACAI(zta, FNU, scaling, rotation, 1)?
+            ZACAI(zta, order, scaling, rotation, 1)?
         } else {
             //-----------------------------------------------------------------------
             //     UNDERFLOW TEST
             //-----------------------------------------------------------------------
             let mut retval = None;
-            if scaling == Scaling::Unscaled && AA > MACHINE_CONSTANTS.approximation_limit {
-                AA = -AA - 0.25 * ln_abs_z;
-                overflow_state = Overflow::NearUnder;
+            if scaling == Scaling::Unscaled && re_zta > MACHINE_CONSTANTS.approximation_limit {
                 scale_factor = 1.0 / MACHINE_CONSTANTS.abs_error_tolerance;
-                if AA < -MACHINE_CONSTANTS.exponent_limit {
+                if (-re_zta - 0.25 * ln_abs_z) < -MACHINE_CONSTANTS.exponent_limit {
                     retval = Some(Ok((c_zeros(1), 1)));
                 }
             }
-            retval.unwrap_or_else(|| k_right_half_plane(zta, FNU, scaling, 1))?
+            retval.unwrap_or_else(|| k_right_half_plane(zta, order, scaling, 1))?
         };
 
-        let mut s1 = cy[0] * COEFF;
-        if overflow_state == Overflow::None {
-            let ai = if return_derivative { -z * s1 } else { csq * s1 };
-            (ai, NZ)
-        } else {
-            s1 *= scale_factor;
-            s1 *= if return_derivative { -z } else { csq };
-            (s1 / scale_factor, NZ)
-        }
+        let mut s1 = cy[0] * COEFF * scale_factor;
+        s1 *= if return_derivative { -z } else { sqrt_z };
+        (s1 / scale_factor, NZ)
     };
     if partial_loss_of_significance {
         Err(PartialLossOfSignificance {
@@ -1459,8 +1378,11 @@ pub fn complex_airy(
     }
 }
 
-pub fn ZBIRY(z: Complex64, return_derivative: bool, scaling: Scaling) -> BesselResult<Complex64> {
-    // ZR, ZI, ID, KODE, BIR, BII, IERR
+pub fn complex_airy_b(
+    z: Complex64,
+    return_derivative: bool,
+    scaling: Scaling,
+) -> BesselResult<Complex64> {
     // ***BEGIN PROLOGUE  ZBIRY
     // ***DATE WRITTEN   830501   (YYMMDD)
     // ***REVISION DATE  890801, 930101   (YYMMDD)
@@ -1580,93 +1502,133 @@ pub fn ZBIRY(z: Complex64, return_derivative: bool, scaling: Scaling) -> BesselR
     //                 ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, ACM
     //                 TRANS. MATH. SOFTWARE, VOL. 12, NO. 3, SEPTEMBER 1986,
     //                 PP 265-273.
-    //
-    // ***ROUTINES CALLED  ZBINU,ZABS,ZDIV,ZSQRT,d1mach,i1mach
-    // ***END PROLOGUE  ZBIRY
-    //     COMPLEX BI,CONE,CSQ,CY,S1,S2,TRM1,TRM2,Z,ZTA,Z3
-    //   EXTERNAL ZABS
-    //   DOUBLE PRECISION AA, AD, AK, ALIM, ATRM, AZ, AZ3, BB, BII, BIR,
-    //  * BK, CC, CK, COEF, CONEI, CONER, CSQI, CSQR, CYI, CYR, C1, C2,
-    //  * DIG, DK, D1, D2, EAA, ELIM, FID, FMR, FNU, FNUL, PI, RL, R1M5,
-    //  * SFAC, STI, STR, S1I, S1R, S2I, S2R, TOL, TRM1I, TRM1R, TRM2I,
-    //  * TRM2R, TWO_THIRDS, ZI, ZR, ZTAI, ZTAR, Z3I, Z3R, d1mach, ZABS
-    //   INTEGER ID, IERR, K, KODE, K1, K2, NZ, i1mach
-    //   DIMENSION CYR(2), CYI(2)
-    //   DATA TWO_THIRDS, C1, C2, COEF, PI /6.66666666666666667e-01,
-    const C1: f64 = 6.14926627446000736e-01;
-    const C2: f64 = 4.48288357353826359e-01;
+    const POWER_SERIES_COEFFS: (f64, f64) = (6.14926627446000736e-01, -4.48288357353826359e-01);
     const COEF: f64 = 5.77350269189625765e-01;
-    //  * 5.77350269189625765e-01,3.14159265358979324e+00/
-    //   DATA CONER, CONEI /1.0,0.0/
-    // ***FIRST EXECUTABLE STATEMENT  ZBIRY
-    //   IERR = 0
-    let NZ = 0;
-    // TODO check if C1 2 COEF match complex_airy
 
     let abs_z = z.abs();
-    //   TOL = DMAX1(d1mach(4),1.0e-18)
-    //   FID = (ID as f64)
     let float_is_derivative = if return_derivative { 1.0 } else { 0.0 };
+    let mut partial_loss_of_significance = false;
 
-    if abs_z <= 1.0 {
-        //GO TO 70
+    let bi = if abs_z <= 1.0 {
         //-----------------------------------------------------------------------
         //     POWER SERIES FOR CABS(Z) <= 1.
         //-----------------------------------------------------------------------
+        let bi = airy_power_series(z, return_derivative, POWER_SERIES_COEFFS);
+        match scaling {
+            Scaling::Scaled => {
+                //TODO ZTA used many places with similar definition
+                let ZTA = TWO_THIRDS * (z * z.sqrt());
+                bi * (-(ZTA.re.abs())).exp()
+            }
+            Scaling::Unscaled => bi,
+        }
+    } else {
+        //-----------------------------------------------------------------------;
+        //     CASE FOR CABS(Z) > 1.0;
+        //-----------------------------------------------------------------------;
+        let order = (1.0 + float_is_derivative) / 3.0;
+        //-----------------------------------------------------------------------;
+        //     TEST FOR RANGE;
+        //-----------------------------------------------------------------------;
+        // significance loss only tested against z, not order, so 0.0 is used to never cause significance loss
+        partial_loss_of_significance = is_sigificance_lost(abs_z, 0.0, true)?;
+        let mut scale_factor = 1.0;
+        let mut zta = TWO_THIRDS * (z * z.sqrt());
+
+        //-----------------------------------------------------------------------;
+        //     RE(ZTA) <= 0 WHEN RE(Z) < 0, ESPECIALLY WHEN IM(Z) IS SMALL;
+        //-----------------------------------------------------------------------;
+        if z.re < 0.0 {
+            zta.re = -zta.re.abs();
+        }
+        if z.im == 0.0 && z.re < 0.0 {
+            zta.re = 0.0;
+        }
+        if scaling == Scaling::Unscaled {
+            //-----------------------------------------------------------------------;
+            //     OVERFLOW TEST;
+            //-----------------------------------------------------------------------;
+            let re_zta = zta.re.abs();
+            if re_zta > MACHINE_CONSTANTS.approximation_limit {
+                scale_factor = MACHINE_CONSTANTS.abs_error_tolerance;
+                if re_zta + 0.25 * abs_z.ln() > MACHINE_CONSTANTS.exponent_limit {
+                    return Err(Overflow);
+                }
+            }
+        }
+        let mut rotation_angle = 0.0;
+        if zta.re < 0.0 || z.re <= 0.0 {
+            rotation_angle = PI;
+            if z.im < 0.0 {
+                rotation_angle = -PI;
+            }
+            zta *= -1.0;
+        }
+        //-----------------------------------------------------------------------;
+        //     AA=FACTOR FOR ANALYTIC CONTINUATION OF I(FNU,ZTA);
+        //     KODE=2 RETURNS EXP(-ABS(XZTA))*I(FNU,ZTA) FROM ZBESI;
+        //-----------------------------------------------------------------------;
+        let (cy, _) = i_right_half_plane(zta, order, scaling, 1)?;
+        let mut s1 = Complex64::cis(rotation_angle * order) * cy[0] * scale_factor;
+        let order = (2.0 - float_is_derivative) / 3.0;
+        let (mut cy, _) = i_right_half_plane(zta, order, scaling, 2)?;
+        cy[0] *= scale_factor;
+        cy[1] *= scale_factor;
+
+        //-----------------------------------------------------------------------;
+        //     BACKWARD RECUR ONE STEP FOR ORDERS -1/3 OR -2/3;
+        //-----------------------------------------------------------------------;
+        let s2 = (2.0 * order) * (cy[0] / zta) + cy[1];
+        s1 = COEF * (s1 + s2 * Complex64::cis(rotation_angle * (order - 1.0)));
+        let z_factor = if return_derivative { z } else { z.sqrt() };
+        s1 * z_factor / scale_factor
+    };
+    if partial_loss_of_significance {
+        Err(PartialLossOfSignificance { y: vec![bi], nz: 0 })
+    } else {
+        Ok(bi)
+    }
+}
+
+fn airy_power_series(z: Complex64, return_derivative: bool, coeffs: (f64, f64)) -> Complex64 {
+    let float_is_derivative = if return_derivative { 1.0 } else { 0.0 };
+
+    let abs_z = z.abs();
+    let z_floor = if abs_z < MACHINE_CONSTANTS.underflow_limit {
+        c_zero()
+    } else {
+        z
+    };
+    let (s1, s2) = if abs_z < MACHINE_CONSTANTS.abs_error_tolerance {
+        (c_one(), c_one())
+    } else {
+        let abs_z_sq = abs_z * abs_z;
         let mut s1 = c_one();
         let mut s2 = c_one();
-        //   S1R = CONER;
-        //   S1I = CONEI;
-        //   S2R = CONER;
-        //   S2I = CONEI;
-        if abs_z < MACHINE_CONSTANTS.abs_error_tolerance {
-            //GO TO 130;
-            return Ok(Complex64::new(
-                C1 * (1.0 - float_is_derivative) + float_is_derivative * C2,
-                0.0,
-            ));
-            //   BIR = AA;
-            //   BII = 0.0;
-            //   RETURN;
-        }
 
-        let AA = abs_z.pow(2);
-        if AA > MACHINE_CONSTANTS.abs_error_tolerance / abs_z {
-            //GO TO 40;
-            //   TRM1R = CONER;
-            //   TRM1I = CONEI;
-            //   TRM2R = CONER;
-            //   TRM2I = CONEI;
+        if abs_z_sq >= MACHINE_CONSTANTS.abs_error_tolerance / abs_z {
             let mut term1 = c_one();
             let mut term2 = c_one();
             let mut a_term = 1.0;
-            //   STR = ZR*ZR - ZI*ZI;
-            //   STI = ZR*ZI + ZI*ZR;
-            // let st = z.pow(2.0);
-            //   Z3R = STR*ZR - STI*ZI;
-            //   Z3I = STR*ZI + STI*ZR;
             let z3 = z.pow(3.0);
-            let abs_z3 = abs_z * AA;
-            //   AZ3 = AZ*AA;
-            let FID = float_is_derivative;
-            let AK = 2.0 + FID;
-            let BK = 3.0 - FID - FID;
-            let CK = 4.0 - FID;
-            let DK = 3.0 + FID + FID;
-            let mut D1 = AK * DK;
+            let AZ3 = abs_z * abs_z_sq;
+            let (AK, BK, CK, DK) = (
+                2.0 + float_is_derivative,
+                3.0 - 2.0 * float_is_derivative,
+                4.0 - float_is_derivative,
+                3.0 + 2.0 * float_is_derivative,
+            );
+            let mut D1: f64 = AK * DK;
             let mut D2 = BK * CK;
-            //   AD = DMIN1(D1,D2);
             let mut AD = D1.min(D2);
-            let mut AK = 24.0 + 9.0 * FID;
-            let mut BK = 30.0 - 9.0 * FID;
-            //   DO 30 K=1,25;
+            let mut AK = 24.0 + 9.0 * float_is_derivative;
+            let mut BK = 30.0 - 9.0 * float_is_derivative;
             for _ in 0..25 {
-                // TODO same as airy
                 term1 = term1 * z3 / D1;
                 s1 += term1;
                 term2 = term2 * z3 / D2;
                 s2 += term2;
-                a_term = a_term * abs_z3 / AD;
+                a_term = a_term * AZ3 / AD;
                 D1 += AK;
                 D2 += BK;
                 AD = D1.min(D2);
@@ -1675,272 +1637,16 @@ pub fn ZBIRY(z: Complex64, return_derivative: bool, scaling: Scaling) -> BesselR
                 }
                 AK += 18.0;
                 BK += 18.0;
-                // STR = (TRM1R*Z3R-TRM1I*Z3I)/D1;
-                // TRM1I = (TRM1R*Z3I+TRM1I*Z3R)/D1;
-                // TRM1R = STR;
-                // S1R = S1R + TRM1R;
-                // S1I = S1I + TRM1I;
-                // STR = (TRM2R*Z3R-TRM2I*Z3I)/D2;
-                // TRM2I = (TRM2R*Z3I+TRM2I*Z3R)/D2;
-                // TRM2R = STR;
-                // S2R = S2R + TRM2R;
-                // S2I = S2I + TRM2I;
-                // ATRM = ATRM*AZ3/AD;
-                // D1 = D1 + AK;
-                // D2 = D2 + BK;
-                // AD = DMIN1(D1,D2);
-                // if (ATRM < TOL*AD) GO TO 40;
-                // AK = AK + 18.0;
-                // BK = BK + 18.0;
-            }
-            //    30 CONTINUE;
-        }
-        //    40 CONTINUE;
-        if !return_derivative {
-            //   if (ID == 1) GO TO 50;
-            let bi = C1 * s1 + C2 * z * s2;
-            //   BIR = C1*S1R + C2*(ZR*S2R-ZI*S2I);
-            //   BII = C1*S1I + C2*(ZR*S2I+ZI*S2R);
-            return Ok(match scaling {
-                Scaling::Scaled => {
-                    //         CALL ZSQRT(ZR, ZI, STR, STI);
-                    //   ZTAR = TWO_THIRDS*(ZR*STR-ZI*STI);
-                    //   ZTAI = TWO_THIRDS*(ZR*STI+ZI*STR);
-                    let ZTA = TWO_THIRDS * (z * z.sqrt());
-                    //   AA = ZTAR;
-                    //   AA = -(AA).abs();
-                    //   EAA = DEXP(AA);
-                    //   BIR = BIR*EAA;
-                    //   BII = BII*EAA;
-                    //   RETURN;
-                    bi * (-(ZTA.re.abs())).exp()
-                }
-                Scaling::Unscaled => bi,
-            });
-            //   if (KODE == 1) RETURN;
-        }
-        //    50 CONTINUE;
-        let mut bi = s2 * C2;
-        //   BIR = S2R*C2;
-        //   BII = S2I*C2;
-        if abs_z > MACHINE_CONSTANTS.abs_error_tolerance {
-            //GO TO 60;
-            //   CC = C1/(1.0+FID);
-            // TODO float_is_derivative is always here, right?
-            let CC = C1 / (1.0 + float_is_derivative);
-            //   STR = S1R*ZR - S1I*ZI;
-            //   STI = S1R*ZI + S1I*ZR;
-            //   BIR = BIR + CC*(STR*ZR-STI*ZI);
-            //   BII = BII + CC*(STR*ZI+STI*ZR);
-            bi += CC * (s1 * z.pow(2.0))
-        }
-        //    60 CONTINUE;
-        //TODO same scaling as above!
-        return Ok(match scaling {
-            Scaling::Scaled => {
-                //TODO ZTA used many places with similar definition
-                let ZTA = TWO_THIRDS * (z * z.sqrt());
-                bi * (-(ZTA.re.abs())).exp()
-            }
-            Scaling::Unscaled => bi,
-        });
-    //   if (KODE == 1) RETURN;
-    //   CALL ZSQRT(ZR, ZI, STR, STI);
-    //   ZTAR = TWO_THIRDS*(ZR*STR-ZI*STI);
-    //   ZTAI = TWO_THIRDS*(ZR*STI+ZI*STR);
-    //   AA = ZTAR;
-    //   AA = -(AA).abs();
-    //   EAA = DEXP(AA);
-    //   BIR = BIR*EAA;
-    //   BII = BII*EAA;
-    //   RETURN;
-    } else {
-        //-----------------------------------------------------------------------;
-        //     CASE FOR CABS(Z) > 1.0;
-        //-----------------------------------------------------------------------;
-        //    70 CONTINUE;
-        //   FNU = (1.0+FID)/3.0;
-        let order = (1.0 + float_is_derivative) / 3.0;
-        //-----------------------------------------------------------------------;
-        //     SET PARAMETERS RELATED TO MACHINE CONSTANTS.;
-        //     TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0E-18.;
-        //     ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.;
-        //     EXP(-ELIM) < EXP(-ALIM)=EXP(-ELIM)/TOL    AND;
-        //     EXP(ELIM) > EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR;
-        //     UNDERFLOW AND OVERFLOW LIMITS WHERE SCALED ARITHMETIC IS DONE.;
-        //     RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.;
-        //     DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).;
-        //     FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU.;
-        //-----------------------------------------------------------------------;
-        //   K1 = i1mach(15);
-        //   K2 = i1mach(16);
-        //   R1M5 = d1mach(5);
-        //   K = MIN0(K1.abs(),K2.abs());
-        //   ELIM = 2.303*(K as f64)*R1M5-3.0);
-        //   K1 = i1mach(14) - 1;
-        //   AA = R1M5*(K1 as f64);
-        //   DIG = DMIN1(AA,18.0);
-        //   AA = AA*2.303;
-        //   ALIM = ELIM + DMAX1(-AA,-41.45);
-        //   RL = 1.2*DIG + 3.0;
-        //   FNUL = 10.0 + 6.0*(DIG-3.0);
-        //-----------------------------------------------------------------------;
-        //     TEST FOR RANGE;
-        //-----------------------------------------------------------------------;
-        // significance loss only tested against z, not order, so 0.0 is used to never cause significance loss
-
-        let partial_loss_of_significance = is_sigificance_lost(abs_z, 0.0, true)?;
-        //   AA=0.5/TOL;
-        //   BB=DBLE(FLOAT(i1mach(9)))*0.5;
-        //   AA=DMIN1(AA,BB);
-        //   AA=AA**TWO_THIRDS;
-        //   if (AZ > AA) {return Err(LossOfSignificance);};
-        //   AA=DSQRT(AA);
-        //   if (AZ > AA) IERR=3;
-        //   CALL ZSQRT(ZR, ZI, CSQR, CSQI);
-        //   ZTAR = TWO_THIRDS*(ZR*CSQR-ZI*CSQI);
-        //   ZTAI = TWO_THIRDS*(ZR*CSQI+ZI*CSQR);
-        let mut SFAC = 1.0;
-        let mut ZTA = TWO_THIRDS * (z * z.sqrt());
-
-        //-----------------------------------------------------------------------;
-        //     RE(ZTA) <= 0 WHEN RE(Z) < 0, ESPECIALLY WHEN IM(Z) IS SMALL;
-        //-----------------------------------------------------------------------;
-        //   AK = ZTAI;
-        if z.re < 0.0 {
-            // GO TO 80;
-            //   BK = ZTAR;
-            //   CK = -(BK).abs();
-            //   ZTAR = CK;
-            //   ZTAI = AK;
-            ZTA.re = -ZTA.re.abs();
-        }
-        //    80 CONTINUE;
-        if z.im == 0.0 && z.re < 0.0 {
-            //   if (ZI != 0.0 || ZR > 0.0) GO TO 90;
-            ZTA.re = 0.0;
-        }
-        //   ZTAI = AK;
-        //    90 CONTINUE;
-        let AA = ZTA.re;
-        // TODO use find_overflow?
-        if scaling == Scaling::Unscaled {
-            //   if (KODE == 2) GO TO 100;
-            //-----------------------------------------------------------------------;
-            //     OVERFLOW TEST;
-            //-----------------------------------------------------------------------;
-            let mut BB = (AA).abs();
-            if BB > MACHINE_CONSTANTS.approximation_limit {
-                // GO TO 100;
-                BB += 0.25 * abs_z.ln(); //DLOG(AZ);
-                SFAC = MACHINE_CONSTANTS.abs_error_tolerance;
-                if BB > MACHINE_CONSTANTS.exponent_limit {
-                    return Err(Overflow);
-                } //GO TO 190;
             }
         }
-        //   100 CONTINUE;
-        let mut FMR = 0.0;
-        if AA < 0.0 || z.re <= 0.0 {
-            // GO TO 110;
-            FMR = PI;
-            if z.im < 0.0 {
-                FMR = -PI;
-            }
-            ZTA *= -1.0;
-            //   ZTAR = -ZTAR;
-            //   ZTAI = -ZTAI;
-        }
-        //   110 CONTINUE;
-        //-----------------------------------------------------------------------;
-        //     AA=FACTOR FOR ANALYTIC CONTINUATION OF I(FNU,ZTA);
-        //     KODE=2 RETURNS EXP(-ABS(XZTA))*I(FNU,ZTA) FROM ZBESI;
-        //-----------------------------------------------------------------------;
-        let (cy, NZ) = i_right_half_plane(ZTA, order, scaling, 1)?;
-        //   CALL ZBINU(ZTAR, ZTAI, FNU, KODE, 1, CYR, CYI, NZ, RL, FNUL, TOL,;
-        //  * ELIM, ALIM);
-        //   if (NZ < 0) GO TO 200;
-        let AA = FMR * order;
-        let Z3R = SFAC;
-        //   STR = DCOS(AA);
-        //   STI = DSIN(AA);
-        let st = Complex64::cis(AA);
-        let mut s1 = st * cy[0] * Z3R;
-        //   S1R = (STR*CYR(1)-STI*CYI(1))*Z3R;
-        //   S1I = (STR*CYI(1)+STI*CYR(1))*Z3R;
-        let order = (2.0 - float_is_derivative) / 3.0;
-        let (mut cy, NZ) = i_right_half_plane(ZTA, order, scaling, 2)?;
-        //   CALL ZBINU(ZTAR, ZTAI, FNU, KODE, 2, CYR, CYI, NZ, RL, FNUL, TOL,;
-        //  * ELIM, ALIM);
-        cy[0] *= Z3R;
-        cy[1] *= Z3R;
-
-        //   CYR(1) = CYR(1)*Z3R;
-        //   CYI(1) = CYI(1)*Z3R;
-        //   CYR(2) = CYR(2)*Z3R;
-        //   CYI(2) = CYI(2)*Z3R;
-        //-----------------------------------------------------------------------;
-        //     BACKWARD RECUR ONE STEP FOR ORDERS -1/3 OR -2/3;
-        //-----------------------------------------------------------------------;
-        let st = cy[0] / ZTA;
-        //   CALL ZDIV(CYR(1), CYI(1), ZTAR, ZTAI, STR, STI);
-        let s2 = (2.0 * order) * st + cy[1];
-        //   S2R = (FNU+FNU)*STR + CYR(2);
-        //   S2I = (FNU+FNU)*STI + CYI(2);
-        let AA = FMR * (order - 1.0);
-        let st = Complex64::cis(AA);
-        //   STR = DCOS(AA);
-        //   STI = DSIN(AA);
-        s1 = COEF * (s1 + s2 * st);
-        //   S1R = COEF*(S1R+S2R*STR-S2I*STI);
-        //   S1I = COEF*(S1I+S2R*STI+S2I*STR);
-        let bi = if return_derivative {
-            // GO TO 120;
-            // 120 CONTINUE;
-            s1 *= z;
-            // STR = ZR * S1R - ZI * S1I;
-            // S1I = ZR * S1I + ZI * S1R;
-            // S1R = STR;
-            // BIR = S1R / SFAC;
-            // BII = S1I / SFAC;
-            // RETURN;
-            s1 / SFAC
-        } else {
-            s1 *= z.sqrt();
-            // STR = CSQR * S1R - CSQI * S1I;
-            // S1I = CSQR * S1I + CSQI * S1R;
-            // S1R = STR;
-            s1 / SFAC
-            // BIR = S1R / SFAC;
-            // BII = S1I / SFAC;
-
-            // RETURN;
-        };
-        return if partial_loss_of_significance {
-            Err(PartialLossOfSignificance { y: vec![bi], nz: 0 })
-        } else {
-            Ok(bi)
-        };
+        (s1, s2)
     };
-    //   130 CONTINUE;
-    //       AA = C1*(1.0-FID) + FID*C2;
-    //       BIR = AA;
-    //       BII = 0.0;
-    //       RETURN;
-    //   190 CONTINUE;
-    //       IERR=2;
-    //       NZ=0;
-    //       RETURN;
-    //   200 CONTINUE;
-    //       if(NZ == (-1)) GO TO 190;
-    //       NZ=0;
-    //       IERR=5;
-    //       RETURN;
-    //   260 CONTINUE;
-    //       IERR=4;
-    //       NZ=0;
-    //       RETURN;
-    //       END;
+    let (c1, c2) = coeffs;
+    if return_derivative {
+        (c1 / 2.0) * z_floor.pow(2.0) * s1 - s2 * c2
+    } else {
+        s1 * c1 - c2 * z_floor * s2
+    }
 }
 
 /// zbknu computes the k bessel function in the right half z plane.

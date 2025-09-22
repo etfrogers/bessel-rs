@@ -3,7 +3,7 @@ use f64;
 use num::complex::Complex64;
 
 use crate::Scaling;
-use crate::amos::{BesselResult, HankelKind, ZBIRY, complex_airy};
+use crate::amos::{BesselResult, HankelKind, complex_airy, complex_airy_b};
 
 pub use bessel_h_wrappers::*;
 pub use fortran_calls::*;
@@ -76,7 +76,7 @@ fn sig_airyp_fortran(
 }
 
 fn sig_biry(z: Complex64, _order: f64, scaling: Scaling, _n: usize) -> BesselResult {
-    ZBIRY(z, false, scaling).map(|y| (vec![y], 0))
+    complex_airy_b(z, false, scaling).map(|y| (vec![y], 0))
 }
 
 fn sig_biry_fortran(
@@ -90,7 +90,7 @@ fn sig_biry_fortran(
 }
 
 fn sig_biryp(z: Complex64, _order: f64, scaling: Scaling, _n: usize) -> BesselResult {
-    ZBIRY(z, true, scaling).map(|y| (vec![y], 0))
+    complex_airy_b(z, true, scaling).map(|y| (vec![y], 0))
 }
 
 fn sig_biryp_fortran(

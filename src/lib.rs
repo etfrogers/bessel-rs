@@ -2,14 +2,16 @@
 mod amos;
 pub use amos::{BesselError, GammaError, Scaling};
 use amos::{
-    ZBIRY, complex_airy, complex_bessel_h, complex_bessel_i, complex_bessel_j, complex_bessel_k,
-    complex_bessel_y,
+    complex_airy, complex_airy_b, complex_bessel_h, complex_bessel_i, complex_bessel_j,
+    complex_bessel_k, complex_bessel_y,
 };
 use num::complex::Complex64;
 
 use crate::amos::HankelKind;
 
 // TODO work with abritrary bit-depth floats
+// TODO bessel derivatives
+// TODO negative orders
 
 pub fn bessel_j<T: Into<Complex64>>(order: f64, z: T) -> Result<Complex64, BesselError> {
     complex_bessel_j(z.into(), order, Scaling::Unscaled, 1).map(|v| v.0[0])
@@ -44,11 +46,11 @@ pub fn airyp<T: Into<Complex64>>(z: T) -> Result<Complex64, BesselError> {
 }
 
 pub fn airy_b<T: Into<Complex64>>(z: T) -> Result<Complex64, BesselError> {
-    ZBIRY(z.into(), false, Scaling::Unscaled).map(|v| v)
+    complex_airy_b(z.into(), false, Scaling::Unscaled).map(|v| v)
 }
 
 pub fn airy_bp<T: Into<Complex64>>(z: T) -> Result<Complex64, BesselError> {
-    ZBIRY(z.into(), true, Scaling::Unscaled).map(|v| v)
+    complex_airy_b(z.into(), true, Scaling::Unscaled)
 }
 
 #[cfg(test)]
