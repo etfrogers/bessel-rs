@@ -3,7 +3,7 @@ use f64;
 use num::complex::Complex64;
 
 use crate::Scaling;
-use crate::amos::{BesselResult, HankelKind};
+use crate::amos::{BesselResult, HankelKind, ZBIRY, complex_airy};
 
 pub use bessel_h_wrappers::*;
 pub use fortran_calls::*;
@@ -40,6 +40,67 @@ fn bessel_h_ref(order: f64, z: Complex64, kind: HankelKind) -> Result<Complex64,
 fn airy_ref(z: Complex64, is_derivative: bool) -> Result<Complex64, i32> {
     let (y, _, ierr) = zairy_fortran(z, is_derivative, Scaling::Unscaled);
     if ierr != 0 { Err(ierr) } else { Ok(y) }
+}
+
+fn biry_ref(z: Complex64, is_derivative: bool) -> Result<Complex64, i32> {
+    let (y, _, ierr) = zbiry_fortran(z, is_derivative, Scaling::Unscaled);
+    if ierr != 0 { Err(ierr) } else { Ok(y) }
+}
+
+fn sig_airy(z: Complex64, _order: f64, scaling: Scaling, _n: usize) -> BesselResult {
+    complex_airy(z, false, scaling).map(|(y, nz)| (vec![y], nz))
+}
+
+fn sig_airy_fortran(
+    _order: f64,
+    z: Complex64,
+    scaling: Scaling,
+    _n: usize,
+) -> (Vec<Complex64>, usize, i32) {
+    let res = zairy_fortran(z, false, scaling);
+    (vec![res.0], res.1, res.2)
+}
+
+fn sig_airyp(z: Complex64, _order: f64, scaling: Scaling, _n: usize) -> BesselResult {
+    complex_airy(z, true, scaling).map(|(y, nz)| (vec![y], nz))
+}
+
+fn sig_airyp_fortran(
+    _order: f64,
+    z: Complex64,
+    scaling: Scaling,
+    _n: usize,
+) -> (Vec<Complex64>, usize, i32) {
+    let res = zairy_fortran(z, true, scaling);
+    (vec![res.0], res.1, res.2)
+}
+
+fn sig_biry(z: Complex64, _order: f64, scaling: Scaling, _n: usize) -> BesselResult {
+    ZBIRY(z, false, scaling).map(|y| (vec![y], 0))
+}
+
+fn sig_biry_fortran(
+    _order: f64,
+    z: Complex64,
+    scaling: Scaling,
+    _n: usize,
+) -> (Vec<Complex64>, usize, i32) {
+    let res = zbiry_fortran(z, false, scaling);
+    (vec![res.0], res.1, res.2)
+}
+
+fn sig_biryp(z: Complex64, _order: f64, scaling: Scaling, _n: usize) -> BesselResult {
+    ZBIRY(z, true, scaling).map(|y| (vec![y], 0))
+}
+
+fn sig_biryp_fortran(
+    _order: f64,
+    z: Complex64,
+    scaling: Scaling,
+    _n: usize,
+) -> (Vec<Complex64>, usize, i32) {
+    let res = zbiry_fortran(z, true, scaling);
+    (vec![res.0], res.1, res.2)
 }
 
 // TODO test bad inputs

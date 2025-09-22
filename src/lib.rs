@@ -2,7 +2,7 @@
 mod amos;
 pub use amos::{BesselError, GammaError, Scaling};
 use amos::{
-    complex_airy, complex_bessel_h, complex_bessel_i, complex_bessel_j, complex_bessel_k,
+    ZBIRY, complex_airy, complex_bessel_h, complex_bessel_i, complex_bessel_j, complex_bessel_k,
     complex_bessel_y,
 };
 use num::complex::Complex64;
@@ -41,6 +41,14 @@ pub fn airy<T: Into<Complex64>>(z: T) -> Result<Complex64, BesselError> {
 
 pub fn airyp<T: Into<Complex64>>(z: T) -> Result<Complex64, BesselError> {
     complex_airy(z.into(), true, Scaling::Unscaled).map(|v| v.0)
+}
+
+pub fn airy_b<T: Into<Complex64>>(z: T) -> Result<Complex64, BesselError> {
+    ZBIRY(z.into(), false, Scaling::Unscaled).map(|v| v)
+}
+
+pub fn airy_bp<T: Into<Complex64>>(z: T) -> Result<Complex64, BesselError> {
+    ZBIRY(z.into(), true, Scaling::Unscaled).map(|v| v)
 }
 
 #[cfg(test)]

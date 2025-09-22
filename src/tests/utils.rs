@@ -253,6 +253,14 @@ impl Tolerances {
     }
 }
 
+pub fn complex_relative_equal_default_tol(a: Complex64, b: Complex64) -> bool {
+    complex_relative_eq(
+        a,
+        b,
+        &Tolerances::new(a, b, None, MACHINE_CONSTANTS.abs_error_tolerance),
+    )
+}
+
 fn complex_relative_eq(a: Complex64, b: Complex64, tolerances: &Tolerances) -> bool {
     if relative_eq!(
         a,

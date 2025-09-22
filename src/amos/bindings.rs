@@ -76,4 +76,14 @@ unsafe extern "C" {
         nz: *mut c_int,
         ierr: *mut c_int,
     );
+
+    pub unsafe fn zbiry_wrap(
+        zr: c_double,
+        zi: c_double,
+        id: c_int,
+        kode: c_int,
+        bir: *mut c_double,
+        bii: *mut c_double,
+        ierr: *mut c_int,
+    );
 }

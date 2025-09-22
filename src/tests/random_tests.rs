@@ -13,8 +13,10 @@ use approx::assert_relative_eq;
 
 use super::{
     BesselFortranSig, BesselSig, TOLERANCE_MARGIN, airy_ref, bessel_h_ref, check_against_fortran,
-    check_complex_arrays_equal, fortran_bess_loop, zbesh_first, zbesh_fortran_first,
-    zbesh_fortran_second, zbesh_second, zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran,
+    check_complex_arrays_equal, fortran_bess_loop, sig_airy, sig_airy_fortran, sig_airyp,
+    sig_airyp_fortran, sig_biry, sig_biry_fortran, sig_biryp, sig_biryp_fortran, zbesh_first,
+    zbesh_fortran_first, zbesh_fortran_second, zbesh_second, zbesi_fortran, zbesj_fortran,
+    zbesk_fortran, zbesy_fortran,
 };
 
 use crate::{
@@ -214,7 +216,11 @@ fn test_bessel_large_n_random(
         (zbesh_first as BesselSig , zbesh_fortran_first as BesselFortranSig),
         (zbesh_second as BesselSig , zbesh_fortran_second as BesselFortranSig),
         (complex_bessel_k as BesselSig, zbesk_fortran as BesselFortranSig),
-        (complex_bessel_y as BesselSig, zbesy_fortran as BesselFortranSig)
+        (complex_bessel_y as BesselSig, zbesy_fortran as BesselFortranSig),
+        (sig_airy as BesselSig, sig_airy_fortran as BesselFortranSig),
+        (sig_airyp as BesselSig, sig_airyp_fortran as BesselFortranSig),
+        (sig_biry as BesselSig, sig_biry_fortran as BesselFortranSig),
+        (sig_biryp as BesselSig, sig_biryp_fortran as BesselFortranSig),
     )]
     (rust_fn, fortran_fn): (BesselSig, BesselFortranSig),
     mut rng: SmallRng,
@@ -250,7 +256,11 @@ fn test_bessel_random_logspace(
         (zbesh_first as BesselSig , zbesh_fortran_first as BesselFortranSig),
         (zbesh_second as BesselSig , zbesh_fortran_second as BesselFortranSig),
         (complex_bessel_k as BesselSig, zbesk_fortran as BesselFortranSig),
-        (complex_bessel_y as BesselSig, zbesy_fortran as BesselFortranSig)
+        (complex_bessel_y as BesselSig, zbesy_fortran as BesselFortranSig),
+        (sig_airy as BesselSig, sig_airy_fortran as BesselFortranSig),
+        (sig_airyp as BesselSig, sig_airyp_fortran as BesselFortranSig),
+        (sig_biry as BesselSig, sig_biry_fortran as BesselFortranSig),
+        (sig_biryp as BesselSig, sig_biryp_fortran as BesselFortranSig),
     )]
     (rust_fn, fortran_fn): (BesselSig, BesselFortranSig),
 ) {

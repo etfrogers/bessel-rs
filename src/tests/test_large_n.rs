@@ -8,7 +8,7 @@ use super::{
 };
 use crate::{
     Scaling,
-    amos::{complex_bessel_k, complex_bessel_y, complex_bessel_j, complex_bessel_i},
+    amos::{complex_bessel_i, complex_bessel_j, complex_bessel_k, complex_bessel_y},
 };
 use num::complex::Complex64;
 

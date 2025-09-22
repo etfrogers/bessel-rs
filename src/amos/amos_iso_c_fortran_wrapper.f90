@@ -29,7 +29,7 @@ subroutine zbesj_wrap(zr, zi, order, kode, N, cyr, cyi, nz, ierr) bind(C)
                     DOUBLE PRECISION ZR, ZI, ORDER, CYR, CYI
             END SUBROUTINE ZBESJ
     end interface
-    
+
     call ZBESJ(zr, zi, order, kode, N, cyr, cyi, nz, ierr)
 end subroutine zbesj_wrap
 
@@ -175,10 +175,10 @@ subroutine zbiry_wrap(zr, zi, id, kode, bir, bii, ierr) bind(C)
 
     ! Interface to original FORTRAN subroutine.
     interface
-            SUBROUTINE BAIRY(ZR, ZI, ID, KODE, BIR, BII, IERR)
+            SUBROUTINE ZBIRY(ZR, ZI, ID, KODE, BIR, BII, IERR)
                     INTEGER ID, KODE, IERR
                     DOUBLE PRECISION ZR, ZI, BIR, BII
-            END SUBROUTINE BAIRY
+            END SUBROUTINE ZBIRY
     end interface
 
     call ZBIRY(zr, zi, id, kode, bir, bii, ierr)

@@ -1334,6 +1334,7 @@ pub fn complex_airy(
         }
         let abs_z_sq = abs_z * abs_z;
         if abs_z_sq >= MACHINE_CONSTANTS.abs_error_tolerance / abs_z {
+            // TODO v similar to zbiry
             let mut term1 = c_one();
             let mut term2 = c_one();
             let mut a_term = 1.0;
@@ -1401,7 +1402,7 @@ pub fn complex_airy(
             zta.re = 0.0;
         }
         let mut AA = zta.re;
-        let (cy, NZ) = if !(AA >= 0.0 && z.re > 0.0) {
+        let (cy, NZ) = if AA < 0.0 || z.re <= 0.0 {
             //-----------------------------------------------------------------------
             //     OVERFLOW TEST
             //-----------------------------------------------------------------------
@@ -1457,374 +1458,490 @@ pub fn complex_airy(
         Ok(retval)
     }
 }
-/*
-fn ZBIRY(ZR, ZI, ID, KODE, BIR, BII, IERR)
-// ***BEGIN PROLOGUE  ZBIRY
-// ***DATE WRITTEN   830501   (YYMMDD)
-// ***REVISION DATE  890801, 930101   (YYMMDD)
-// ***CATEGORY NO.  B5K
-// ***KEYWORDS  AIRY FUNCTION,BESSEL FUNCTIONS OF ORDER ONE THIRD
-// ***AUTHOR  AMOS, DONALD E., SANDIA NATIONAL LABORATORIES
-// ***PURPOSE  TO COMPUTE AIRY FUNCTIONS BI(Z) AND DBI(Z) FOR COMPLEX Z
-// ***DESCRIPTION
-//
-//                      ***A DOUBLE PRECISION ROUTINE***
-//         ON KODE=1, CBIRY COMPUTES THE COMPLEX AIRY FUNCTION BI(Z) OR
-//         ITS DERIVATIVE DBI(Z)/DZ ON ID=0 OR ID=1 RESPECTIVELY. ON
-//         KODE=2, A SCALING OPTION CEXP(-AXZTA)*BI(Z) OR CEXP(-AXZTA)*
-//         DBI(Z)/DZ IS PROVIDED TO REMOVE THE EXPONENTIAL BEHAVIOR IN
-//         BOTH THE LEFT AND RIGHT HALF PLANES WHERE
-//         ZTA=(2/3)*Z*CSQRT(Z)=CMPLX(XZTA,YZTA) AND AXZTA=ABS(XZTA).
-//         DEFINTIONS AND NOTATION ARE FOUND IN THE NBS HANDBOOK OF
-//         MATHEMATICAL FUNCTIONS (REF. 1).
-//
-//         INPUT      ZR,ZI ARE DOUBLE PRECISION
-//           ZR,ZI  - Z=CMPLX(ZR,ZI)
-//           ID     - ORDER OF DERIVATIVE, ID=0 OR ID=1
-//           KODE   - A PARAMETER TO INDICATE THE SCALING OPTION
-//                    KODE= 1  RETURNS
-//                             BI=BI(Z)                 ON ID=0 OR
-//                             BI=DBI(Z)/DZ             ON ID=1
-//                        = 2  RETURNS
-//                             BI=CEXP(-AXZTA)*BI(Z)     ON ID=0 OR
-//                             BI=CEXP(-AXZTA)*DBI(Z)/DZ ON ID=1 WHERE
-//                             ZTA=(2/3)*Z*CSQRT(Z)=CMPLX(XZTA,YZTA)
-//                             AND AXZTA=ABS(XZTA)
-//
-//         OUTPUT     BIR,BII ARE DOUBLE PRECISION
-//           BIR,BII- COMPLEX ANSWER DEPENDING ON THE CHOICES FOR ID AND
-//                    KODE
-//           IERR   - ERROR FLAG
-//                    IERR=0, NORMAL RETURN - COMPUTATION COMPLETED
-//                    IERR=1, INPUT ERROR   - NO COMPUTATION
-//                    IERR=2, OVERFLOW      - NO COMPUTATION, REAL(Z)
-//                            TOO LARGE ON KODE=1
-//                    IERR=3, CABS(Z) LARGE      - COMPUTATION COMPLETED
-//                            LOSSES OF SIGNIFCANCE BY ARGUMENT REDUCTION
-//                            PRODUCE LESS THAN HALF OF MACHINE ACCURACY
-//                    IERR=4, CABS(Z) TOO LARGE  - NO COMPUTATION
-//                            COMPLETE LOSS OF ACCURACY BY ARGUMENT
-//                            REDUCTION
-//                    IERR=5, ERROR              - NO COMPUTATION,
-//                            ALGORITHM TERMINATION CONDITION NOT MET
-//
-// ***LONG DESCRIPTION
-//
-//         BI AND DBI ARE COMPUTED FOR CABS(Z) > 1.0 FROM THE I BESSEL
-//         FUNCTIONS BY
-//
-//                BI(Z)=C*SQRT(Z)*( I(-1/3,ZTA) + I(1/3,ZTA) )
-//               DBI(Z)=C *  Z  * ( I(-2/3,ZTA) + I(2/3,ZTA) )
-//                               C=1.0/SQRT(3.0)
-//                             ZTA=(2/3)*Z**(3/2)
-//
-//         WITH THE POWER SERIES FOR CABS(Z) <= 1.0.
-//
-//         IN MOST COMPLEX VARIABLE COMPUTATION, ONE MUST EVALUATE ELE-
-//         MENTARY FUNCTIONS. WHEN THE MAGNITUDE OF Z IS LARGE, LOSSES
-//         OF SIGNIFICANCE BY ARGUMENT REDUCTION OCCUR. CONSEQUENTLY, if
-//         THE MAGNITUDE OF ZETA=(2/3)*Z**1.5 EXCEEDS U1=SQRT(0.5/UR),
-//         THEN LOSSES EXCEEDING HALF PRECISION ARE LIKELY AND AN ERROR
-//         FLAG IERR=3 IS TRIGGERED WHERE UR=DMAX1(d1mach(4),1.0e-18) IS
-//         DOUBLE PRECISION UNIT ROUNDOFF LIMITED TO 18 DIGITS PRECISION.
-//         ALSO, if THE MAGNITUDE OF ZETA IS LARGER THAN U2=0.5/UR, THEN
-//         ALL SIGNIFICANCE IS LOST AND IERR=4. IN ORDER TO USE THE INT
-//         FUNCTION, ZETA MUST BE FURTHER RESTRICTED NOT TO EXCEED THE
-//         LARGEST INTEGER, U3=i1mach(9). THUS, THE MAGNITUDE OF ZETA
-//         MUST BE RESTRICTED BY MIN(U2,U3). ON 32 BIT MACHINES, U1,U2,
-//         AND U3 ARE APPROXIMATELY 2.0E+3, 4.2E+6, 2.1E+9 IN SINGLE
-//         PRECISION ARITHMETIC AND 1.3E+8, 1.8E+16, 2.1E+9 IN DOUBLE
-//         PRECISION ARITHMETIC RESPECTIVELY. THIS MAKES U2 AND U3 LIMIT-
-//         ING IN THEIR RESPECTIVE ARITHMETICS. THIS MEANS THAT THE MAG-
-//         NITUDE OF Z CANNOT EXCEED 3.1E+4 IN SINGLE AND 2.1E+6 IN
-//         DOUBLE PRECISION ARITHMETIC. THIS ALSO MEANS THAT ONE CAN
-//         EXPECT TO RETAIN, IN THE WORST CASES ON 32 BIT MACHINES,
-//         NO DIGITS IN SINGLE PRECISION AND ONLY 7 DIGITS IN DOUBLE
-//         PRECISION ARITHMETIC. SIMILAR CONSIDERATIONS HOLD FOR OTHER
-//         MACHINES.
-//
-//         THE APPROXIMATE RELATIVE ERROR IN THE MAGNITUDE OF A COMPLEX
-//         BESSEL FUNCTION CAN BE EXPRESSED BY P*10**S WHERE P=MAX(UNIT
-//         ROUNDOFF,1.0E-18) IS THE NOMINAL PRECISION AND 10**S REPRE-
-//         SENTS THE INCREASE IN ERROR DUE TO ARGUMENT REDUCTION IN THE
-//         ELEMENTARY FUNCTIONS. HERE, S=MAX(1,ABS(LOG10(CABS(Z))),
-//         ABS(LOG10(FNU))) APPROXIMATELY (I.E. S=MAX(1,ABS(EXPONENT OF
-//         CABS(Z),ABS(EXPONENT OF FNU)) ). HOWEVER, THE PHASE ANGLE MAY
-//         HAVE ONLY ABSOLUTE ACCURACY. THIS IS MOST LIKELY TO OCCUR WHEN
-//         ONE COMPONENT (IN ABSOLUTE VALUE) IS LARGER THAN THE OTHER BY
-//         SEVERAL ORDERS OF MAGNITUDE. if ONE COMPONENT IS 10**K LARGER
-//         THAN THE OTHER, THEN ONE CAN EXPECT ONLY MAX(ABS(LOG10(P))-K,
-//         0) SIGNIFICANT DIGITS; OR, STATED ANOTHER WAY, WHEN K EXCEEDS
-//         THE EXPONENT OF P, NO SIGNIFICANT DIGITS REMAIN IN THE SMALLER
-//         COMPONENT. HOWEVER, THE PHASE ANGLE RETAINS ABSOLUTE ACCURACY
-//         BECAUSE, IN COMPLEX ARITHMETIC WITH PRECISION P, THE SMALLER
-//         COMPONENT WILL NOT (AS A RULE) DECREASE BELOW P TIMES THE
-//         MAGNITUDE OF THE LARGER COMPONENT. IN THESE EXTREME CASES,
-//         THE PRINCIPAL PHASE ANGLE IS ON THE ORDER OF +P, -P, PI/2-P,
-//         OR -PI/2+P.
-//
-// ***REFERENCES  HANDBOOK OF MATHEMATICAL FUNCTIONS BY M. ABRAMOWITZ
-//                 AND I. A. STEGUN, NBS AMS SERIES 55, U.S. DEPT. OF
-//                 COMMERCE, 1955.
-//
-//               COMPUTATION OF BESSEL FUNCTIONS OF COMPLEX ARGUMENT
-//                 AND LARGE ORDER BY D. E. AMOS, SAND83-0643, MAY, 1983
-//
-//               A SUBROUTINE PACKAGE FOR BESSEL FUNCTIONS OF A COMPLEX
-//                 ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, SAND85-
-//                 1018, MAY, 1985
-//
-//               A PORTABLE PACKAGE FOR BESSEL FUNCTIONS OF A COMPLEX
-//                 ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, ACM
-//                 TRANS. MATH. SOFTWARE, VOL. 12, NO. 3, SEPTEMBER 1986,
-//                 PP 265-273.
-//
-// ***ROUTINES CALLED  ZBINU,ZABS,ZDIV,ZSQRT,d1mach,i1mach
-// ***END PROLOGUE  ZBIRY
-//     COMPLEX BI,CONE,CSQ,CY,S1,S2,TRM1,TRM2,Z,ZTA,Z3
-      EXTERNAL ZABS
-      DOUBLE PRECISION AA, AD, AK, ALIM, ATRM, AZ, AZ3, BB, BII, BIR,
-     * BK, CC, CK, COEF, CONEI, CONER, CSQI, CSQR, CYI, CYR, C1, C2,
-     * DIG, DK, D1, D2, EAA, ELIM, FID, FMR, FNU, FNUL, PI, RL, R1M5,
-     * SFAC, STI, STR, S1I, S1R, S2I, S2R, TOL, TRM1I, TRM1R, TRM2I,
-     * TRM2R, TWO_THIRDS, ZI, ZR, ZTAI, ZTAR, Z3I, Z3R, d1mach, ZABS
-      INTEGER ID, IERR, K, KODE, K1, K2, NZ, i1mach
-      DIMENSION CYR(2), CYI(2)
-      DATA TWO_THIRDS, C1, C2, COEF, PI /6.66666666666666667e-01,
-     * 6.14926627446000736e-01,4.48288357353826359e-01,
-     * 5.77350269189625765e-01,3.14159265358979324e+00/
-      DATA CONER, CONEI /1.0,0.0/
-// ***FIRST EXECUTABLE STATEMENT  ZBIRY
-      IERR = 0
-      NZ=0
-      if (ID < 0 || ID > 1) IERR=1
-      if (KODE < 1 || KODE > 2) IERR=1
-      if (IERR != 0) RETURN
-      AZ = ZABS(ZR,ZI)
-      TOL = DMAX1(d1mach(4),1.0e-18)
-      FID = (ID as f64)
-      if (AZ > 1.0E0) GO TO 70
-//-----------------------------------------------------------------------
-//     POWER SERIES FOR CABS(Z) <= 1.
-//-----------------------------------------------------------------------
-      S1R = CONER
-      S1I = CONEI
-      S2R = CONER
-      S2I = CONEI
-      if (AZ < TOL) GO TO 130
-      AA = AZ*AZ
-      if (AA < TOL/AZ) GO TO 40
-      TRM1R = CONER
-      TRM1I = CONEI
-      TRM2R = CONER
-      TRM2I = CONEI
-      ATRM = 1.0
-      STR = ZR*ZR - ZI*ZI
-      STI = ZR*ZI + ZI*ZR
-      Z3R = STR*ZR - STI*ZI
-      Z3I = STR*ZI + STI*ZR
-      AZ3 = AZ*AA
-      AK = 2.0 + FID
-      BK = 3.0 - FID - FID
-      CK = 4.0 - FID
-      DK = 3.0 + FID + FID
-      D1 = AK*DK
-      D2 = BK*CK
-      AD = DMIN1(D1,D2)
-      AK = 24.0 + 9.0*FID
-      BK = 30.0 - 9.0*FID
-      DO 30 K=1,25
-        STR = (TRM1R*Z3R-TRM1I*Z3I)/D1
-        TRM1I = (TRM1R*Z3I+TRM1I*Z3R)/D1
-        TRM1R = STR
-        S1R = S1R + TRM1R
-        S1I = S1I + TRM1I
-        STR = (TRM2R*Z3R-TRM2I*Z3I)/D2
-        TRM2I = (TRM2R*Z3I+TRM2I*Z3R)/D2
-        TRM2R = STR
-        S2R = S2R + TRM2R
-        S2I = S2I + TRM2I
-        ATRM = ATRM*AZ3/AD
-        D1 = D1 + AK
-        D2 = D2 + BK
-        AD = DMIN1(D1,D2)
-        if (ATRM < TOL*AD) GO TO 40
-        AK = AK + 18.0
-        BK = BK + 18.0
-   30 CONTINUE
-   40 CONTINUE
-      if (ID == 1) GO TO 50
-      BIR = C1*S1R + C2*(ZR*S2R-ZI*S2I)
-      BII = C1*S1I + C2*(ZR*S2I+ZI*S2R)
-      if (KODE == 1) RETURN
-      CALL ZSQRT(ZR, ZI, STR, STI)
-      ZTAR = TWO_THIRDS*(ZR*STR-ZI*STI)
-      ZTAI = TWO_THIRDS*(ZR*STI+ZI*STR)
-      AA = ZTAR
-      AA = -(AA).abs()
-      EAA = DEXP(AA)
-      BIR = BIR*EAA
-      BII = BII*EAA
-      RETURN
-   50 CONTINUE
-      BIR = S2R*C2
-      BII = S2I*C2
-      if (AZ <= TOL) GO TO 60
-      CC = C1/(1.0+FID)
-      STR = S1R*ZR - S1I*ZI
-      STI = S1R*ZI + S1I*ZR
-      BIR = BIR + CC*(STR*ZR-STI*ZI)
-      BII = BII + CC*(STR*ZI+STI*ZR)
-   60 CONTINUE
-      if (KODE == 1) RETURN
-      CALL ZSQRT(ZR, ZI, STR, STI)
-      ZTAR = TWO_THIRDS*(ZR*STR-ZI*STI)
-      ZTAI = TWO_THIRDS*(ZR*STI+ZI*STR)
-      AA = ZTAR
-      AA = -(AA).abs()
-      EAA = DEXP(AA)
-      BIR = BIR*EAA
-      BII = BII*EAA
-      RETURN
-//-----------------------------------------------------------------------
-//     CASE FOR CABS(Z) > 1.0
-//-----------------------------------------------------------------------
-   70 CONTINUE
-      FNU = (1.0+FID)/3.0
-//-----------------------------------------------------------------------
-//     SET PARAMETERS RELATED TO MACHINE CONSTANTS.
-//     TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0E-18.
-//     ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.
-//     EXP(-ELIM) < EXP(-ALIM)=EXP(-ELIM)/TOL    AND
-//     EXP(ELIM) > EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR
-//     UNDERFLOW AND OVERFLOW LIMITS WHERE SCALED ARITHMETIC IS DONE.
-//     RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.
-//     DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).
-//     FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU.
-//-----------------------------------------------------------------------
-      K1 = i1mach(15)
-      K2 = i1mach(16)
-      R1M5 = d1mach(5)
-      K = MIN0(K1.abs(),K2.abs())
-      ELIM = 2.303*(K as f64)*R1M5-3.0)
-      K1 = i1mach(14) - 1
-      AA = R1M5*(K1 as f64)
-      DIG = DMIN1(AA,18.0)
-      AA = AA*2.303
-      ALIM = ELIM + DMAX1(-AA,-41.45)
-      RL = 1.2*DIG + 3.0
-      FNUL = 10.0 + 6.0*(DIG-3.0)
-//-----------------------------------------------------------------------
-//     TEST FOR RANGE
-//-----------------------------------------------------------------------
-      AA=0.5/TOL
-      BB=DBLE(FLOAT(i1mach(9)))*0.5
-      AA=DMIN1(AA,BB)
-      AA=AA**TWO_THIRDS
-      if (AZ > AA) {return Err(LossOfSignificance);}
-      AA=DSQRT(AA)
-      if (AZ > AA) IERR=3
-      CALL ZSQRT(ZR, ZI, CSQR, CSQI)
-      ZTAR = TWO_THIRDS*(ZR*CSQR-ZI*CSQI)
-      ZTAI = TWO_THIRDS*(ZR*CSQI+ZI*CSQR)
-//-----------------------------------------------------------------------
-//     RE(ZTA) <= 0 WHEN RE(Z) < 0, ESPECIALLY WHEN IM(Z) IS SMALL
-//-----------------------------------------------------------------------
-      SFAC = 1.0
-      AK = ZTAI
-      if (ZR >= 0.0) GO TO 80
-      BK = ZTAR
-      CK = -(BK).abs()
-      ZTAR = CK
-      ZTAI = AK
-   80 CONTINUE
-      if (ZI != 0.0 || ZR > 0.0) GO TO 90
-      ZTAR = 0.0
-      ZTAI = AK
-   90 CONTINUE
-      AA = ZTAR
-      if (KODE == 2) GO TO 100
-//-----------------------------------------------------------------------
-//     OVERFLOW TEST
-//-----------------------------------------------------------------------
-      BB = (AA).abs()
-      if (BB < ALIM) GO TO 100
-      BB = BB + 0.25*DLOG(AZ)
-      SFAC = TOL
-      if (BB > ELIM) GO TO 190
-  100 CONTINUE
-      FMR = 0.0
-      if (AA >= 0.0 && ZR > 0.0) GO TO 110
-      FMR = PI
-      if (ZI < 0.0) FMR = -PI
-      ZTAR = -ZTAR
-      ZTAI = -ZTAI
-  110 CONTINUE
-//-----------------------------------------------------------------------
-//     AA=FACTOR FOR ANALYTIC CONTINUATION OF I(FNU,ZTA)
-//     KODE=2 RETURNS EXP(-ABS(XZTA))*I(FNU,ZTA) FROM ZBESI
-//-----------------------------------------------------------------------
-      CALL ZBINU(ZTAR, ZTAI, FNU, KODE, 1, CYR, CYI, NZ, RL, FNUL, TOL,
-     * ELIM, ALIM)
-      if (NZ < 0) GO TO 200
-      AA = FMR*FNU
-      Z3R = SFAC
-      STR = DCOS(AA)
-      STI = DSIN(AA)
-      S1R = (STR*CYR(1)-STI*CYI(1))*Z3R
-      S1I = (STR*CYI(1)+STI*CYR(1))*Z3R
-      FNU = (2.0-FID)/3.0
-      CALL ZBINU(ZTAR, ZTAI, FNU, KODE, 2, CYR, CYI, NZ, RL, FNUL, TOL,
-     * ELIM, ALIM)
-      CYR(1) = CYR(1)*Z3R
-      CYI(1) = CYI(1)*Z3R
-      CYR(2) = CYR(2)*Z3R
-      CYI(2) = CYI(2)*Z3R
-//-----------------------------------------------------------------------
-//     BACKWARD RECUR ONE STEP FOR ORDERS -1/3 OR -2/3
-//-----------------------------------------------------------------------
-      CALL ZDIV(CYR(1), CYI(1), ZTAR, ZTAI, STR, STI)
-      S2R = (FNU+FNU)*STR + CYR(2)
-      S2I = (FNU+FNU)*STI + CYI(2)
-      AA = FMR*(FNU-1.0)
-      STR = DCOS(AA)
-      STI = DSIN(AA)
-      S1R = COEF*(S1R+S2R*STR-S2I*STI)
-      S1I = COEF*(S1I+S2R*STI+S2I*STR)
-      if (ID == 1) GO TO 120
-      STR = CSQR*S1R - CSQI*S1I
-      S1I = CSQR*S1I + CSQI*S1R
-      S1R = STR
-      BIR = S1R/SFAC
-      BII = S1I/SFAC
-      RETURN
-  120 CONTINUE
-      STR = ZR*S1R - ZI*S1I
-      S1I = ZR*S1I + ZI*S1R
-      S1R = STR
-      BIR = S1R/SFAC
-      BII = S1I/SFAC
-      RETURN
-  130 CONTINUE
-      AA = C1*(1.0-FID) + FID*C2
-      BIR = AA
-      BII = 0.0
-      RETURN
-  190 CONTINUE
-      IERR=2
-      NZ=0
-      RETURN
-  200 CONTINUE
-      if(NZ == (-1)) GO TO 190
-      NZ=0
-      IERR=5
-      RETURN
-  260 CONTINUE
-      IERR=4
-      NZ=0
-      RETURN
-      END
-*/
+
+pub fn ZBIRY(z: Complex64, return_derivative: bool, scaling: Scaling) -> BesselResult<Complex64> {
+    // ZR, ZI, ID, KODE, BIR, BII, IERR
+    // ***BEGIN PROLOGUE  ZBIRY
+    // ***DATE WRITTEN   830501   (YYMMDD)
+    // ***REVISION DATE  890801, 930101   (YYMMDD)
+    // ***CATEGORY NO.  B5K
+    // ***KEYWORDS  AIRY FUNCTION,BESSEL FUNCTIONS OF ORDER ONE THIRD
+    // ***AUTHOR  AMOS, DONALD E., SANDIA NATIONAL LABORATORIES
+    // ***PURPOSE  TO COMPUTE AIRY FUNCTIONS BI(Z) AND DBI(Z) FOR COMPLEX Z
+    // ***DESCRIPTION
+    //
+    //                      ***A DOUBLE PRECISION ROUTINE***
+    //         ON KODE=1, CBIRY COMPUTES THE COMPLEX AIRY FUNCTION BI(Z) OR
+    //         ITS DERIVATIVE DBI(Z)/DZ ON ID=0 OR ID=1 RESPECTIVELY. ON
+    //         KODE=2, A SCALING OPTION CEXP(-AXZTA)*BI(Z) OR CEXP(-AXZTA)*
+    //         DBI(Z)/DZ IS PROVIDED TO REMOVE THE EXPONENTIAL BEHAVIOR IN
+    //         BOTH THE LEFT AND RIGHT HALF PLANES WHERE
+    //         ZTA=(2/3)*Z*CSQRT(Z)=CMPLX(XZTA,YZTA) AND AXZTA=ABS(XZTA).
+    //         DEFINTIONS AND NOTATION ARE FOUND IN THE NBS HANDBOOK OF
+    //         MATHEMATICAL FUNCTIONS (REF. 1).
+    //
+    //         INPUT      ZR,ZI ARE DOUBLE PRECISION
+    //           ZR,ZI  - Z=CMPLX(ZR,ZI)
+    //           ID     - ORDER OF DERIVATIVE, ID=0 OR ID=1
+    //           KODE   - A PARAMETER TO INDICATE THE SCALING OPTION
+    //                    KODE= 1  RETURNS
+    //                             BI=BI(Z)                 ON ID=0 OR
+    //                             BI=DBI(Z)/DZ             ON ID=1
+    //                        = 2  RETURNS
+    //                             BI=CEXP(-AXZTA)*BI(Z)     ON ID=0 OR
+    //                             BI=CEXP(-AXZTA)*DBI(Z)/DZ ON ID=1 WHERE
+    //                             ZTA=(2/3)*Z*CSQRT(Z)=CMPLX(XZTA,YZTA)
+    //                             AND AXZTA=ABS(XZTA)
+    //
+    //         OUTPUT     BIR,BII ARE DOUBLE PRECISION
+    //           BIR,BII- COMPLEX ANSWER DEPENDING ON THE CHOICES FOR ID AND
+    //                    KODE
+    //           IERR   - ERROR FLAG
+    //                    IERR=0, NORMAL RETURN - COMPUTATION COMPLETED
+    //                    IERR=1, INPUT ERROR   - NO COMPUTATION
+    //                    IERR=2, OVERFLOW      - NO COMPUTATION, REAL(Z)
+    //                            TOO LARGE ON KODE=1
+    //                    IERR=3, CABS(Z) LARGE      - COMPUTATION COMPLETED
+    //                            LOSSES OF SIGNIFCANCE BY ARGUMENT REDUCTION
+    //                            PRODUCE LESS THAN HALF OF MACHINE ACCURACY
+    //                    IERR=4, CABS(Z) TOO LARGE  - NO COMPUTATION
+    //                            COMPLETE LOSS OF ACCURACY BY ARGUMENT
+    //                            REDUCTION
+    //                    IERR=5, ERROR              - NO COMPUTATION,
+    //                            ALGORITHM TERMINATION CONDITION NOT MET
+    //
+    // ***LONG DESCRIPTION
+    //
+    //         BI AND DBI ARE COMPUTED FOR CABS(Z) > 1.0 FROM THE I BESSEL
+    //         FUNCTIONS BY
+    //
+    //                BI(Z)=C*SQRT(Z)*( I(-1/3,ZTA) + I(1/3,ZTA) )
+    //               DBI(Z)=C *  Z  * ( I(-2/3,ZTA) + I(2/3,ZTA) )
+    //                               C=1.0/SQRT(3.0)
+    //                             ZTA=(2/3)*Z**(3/2)
+    //
+    //         WITH THE POWER SERIES FOR CABS(Z) <= 1.0.
+    //
+    //         IN MOST COMPLEX VARIABLE COMPUTATION, ONE MUST EVALUATE ELE-
+    //         MENTARY FUNCTIONS. WHEN THE MAGNITUDE OF Z IS LARGE, LOSSES
+    //         OF SIGNIFICANCE BY ARGUMENT REDUCTION OCCUR. CONSEQUENTLY, if
+    //         THE MAGNITUDE OF ZETA=(2/3)*Z**1.5 EXCEEDS U1=SQRT(0.5/UR),
+    //         THEN LOSSES EXCEEDING HALF PRECISION ARE LIKELY AND AN ERROR
+    //         FLAG IERR=3 IS TRIGGERED WHERE UR=DMAX1(d1mach(4),1.0e-18) IS
+    //         DOUBLE PRECISION UNIT ROUNDOFF LIMITED TO 18 DIGITS PRECISION.
+    //         ALSO, if THE MAGNITUDE OF ZETA IS LARGER THAN U2=0.5/UR, THEN
+    //         ALL SIGNIFICANCE IS LOST AND IERR=4. IN ORDER TO USE THE INT
+    //         FUNCTION, ZETA MUST BE FURTHER RESTRICTED NOT TO EXCEED THE
+    //         LARGEST INTEGER, U3=i1mach(9). THUS, THE MAGNITUDE OF ZETA
+    //         MUST BE RESTRICTED BY MIN(U2,U3). ON 32 BIT MACHINES, U1,U2,
+    //         AND U3 ARE APPROXIMATELY 2.0E+3, 4.2E+6, 2.1E+9 IN SINGLE
+    //         PRECISION ARITHMETIC AND 1.3E+8, 1.8E+16, 2.1E+9 IN DOUBLE
+    //         PRECISION ARITHMETIC RESPECTIVELY. THIS MAKES U2 AND U3 LIMIT-
+    //         ING IN THEIR RESPECTIVE ARITHMETICS. THIS MEANS THAT THE MAG-
+    //         NITUDE OF Z CANNOT EXCEED 3.1E+4 IN SINGLE AND 2.1E+6 IN
+    //         DOUBLE PRECISION ARITHMETIC. THIS ALSO MEANS THAT ONE CAN
+    //         EXPECT TO RETAIN, IN THE WORST CASES ON 32 BIT MACHINES,
+    //         NO DIGITS IN SINGLE PRECISION AND ONLY 7 DIGITS IN DOUBLE
+    //         PRECISION ARITHMETIC. SIMILAR CONSIDERATIONS HOLD FOR OTHER
+    //         MACHINES.
+    //
+    //         THE APPROXIMATE RELATIVE ERROR IN THE MAGNITUDE OF A COMPLEX
+    //         BESSEL FUNCTION CAN BE EXPRESSED BY P*10**S WHERE P=MAX(UNIT
+    //         ROUNDOFF,1.0E-18) IS THE NOMINAL PRECISION AND 10**S REPRE-
+    //         SENTS THE INCREASE IN ERROR DUE TO ARGUMENT REDUCTION IN THE
+    //         ELEMENTARY FUNCTIONS. HERE, S=MAX(1,ABS(LOG10(CABS(Z))),
+    //         ABS(LOG10(FNU))) APPROXIMATELY (I.E. S=MAX(1,ABS(EXPONENT OF
+    //         CABS(Z),ABS(EXPONENT OF FNU)) ). HOWEVER, THE PHASE ANGLE MAY
+    //         HAVE ONLY ABSOLUTE ACCURACY. THIS IS MOST LIKELY TO OCCUR WHEN
+    //         ONE COMPONENT (IN ABSOLUTE VALUE) IS LARGER THAN THE OTHER BY
+    //         SEVERAL ORDERS OF MAGNITUDE. if ONE COMPONENT IS 10**K LARGER
+    //         THAN THE OTHER, THEN ONE CAN EXPECT ONLY MAX(ABS(LOG10(P))-K,
+    //         0) SIGNIFICANT DIGITS; OR, STATED ANOTHER WAY, WHEN K EXCEEDS
+    //         THE EXPONENT OF P, NO SIGNIFICANT DIGITS REMAIN IN THE SMALLER
+    //         COMPONENT. HOWEVER, THE PHASE ANGLE RETAINS ABSOLUTE ACCURACY
+    //         BECAUSE, IN COMPLEX ARITHMETIC WITH PRECISION P, THE SMALLER
+    //         COMPONENT WILL NOT (AS A RULE) DECREASE BELOW P TIMES THE
+    //         MAGNITUDE OF THE LARGER COMPONENT. IN THESE EXTREME CASES,
+    //         THE PRINCIPAL PHASE ANGLE IS ON THE ORDER OF +P, -P, PI/2-P,
+    //         OR -PI/2+P.
+    //
+    // ***REFERENCES  HANDBOOK OF MATHEMATICAL FUNCTIONS BY M. ABRAMOWITZ
+    //                 AND I. A. STEGUN, NBS AMS SERIES 55, U.S. DEPT. OF
+    //                 COMMERCE, 1955.
+    //
+    //               COMPUTATION OF BESSEL FUNCTIONS OF COMPLEX ARGUMENT
+    //                 AND LARGE ORDER BY D. E. AMOS, SAND83-0643, MAY, 1983
+    //
+    //               A SUBROUTINE PACKAGE FOR BESSEL FUNCTIONS OF A COMPLEX
+    //                 ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, SAND85-
+    //                 1018, MAY, 1985
+    //
+    //               A PORTABLE PACKAGE FOR BESSEL FUNCTIONS OF A COMPLEX
+    //                 ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, ACM
+    //                 TRANS. MATH. SOFTWARE, VOL. 12, NO. 3, SEPTEMBER 1986,
+    //                 PP 265-273.
+    //
+    // ***ROUTINES CALLED  ZBINU,ZABS,ZDIV,ZSQRT,d1mach,i1mach
+    // ***END PROLOGUE  ZBIRY
+    //     COMPLEX BI,CONE,CSQ,CY,S1,S2,TRM1,TRM2,Z,ZTA,Z3
+    //   EXTERNAL ZABS
+    //   DOUBLE PRECISION AA, AD, AK, ALIM, ATRM, AZ, AZ3, BB, BII, BIR,
+    //  * BK, CC, CK, COEF, CONEI, CONER, CSQI, CSQR, CYI, CYR, C1, C2,
+    //  * DIG, DK, D1, D2, EAA, ELIM, FID, FMR, FNU, FNUL, PI, RL, R1M5,
+    //  * SFAC, STI, STR, S1I, S1R, S2I, S2R, TOL, TRM1I, TRM1R, TRM2I,
+    //  * TRM2R, TWO_THIRDS, ZI, ZR, ZTAI, ZTAR, Z3I, Z3R, d1mach, ZABS
+    //   INTEGER ID, IERR, K, KODE, K1, K2, NZ, i1mach
+    //   DIMENSION CYR(2), CYI(2)
+    //   DATA TWO_THIRDS, C1, C2, COEF, PI /6.66666666666666667e-01,
+    const C1: f64 = 6.14926627446000736e-01;
+    const C2: f64 = 4.48288357353826359e-01;
+    const COEF: f64 = 5.77350269189625765e-01;
+    //  * 5.77350269189625765e-01,3.14159265358979324e+00/
+    //   DATA CONER, CONEI /1.0,0.0/
+    // ***FIRST EXECUTABLE STATEMENT  ZBIRY
+    //   IERR = 0
+    let NZ = 0;
+    // TODO check if C1 2 COEF match complex_airy
+
+    let abs_z = z.abs();
+    //   TOL = DMAX1(d1mach(4),1.0e-18)
+    //   FID = (ID as f64)
+    let float_is_derivative = if return_derivative { 1.0 } else { 0.0 };
+
+    if abs_z <= 1.0 {
+        //GO TO 70
+        //-----------------------------------------------------------------------
+        //     POWER SERIES FOR CABS(Z) <= 1.
+        //-----------------------------------------------------------------------
+        let mut s1 = c_one();
+        let mut s2 = c_one();
+        //   S1R = CONER;
+        //   S1I = CONEI;
+        //   S2R = CONER;
+        //   S2I = CONEI;
+        if abs_z < MACHINE_CONSTANTS.abs_error_tolerance {
+            //GO TO 130;
+            return Ok(Complex64::new(
+                C1 * (1.0 - float_is_derivative) + float_is_derivative * C2,
+                0.0,
+            ));
+            //   BIR = AA;
+            //   BII = 0.0;
+            //   RETURN;
+        }
+
+        let AA = abs_z.pow(2);
+        if AA > MACHINE_CONSTANTS.abs_error_tolerance / abs_z {
+            //GO TO 40;
+            //   TRM1R = CONER;
+            //   TRM1I = CONEI;
+            //   TRM2R = CONER;
+            //   TRM2I = CONEI;
+            let mut term1 = c_one();
+            let mut term2 = c_one();
+            let mut a_term = 1.0;
+            //   STR = ZR*ZR - ZI*ZI;
+            //   STI = ZR*ZI + ZI*ZR;
+            // let st = z.pow(2.0);
+            //   Z3R = STR*ZR - STI*ZI;
+            //   Z3I = STR*ZI + STI*ZR;
+            let z3 = z.pow(3.0);
+            let abs_z3 = abs_z * AA;
+            //   AZ3 = AZ*AA;
+            let FID = float_is_derivative;
+            let AK = 2.0 + FID;
+            let BK = 3.0 - FID - FID;
+            let CK = 4.0 - FID;
+            let DK = 3.0 + FID + FID;
+            let mut D1 = AK * DK;
+            let mut D2 = BK * CK;
+            //   AD = DMIN1(D1,D2);
+            let mut AD = D1.min(D2);
+            let mut AK = 24.0 + 9.0 * FID;
+            let mut BK = 30.0 - 9.0 * FID;
+            //   DO 30 K=1,25;
+            for _ in 0..25 {
+                // TODO same as airy
+                term1 = term1 * z3 / D1;
+                s1 += term1;
+                term2 = term2 * z3 / D2;
+                s2 += term2;
+                a_term = a_term * abs_z3 / AD;
+                D1 += AK;
+                D2 += BK;
+                AD = D1.min(D2);
+                if a_term < MACHINE_CONSTANTS.abs_error_tolerance * AD {
+                    break;
+                }
+                AK += 18.0;
+                BK += 18.0;
+                // STR = (TRM1R*Z3R-TRM1I*Z3I)/D1;
+                // TRM1I = (TRM1R*Z3I+TRM1I*Z3R)/D1;
+                // TRM1R = STR;
+                // S1R = S1R + TRM1R;
+                // S1I = S1I + TRM1I;
+                // STR = (TRM2R*Z3R-TRM2I*Z3I)/D2;
+                // TRM2I = (TRM2R*Z3I+TRM2I*Z3R)/D2;
+                // TRM2R = STR;
+                // S2R = S2R + TRM2R;
+                // S2I = S2I + TRM2I;
+                // ATRM = ATRM*AZ3/AD;
+                // D1 = D1 + AK;
+                // D2 = D2 + BK;
+                // AD = DMIN1(D1,D2);
+                // if (ATRM < TOL*AD) GO TO 40;
+                // AK = AK + 18.0;
+                // BK = BK + 18.0;
+            }
+            //    30 CONTINUE;
+        }
+        //    40 CONTINUE;
+        if !return_derivative {
+            //   if (ID == 1) GO TO 50;
+            let bi = C1 * s1 + C2 * z * s2;
+            //   BIR = C1*S1R + C2*(ZR*S2R-ZI*S2I);
+            //   BII = C1*S1I + C2*(ZR*S2I+ZI*S2R);
+            return Ok(match scaling {
+                Scaling::Scaled => {
+                    //         CALL ZSQRT(ZR, ZI, STR, STI);
+                    //   ZTAR = TWO_THIRDS*(ZR*STR-ZI*STI);
+                    //   ZTAI = TWO_THIRDS*(ZR*STI+ZI*STR);
+                    let ZTA = TWO_THIRDS * (z * z.sqrt());
+                    //   AA = ZTAR;
+                    //   AA = -(AA).abs();
+                    //   EAA = DEXP(AA);
+                    //   BIR = BIR*EAA;
+                    //   BII = BII*EAA;
+                    //   RETURN;
+                    bi * (-(ZTA.re.abs())).exp()
+                }
+                Scaling::Unscaled => bi,
+            });
+            //   if (KODE == 1) RETURN;
+        }
+        //    50 CONTINUE;
+        let mut bi = s2 * C2;
+        //   BIR = S2R*C2;
+        //   BII = S2I*C2;
+        if abs_z > MACHINE_CONSTANTS.abs_error_tolerance {
+            //GO TO 60;
+            //   CC = C1/(1.0+FID);
+            // TODO float_is_derivative is always here, right?
+            let CC = C1 / (1.0 + float_is_derivative);
+            //   STR = S1R*ZR - S1I*ZI;
+            //   STI = S1R*ZI + S1I*ZR;
+            //   BIR = BIR + CC*(STR*ZR-STI*ZI);
+            //   BII = BII + CC*(STR*ZI+STI*ZR);
+            bi += CC * (s1 * z.pow(2.0))
+        }
+        //    60 CONTINUE;
+        //TODO same scaling as above!
+        return Ok(match scaling {
+            Scaling::Scaled => {
+                //TODO ZTA used many places with similar definition
+                let ZTA = TWO_THIRDS * (z * z.sqrt());
+                bi * (-(ZTA.re.abs())).exp()
+            }
+            Scaling::Unscaled => bi,
+        });
+    //   if (KODE == 1) RETURN;
+    //   CALL ZSQRT(ZR, ZI, STR, STI);
+    //   ZTAR = TWO_THIRDS*(ZR*STR-ZI*STI);
+    //   ZTAI = TWO_THIRDS*(ZR*STI+ZI*STR);
+    //   AA = ZTAR;
+    //   AA = -(AA).abs();
+    //   EAA = DEXP(AA);
+    //   BIR = BIR*EAA;
+    //   BII = BII*EAA;
+    //   RETURN;
+    } else {
+        //-----------------------------------------------------------------------;
+        //     CASE FOR CABS(Z) > 1.0;
+        //-----------------------------------------------------------------------;
+        //    70 CONTINUE;
+        //   FNU = (1.0+FID)/3.0;
+        let order = (1.0 + float_is_derivative) / 3.0;
+        //-----------------------------------------------------------------------;
+        //     SET PARAMETERS RELATED TO MACHINE CONSTANTS.;
+        //     TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0E-18.;
+        //     ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.;
+        //     EXP(-ELIM) < EXP(-ALIM)=EXP(-ELIM)/TOL    AND;
+        //     EXP(ELIM) > EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR;
+        //     UNDERFLOW AND OVERFLOW LIMITS WHERE SCALED ARITHMETIC IS DONE.;
+        //     RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.;
+        //     DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).;
+        //     FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU.;
+        //-----------------------------------------------------------------------;
+        //   K1 = i1mach(15);
+        //   K2 = i1mach(16);
+        //   R1M5 = d1mach(5);
+        //   K = MIN0(K1.abs(),K2.abs());
+        //   ELIM = 2.303*(K as f64)*R1M5-3.0);
+        //   K1 = i1mach(14) - 1;
+        //   AA = R1M5*(K1 as f64);
+        //   DIG = DMIN1(AA,18.0);
+        //   AA = AA*2.303;
+        //   ALIM = ELIM + DMAX1(-AA,-41.45);
+        //   RL = 1.2*DIG + 3.0;
+        //   FNUL = 10.0 + 6.0*(DIG-3.0);
+        //-----------------------------------------------------------------------;
+        //     TEST FOR RANGE;
+        //-----------------------------------------------------------------------;
+        // significance loss only tested against z, not order, so 0.0 is used to never cause significance loss
+
+        let partial_loss_of_significance = is_sigificance_lost(abs_z, 0.0, true)?;
+        //   AA=0.5/TOL;
+        //   BB=DBLE(FLOAT(i1mach(9)))*0.5;
+        //   AA=DMIN1(AA,BB);
+        //   AA=AA**TWO_THIRDS;
+        //   if (AZ > AA) {return Err(LossOfSignificance);};
+        //   AA=DSQRT(AA);
+        //   if (AZ > AA) IERR=3;
+        //   CALL ZSQRT(ZR, ZI, CSQR, CSQI);
+        //   ZTAR = TWO_THIRDS*(ZR*CSQR-ZI*CSQI);
+        //   ZTAI = TWO_THIRDS*(ZR*CSQI+ZI*CSQR);
+        let mut SFAC = 1.0;
+        let mut ZTA = TWO_THIRDS * (z * z.sqrt());
+
+        //-----------------------------------------------------------------------;
+        //     RE(ZTA) <= 0 WHEN RE(Z) < 0, ESPECIALLY WHEN IM(Z) IS SMALL;
+        //-----------------------------------------------------------------------;
+        //   AK = ZTAI;
+        if z.re < 0.0 {
+            // GO TO 80;
+            //   BK = ZTAR;
+            //   CK = -(BK).abs();
+            //   ZTAR = CK;
+            //   ZTAI = AK;
+            ZTA.re = -ZTA.re.abs();
+        }
+        //    80 CONTINUE;
+        if z.im == 0.0 && z.re < 0.0 {
+            //   if (ZI != 0.0 || ZR > 0.0) GO TO 90;
+            ZTA.re = 0.0;
+        }
+        //   ZTAI = AK;
+        //    90 CONTINUE;
+        let AA = ZTA.re;
+        // TODO use find_overflow?
+        if scaling == Scaling::Unscaled {
+            //   if (KODE == 2) GO TO 100;
+            //-----------------------------------------------------------------------;
+            //     OVERFLOW TEST;
+            //-----------------------------------------------------------------------;
+            let mut BB = (AA).abs();
+            if BB > MACHINE_CONSTANTS.approximation_limit {
+                // GO TO 100;
+                BB += 0.25 * abs_z.ln(); //DLOG(AZ);
+                SFAC = MACHINE_CONSTANTS.abs_error_tolerance;
+                if BB > MACHINE_CONSTANTS.exponent_limit {
+                    return Err(Overflow);
+                } //GO TO 190;
+            }
+        }
+        //   100 CONTINUE;
+        let mut FMR = 0.0;
+        if AA < 0.0 || z.re <= 0.0 {
+            // GO TO 110;
+            FMR = PI;
+            if z.im < 0.0 {
+                FMR = -PI;
+            }
+            ZTA *= -1.0;
+            //   ZTAR = -ZTAR;
+            //   ZTAI = -ZTAI;
+        }
+        //   110 CONTINUE;
+        //-----------------------------------------------------------------------;
+        //     AA=FACTOR FOR ANALYTIC CONTINUATION OF I(FNU,ZTA);
+        //     KODE=2 RETURNS EXP(-ABS(XZTA))*I(FNU,ZTA) FROM ZBESI;
+        //-----------------------------------------------------------------------;
+        let (cy, NZ) = i_right_half_plane(ZTA, order, scaling, 1)?;
+        //   CALL ZBINU(ZTAR, ZTAI, FNU, KODE, 1, CYR, CYI, NZ, RL, FNUL, TOL,;
+        //  * ELIM, ALIM);
+        //   if (NZ < 0) GO TO 200;
+        let AA = FMR * order;
+        let Z3R = SFAC;
+        //   STR = DCOS(AA);
+        //   STI = DSIN(AA);
+        let st = Complex64::cis(AA);
+        let mut s1 = st * cy[0] * Z3R;
+        //   S1R = (STR*CYR(1)-STI*CYI(1))*Z3R;
+        //   S1I = (STR*CYI(1)+STI*CYR(1))*Z3R;
+        let order = (2.0 - float_is_derivative) / 3.0;
+        let (mut cy, NZ) = i_right_half_plane(ZTA, order, scaling, 2)?;
+        //   CALL ZBINU(ZTAR, ZTAI, FNU, KODE, 2, CYR, CYI, NZ, RL, FNUL, TOL,;
+        //  * ELIM, ALIM);
+        cy[0] *= Z3R;
+        cy[1] *= Z3R;
+
+        //   CYR(1) = CYR(1)*Z3R;
+        //   CYI(1) = CYI(1)*Z3R;
+        //   CYR(2) = CYR(2)*Z3R;
+        //   CYI(2) = CYI(2)*Z3R;
+        //-----------------------------------------------------------------------;
+        //     BACKWARD RECUR ONE STEP FOR ORDERS -1/3 OR -2/3;
+        //-----------------------------------------------------------------------;
+        let st = cy[0] / ZTA;
+        //   CALL ZDIV(CYR(1), CYI(1), ZTAR, ZTAI, STR, STI);
+        let s2 = (2.0 * order) * st + cy[1];
+        //   S2R = (FNU+FNU)*STR + CYR(2);
+        //   S2I = (FNU+FNU)*STI + CYI(2);
+        let AA = FMR * (order - 1.0);
+        let st = Complex64::cis(AA);
+        //   STR = DCOS(AA);
+        //   STI = DSIN(AA);
+        s1 = COEF * (s1 + s2 * st);
+        //   S1R = COEF*(S1R+S2R*STR-S2I*STI);
+        //   S1I = COEF*(S1I+S2R*STI+S2I*STR);
+        let bi = if return_derivative {
+            // GO TO 120;
+            // 120 CONTINUE;
+            s1 *= z;
+            // STR = ZR * S1R - ZI * S1I;
+            // S1I = ZR * S1I + ZI * S1R;
+            // S1R = STR;
+            // BIR = S1R / SFAC;
+            // BII = S1I / SFAC;
+            // RETURN;
+            s1 / SFAC
+        } else {
+            s1 *= z.sqrt();
+            // STR = CSQR * S1R - CSQI * S1I;
+            // S1I = CSQR * S1I + CSQI * S1R;
+            // S1R = STR;
+            s1 / SFAC
+            // BIR = S1R / SFAC;
+            // BII = S1I / SFAC;
+
+            // RETURN;
+        };
+        return if partial_loss_of_significance {
+            Err(PartialLossOfSignificance { y: vec![bi], nz: 0 })
+        } else {
+            Ok(bi)
+        };
+    };
+    //   130 CONTINUE;
+    //       AA = C1*(1.0-FID) + FID*C2;
+    //       BIR = AA;
+    //       BII = 0.0;
+    //       RETURN;
+    //   190 CONTINUE;
+    //       IERR=2;
+    //       NZ=0;
+    //       RETURN;
+    //   200 CONTINUE;
+    //       if(NZ == (-1)) GO TO 190;
+    //       NZ=0;
+    //       IERR=5;
+    //       RETURN;
+    //   260 CONTINUE;
+    //       IERR=4;
+    //       NZ=0;
+    //       RETURN;
+    //       END;
+}
 
 /// zbknu computes the k bessel function in the right half z plane.
 /// Originally ZBKNU

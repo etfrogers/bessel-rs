@@ -1,6 +1,8 @@
 use crate::amos::{
     HankelKind,
-    bindings::{zairy_wrap, zbesh_wrap, zbesi_wrap, zbesj_wrap, zbesk_wrap, zbesy_wrap},
+    bindings::{
+        zairy_wrap, zbesh_wrap, zbesi_wrap, zbesj_wrap, zbesk_wrap, zbesy_wrap, zbiry_wrap,
+    },
 };
 use num::complex::Complex64;
 
@@ -195,4 +197,27 @@ pub fn zairy_fortran(
         );
     }
     (Complex64::new(yr, yi), nz.try_into().unwrap(), ierr)
+}
+
+pub fn zbiry_fortran(
+    z: Complex64,
+    is_derivative: bool,
+    scaling: Scaling,
+) -> (Complex64, usize, i32) {
+    let mut yr = 0.0;
+    let mut yi = 0.0;
+    let mut ierr = 0;
+
+    unsafe {
+        zbiry_wrap(
+            z.re,
+            z.im,
+            is_derivative as i32,
+            scaling as i32,
+            &mut yr,
+            &mut yi,
+            &mut ierr,
+        );
+    }
+    (Complex64::new(yr, yi), 0, ierr)
 }
