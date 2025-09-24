@@ -64,20 +64,6 @@ use std::{
 ///                      Y < 0.0 AND M=2. FOR THE COMPLMENTARY
 ///                      HALF PLANES, NZ STATES ONLY THE NUMBER
 ///                      OF UNDERFLOWS.
-///   IERR   - ERROR FLAG
-///            IERR=0, NORMAL RETURN - COMPUTATION COMPLETED
-///            IERR=1, INPUT ERROR   - NO COMPUTATION
-///            IERR=2, OVERFLOW      - NO COMPUTATION, FNU TOO
-///                    LARGE OR CABS(Z) TOO SMALL OR BOTH
-///            IERR=3, CABS(Z) OR FNU+N-1 LARGE - COMPUTATION DONE
-///                    BUT LOSSES OF SIGNIFCANCE BY ARGUMENT
-///                    REDUCTION PRODUCE LESS THAN HALF OF MACHINE
-///                    ACCURACY
-///            IERR=4, CABS(Z) OR FNU+N-1 TOO LARGE - NO COMPUTA-
-///                    TION BECAUSE OF COMPLETE LOSSES OF SIGNIFI-
-///                    CANCE BY ARGUMENT REDUCTION
-///            IERR=5, ERROR              - NO COMPUTATION,
-///                    ALGORITHM TERMINATION CONDITION NOT MET
 ///
 /// ***LONG DESCRIPTION
 ///
