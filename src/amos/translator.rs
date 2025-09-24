@@ -471,30 +471,30 @@ pub fn complex_bessel_i(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
         }
         (-z, csgn)
     };
-    let (mut cy, nz) = i_right_half_plane(zn, order, scaling, n)?;
+    let (mut y, nz) = i_right_half_plane(zn, order, scaling, n)?;
     let remaining_n = n - nz;
     if z.re < 0.0 && remaining_n > 0 {
         //-----------------------------------------------------------------------
         //     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE
         //-----------------------------------------------------------------------
-        for element in cy.iter_mut().take(remaining_n) {
+        for yi in y.iter_mut().take(remaining_n) {
             let correction =
-                if max_abs_component(*element) <= MACHINE_CONSTANTS.absolute_approximation_limit {
-                    *element *= MACHINE_CONSTANTS.rtol;
+                if max_abs_component(*yi) <= MACHINE_CONSTANTS.absolute_approximation_limit {
+                    *yi *= MACHINE_CONSTANTS.rtol;
                     MACHINE_CONSTANTS.abs_error_tolerance
                 } else {
                     1.0
                 };
-            *element *= csgn;
-            *element *= correction;
+            *yi *= csgn;
+            *yi *= correction;
             csgn = -csgn;
         }
     }
 
     if partial_significance_loss {
-        Err(PartialLossOfSignificance { y: cy, nz })
+        Err(PartialLossOfSignificance { y, nz })
     } else {
-        Ok((cy, nz))
+        Ok((y, nz))
     }
 }
 
@@ -1518,8 +1518,8 @@ pub fn complex_airy_b(
         match scaling {
             Scaling::Scaled => {
                 //TODO ZTA used many places with similar definition
-                let ZTA = TWO_THIRDS * (z * z.sqrt());
-                bi * (-(ZTA.re.abs())).exp()
+                let zta = TWO_THIRDS * (z * z.sqrt());
+                bi * (-(zta.re.abs())).exp()
             }
             Scaling::Unscaled => bi,
         }
