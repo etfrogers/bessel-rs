@@ -3192,9 +3192,9 @@ const CIP: [Complex64; 4] = [
 fn ZUNK2(
     z: Complex64,
     order: f64,
-    KODE: Scaling,
+    scaling: Scaling,
     rotation: RotationDirection,
-    N: usize,
+    n: usize,
 ) -> BesselResult {
     //     ZUNK2 COMPUTES K(FNU,Z) AND ITS ANALYTIC CONTINUATION FROM THE
     //     RIGHT HALF PLANE TO THE LEFT HALF PLANE BY MEANS OF THE
@@ -3207,17 +3207,17 @@ fn ZUNK2(
     const CR1: Complex64 = Complex64::new(1.0, 1.73205080756887729);
     const CR2: Complex64 = Complex64::new(-0.5, -8.66025403784438647e-01);
 
-    let mut KDFLG = false;
-    let mut NZ = 0;
-    let mut y = c_zeros(N);
+    let mut underflowed_already = false;
+    let mut nz = 0;
+    let mut y = c_zeros(n);
     let zr = if z.re < 0.0 { -z } else { z };
     let mut zn = -Complex64::I * zr;
     let mut zb = zr;
-    let INU = order as usize;
-    let FNF = order.fract();
-    let ANG = -FRAC_PI_2 * FNF;
+    let integer_order = order as usize;
+    let order_fract = order.fract();
+    let ANG = -FRAC_PI_2 * order_fract;
     let mut c2 = -Complex64::I * Complex64::from_polar(FRAC_PI_2, ANG);
-    let mut cs = CR1 * c2 * CIP[INU % 4].conj();
+    let mut cs = CR1 * c2 * CIP[integer_order % 4].conj();
     if zr.im <= 0.0 {
         zn.re = -zn.re;
         zb.im = -zb.im;
@@ -3235,58 +3235,55 @@ fn ZUNK2(
     let mut asum = [None; 2];
     let mut bsum = [None; 2];
     let mut cy = [c_zero(); 2];
-    let mut J = 1;
+    let mut j = 1;
     let mut overflow_state_k = Overflow::None;
     let mut modified_order = 0.0;
     let mut n_elements_set = 0;
 
-    for i in 0..N {
-        //-----------------------------------------------------------------------;
-        //     J FLIP FLOPS BETWEEN 1 AND 2 IN J = 3 - J;
-        //      rust this is 0 and 1
-        //-----------------------------------------------------------------------;
+    for i in 0..n {
         n_elements_set = i + 1;
-        J = 1 - J;
+        // J flip-flops between 0 and 1 using J = 1-J
+        j = 1 - j;
         modified_order = order + (i as f64);
-        (phi[J], arg[J], zeta1[J], zeta2[J], asum[J], bsum[J]) = zunhj(zn, modified_order, false);
-        let s1 = -KODE.scale_zetas(zb, modified_order, zeta1[J], zeta2[J]);
-        let of = Overflow::find_overflow(s1.re, phi[J], -0.25 * arg[J].abs().ln() - AIC);
+        (phi[j], arg[j], zeta1[j], zeta2[j], asum[j], bsum[j]) = zunhj(zn, modified_order, false);
+        let s1 = -scaling.scale_zetas(zb, modified_order, zeta1[j], zeta2[j]);
+        let of = Overflow::find_overflow(s1.re, phi[j], -0.25 * arg[j].abs().ln() - AIC);
 
-        let mut handle_underflow = |kd_flag_: &mut bool, cs_: &mut Complex64| {
+        let mut handle_underflow = |of_already: &mut bool, cs_: &mut Complex64| {
             //-----------------------------------------------------------------------
             //     FOR ZR < 0.0, THE I FUNCTION TO BE ADDED WILL OVERFLOW
             //-----------------------------------------------------------------------
             if z.re < 0.0 {
                 return Err(Overflow);
             }
-            *kd_flag_ = false;
+            *of_already = false;
             y[i] = c_zero();
-            NZ += 1;
+            nz += 1;
             *cs_ *= -Complex64::I;
             if i != 0 && y[i - 1] != c_zero() {
                 y[i - 1] = c_zero();
-                NZ += 1;
+                nz += 1;
             }
             Ok(())
         };
 
-        if !KDFLG {
+        if !underflowed_already {
             overflow_state_k = of;
         }
 
         match of {
             Overflow::Over(_) => return Err(Overflow),
 
-            Overflow::Under(_) => handle_underflow(&mut KDFLG, &mut cs)?,
+            Overflow::Under(_) => handle_underflow(&mut underflowed_already, &mut cs)?,
             Overflow::NearOver | Overflow::NearUnder | Overflow::None => {
                 //-----------------------------------------------------------------------;
                 //     SCALE S1 TO KEEP INTERMEDIATE ARITHMETIC ON SCALE NEAR;
                 //     EXPONENT EXTREMES;
                 //-----------------------------------------------------------------------;
-                let c2 = CR2 * arg[J];
+                let c2 = CR2 * arg[j];
 
                 let (airy, d_airy) = airy_pair(c2);
-                let pt = ((d_airy * bsum[J].unwrap()) * CR2 + (airy * asum[J].unwrap())) * phi[J];
+                let pt = ((d_airy * bsum[j].unwrap()) * CR2 + (airy * asum[j].unwrap())) * phi[j];
                 let mut s2 = pt * cs;
                 let s1 = s1.exp() * MACHINE_CONSTANTS.scaling_factors[overflow_state_k];
                 s2 *= s1;
@@ -3297,40 +3294,40 @@ fn ZUNK2(
                         MACHINE_CONSTANTS.abs_error_tolerance,
                     )
                 {
-                    handle_underflow(&mut KDFLG, &mut cs)?
+                    handle_underflow(&mut underflowed_already, &mut cs)?
                 }
                 if zr.im <= 0.0 {
                     s2 = s2.conj();
                 }
-                cy[KDFLG as usize] = s2;
+                cy[underflowed_already as usize] = s2;
                 y[i] = s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_k];
                 cs = -Complex64::I * cs;
-                if KDFLG {
+                if underflowed_already {
                     break;
                 }
-                KDFLG = true;
+                underflowed_already = true;
             }
         };
     }
 
     let rz = 2.0 * zr.conj() / zr.abs().powi(2);
     let mut ck = modified_order * rz;
-    let mut first_unset_index = n_elements_set + 1;
     let mut phid = c_zero();
     let mut argd = c_zero();
     let mut zeta1d = c_zero();
     let mut zeta2d = c_zero();
     let mut asumd = None;
     let mut bsumd = None;
-    if first_unset_index <= N {
+    let do_overflow_check = n_elements_set < n;
+    if do_overflow_check {
         //-----------------------------------------------------------------------;
         //     TEST LAST MEMBER FOR UNDERFLOW AND OVERFLOW. SET SEQUENCE TO ZERO;
         //     ON UNDERFLOW.;
         //-----------------------------------------------------------------------;
-        modified_order = order + ((N - 1) as f64);
+        modified_order = order + ((n - 1) as f64);
         (phid, argd, zeta1d, zeta2d, asumd, bsumd) =
             zunhj(zn, modified_order, rotation == RotationDirection::None);
-        let s1 = -KODE.scale_zetas(zb, modified_order, zeta1d, zeta2d);
+        let s1 = -scaling.scale_zetas(zb, modified_order, zeta1d, zeta2d);
         match Overflow::find_overflow(s1.re, phid, 0.0) {
             Overflow::Over(_) => return Err(Overflow),
 
@@ -3338,19 +3335,19 @@ fn ZUNK2(
                 if z.re < 0.0 {
                     return Err(Overflow);
                 }
-                return Ok((c_zeros(N), NZ));
+                return Ok((c_zeros(n), nz));
             }
             Overflow::NearOver | Overflow::None | Overflow::NearUnder => (),
         }
         let [mut s1, mut s2] = cy;
         let mut recip_scaling = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_k];
         let mut ascle = MACHINE_CONSTANTS.smallness_threshold[overflow_state_k];
-        // TODO loop -=> iterator?
-        for i in first_unset_index..=N {
+
+        for yi in y.iter_mut().skip(n_elements_set) {
             (s1, s2) = (s2, s2 * ck + s1);
             ck += rz;
             c2 = s2 * recip_scaling;
-            y[i - 1] = c2;
+            *yi = c2;
             if overflow_state_k == Overflow::NearOver {
                 continue;
             }
@@ -3367,24 +3364,20 @@ fn ZUNK2(
         }
     }
     if rotation == RotationDirection::None {
-        return Ok((y, NZ));
+        return Ok((y, nz));
     }
     //-----------------------------------------------------------------------
     //     ANALYTIC CONTINUATION FOR RE(Z) < 0.0
     //-----------------------------------------------------------------------
-    NZ = 0;
+    nz = 0;
     let sgn = -PI * rotation.signum();
     //-----------------------------------------------------------------------
     //     CSPN AND CSGN ARE COEFF OF K AND I FUNCIONS RESP.
     //-----------------------------------------------------------------------
-    // TODO rename
-    let mut CSGNI = sgn;
-    if zr.im <= 0.0 {
-        CSGNI = -CSGNI
-    };
-    let IFN = INU + N - 1;
-    let mut cspn = Complex64::cis(FNF * sgn);
-    if IFN.is_odd() {
+    let csgn = if zr.im <= 0.0 { -sgn } else { sgn };
+    let modified_integer_order = integer_order + n - 1;
+    let mut cspn = Complex64::cis(order_fract * sgn);
+    if modified_integer_order.is_odd() {
         cspn = -cspn;
     }
     //-----------------------------------------------------------------------
@@ -3396,42 +3389,44 @@ fn ZUNK2(
     // TODO what's the actual maths below?
     let cos_sin = Complex64::cis(ANG);
     // let mut cs = Complex64::I * Complex64::from_polar(CSGNI, ANG);
-    let mut cs = CSGNI * Complex64::new(cos_sin.im, cos_sin.re);
-    cs *= CIP[IFN % 4];
+    let mut cs = csgn * Complex64::new(cos_sin.im, cos_sin.re);
+    cs *= CIP[modified_integer_order % 4];
     let mut IUF = 0;
-    let mut KK = N;
-    KDFLG = false;
-    first_unset_index -= 1;
-    let IC = first_unset_index - 1;
+    // let mut KK = n;
+
+    underflowed_already = false;
     let mut overflow_state_i = Overflow::None;
-    // TODO suspect this iterates using KK (so k is reversed)
-    let mut K = 1;
-    for k in 0..N {
-        K = k + 1;
-        modified_order = order + ((KK - 1) as f64);
-        //-----------------------------------------------------------------------;
-        //     LOGIC TO SORT OUT CASES WHOSE PARAMETERS WERE SET FOR THE K;
-        //     FUNCTION ABOVE;
-        //-----------------------------------------------------------------------;
-        if N <= 2
-            || (!((KK == N) && (first_unset_index < N))
-                && ((KK == first_unset_index) || (KK == IC)))
-        {
-            phid = phi[J];
-            argd = arg[J];
-            zeta1d = zeta1[J];
-            zeta2d = zeta2[J];
-            asumd = asum[J];
-            bsumd = bsum[J];
-            J = 1 - J;
-        } else if !((KK == first_unset_index) || (KK == IC) || (KK == N) && (first_unset_index < N))
-        {
+    let mut remaining_n = n;
+    for (kk, yi) in y.iter_mut().enumerate().rev() {
+        remaining_n = kk;
+        modified_order = order + (kk as f64);
+        //-----------------------------------------------------------------------
+        //     LOGIC TO SORT OUT CASES WHOSE PARAMETERS WERE SET FOR THE K
+        //     FUNCTION ABOVE
+        //-----------------------------------------------------------------------
+        // Note that, is the overflow check was done, the ___d are already set, and
+        // valid for kk == n-1. Also that kk == n-1 on the first pas through this loop.
+        let use_preset_overflow = (kk == n - 1) && do_overflow_check;
+        // these where the last two kk values where phi etc where recorded in the previous run.
+        // Would it be better to store all of them?!
+        let in_last_two_set = (kk == n_elements_set - 1) || (kk == n_elements_set - 2);
+        if n <= 2 || (!use_preset_overflow) && in_last_two_set {
+            phid = phi[j];
+            argd = arg[j];
+            zeta1d = zeta1[j];
+            zeta2d = zeta2[j];
+            asumd = asum[j];
+            bsumd = bsum[j];
+            j = 1 - j;
+        } else if !(use_preset_overflow || in_last_two_set) {
             (phid, argd, zeta1d, zeta2d, asumd, bsumd) = zunhj(zn, modified_order, false);
+        } else {
+            // Case were overflow check has already set the ___d variables ?
         }
-        let mut s1 = KODE.scale_zetas(zb, modified_order, zeta1d, zeta2d);
+        let mut s1 = scaling.scale_zetas(zb, modified_order, zeta1d, zeta2d);
 
         let of = Overflow::find_overflow(s1.re, phid, -0.25 * argd.abs().ln() - AIC);
-        if !KDFLG {
+        if !underflowed_already {
             overflow_state_i = if matches!(of, Overflow::Under(_)) {
                 Overflow::None
             } else {
@@ -3462,33 +3457,31 @@ fn ZUNK2(
         if zr.im <= 0.0 {
             s2 = s2.conj();
         }
-        cy[KDFLG as usize] = s2;
+        cy[underflowed_already as usize] = s2;
         let c2 = s2;
         s2 *= MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_i];
         //-----------------------------------------------------------------------;
         //     ADD I AND K FUNCTIONS, K SEQUENCE IN Y(I), I=1,N;
         //-----------------------------------------------------------------------;
-        s1 = y[KK - 1];
-        if KODE == Scaling::Scaled {
-            NZ += ZS1S2(zr, &mut s1, &mut s2, &mut IUF);
+        s1 = *yi;
+        if scaling == Scaling::Scaled {
+            nz += ZS1S2(zr, &mut s1, &mut s2, &mut IUF);
         }
-        y[KK - 1] = s1 * cspn + s2;
-        KK -= 1;
+        *yi = s1 * cspn + s2;
         cspn = -cspn;
         cs *= -Complex64::I;
         if c2 == c_zero() {
-            KDFLG = false;
-            continue;
+            underflowed_already = false;
+        } else {
+            if underflowed_already {
+                break;
+            }
+            underflowed_already = true;
         }
-        if KDFLG {
-            break;
-        }
-        KDFLG = true;
     }
 
-    let IL = N - K;
-    if IL == 0 {
-        return Ok((y, NZ));
+    if remaining_n == 0 {
+        return Ok((y, nz));
     }
     //-----------------------------------------------------------------------
     //     RECUR BACKWARD FOR REMAINDER OF I SEQUENCE AND ADD IN THE
@@ -3499,34 +3492,29 @@ fn ZUNK2(
 
     let mut recip_scale_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_i];
     let mut ascle = MACHINE_CONSTANTS.smallness_threshold[overflow_state_i];
-    modified_order = (INU + IL) as f64;
-    for _ in 0..IL {
-        (s1, s2) = (s2, s1 + (modified_order + FNF) * (rz * s2));
+    modified_order = (integer_order + remaining_n) as f64;
+    for yi in y.iter_mut().take(remaining_n).rev() {
+        (s1, s2) = (s2, s1 + (modified_order + order_fract) * (rz * s2));
         modified_order -= 1.0;
         let mut c2 = s2 * recip_scale_factor;
-        let ck = c2;
-        let mut c1 = y[KK - 1];
-        if KODE == Scaling::Scaled {
-            NZ += ZS1S2(zr, &mut c1, &mut c2, &mut IUF);
+        let old_c2 = c2;
+        let mut c1 = *yi;
+        if scaling == Scaling::Scaled {
+            nz += ZS1S2(zr, &mut c1, &mut c2, &mut IUF);
         }
-        y[KK - 1] = c1 * cspn + c2;
-        KK -= 1;
+        *yi = c1 * cspn + c2;
         cspn = -cspn;
-        if overflow_state_i == Overflow::NearOver {
-            continue;
+        if overflow_state_i != Overflow::NearOver && max_abs_component(c2) > ascle {
+            overflow_state_i.increment();
+            ascle = MACHINE_CONSTANTS.smallness_threshold[overflow_state_i];
+            s1 *= recip_scale_factor;
+            s2 = old_c2;
+            s1 *= MACHINE_CONSTANTS.scaling_factors[overflow_state_i];
+            s2 *= MACHINE_CONSTANTS.scaling_factors[overflow_state_i];
+            recip_scale_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_i];
         }
-        if max_abs_component(c2) <= ascle {
-            continue;
-        }
-        overflow_state_i.increment();
-        ascle = MACHINE_CONSTANTS.smallness_threshold[overflow_state_i];
-        s1 *= recip_scale_factor;
-        s2 = ck;
-        s1 *= MACHINE_CONSTANTS.scaling_factors[overflow_state_i];
-        s2 *= MACHINE_CONSTANTS.scaling_factors[overflow_state_i];
-        recip_scale_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_i];
     }
-    Ok((y, NZ))
+    Ok((y, nz))
 }
 
 fn ZBUNI(
