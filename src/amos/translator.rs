@@ -7,10 +7,11 @@ use super::{
 };
 use crate::amos::{
     BesselError::*,
-    MACHINE_CONSTANTS, RotationDirection, max_abs_component,
+    MACHINE_CONSTANTS, RotationDirection,
+    asymptotic_i::asymptotic_i,
+    max_abs_component,
     overflow_checks::{Overflow, zunhj},
     utils::{imaginary_dominant, sanitise_inputs},
-    z_asymptotic_i::z_asymptotic_i,
 };
 use num::{
     Integer, Zero,
@@ -2739,7 +2740,7 @@ fn i_right_half_plane(z: Complex64, order: f64, KODE: Scaling, N: usize) -> Bess
         //-----------------------------------------------------------------------
         //     ASYMPTOTIC EXPANSION FOR LARGE Z
         //-----------------------------------------------------------------------
-        let (cy, nw) = z_asymptotic_i(z, order, KODE, NN)?;
+        let (cy, nw) = asymptotic_i(z, order, KODE, NN)?;
         debug_assert!(nw == NZ);
         return Ok((cy, NZ));
     }
@@ -2837,7 +2838,7 @@ fn ZACAI(
         //-----------------------------------------------------------------------
         //     ASYMPTOTIC EXPANSION FOR LARGE Z FOR THE I FUNCTION
         //-----------------------------------------------------------------------
-        z_asymptotic_i(zn, order, KODE, NN)?
+        asymptotic_i(zn, order, KODE, NN)?
     //-----------------------------------------------------------------------
     //     MILLER ALGORITHM NORMALIZED BY THE SERIES FOR THE I FUNCTION
     //-----------------------------------------------------------------------

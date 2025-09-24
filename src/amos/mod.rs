@@ -10,10 +10,11 @@ pub use gamma_ln::{GammaError, gamma_ln};
 pub(crate) use i_power_series::i_power_series;
 pub(crate) use machine::MACHINE_CONSTANTS;
 pub use translator::{
-    complex_airy_b, complex_airy, complex_bessel_h, complex_bessel_i, complex_bessel_j, complex_bessel_k,
-    complex_bessel_y,
+    complex_airy, complex_airy_b, complex_bessel_h, complex_bessel_i, complex_bessel_j,
+    complex_bessel_k, complex_bessel_y,
 };
 
+mod asymptotic_i;
 pub(crate) mod bindings;
 mod gamma_ln;
 mod i_power_series;
@@ -21,7 +22,6 @@ mod machine;
 mod overflow_checks;
 mod translator;
 mod utils;
-mod z_asymptotic_i;
 
 #[derive(Error, Debug, PartialEq)]
 #[repr(i32)]
