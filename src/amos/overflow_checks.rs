@@ -250,38 +250,49 @@ pub fn check_underflow_uniform_asymp_params(
     Ok(n_underflow)
 }
 
-pub fn ZS1S2(zr: Complex64, s1: &mut Complex64, s2: &mut Complex64, IUF: &mut isize) -> usize {
-    // ***BEGIN PROLOGUE  ZS1S2
-    // ***REFER TO  ZBESK,ZAIRY
-    //
-    //     ZS1S2 TESTS FOR A POSSIBLE UNDERFLOW RESULTING FROM THE
-    //     ADDITION OF THE I AND K FUNCTIONS IN THE ANALYTIC CON-
-    //     TINUATION FORMULA WHERE S1=K FUNCTION AND S2=I FUNCTION.
-    //     ON KODE=1 THE I AND K FUNCTIONS ARE DIFFERENT ORDERS OF
-    //     MAGNITUDE, BUT FOR KODE=2 THEY CAN BE OF THE SAME ORDER
-    //     OF MAGNITUDE AND THE MAXIMUM MUST BE AT LEAST ONE
-    //     PRECISION ABOVE THE UNDERFLOW LIMIT.
-
-    let NZ = 0;
+/// underflow_add_i_k tests for a possible underflow resulting from the
+/// addition of the i and k functions in the analytic con-
+/// tinuation formula where s1=k function and s2=i function.
+/// on kode=1 the i and k functions are different orders of
+/// magnitude, but for kode=2 they can be of the same order
+/// of magnitude and the maximum must be at least one
+/// precision above the underflow limit.
+///
+/// Returns 1 if underflow is found, and 0 otherwise, but can also modify
+/// the value of s1, s2, and n_underflow.
+///
+/// If s1 is large enough to be set without underflowing, it is
+/// set to (s1.ln() - 2.0 * zr).exp(); That is, 2*zr is subtracted
+/// from the exponent.
+///
+/// If undeflow is found, the function sets s1 and s2 to zero.
+///
+/// Originally ZS1S2
+pub fn underflow_add_i_k(
+    zr: Complex64,
+    s1: &mut Complex64,
+    s2: &mut Complex64,
+    n_good: &mut isize,
+) -> usize {
     let mut abs_s1 = s1.abs();
     let abs_s2 = s2.abs();
     if (s1.re != 0.0 || s1.im != 0.0) && (abs_s1 != 0.0) {
-        let ALN = (-2.0 * zr.re) + abs_s1.ln();
+        let test = (-2.0 * zr.re) + abs_s1.ln();
         let s1d = *s1;
         *s1 = c_zero();
         abs_s1 = 0.0;
-        if ALN >= (-MACHINE_CONSTANTS.approximation_limit) {
+        if test >= (-MACHINE_CONSTANTS.approximation_limit) {
             *s1 = (s1d.ln() - 2.0 * zr).exp();
             abs_s1 = s1.abs();
-            *IUF += 1;
+            *n_good += 1;
         }
     }
     if abs_s1.max(abs_s2) > MACHINE_CONSTANTS.absolute_approximation_limit {
-        NZ
+        0
     } else {
         *s1 = c_zero();
         *s2 = c_zero();
-        *IUF = 0;
+        *n_good = 0;
         1
     }
 }

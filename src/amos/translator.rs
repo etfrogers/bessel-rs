@@ -2,7 +2,7 @@
 use super::{
     BesselError, BesselResult, HankelKind, IKType, Scaling, c_one, c_zero, c_zeros, gamma_ln,
     i_power_series,
-    overflow_checks::{ZS1S2, check_underflow_uniform_asymp_params, zunik},
+    overflow_checks::{check_underflow_uniform_asymp_params, underflow_add_i_k, zunik},
     utils::{AIC, TWO_THIRDS, is_sigificance_lost, will_underflow},
 };
 use crate::amos::{
@@ -2579,7 +2579,7 @@ fn analytic_continuation(
     let mut c2 = y[0];
     let mut sc1;
     if scaling == Scaling::Scaled {
-        let NW = ZS1S2(zn, &mut c1, &mut c2, &mut IUF);
+        let NW = underflow_add_i_k(zn, &mut c1, &mut c2, &mut IUF);
         NZ += NW;
     }
     let st = cspn * c1;
@@ -2595,7 +2595,7 @@ fn analytic_continuation(
     // this value never used, as initialised and used if scaling is needed
     let mut sc2 = c_zero() * f64::NAN;
     if scaling == Scaling::Scaled {
-        let NW = ZS1S2(zn, &mut c1, &mut c2, &mut IUF);
+        let NW = underflow_add_i_k(zn, &mut c1, &mut c2, &mut IUF);
         NZ += NW;
         sc2 = c1;
     }
@@ -2632,7 +2632,7 @@ fn analytic_continuation(
         let mut st = c1;
         c2 = *yi;
         if scaling == Scaling::Scaled && IUF >= 0 {
-            let NW = ZS1S2(zn, &mut c1, &mut c2, &mut IUF);
+            let NW = underflow_add_i_k(zn, &mut c1, &mut c2, &mut IUF);
             NZ += NW;
             sc1 = sc2;
             sc2 = c1;
@@ -2820,7 +2820,7 @@ fn ZACAI(
     let mut c2 = y[0];
     if KODE == Scaling::Scaled {
         let mut IUF = 0;
-        let NW = ZS1S2(zn, &mut c1, &mut c2, &mut IUF);
+        let NW = underflow_add_i_k(zn, &mut c1, &mut c2, &mut IUF);
         NZ += NW;
     }
     y[0] = cspn * c1 + csgn * c2;
@@ -3047,8 +3047,8 @@ fn ZUNK1(
             //-----------------------------------------------------------------------
             s1 = y[k];
             if scaling == Scaling::Scaled {
-                let NW = ZS1S2(zr, &mut s1, &mut s2, &mut IUF);
-                NZ += NW;
+                let NW = underflow_add_i_k(zr, &mut s1, &mut s2, &mut IUF);
+                nz += NW;
             }
             y[k] = s1 * cspn + s2;
             cspn = -cspn;
@@ -3356,7 +3356,6 @@ fn ZUNK2(
     let mut cs = csgn * Complex64::new(cos_sin.im, cos_sin.re);
     cs *= CIP[modified_integer_order % 4];
     let mut IUF = 0;
-    // let mut KK = n;
 
     underflowed_already = false;
     let mut overflow_state_i = Overflow::None;
@@ -3429,7 +3428,7 @@ fn ZUNK2(
         //-----------------------------------------------------------------------;
         s1 = *yi;
         if scaling == Scaling::Scaled {
-            nz += ZS1S2(zr, &mut s1, &mut s2, &mut IUF);
+            nz += underflow_add_i_k(zr, &mut s1, &mut s2, &mut IUF);
         }
         *yi = s1 * cspn + s2;
         cspn = -cspn;
@@ -3464,7 +3463,7 @@ fn ZUNK2(
         let old_c2 = c2;
         let mut c1 = *yi;
         if scaling == Scaling::Scaled {
-            nz += ZS1S2(zr, &mut c1, &mut c2, &mut IUF);
+            nz += underflow_add_i_k(zr, &mut c1, &mut c2, &mut IUF);
         }
         *yi = c1 * cspn + c2;
         cspn = -cspn;
