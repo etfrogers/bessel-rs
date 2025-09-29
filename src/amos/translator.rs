@@ -2885,7 +2885,6 @@ fn ZUNK1(
     let mut sum = [c_zero(); 2];
     let mut cy = [c_zero(); 2];
     let mut n_elements_set = 0;
-    let mut modified_order = 0.0;
     let mut y = c_zeros(n);
     let mut k_overflow_state = Overflow::NearUnder;
 
@@ -2894,7 +2893,7 @@ fn ZUNK1(
         n_elements_set = i + 1;
         // j flip-flops between 0 and 1 using j = 1-j
         j = 1 - j;
-        modified_order = order + (i as f64);
+        let modified_order = order + (i as f64);
 
         let sum_opt;
         (phi[j], zeta1[j], zeta2[j], sum_opt) = zunik(zr, modified_order, IKType::K, false);
@@ -2950,13 +2949,12 @@ fn ZUNK1(
     }
 
     let rz = 2.0 * zr.conj() / zr.abs().powi(2);
-    let mut ck = modified_order * rz;
     if n_elements_set < n {
         //-----------------------------------------------------------------------
         //     TEST LAST MEMBER FOR UNDERFLOW AND OVERFLOW. SET SEQUENCE TO ZERO
         //     ON UNDERFLOW.
         //-----------------------------------------------------------------------
-        modified_order = order + ((n - 1) as f64);
+        let modified_order = order + ((n - 1) as f64);
         let (phi, zet1d, zet2d, _sumd) = zunik(
             zr,
             modified_order,
@@ -2982,20 +2980,20 @@ fn ZUNK1(
         let [mut s1, mut s2] = cy;
         let mut recip_scale_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[k_overflow_state];
         let mut ASCLE = MACHINE_CONSTANTS.smallness_threshold[k_overflow_state];
-        for item in y.iter_mut().skip(n_elements_set) {
-            (s1, s2) = (s2, ck * s2 + s1);
-            ck += rz;
-            *item = s2 * recip_scale_factor;
+        for (i, yi) in y.iter_mut().enumerate().skip(n_elements_set) {
+            let modified_order = order + (i - 1) as f64;
+            (s1, s2) = (s2, modified_order * rz * s2 + s1);
+            *yi = s2 * recip_scale_factor;
             if k_overflow_state == Overflow::NearOver {
                 continue;
             }
-            if max_abs_component(*item) <= ASCLE {
+            if max_abs_component(*yi) <= ASCLE {
                 continue;
             }
             k_overflow_state.increment();
             ASCLE = MACHINE_CONSTANTS.smallness_threshold[k_overflow_state];
             s1 *= recip_scale_factor;
-            s2 = *item;
+            s2 = *yi;
             s1 *= MACHINE_CONSTANTS.scaling_factors[k_overflow_state];
             s2 *= MACHINE_CONSTANTS.scaling_factors[k_overflow_state];
             recip_scale_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[k_overflow_state];
@@ -3023,9 +3021,9 @@ fn ZUNK1(
         let mut found_one_good_entry = false;
         let mut i_overflow_state = Overflow::None;
         let mut remaining_n = n;
-        for (k, yi) in y.iter_mut().enumerate().rev() {
-            remaining_n = k;
-            modified_order = order + (k as f64);
+        for (i, yi) in y.iter_mut().enumerate().rev() {
+            remaining_n = i;
+            let modified_order = order + (i as f64);
             //-----------------------------------------------------------------------
             //     LOGIC TO SORT OUT CASES WHOSE PARAMETERS WERE SET FOR THE K
             //     FUNCTION ABOVE
@@ -3095,7 +3093,7 @@ fn ZUNK1(
                 MACHINE_CONSTANTS.reciprocal_scaling_factors[i_overflow_state];
             let mut ASCLE = MACHINE_CONSTANTS.smallness_threshold[i_overflow_state];
             for (i, yi) in y.iter_mut().enumerate().take(remaining_n).rev() {
-                modified_order = order + (i + 1) as f64;
+                let modified_order = order + (i + 1) as f64;
                 (s1, s2) = (s2, s1 + modified_order * (rz * s2));
                 let mut unscaled_s2 = s2 * reciprocal_scale_factor;
                 let ck = unscaled_s2;
@@ -3181,14 +3179,13 @@ fn ZUNK2(
     let mut cy = [c_zero(); 2];
     let mut j = 1;
     let mut overflow_state_k = Overflow::None;
-    let mut modified_order = 0.0;
     let mut n_elements_set = 0;
 
     for i in 0..n {
         n_elements_set = i + 1;
         // j flip-flops between 0 and 1 using  = 1-j
         j = 1 - j;
-        modified_order = order + (i as f64);
+        let modified_order = order + (i as f64);
         (phi[j], arg[j], zeta1[j], zeta2[j], asum[j], bsum[j]) = zunhj(zn, modified_order, false);
         let s1 = -scaling.scale_zetas(zb, modified_order, zeta1[j], zeta2[j]);
         let of = Overflow::find_overflow(s1.re, phi[j], -0.25 * arg[j].abs().ln() - AIC);
@@ -3255,7 +3252,6 @@ fn ZUNK2(
     }
 
     let rz = 2.0 * zr.conj() / zr.abs().powi(2);
-    let mut ck = modified_order * rz;
     let mut phid = c_zero();
     let mut argd = c_zero();
     let mut zeta1d = c_zero();
@@ -3268,7 +3264,7 @@ fn ZUNK2(
         //     TEST LAST MEMBER FOR UNDERFLOW AND OVERFLOW. SET SEQUENCE TO ZERO;
         //     ON UNDERFLOW.;
         //-----------------------------------------------------------------------;
-        modified_order = order + ((n - 1) as f64);
+        let modified_order = order + ((n - 1) as f64);
         (phid, argd, zeta1d, zeta2d, asumd, bsumd) =
             zunhj(zn, modified_order, rotation == RotationDirection::None);
         let s1 = -scaling.scale_zetas(zb, modified_order, zeta1d, zeta2d);
@@ -3287,24 +3283,20 @@ fn ZUNK2(
         let mut recip_scaling = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_k];
         let mut ascle = MACHINE_CONSTANTS.smallness_threshold[overflow_state_k];
 
-        for yi in y.iter_mut().skip(n_elements_set) {
-            (s1, s2) = (s2, s2 * ck + s1);
-            ck += rz;
+        for (i, yi) in y.iter_mut().enumerate().skip(n_elements_set) {
+            let modified_order = order + (i - 1) as f64;
+            (s1, s2) = (s2, s1 + modified_order * rz * s2);
             c2 = s2 * recip_scaling;
             *yi = c2;
-            if overflow_state_k == Overflow::NearOver {
-                continue;
+            if overflow_state_k != Overflow::NearOver && max_abs_component(c2) > ascle {
+                overflow_state_k.increment();
+                ascle = MACHINE_CONSTANTS.smallness_threshold[overflow_state_k];
+                s1 *= recip_scaling;
+                s2 = c2;
+                s1 *= MACHINE_CONSTANTS.scaling_factors[overflow_state_k];
+                s2 *= MACHINE_CONSTANTS.scaling_factors[overflow_state_k];
+                recip_scaling = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_k];
             }
-            if max_abs_component(c2) <= ascle {
-                continue;
-            }
-            overflow_state_k.increment();
-            ascle = MACHINE_CONSTANTS.smallness_threshold[overflow_state_k];
-            s1 *= recip_scaling;
-            s2 = c2;
-            s1 *= MACHINE_CONSTANTS.scaling_factors[overflow_state_k];
-            s2 *= MACHINE_CONSTANTS.scaling_factors[overflow_state_k];
-            recip_scaling = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_k];
         }
     }
     if rotation == RotationDirection::None {
@@ -3340,19 +3332,19 @@ fn ZUNK2(
     found_one_good_entry = false;
     let mut overflow_state_i = Overflow::None;
     let mut remaining_n = n;
-    for (kk, yi) in y.iter_mut().enumerate().rev() {
-        remaining_n = kk;
-        modified_order = order + (kk as f64);
+    for (i, yi) in y.iter_mut().enumerate().rev() {
+        remaining_n = i;
+        let modified_order = order + (i as f64);
         //-----------------------------------------------------------------------
         //     LOGIC TO SORT OUT CASES WHOSE PARAMETERS WERE SET FOR THE K
         //     FUNCTION ABOVE
         //-----------------------------------------------------------------------
         // Note that, is the overflow check was done, the ___d are already set, and
         // valid for kk == n-1. Also that kk == n-1 on the first pas through this loop.
-        let use_preset_overflow = (kk == n - 1) && do_overflow_check;
+        let use_preset_overflow = (i == n - 1) && do_overflow_check;
         // these where the last two kk values where phi etc where recorded in the previous run.
         // Would it be better to store all of them?!
-        let in_last_two_set = (kk == n_elements_set - 1) || (kk == n_elements_set - 2);
+        let in_last_two_set = (i == n_elements_set - 1) || (i == n_elements_set - 2);
         if n <= 2 || (!use_preset_overflow) && in_last_two_set {
             phid = phi[j];
             argd = arg[j];
@@ -3433,11 +3425,9 @@ fn ZUNK2(
 
         let mut recip_scale_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_i];
         let mut ascle = MACHINE_CONSTANTS.smallness_threshold[overflow_state_i];
-        modified_order = (integer_order + remaining_n) as f64;
-        //TODO enumerate and lose modified order
-        for yi in y.iter_mut().take(remaining_n).rev() {
-            (s1, s2) = (s2, s1 + (modified_order + order_fract) * (rz * s2));
-            modified_order -= 1.0;
+        for (i, yi) in y.iter_mut().enumerate().take(remaining_n).rev() {
+            let modified_order = order + (i + 1) as f64;
+            (s1, s2) = (s2, s1 + modified_order * (rz * s2));
             let mut c2 = s2 * recip_scale_factor;
             let old_c2 = c2;
             let mut c1 = *yi;
