@@ -270,28 +270,28 @@ pub fn check_underflow_uniform_asymp_params(
 /// Originally ZS1S2
 pub fn underflow_add_i_k(
     zr: Complex64,
-    s1: &mut Complex64,
-    s2: &mut Complex64,
+    s_k: &mut Complex64,
+    s_i: &mut Complex64,
     n_good: &mut isize,
 ) -> usize {
-    let mut abs_s1 = s1.abs();
-    let abs_s2 = s2.abs();
-    if (s1.re != 0.0 || s1.im != 0.0) && (abs_s1 != 0.0) {
+    let mut abs_s1 = s_k.abs();
+    let abs_s2 = s_i.abs();
+    if (s_k.re != 0.0 || s_k.im != 0.0) && (abs_s1 != 0.0) {
         let test = (-2.0 * zr.re) + abs_s1.ln();
-        let s1d = *s1;
-        *s1 = c_zero();
+        let s1d = *s_k;
+        *s_k = c_zero();
         abs_s1 = 0.0;
         if test >= (-MACHINE_CONSTANTS.approximation_limit) {
-            *s1 = (s1d.ln() - 2.0 * zr).exp();
-            abs_s1 = s1.abs();
+            *s_k = (s1d.ln() - 2.0 * zr).exp();
+            abs_s1 = s_k.abs();
             *n_good += 1;
         }
     }
     if abs_s1.max(abs_s2) > MACHINE_CONSTANTS.absolute_approximation_limit {
         0
     } else {
-        *s1 = c_zero();
-        *s2 = c_zero();
+        *s_k = c_zero();
+        *s_i = c_zero();
         *n_good = 0;
         1
     }
