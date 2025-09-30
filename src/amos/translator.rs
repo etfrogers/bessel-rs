@@ -1934,6 +1934,7 @@ fn k_right_half_plane(z: Complex64, order: f64, scaling: Scaling, n: usize) -> B
             let mut ASCLE = MACHINE_CONSTANTS.smallness_threshold[overflow_state];
             for _ in n_tested..=integer_order {
                 // TODO same loop as below?
+                // TODO and same recurrence logic used in ZUNKX, ZUNIX?
                 (s1, s2) = (s2, ck * s2 + s1);
                 ck += rz;
                 if overflow_state == Overflow::NearOver {
