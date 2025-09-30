@@ -3734,7 +3734,7 @@ fn ZUNI2(
     z: Complex64,
     order: f64,
     scaling: Scaling,
-    N: usize,
+    n: usize,
     y: &mut [Complex64],
 ) -> BesselResult<(usize, usize)> {
     // ***BEGIN PROLOGUE  ZUNI2
@@ -3753,28 +3753,32 @@ fn ZUNI2(
     // ***ROUTINES CALLED  ZAIRY,ZUunderflowCHK,ZUNHJ,ZUOIK,d1mach,ZABS
     // ***END PROLOGUE  ZUNI2
 
-    let mut NZ = 0;
-    let mut ND = N;
-    let NLAST = 0;
+    let mut nz = 0;
+    let mut n_remaining = n;
+
     //-----------------------------------------------------------------------
     //     ZN IS IN THE RIGHT HALF PLANE AFTER ROTATION BY CI OR -CI
     //-----------------------------------------------------------------------
     let mut zn = Complex64::new(z.im, -z.re);
     let mut zb = z;
-    let mut CIDI = -1.0;
-    let INU = order as usize;
-    let ANG = FRAC_PI_2 * order.fract();
-    let mut c2 = Complex64::cis(ANG);
-    let CAR = c2.re;
-    let SAR = c2.im;
-    let index = (INU + N - 1) % 4;
-    c2 *= CIP[index];
-    if z.im <= 0.0 {
+    let integer_order = order as usize;
+
+    let build_c2 = |effective_n: usize| {
+        let index = (integer_order + effective_n - 1) % 4;
+        let mut c2 = Complex64::cis(FRAC_PI_2 * order.fract()) * CIP[index];
+        if z.im <= 0.0 {
+            c2 = c2.conj();
+        }
+        c2
+    };
+    let mut c2 = build_c2(n);
+    let sign_of_i = if z.im <= 0.0 {
         zn.re = -zn.re;
         zb.im = -zb.im;
-        CIDI = -CIDI;
-        c2.im = -c2.im;
-    }
+        1.0
+    } else {
+        -1.0
+    };
     //-----------------------------------------------------------------------
     //     CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER
     //-----------------------------------------------------------------------
@@ -3787,41 +3791,44 @@ fn ZUNI2(
     // which don't test refinement
     match Overflow::find_overflow(s1.re, c_one(), 0.0) {
         Overflow::Over(_) => return Err(Overflow),
-        Overflow::Under(_) => return Ok((N, NLAST)),
+        Overflow::Under(_) => return Ok((n, 0)),
         _ => (),
     }
-    let mut set_underflow_and_update = false;
-    'l40: loop {
-        if set_underflow_and_update {
-            //-----------------------------------------------------------------------
-            //     SET UNDERFLOW AND UPDATE PARAMETERS
-            //-----------------------------------------------------------------------
-            y[ND - 1] = c_zero();
-            NZ += 1;
-            ND -= 1;
-            if ND == 0 {
-                return Ok((NZ, NLAST));
-            }
-            let NUF = check_underflow_uniform_asymp_params(z, order, scaling, IKType::I, ND, y)?;
-            ND -= NUF;
-            NZ += NUF;
-            if ND == 0 {
-                return Ok((NZ, NLAST));
-            }
-            modified_order = order + ((ND - 1) as f64);
-            if modified_order < MACHINE_CONSTANTS.asymptotic_order_limit {
-                return Ok((NZ, ND));
-            }
-            let index = (INU + ND - 1) % 4;
-            c2 = Complex64::new(CAR, SAR) * CIP[index];
-            if z.im <= 0.0 {
-                c2 = c2.conj();
-            }
+
+    debug_assert!(modified_order + (n - 1) as f64 > MACHINE_CONSTANTS.asymptotic_order_limit);
+
+    let mut overflow_state = Overflow::NearUnder;
+    let mut cy = [c_zero(); 2];
+    let mut handle_underflow = |n_remaining: &mut usize,
+                                c2: &mut Complex64,
+                                y: &mut [Complex64]|
+     -> BesselResult<bool> {
+        //-----------------------------------------------------------------------
+        //     SET UNDERFLOW AND UPDATE PARAMETERS
+        //-----------------------------------------------------------------------
+        y[*n_remaining - 1] = c_zero();
+        nz += 1;
+        *n_remaining -= 1;
+        if *n_remaining == 0 {
+            return Ok(true);
         }
-        let mut overflow_state = Overflow::NearUnder;
-        let mut cy = [c_zero(); 2];
-        for i in 0..ND.min(2) {
-            modified_order = order + ((ND - (i + 1)) as f64);
+        let n_underflow =
+            check_underflow_uniform_asymp_params(z, order, scaling, IKType::I, *n_remaining, y)?;
+        *n_remaining -= n_underflow;
+        nz += n_underflow;
+        if *n_remaining == 0 {
+            return Ok(true);
+        }
+        let modified_order = order + ((*n_remaining - 1) as f64);
+        if modified_order < MACHINE_CONSTANTS.asymptotic_order_limit {
+            return Ok(true);
+        }
+        *c2 = build_c2(*n_remaining);
+        Ok(false)
+    };
+    'l40: loop {
+        for i in 0..2.min(n_remaining) {
+            modified_order = order + ((n_remaining - (i + 1)) as f64);
             let (phi, arg, zeta1, zeta2, asum, bsum) = zunhj(zn, modified_order, false);
             let asum = asum.unwrap();
             let bsum = bsum.unwrap();
@@ -3840,7 +3847,9 @@ fn ZUNI2(
             match of {
                 Overflow::Over(_) => return Err(Overflow),
                 Overflow::Under(_) => {
-                    set_underflow_and_update = true;
+                    if handle_underflow(&mut n_remaining, &mut c2, y)? {
+                        return Ok((nz, n_remaining));
+                    }
                     continue 'l40;
                 }
                 _ => (),
@@ -3861,7 +3870,9 @@ fn ZUNI2(
                     MACHINE_CONSTANTS.abs_error_tolerance,
                 )
             {
-                set_underflow_and_update = true;
+                if handle_underflow(&mut n_remaining, &mut c2, y)? {
+                    return Ok((nz, n_remaining));
+                }
                 continue 'l40;
             }
             if z.im <= 0.0 {
@@ -3869,36 +3880,35 @@ fn ZUNI2(
             }
             s2 *= c2;
             cy[i] = s2;
-            y[ND - i - 1] = s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
-            c2 *= CIDI * Complex64::I;
+            y[n_remaining - i - 1] =
+                s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+            c2 *= sign_of_i * Complex64::I;
         }
-        if ND <= 2 {
-            break 'l40;
-        }
+        break 'l40;
+    }
+    if n_remaining > 2 {
         let rz = 2.0 * z.conj() / z.abs().pow(2);
         let [mut s1, mut s2] = cy;
-        let mut C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+        let mut recip_scale_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
         let mut ASCLE = MACHINE_CONSTANTS.smallness_threshold[overflow_state];
-        for K in (0..(ND - 2)).rev() {
-            let st = s2;
-            s2 = s1 + (order + ((K + 1) as f64)) * rz * s2;
-            s1 = st;
-            y[K] = s2 * C1R;
+        for (i, yi) in y.iter_mut().enumerate().take(n_remaining - 2).rev() {
+            let modified_order = order + ((i + 1) as f64);
+            (s1, s2) = (s2, s1 + modified_order * rz * s2);
+            *yi = s2 * recip_scale_factor;
             if overflow_state == Overflow::NearOver {
                 continue;
             }
-            if max_abs_component(y[K]) <= ASCLE {
+            if max_abs_component(*yi) <= ASCLE {
                 continue;
             }
             overflow_state.increment();
             ASCLE = MACHINE_CONSTANTS.smallness_threshold[overflow_state];
-            s1 *= C1R;
-            s2 = y[K];
+            s1 *= recip_scale_factor;
+            s2 = *yi;
             s1 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
             s2 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
-            C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+            recip_scale_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
         }
-        break 'l40;
     }
-    Ok((NZ, NLAST))
+    Ok((nz, 0))
 }
