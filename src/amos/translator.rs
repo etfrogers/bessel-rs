@@ -3701,7 +3701,7 @@ fn ZUNI1(
     }
     let rz = 2.0 * z.conj() / z.abs().pow(2);
     let [mut s1, mut s2] = cy;
-    let mut C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+    let mut recip_scaling_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
     let mut ASCLE = MACHINE_CONSTANTS.smallness_threshold[overflow_state];
     let mut K = ND - 2;
     modified_order = K as f64;
@@ -3709,7 +3709,7 @@ fn ZUNI1(
         let mut c2 = s2;
         s2 = s1 + (order + modified_order) * (rz * c2);
         s1 = c2;
-        c2 = s2 * C1R;
+        c2 = s2 * recip_scaling_factor;
         y[K - 1] = c2;
         K -= 1;
         modified_order -= 1.0;
@@ -3721,11 +3721,11 @@ fn ZUNI1(
         }
         overflow_state.increment();
         ASCLE = MACHINE_CONSTANTS.smallness_threshold[overflow_state];
-        s1 *= C1R;
+        s1 *= recip_scaling_factor;
         s2 = c2;
         s1 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
         s2 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
-        C1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+        recip_scaling_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
     }
     Ok((NZ, NLAST))
 }
