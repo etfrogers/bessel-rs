@@ -123,7 +123,7 @@ pub fn check_underflow_uniform_asymp_params(
     order: f64,
     scaling: Scaling,
     ik_type: IKType,
-    n: usize,
+    n_to_test: usize,
     y: &mut [Complex64],
 ) -> BesselResult<usize> {
     let mut n_underflow = 0;
@@ -141,7 +141,7 @@ pub fn check_underflow_uniform_asymp_params(
     //     the sign of the imaginary part correct.
     //-----------------------------------------------------------------------
 
-    // This piece of code is used in two places, where there is essentially as switch on which function to use,
+    // This piece of code is used in two places, where there is essentially a switch on which function to use,
     // based on whether z is imaginary dominant or real dominant
     let get_parameters = |modified_order: f64| {
         let (mut cz, phi, arg, abs_arg) = if imaginary_dominant {
@@ -154,40 +154,38 @@ pub fn check_underflow_uniform_asymp_params(
         if scaling == Scaling::Scaled {
             cz -= zb;
         }
-        (cz, phi, arg, abs_arg)
+        let refinement = if imaginary_dominant {
+            -0.25 * abs_arg.ln() - AIC
+        } else {
+            0.0
+        };
+        (cz, phi, arg, refinement)
     };
 
     // First checks the last element
     let modified_order = match ik_type {
         IKType::K => {
-            let fnn = n as f64;
-            let gnn = order + fnn - 1.0;
-            gnn.max(fnn)
+            let float_n = n_to_test as f64;
+            let modified_order = order + float_n - 1.0;
+            modified_order.max(float_n)
         }
         IKType::I => order.max(1.0),
     };
 
-    let (mut cz, phi, arg, abs_arg) = get_parameters(modified_order);
-
+    let (mut cz, phi, arg, extra_refinement) = get_parameters(modified_order);
     if ik_type == IKType::K {
         cz = -cz;
     }
-
     //-----------------------------------------------------------------------
     //     OVERFLOW TEST
     //-----------------------------------------------------------------------
-    let extra_refinement = if imaginary_dominant {
-        -0.25 * abs_arg.ln() - AIC
-    } else {
-        0.0
-    };
     match Overflow::find_overflow(cz.re, phi, extra_refinement) {
         Overflow::Over(_) => return Err(Overflow),
         Overflow::Under(was_refined) => {
             if !was_refined {
-                y[0..n].iter_mut().for_each(|v| *v = c_zero());
+                y[0..n_to_test].iter_mut().for_each(|v| *v = c_zero());
             }
-            return Ok(n);
+            return Ok(n_to_test);
         }
         Overflow::NearUnder => {
             cz += phi.ln();
@@ -200,27 +198,23 @@ pub fn check_underflow_uniform_asymp_params(
                 MACHINE_CONSTANTS.absolute_approximation_limit,
                 MACHINE_CONSTANTS.abs_error_tolerance,
             ) {
-                y[0..n].iter_mut().for_each(|v| *v = c_zero());
-                return Ok(n);
+                y[0..n_to_test].iter_mut().for_each(|v| *v = c_zero());
+                return Ok(n_to_test);
             }
         }
         Overflow::None | Overflow::NearOver => (),
     }
     // On K type, we only check the max n value, as per function documentation
-    if ik_type == IKType::K || n == 1 {
+    if ik_type == IKType::K || n_to_test == 1 {
         return Ok(n_underflow);
     }
     //-----------------------------------------------------------------------
     //     SET UNDERFLOWS ON I SEQUENCE
     //-----------------------------------------------------------------------
-    for nn in (0..n).rev() {
-        let modified_order = order + (nn as f64);
-        let (mut cz, phi, _arg, abs_arg) = get_parameters(modified_order);
-        let extra_refinement = if imaginary_dominant {
-            -0.25 * abs_arg.ln() - AIC
-        } else {
-            0.0
-        };
+    // Note n_to_test is NOT y.len() in this case.
+    for (i, yi) in y.iter_mut().enumerate().take(n_to_test).rev() {
+        let modified_order = order + (i as f64);
+        let (mut cz, phi, _arg, extra_refinement) = get_parameters(modified_order);
         // Match below says that first time we get here and no underflow is found, we immediately return
         match Overflow::find_overflow(cz.re, phi, extra_refinement) {
             Overflow::Under(was_refined) => {
@@ -244,7 +238,7 @@ pub fn check_underflow_uniform_asymp_params(
             Overflow::NearUnder => (),
             Overflow::None | Overflow::NearOver | Overflow::Over(_) => return Ok(n_underflow),
         }
-        y[nn] = c_zero();
+        *yi = c_zero();
         n_underflow += 1;
     }
     Ok(n_underflow)
