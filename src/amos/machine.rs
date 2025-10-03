@@ -39,7 +39,7 @@ pub(crate) struct MachineConsts {
     /// Originally CSRR
     pub reciprocal_scaling_factors: [f64; 3],
     /// Originally BRY
-    pub smallness_threshold: [f64; 3],
+    pub overflow_boundary: [f64; 3],
 }
 
 impl MachineConsts {
@@ -79,7 +79,7 @@ impl MachineConsts {
         //-----------------------------------------------------------------------
         let scaling_factors = [rtol, 1.0, abs_error_tolerance];
         let reciprocal_scaling_factors = [abs_error_tolerance, 1.0, rtol];
-        let smallness_threshold = [
+        let overflow_boundary = [
             absolute_approximation_limit,
             1.0 / absolute_approximation_limit,
             f64::MAX / 2.0,
@@ -96,7 +96,7 @@ impl MachineConsts {
             rtol,
             scaling_factors,
             reciprocal_scaling_factors,
-            smallness_threshold,
+            overflow_boundary,
         }
     }
 }
