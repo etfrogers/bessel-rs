@@ -6,16 +6,14 @@ use num::{
 use std::{f64::consts::PI, ops::Neg};
 use thiserror::Error;
 
+pub use entry_points::*;
 pub use gamma_ln::{GammaError, gamma_ln};
 pub(crate) use i_power_series::i_power_series;
 pub(crate) use machine::MACHINE_CONSTANTS;
-pub use translator::{
-    complex_airy, complex_airy_b, complex_bessel_h, complex_bessel_i, complex_bessel_j,
-    complex_bessel_k, complex_bessel_y,
-};
 
 mod asymptotic_i;
 pub(crate) mod bindings;
+mod entry_points;
 mod gamma_ln;
 mod i_power_series;
 mod machine;
@@ -76,6 +74,13 @@ pub enum IKType {
     I = 1,
     K = 2,
 }
+
+const CIP: [Complex64; 4] = [
+    Complex64::new(1.0, 0.0),
+    Complex64::new(0.0, 1.0),
+    Complex64::new(-1.0, 0.0),
+    Complex64::new(0.0, -1.0),
+];
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(usize)]
