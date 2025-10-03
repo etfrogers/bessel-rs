@@ -2534,7 +2534,7 @@ fn analytic_continuation(
     order: f64,
     scaling: Scaling,
     rotation: RotationDirection,
-    N: usize,
+    n: usize,
 ) -> BesselResult {
     // ***BEGIN PROLOGUE  ZACON
     // ***REFER TO  ZBESK,ZBESH
@@ -2548,14 +2548,13 @@ fn analytic_continuation(
     //     HALF Z PLANE
     //
 
-    let mut NZ = 0;
+    let mut nz = 0;
     let zn = -z;
-    let (mut y, _) = i_right_half_plane(zn, order, scaling, N)?;
+    let (mut y, _) = i_right_half_plane(zn, order, scaling, n)?;
     //-----------------------------------------------------------------------
     //     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE FOR THE K FUNCTION
     //-----------------------------------------------------------------------
-    let NN = 2.min(N);
-    let (cy, NW) = k_right_half_plane(zn, order, scaling, NN)?;
+    let (cy, NW) = k_right_half_plane(zn, order, scaling, 2.min(n))?;
     if NW > 0 {
         return Err(Overflow);
         // the NW = -1 or -2 is handled by ZBNKU returning an error,
@@ -2575,38 +2574,32 @@ fn analytic_continuation(
     if order as i64 % 2 != 0 {
         cspn = -cspn;
     }
-    let mut IUF = 0;
+    let mut n_good = 0;
     let mut c1 = s1;
     let mut c2 = y[0];
-    let mut sc1;
     if scaling == Scaling::Scaled {
-        let NW = underflow_add_i_k(zn, &mut c1, &mut c2, &mut IUF);
-        NZ += NW;
+        nz += underflow_add_i_k(zn, &mut c1, &mut c2, &mut n_good);
     }
-    let st = cspn * c1;
-    let pt = csgn * c2;
-    y[0] = st + pt;
-    if N == 1 {
-        return Ok((y, NZ));
+    y[0] = cspn * c1 + csgn * c2;
+    if n == 1 {
+        return Ok((y, nz));
     }
+
     cspn = -cspn;
     let mut s2 = cy[1];
     c1 = s2;
     c2 = y[1];
     // this value never used, as initialised and used if scaling is needed
-    let mut sc2 = c_zero() * f64::NAN;
+    let mut scaled_c2 = c_zero() * f64::NAN;
     if scaling == Scaling::Scaled {
-        let NW = underflow_add_i_k(zn, &mut c1, &mut c2, &mut IUF);
-        NZ += NW;
-        sc2 = c1;
+        nz += underflow_add_i_k(zn, &mut c1, &mut c2, &mut n_good);
+        scaled_c2 = c1;
     }
-    let st = cspn * c1;
-    let pt = csgn * c2;
-    y[1] = st + pt;
+    y[1] = cspn * c1 + csgn * c2;
+    if n == 2 {
+        return Ok((y, nz));
+    }
 
-    if N == 2 {
-        return Ok((y, NZ));
-    }
     cspn = -cspn;
     let rz = 2.0 * (zn.conj()) / zn.abs().powi(2);
     let FN = order + 1.0;
@@ -2622,45 +2615,41 @@ fn analytic_continuation(
     } else {
         Overflow::None
     };
-    let mut b_scale = MACHINE_CONSTANTS.smallness_threshold[overflow_state];
+    let mut boundary = MACHINE_CONSTANTS.smallness_threshold[overflow_state];
     s1 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
     s2 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
-    let mut CSR = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+    let mut recip_scaling_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
     for yi in y.iter_mut().skip(2) {
         //TODO common pattern below
         (s1, s2) = (s2, ck * s2 + s1);
-        c1 = s2 * CSR;
+        c1 = s2 * recip_scaling_factor;
         let mut st = c1;
         c2 = *yi;
-        if scaling == Scaling::Scaled && IUF >= 0 {
-            let NW = underflow_add_i_k(zn, &mut c1, &mut c2, &mut IUF);
-            NZ += NW;
-            sc1 = sc2;
-            sc2 = c1;
-            if IUF == 3 {
-                IUF = -4;
-                s1 = sc1 * MACHINE_CONSTANTS.scaling_factors[overflow_state];
-                s2 = sc2 * MACHINE_CONSTANTS.scaling_factors[overflow_state];
-                st = sc2;
+        if scaling == Scaling::Scaled && n_good >= 0 {
+            nz += underflow_add_i_k(zn, &mut c1, &mut c2, &mut n_good);
+            let saved_c2 = scaled_c2;
+            scaled_c2 = c1;
+            if n_good == 3 {
+                n_good = -4;
+                s1 = saved_c2 * MACHINE_CONSTANTS.scaling_factors[overflow_state];
+                s2 = scaled_c2 * MACHINE_CONSTANTS.scaling_factors[overflow_state];
+                st = scaled_c2;
             }
         }
         *yi = cspn * c1 + csgn * c2;
         ck += rz;
         cspn = -cspn;
-        if overflow_state == Overflow::NearOver {
-            continue;
-        }
-        if max_abs_component(c1) > b_scale {
+        if overflow_state != Overflow::NearOver && max_abs_component(c1) < boundary {
             overflow_state.increment();
-            b_scale = MACHINE_CONSTANTS.smallness_threshold[overflow_state];
-            s1 *= CSR;
+            boundary = MACHINE_CONSTANTS.smallness_threshold[overflow_state];
+            s1 *= recip_scaling_factor;
             s2 = st;
             s1 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
             s2 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
-            CSR = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state]; //CSRR(KFLAG);
+            recip_scaling_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
         }
     }
-    Ok((y, NZ))
+    Ok((y, nz))
 }
 
 /// i_right_half_plane computes the i function in the right half z plane
