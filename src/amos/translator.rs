@@ -12,6 +12,7 @@ use crate::amos::{
     overflow_checks::{Overflow, zunhj},
     utils::imaginary_dominant,
 };
+use itertools::Either;
 use num::{
     Integer, Zero,
     complex::{Complex64, ComplexFloat},
@@ -1412,27 +1413,17 @@ fn ZUNK1(
         //---------------------------------------------------------------------------
         //     FORWARD RECUR FOR REMAINDER OF THE SEQUENCE
         //----------------------------------------------------------------------------
-        let [mut s1, mut s2] = cy;
-        let mut recip_scale_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[k_overflow_state];
-        let mut ASCLE = MACHINE_CONSTANTS.smallness_threshold[k_overflow_state];
-        for (i, yi) in y.iter_mut().enumerate().skip(n_elements_set) {
-            let modified_order = order + (i - 1) as f64;
-            (s1, s2) = (s2, modified_order * rz * s2 + s1);
-            *yi = s2 * recip_scale_factor;
-            if k_overflow_state == Overflow::NearOver {
-                continue;
-            }
-            if max_abs_component(*yi) <= ASCLE {
-                continue;
-            }
-            k_overflow_state.increment();
-            ASCLE = MACHINE_CONSTANTS.smallness_threshold[k_overflow_state];
-            s1 *= recip_scale_factor;
-            s2 = *yi;
-            s1 *= MACHINE_CONSTANTS.scaling_factors[k_overflow_state];
-            s2 *= MACHINE_CONSTANTS.scaling_factors[k_overflow_state];
-            recip_scale_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[k_overflow_state];
-        }
+        let [s1, s2] = cy;
+        recurr(
+            true,
+            order,
+            zr,
+            &mut y,
+            n_elements_set,
+            s1,
+            s2,
+            k_overflow_state,
+        );
         if rotation == RotationDirection::None {
             return Ok((y, nz));
         }
@@ -1586,7 +1577,7 @@ fn ZUNK2(
     let integer_order = order as usize;
     let order_fract = order.fract();
     let ANG = -FRAC_PI_2 * order_fract;
-    let mut c2 = -Complex64::I * Complex64::from_polar(FRAC_PI_2, ANG);
+    let c2 = -Complex64::I * Complex64::from_polar(FRAC_PI_2, ANG);
     let mut cs = CR1 * c2 * CIP[integer_order % 4].conj();
     if zr.im <= 0.0 {
         zn.re = -zn.re;
@@ -1707,25 +1698,17 @@ fn ZUNK2(
             }
             Overflow::NearOver | Overflow::None | Overflow::NearUnder => (),
         }
-        let [mut s1, mut s2] = cy;
-        let mut recip_scaling = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_k];
-        let mut ascle = MACHINE_CONSTANTS.smallness_threshold[overflow_state_k];
-
-        for (i, yi) in y.iter_mut().enumerate().skip(n_elements_set) {
-            let modified_order = order + (i - 1) as f64;
-            (s1, s2) = (s2, s1 + modified_order * rz * s2);
-            c2 = s2 * recip_scaling;
-            *yi = c2;
-            if overflow_state_k != Overflow::NearOver && max_abs_component(c2) > ascle {
-                overflow_state_k.increment();
-                ascle = MACHINE_CONSTANTS.smallness_threshold[overflow_state_k];
-                s1 *= recip_scaling;
-                s2 = c2;
-                s1 *= MACHINE_CONSTANTS.scaling_factors[overflow_state_k];
-                s2 *= MACHINE_CONSTANTS.scaling_factors[overflow_state_k];
-                recip_scaling = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_k];
-            }
-        }
+        let [s1, s2] = cy;
+        recurr(
+            true,
+            order,
+            zr,
+            &mut y,
+            n_elements_set,
+            s1,
+            s2,
+            overflow_state_k,
+        );
     }
     if rotation == RotationDirection::None {
         return Ok((y, nz));
@@ -1853,6 +1836,7 @@ fn ZUNK2(
 
         let mut recip_scale_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_i];
         let mut ascle = MACHINE_CONSTANTS.smallness_threshold[overflow_state_i];
+        // TODO recurr with assignment fn
         for (i, yi) in y.iter_mut().enumerate().take(remaining_n).rev() {
             let modified_order = order + (i + 1) as f64;
             (s1, s2) = (s2, s1 + modified_order * (rz * s2));
@@ -2133,28 +2117,8 @@ fn ZUNI1(
         break 'outer;
     }
     if n_remaining > 2 {
-        let rz = 2.0 * z.conj() / z.abs().pow(2);
-        let [mut s1, mut s2] = cy;
-        let mut recip_scaling_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
-        let mut boundary = MACHINE_CONSTANTS.smallness_threshold[overflow_state];
-        for (i, yi) in y.iter_mut().enumerate().take(n_remaining - 2).rev() {
-            let modified_order = order + ((i + 1) as f64);
-            (s1, s2) = (s2, s1 + modified_order * (rz * s2));
-            *yi = s2 * recip_scaling_factor;
-            if overflow_state == Overflow::NearOver {
-                continue;
-            }
-            if max_abs_component(*yi) <= boundary {
-                continue;
-            }
-            overflow_state.increment();
-            boundary = MACHINE_CONSTANTS.smallness_threshold[overflow_state];
-            s1 *= recip_scaling_factor;
-            s2 = *yi;
-            s1 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
-            s2 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
-            recip_scaling_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
-        }
+        let [s1, s2] = cy;
+        recurr(false, order, z, y, n_remaining - 2, s1, s2, overflow_state);
     }
     Ok((nz, 0))
 }
@@ -2255,7 +2219,6 @@ fn ZUNI2(
         *c2 = build_c2(*n_remaining);
         Ok(false)
     };
-    let mut range = 0..n;
     'outer: loop {
         for i in 0..2.min(n_remaining) {
             modified_order = order + ((n_remaining - (i + 1)) as f64);
@@ -2317,22 +2280,42 @@ fn ZUNI2(
         break 'outer;
     }
     if n_remaining > 2 {
-        let rz = 2.0 * z.conj() / z.abs().pow(2);
-        let [mut s1, mut s2] = cy;
-        let mut recip_scale_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
-        let mut ASCLE = MACHINE_CONSTANTS.smallness_threshold[overflow_state];
-        for (i, yi) in y.iter_mut().enumerate().take(n_remaining - 2).rev() {
-            let modified_order = order + ((i + 1) as f64);
-            (s1, s2) = (s2, s1 + modified_order * rz * s2);
-            *yi = s2 * recip_scale_factor;
-            if overflow_state == Overflow::NearOver {
-                continue;
-            }
-            if max_abs_component(*yi) <= ASCLE {
-                continue;
-            }
+        let [s1, s2] = cy;
+        recurr(false, order, z, y, n_remaining - 2, s1, s2, overflow_state);
+    }
+    Ok((nz, 0))
+}
+
+fn recurr(
+    forward: bool,
+    order: f64,
+    z: Complex64,
+    y: &mut [Complex64],
+    n_offset: usize,
+    mut s1: Complex64,
+    mut s2: Complex64,
+    mut overflow_state: Overflow,
+) {
+    let rz = 2.0 * z.conj() / z.abs().pow(2);
+
+    let base_iterator = y.iter_mut().enumerate();
+    let iterator = if forward {
+        Either::Right(base_iterator.skip(n_offset))
+    } else {
+        Either::Left(base_iterator.take(n_offset).rev())
+    };
+    let index_adjustment = if forward { -1.0 } else { 1.0 };
+
+    let mut recip_scale_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+    let mut boundary = MACHINE_CONSTANTS.smallness_threshold[overflow_state];
+
+    for (i, yi) in iterator {
+        let modified_order = order + (i as f64) + index_adjustment;
+        (s1, s2) = (s2, s1 + modified_order * rz * s2);
+        *yi = s2 * recip_scale_factor;
+        if overflow_state != Overflow::NearOver && max_abs_component(*yi) > boundary {
             overflow_state.increment();
-            ASCLE = MACHINE_CONSTANTS.smallness_threshold[overflow_state];
+            boundary = MACHINE_CONSTANTS.smallness_threshold[overflow_state];
             s1 *= recip_scale_factor;
             s2 = *yi;
             s1 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
@@ -2340,5 +2323,4 @@ fn ZUNI2(
             recip_scale_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
         }
     }
-    Ok((nz, 0))
 }
