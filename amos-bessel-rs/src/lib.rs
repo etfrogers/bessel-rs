@@ -1,4 +1,3 @@
-#![feature(test)]
 mod amos;
 pub use amos::{BesselError, GammaError, Scaling};
 use amos::{
@@ -55,6 +54,3 @@ pub fn airy_bp<T: Into<Complex64>>(z: T) -> Result<Complex64, BesselError> {
 
 #[cfg(test)]
 mod tests;
-
-#[cfg(test)]
-mod bench;

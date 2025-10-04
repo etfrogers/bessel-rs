@@ -5,8 +5,6 @@ use complex_bessel_rs::bessel_k::bessel_k as bessel_k_fort;
 use num::Complex;
 use test::Bencher;
 
-// TODO move to helper crate
-
 #[bench]
 fn bench_rust_besj(b: &mut Bencher) {
     let cases = CASES.map(|(order, re, im)| (order, Complex::new(re, im)));
