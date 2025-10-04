@@ -1,25 +1,3 @@
-[package]
-name = "bessel-rs"
-version = "0.1.0"
-edition = "2024"
-
-[features]
-# default = ["random_tests"]
-random_tests = []
-
-[dependencies]
-itertools = "0.14.0"
-num = "0.4.3"
-thiserror = "2.0.11"
-
-[dev-dependencies]
-approx = { version = "0.5.1", features = ["num-complex"] }
-# complex-bessel-rs = "1.2.1"
-complex-bessel-rs = { git = "https://github.com/etfrogers/complex-bessel-rs.git", branch = "bugfix-besseli" }
-rand = "0.9.0"
-rstest = "0.25.0"
-rstest_reuse = "0.7.0"
-
-[profile.profiling]
-inherits = "release"
-debug = true
+[workspace]
+resolver = "3"
+members = ["amos-bessel-rs"]
