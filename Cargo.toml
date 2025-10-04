@@ -1,3 +1,7 @@
 [workspace]
 resolver = "3"
-members = ["amos-bessel-rs"]
+members = ["amos-bessel-rs", "bessel-bench"]
+
+[profile.profiling]
+inherits = "release"
+debug = true
