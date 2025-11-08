@@ -1,53 +1,65 @@
-extern crate test;
-use crate::{bessel_j, bessel_k};
+use amos_bessel_rs::{bessel_j, bessel_k};
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_fort;
 use complex_bessel_rs::bessel_k::bessel_k as bessel_k_fort;
+use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use num::Complex;
-use test::Bencher;
 
-#[bench]
-fn bench_rust_besj(b: &mut Bencher) {
+fn bench_day2(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Single-input bessel functions");
+
     let cases = CASES.map(|(order, re, im)| (order, Complex::new(re, im)));
-    b.iter(|| {
-        for (order, z) in cases {
-            let _ = bessel_j(order, z);
-        }
-        return 0;
-    });
+
+    group.bench_with_input(
+        BenchmarkId::new("Rust Bessel J", "fixed cases"),
+        &cases,
+        |b, cases| {
+            b.iter(|| {
+                cases.iter().for_each(|(order, z)| {
+                    let _ = bessel_j(*order, *z);
+                })
+            })
+        },
+    );
+
+    group.bench_with_input(
+        BenchmarkId::new("Fortran Bessel J", "fixed cases"),
+        &cases,
+        |b, cases| {
+            b.iter(|| {
+                cases.iter().for_each(|(order, z)| {
+                    let _ = bessel_j_fort(*order, *z);
+                })
+            })
+        },
+    );
+
+    group.bench_with_input(
+        BenchmarkId::new("Rust Bessel K", "fixed cases"),
+        &cases,
+        |b, cases| {
+            b.iter(|| {
+                cases.iter().for_each(|(order, z)| {
+                    let _ = bessel_k(*order, *z);
+                })
+            })
+        },
+    );
+
+    group.bench_with_input(
+        BenchmarkId::new("Fortran Bessel k", "fixed cases"),
+        &cases,
+        |b, cases| {
+            b.iter(|| {
+                cases.iter().for_each(|(order, z)| {
+                    let _ = bessel_k_fort(*order, *z);
+                })
+            })
+        },
+    );
 }
 
-#[bench]
-fn bench_fortran_besj(b: &mut Bencher) {
-    let cases = CASES.map(|(order, re, im)| (order, Complex::new(re, im)));
-    b.iter(|| {
-        for (order, z) in cases {
-            let _ = bessel_j_fort(order, z);
-        }
-        return 0;
-    });
-}
-
-#[bench]
-fn bench_rust_besk(b: &mut Bencher) {
-    let cases = CASES.map(|(order, re, im)| (order, Complex::new(re, im)));
-    b.iter(|| {
-        for (order, z) in cases {
-            let _ = bessel_k(order, z);
-        }
-        return 0;
-    });
-}
-
-#[bench]
-fn bench_fortran_besk(b: &mut Bencher) {
-    let cases = CASES.map(|(order, re, im)| (order, Complex::new(re, im)));
-    b.iter(|| {
-        for (order, z) in cases {
-            let _ = bessel_k_fort(order, z);
-        }
-        return 0;
-    });
-}
+criterion_group!(benches, bench_day2);
+criterion_main!(benches);
 
 const CASES: [(f64, f64, f64); 46] = [
     (4.0, 2.1, 0.0),

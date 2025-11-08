@@ -1,9 +1,0 @@
-[package]
-name = "bessel-bench"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-complex-bessel-rs = "1.2.1"
-amos-bessel-rs = { path = "../amos-bessel-rs" }
-num = "0.4.3"
