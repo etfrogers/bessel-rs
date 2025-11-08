@@ -1,4 +1,6 @@
 mod amos;
+mod bessel_zeros;
+
 pub use amos::{BesselError, GammaError, Scaling};
 use amos::{
     complex_airy, complex_airy_b, complex_bessel_h, complex_bessel_i, complex_bessel_j,
@@ -7,6 +9,7 @@ use amos::{
 use num::complex::Complex64;
 
 use crate::amos::HankelKind;
+pub use bessel_zeros::{BesselFunType, bessel_zeros};
 
 // TODO work with abritrary bit-depth floats
 // TODO bessel derivatives
