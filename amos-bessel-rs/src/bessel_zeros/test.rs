@@ -81,15 +81,15 @@ fn parse_zeros_wa(input: &str) -> Vec<Vec<f64>> {
 #[case(BesselFunType::Y, parse_zeros_python(Y_ZEROS))]
 #[case(BesselFunType::YP, parse_zeros_python(YP_ZEROS))]
 fn test_against_hard_coded_zeros(#[case] fun_type: BesselFunType, #[case] zeros: Vec<Vec<f64>>) {
-    for (order, expected) in zeros.iter().into_iter().enumerate() {
-        let actual = bessel_zeros(&fun_type, order.try_into().unwrap(), expected.len(), 1e-6);
+    for (order, expected) in (0_i32..).zip(zeros) {
+        let actual = bessel_zeros(&fun_type, order, expected.len(), 1e-6);
         // println!("Order {}", order);
         // println!("{:?}", actual);
         // println!("{:?}", expected);
         expected
             .into_iter()
             .zip(actual)
-            .for_each(|(ev, av)| assert_relative_eq!(*ev, av, epsilon = 5e-4));
+            .for_each(|(ev, av)| assert_relative_eq!(ev, av, epsilon = 5e-4));
     }
 }
 
@@ -100,7 +100,7 @@ fn test_evaluation_at_zero_j() {
         let zeros = bessel_zeros(&BesselFunType::J, order, 100, 0.1e-6);
         for v in zeros {
             print!("{}, ", v);
-            assert_relative_eq!(c_zero(), bessel_j(order.into(), v).unwrap(), epsilon = 1e-6)
+            assert_relative_eq!(0.0, bessel_j(order, v).unwrap(), epsilon = 1e-6)
         }
     }
 }
@@ -110,7 +110,7 @@ fn test_evaluation_at_zero_y() {
     for order in 0..20 {
         let zeros = bessel_zeros(&BesselFunType::Y, order, 100, 0.1e-6);
         for v in zeros {
-            assert_relative_eq!(c_zero(), bessel_y(order.into(), v).unwrap(), epsilon = 1e-6);
+            assert_relative_eq!(c_zero(), bessel_y(order, v).unwrap(), epsilon = 1e-6);
         }
     }
 }

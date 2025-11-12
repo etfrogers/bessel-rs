@@ -1,10 +1,10 @@
 use std::f64::consts::PI;
 
-use crate::amos::MACHINE_CONSTANTS;
+use crate::BackTo;
 
 use super::{bessel_j, bessel_y};
 use conv::ConvUtil;
-use num::complex::ComplexFloat;
+use num::Complex;
 
 #[cfg(test)]
 mod test;
@@ -45,13 +45,14 @@ impl BesselFunType {
 //		Journal of Computational Physics, 32, 270-279 (1979)
 //
 // Translated from Adam Wyatt's Matlab version
-pub fn bessel_zeros(
+pub fn bessel_zeros<OT: Into<f64> + num::Num>(
     func_type: &BesselFunType,
-    order: i32,
+    order: OT,
     n_zeros: usize,
     precision: f64,
 ) -> Vec<f64> {
     let a: f64 = order.into();
+    let order = a as i32;
     let mut z = vec![0.0; n_zeros];
 
     let aa = a.powf(2.0);
@@ -200,29 +201,28 @@ fn fi(y: f64) -> f64 {
     }
 }
 
-fn bessr(fun_type: &BesselFunType, order: i32, x: f64) -> f64 {
+fn bessr<ZT, OT>(fun_type: &BesselFunType, order_: OT, z_: ZT) -> f64
+where
+    ZT: Into<Complex<f64>> + BackTo<ZT> + Copy,
+    OT: Into<f64>,
+{
     // TODO think about whether unwrapping is appropriate here
-    let z = x;
+    let z = z_.into();
     // Complex64::new(x, 0.0);
-    let order_f: f64 = order.into();
+    let order: f64 = order_.into();
     let cpx_value = match fun_type {
         BesselFunType::J => {
-            let a = bessel_j(order_f, x).unwrap();
-            let b = bessel_j(order_f + 1.0, x).unwrap();
+            let a = bessel_j(order, z).unwrap();
+            let b = bessel_j(order + 1.0, z).unwrap();
             a / b
         }
-        BesselFunType::Y => bessel_y(order_f, z).unwrap() / bessel_y(order_f + 1.0, z).unwrap(),
+        BesselFunType::Y => bessel_y(order, z).unwrap() / bessel_y(order + 1.0, z).unwrap(),
         BesselFunType::JP => {
-            order_f / x - bessel_j(order_f + 1.0, x).unwrap() / bessel_j(order_f, x).unwrap()
+            (order / z - bessel_j(order + 1.0, z).unwrap() / bessel_j(order, z).unwrap()).into()
         }
         BesselFunType::YP => {
-            order_f / x - bessel_y(order_f + 1.0, z).unwrap() / bessel_y(order_f, z).unwrap()
+            (order / z - bessel_y(order + 1.0, z).unwrap() / bessel_y(order, z).unwrap()).into()
         }
     };
-    debug_assert!(
-        cpx_value.im() < 1000.0 * MACHINE_CONSTANTS.abs_error_tolerance,
-        "Imaginary part of Bessel funtion for real input is too large: {:?}",
-        cpx_value
-    );
-    cpx_value.re()
+    cpx_value.back_to()
 }
