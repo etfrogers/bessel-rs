@@ -6,8 +6,6 @@ use super::{bessel_j, bessel_y};
 use conv::ConvUtil;
 use num::Complex;
 
-#[cfg(test)]
-mod test;
 
 #[derive(Debug, PartialEq)]
 pub enum BesselFunType {

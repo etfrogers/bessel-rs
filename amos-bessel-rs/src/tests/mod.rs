@@ -20,6 +20,7 @@ mod parametrisation;
 #[cfg(feature = "random_tests")]
 mod random_tests;
 mod test_bessel_funcs;
+mod test_bessel_zeros;
 mod test_gamma_ln;
 mod test_large_n;
 mod test_machine_consts;

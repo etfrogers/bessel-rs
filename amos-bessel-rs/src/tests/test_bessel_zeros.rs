@@ -2,11 +2,9 @@ use std::error::Error;
 
 use crate::{amos::c_zero, bessel_j, bessel_y};
 
-use super::bessel_zeros;
+use crate::{BesselFunType, bessel_zeros};
 use approx::assert_relative_eq;
 use rstest::rstest;
-
-use super::BesselFunType;
 
 const J_ZEROS: &str = "#
 #k	J_0(x)	J_1(x)	J_2(x)	J_3(x)	J_4(x)	J_5(x)
