@@ -14,7 +14,7 @@
 				"-Wall"
 			],
 			"options": {
-				"cwd": "${workspaceRoot}/src/amos/"
+				"cwd": "${workspaceRoot}/amos-bessel-rs/src/amos/"
 			}
 		}
 	]
