@@ -1,7 +1,7 @@
 use super::{
-    BesselFortranSig, BesselSig, TOLERANCE_MARGIN, airy_ref, bessel_cases, bessel_h_ref, biry_ref,
-    check_against_fortran, check_complex_arrays_equal, sig_airy, sig_airy_fortran, sig_airyp,
-    sig_airyp_fortran, sig_biry, sig_biry_fortran, sig_biryp, sig_biryp_fortran,
+    BesselFortranSig, BesselSig, TOLERANCE_MARGIN, airy_ref, assert_complex_arrays_equal,
+    bessel_cases, bessel_h_ref, biry_ref, check_against_fortran, sig_airy, sig_airy_fortran,
+    sig_airyp, sig_airyp_fortran, sig_biry, sig_biry_fortran, sig_biryp, sig_biryp_fortran,
     utils::complex_relative_equal_default_tol, zbesh_first, zbesh_fortran_first,
     zbesh_fortran_second, zbesh_second, zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran,
 };
@@ -33,7 +33,7 @@ fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
 
     let expected = bessel_j_ref(order, z.into());
     if let Ok(actual) = actual {
-        check_complex_arrays_equal(&actual, &expected.unwrap(), &Vec::new());
+        assert_complex_arrays_equal(&actual, &expected.unwrap(), &Vec::new());
     } else {
         assert_eq!(actual.unwrap_err().error_code(), expected.unwrap_err())
     }
@@ -51,7 +51,7 @@ fn test_bessel_i(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
 
     let expected = bessel_i_ref(order, z.into());
     if let Ok(actual) = actual {
-        check_complex_arrays_equal(&actual, &expected.unwrap(), &Vec::new());
+        assert_complex_arrays_equal(&actual, &expected.unwrap(), &Vec::new());
     } else {
         assert_eq!(actual.unwrap_err().error_code(), expected.unwrap_err())
     }
@@ -69,7 +69,7 @@ fn test_bessel_k(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
 
     let expected = bessel_k_ref(order, z.into());
     if let Ok(actual) = actual {
-        check_complex_arrays_equal(&actual, &expected.unwrap(), &Vec::new());
+        assert_complex_arrays_equal(&actual, &expected.unwrap(), &Vec::new());
     } else {
         assert_eq!(actual.unwrap_err().error_code(), expected.unwrap_err())
     }
@@ -87,7 +87,7 @@ fn test_bessel_y(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
 
     let expected = bessel_y_ref(order, z.into());
     if let Ok(actual) = actual {
-        check_complex_arrays_equal(&actual, &expected.unwrap(), &Vec::new());
+        assert_complex_arrays_equal(&actual, &expected.unwrap(), &Vec::new());
     } else {
         assert_eq!(actual.unwrap_err().error_code(), expected.unwrap_err())
     }
@@ -99,7 +99,7 @@ fn test_bessel_h(
     #[case] order: f64,
     #[case] zr: f64,
     #[case] zi: f64,
-    #[values(HankelKind::First, HankelKind::Second)] kind: HankelKind,
+    #[values(HankelKind::First , HankelKind::Second)] kind: HankelKind,
 ) {
     let z = Complex64::new(zr, zi);
     let actual = hankel(order, z, kind);
@@ -112,7 +112,7 @@ fn test_bessel_h(
     let expected = bessel_h_ref(order, z.into(), kind);
     // dbg!(&expected);
     if let Ok(actual) = actual {
-        check_complex_arrays_equal(&actual, &expected.unwrap(), &Vec::new());
+        assert_complex_arrays_equal(&actual, &expected.unwrap(), &Vec::new());
     } else {
         assert_eq!(actual.unwrap_err().error_code(), expected.unwrap_err())
     }

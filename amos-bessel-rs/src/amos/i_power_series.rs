@@ -3,6 +3,8 @@ use num::{
     traits::Pow,
 };
 
+use crate::amos::utils::calc_rz;
+
 use super::{
     BesselResult, BesselValues, MACHINE_CONSTANTS, Scaling, c_one, c_zero, c_zeros, gamma_ln,
     utils::will_underflow,
@@ -53,7 +55,7 @@ pub fn i_power_series(
     } else {
         c_zero()
     };
-    let rz = 2.0 * z.conj() / (abs_z.pow(2));
+    let rz = calc_rz(z);
 
     let abs_cz = cz.abs();
     let ln_half_z = half_z.ln();

@@ -147,7 +147,17 @@ impl IntoComplexVec for Vec<Complex64> {
     }
 }
 
-pub fn check_complex_arrays_equal(
+pub fn assert_complex_arrays_equal(
+    actual: &impl IntoComplexVec,
+    expected: &impl IntoComplexVec,
+    reference: &impl IntoComplexVec,
+) {
+    if let Some(reason) = check_complex_arrays_equal(actual, expected, reference) {
+        panic!("{}", reason);
+    }
+}
+
+fn check_complex_arrays_equal(
     actual: &impl IntoComplexVec,
     expected: &impl IntoComplexVec,
     reference: &impl IntoComplexVec,

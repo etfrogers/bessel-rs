@@ -9,7 +9,7 @@ pub use bessel_h_wrappers::*;
 pub use fortran_calls::*;
 use parametrisation::bessel_cases;
 
-pub use utils::{check_against_fortran, check_complex_arrays_equal};
+pub use utils::{assert_complex_arrays_equal, check_against_fortran};
 
 #[cfg(feature = "random_tests")]
 pub use utils::fortran_bess_loop;

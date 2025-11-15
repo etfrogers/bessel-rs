@@ -5,6 +5,8 @@ use num::{
     complex::{Complex64, ComplexFloat},
 };
 
+use crate::amos::utils::calc_rz;
+
 use super::{
     BesselError::*, BesselResult, MACHINE_CONSTANTS, Scaling, c_one, c_zero, c_zeros, utils::RTPI,
 };
@@ -108,7 +110,7 @@ pub fn asymptotic_i(z: Complex64, order: f64, scaling: Scaling, n: usize) -> Bes
         *elem = s1 * coeff;
     }
     if n > 2 {
-        let rz = z.conj() * 2.0 * recip_abs_z.powi(2);
+        let rz = calc_rz(z);
         // recur downward from the last two elements
         for k in (0..n - 2).rev() {
             y[k] = (((k + 1) as f64) + order) * (rz * y[k + 1]) + y[k + 2];

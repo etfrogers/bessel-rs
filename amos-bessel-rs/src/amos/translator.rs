@@ -10,7 +10,7 @@ use crate::amos::{
     asymptotic_i::asymptotic_i,
     complex_airy, max_abs_component,
     overflow_checks::{Overflow, zunhj},
-    utils::imaginary_dominant,
+    utils::{calc_rz, imaginary_dominant},
 };
 use itertools::Either;
 use num::{
@@ -137,7 +137,7 @@ pub fn k_right_half_plane(z: Complex64, order: f64, scaling: Scaling, n: usize) 
     let mut nz = 0;
     let mut underflow_occurred = false;
     let mut overflow_state;
-    let rz = 2.0 * z.conj() / abs_z.powi(2);
+    let rz = calc_rz(z);
     let mut integer_order = (order + 0.5) as isize; // round to nearest int
     let simple_case = integer_order == 0 && n == 1;
 
@@ -668,7 +668,7 @@ fn ratios_i(z: Complex64, order: f64, n: usize) -> Vec<Complex64> {
     let ID_ = modified_int_order as isize - int_abs_z - 1;
     let ID = if ID_ > 0 { 0 } else { ID_ };
 
-    let rz = 2.0 * z.conj() / abs_z.powi(2);
+    let rz = calc_rz(z);
     let mut K = 1;
     let mut abs_p2;
     {
@@ -801,7 +801,7 @@ fn i_miller(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
     let AT = (IAZ as f64) + 1.0;
     let RAZ = 1.0 / AZ;
     let mut ck = z.conj() * RAZ * RAZ * AT;
-    let rz = z.conj() * 2.0 * RAZ * RAZ;
+    let rz = calc_rz(z);
     let mut p1 = c_zero();
     let mut p2 = c_one();
     let mut ACK = (AT + 1.0) * RAZ;
@@ -1080,7 +1080,7 @@ pub fn analytic_continuation(
     }
 
     cspn = -cspn;
-    let rz = 2.0 * (zn.conj()) / zn.abs().powi(2);
+    let rz = calc_rz(zn);
     let FN = order + 1.0;
     let mut ck = FN * rz;
     //-----------------------------------------------------------------------
@@ -1384,7 +1384,7 @@ fn ZUNK1(
         };
     }
 
-    let rz = 2.0 * zr.conj() / zr.abs().powi(2);
+    let rz = calc_rz(zr);
     if n_elements_set < n {
         //-----------------------------------------------------------------------
         //     TEST LAST MEMBER FOR UNDERFLOW AND OVERFLOW. SET SEQUENCE TO ZERO
@@ -1424,127 +1424,127 @@ fn ZUNK1(
             s2,
             k_overflow_state,
         );
-        if rotation == RotationDirection::None {
-            return Ok((y, nz));
-        }
-        //-----------------------------------------------------------------------
-        //     ANALYTIC CONTINUATION FOR RE(Z) < 0.0
-        //-----------------------------------------------------------------------
-        nz = 0;
-        let rotation_angle = -PI * rotation.signum();
-        //-----------------------------------------------------------------------
-        //     CSPN AND CSGN ARE COEFF OF K AND I FUNCTIONS RESP.
-        //-----------------------------------------------------------------------
+    }
+    if rotation == RotationDirection::None {
+        return Ok((y, nz));
+    }
+    //-----------------------------------------------------------------------
+    //     ANALYTIC CONTINUATION FOR RE(Z) < 0.0
+    //-----------------------------------------------------------------------
+    nz = 0;
+    let rotation_angle = -PI * rotation.signum();
+    //-----------------------------------------------------------------------
+    //     CSPN AND CSGN ARE COEFF OF K AND I FUNCTIONS RESP.
+    //-----------------------------------------------------------------------
 
-        let integer_order = order as i64;
-        let order_frac = order.fract();
-        let modified_int_order = integer_order + (n as i64) - 1;
-        let mut cspn = Complex64::cis(order_frac * rotation_angle);
-        if (modified_int_order % 2) != 0 {
-            cspn = -cspn;
+    let integer_order = order as i64;
+    let order_frac = order.fract();
+    let modified_int_order = integer_order + (n as i64) - 1;
+    let mut cspn = Complex64::cis(order_frac * rotation_angle);
+    if (modified_int_order % 2) != 0 {
+        cspn = -cspn;
+    }
+    let mut dummy_n_good = 0;
+    let mut found_one_good_entry = false;
+    let mut i_overflow_state = Overflow::None;
+    let mut remaining_n = n;
+    for (i, yi) in y.iter_mut().enumerate().rev() {
+        remaining_n = i;
+        let modified_order = order + (i as f64);
+        //-----------------------------------------------------------------------
+        //     LOGIC TO SORT OUT CASES WHOSE PARAMETERS WERE SET FOR THE K
+        //     FUNCTION ABOVE
+        //-----------------------------------------------------------------------
+        // TODO no logic needed! as zunik ccahes the values. Should the other similar functions, too?
+        let (phid, zet1d, zet2d, sumd) = zunik(zr, modified_order, IKType::I, false); //, &mut INITD);
+        let sumd = sumd.unwrap();
+        let mut s1 = scaling.scale_zetas(zr, modified_order, zet1d, zet2d);
+        //-----------------------------------------------------------------------
+        //     TEST FOR UNDERFLOW AND OVERFLOW
+        //-----------------------------------------------------------------------
+        let of = Overflow::find_overflow(s1.re, phid, 0.0);
+        if !found_one_good_entry && !matches!(of, Overflow::Under(_)) {
+            i_overflow_state = of;
         }
-        let mut dummy_n_good = 0;
-        let mut found_one_good_entry = false;
-        let mut i_overflow_state = Overflow::None;
-        let mut remaining_n = n;
-        for (i, yi) in y.iter_mut().enumerate().rev() {
-            remaining_n = i;
-            let modified_order = order + (i as f64);
-            //-----------------------------------------------------------------------
-            //     LOGIC TO SORT OUT CASES WHOSE PARAMETERS WERE SET FOR THE K
-            //     FUNCTION ABOVE
-            //-----------------------------------------------------------------------
-            // TODO no logic needed! as zunik ccahes the values. Should the other similar functions, too?
-            let (phid, zet1d, zet2d, sumd) = zunik(zr, modified_order, IKType::I, false); //, &mut INITD);
-            let sumd = sumd.unwrap();
-            let mut s1 = scaling.scale_zetas(zr, modified_order, zet1d, zet2d);
-            //-----------------------------------------------------------------------
-            //     TEST FOR UNDERFLOW AND OVERFLOW
-            //-----------------------------------------------------------------------
-            let of = Overflow::find_overflow(s1.re, phid, 0.0);
-            if !found_one_good_entry && !matches!(of, Overflow::Under(_)) {
-                i_overflow_state = of;
+        let mut s2 = match of {
+            Overflow::Over(_) => {
+                return Err(Overflow);
             }
-            let mut s2 = match of {
-                Overflow::Over(_) => {
-                    return Err(Overflow);
+            Overflow::Under(_) => c_zero(),
+            Overflow::NearOver | Overflow::NearUnder | Overflow::None => {
+                let st = phid * sumd;
+                let mut s2 = Complex64::I * st * rotation_angle;
+                s1 = s1.exp() * MACHINE_CONSTANTS.scaling_factors[i_overflow_state];
+                s2 *= s1;
+                if i_overflow_state == Overflow::NearUnder
+                    && will_underflow(
+                        s2,
+                        MACHINE_CONSTANTS.overflow_boundary[0],
+                        MACHINE_CONSTANTS.abs_error_tolerance,
+                    )
+                {
+                    s2 = c_zero();
                 }
-                Overflow::Under(_) => c_zero(),
-                Overflow::NearOver | Overflow::NearUnder | Overflow::None => {
-                    let st = phid * sumd;
-                    let mut s2 = Complex64::I * st * rotation_angle;
-                    s1 = s1.exp() * MACHINE_CONSTANTS.scaling_factors[i_overflow_state];
-                    s2 *= s1;
-                    if i_overflow_state == Overflow::NearUnder
-                        && will_underflow(
-                            s2,
-                            MACHINE_CONSTANTS.overflow_boundary[0],
-                            MACHINE_CONSTANTS.abs_error_tolerance,
-                        )
-                    {
-                        s2 = c_zero();
-                    }
-                    s2
-                }
-            };
-            cy[found_one_good_entry as usize] = s2;
-            let c2 = s2;
-            s2 *= MACHINE_CONSTANTS.reciprocal_scaling_factors[i_overflow_state];
-            //-----------------------------------------------------------------------
-            //     ADD I AND K FUNCTIONS, K SEQUENCE IN Y(I), I=1,N
-            //-----------------------------------------------------------------------
-            s1 = *yi;
+                s2
+            }
+        };
+        cy[found_one_good_entry as usize] = s2;
+        let c2 = s2;
+        s2 *= MACHINE_CONSTANTS.reciprocal_scaling_factors[i_overflow_state];
+        //-----------------------------------------------------------------------
+        //     ADD I AND K FUNCTIONS, K SEQUENCE IN Y(I), I=1,N
+        //-----------------------------------------------------------------------
+        s1 = *yi;
+        if scaling == Scaling::Scaled {
+            nz += underflow_add_i_k(zr, &mut s1, &mut s2, &mut dummy_n_good);
+        }
+        *yi = s1 * cspn + s2;
+        cspn = -cspn;
+        if c2 == c_zero() {
+            found_one_good_entry = false;
+        } else {
+            if found_one_good_entry {
+                break;
+            }
+            found_one_good_entry = true;
+        }
+    }
+    if remaining_n > 0 {
+        //-----------------------------------------------------------------------
+        //     RECUR BACKWARD FOR REMAINDER OF I SEQUENCE AND ADD IN THE
+        //     K FUNCTIONS, SCALING THE I SEQUENCE DURING RECURRENCE TO KEEP
+        //     INTERMEDIATE ARITHMETIC ON SCALE NEAR EXPONENT EXTREMES.
+        //-----------------------------------------------------------------------
+        let [mut s1, mut s2] = cy;
+        let mut reciprocal_scale_factor =
+            MACHINE_CONSTANTS.reciprocal_scaling_factors[i_overflow_state];
+        let mut ASCLE = MACHINE_CONSTANTS.overflow_boundary[i_overflow_state];
+        for (i, yi) in y.iter_mut().enumerate().take(remaining_n).rev() {
+            let modified_order = order + (i + 1) as f64;
+            (s1, s2) = (s2, s1 + modified_order * (rz * s2));
+            let mut unscaled_s2 = s2 * reciprocal_scale_factor;
+            let ck = unscaled_s2;
+
+            let mut c1 = *yi;
             if scaling == Scaling::Scaled {
-                nz += underflow_add_i_k(zr, &mut s1, &mut s2, &mut dummy_n_good);
+                nz += underflow_add_i_k(zr, &mut c1, &mut unscaled_s2, &mut dummy_n_good);
             }
-            *yi = s1 * cspn + s2;
+            *yi = c1 * cspn + unscaled_s2;
             cspn = -cspn;
-            if c2 == c_zero() {
-                found_one_good_entry = false;
-            } else {
-                if found_one_good_entry {
-                    break;
-                }
-                found_one_good_entry = true;
+            if i_overflow_state == Overflow::NearOver {
+                continue;
             }
-        }
-        if remaining_n > 0 {
-            //-----------------------------------------------------------------------
-            //     RECUR BACKWARD FOR REMAINDER OF I SEQUENCE AND ADD IN THE
-            //     K FUNCTIONS, SCALING THE I SEQUENCE DURING RECURRENCE TO KEEP
-            //     INTERMEDIATE ARITHMETIC ON SCALE NEAR EXPONENT EXTREMES.
-            //-----------------------------------------------------------------------
-            let [mut s1, mut s2] = cy;
-            let mut reciprocal_scale_factor =
+            if max_abs_component(unscaled_s2) <= ASCLE {
+                continue;
+            }
+            i_overflow_state.increment();
+            ASCLE = MACHINE_CONSTANTS.overflow_boundary[i_overflow_state];
+            s1 *= reciprocal_scale_factor;
+            s2 = ck; // ck is previously calculated s2 * reciprocal_scale_factor
+            s1 *= MACHINE_CONSTANTS.scaling_factors[i_overflow_state];
+            s2 *= MACHINE_CONSTANTS.scaling_factors[i_overflow_state];
+            reciprocal_scale_factor =
                 MACHINE_CONSTANTS.reciprocal_scaling_factors[i_overflow_state];
-            let mut ASCLE = MACHINE_CONSTANTS.overflow_boundary[i_overflow_state];
-            for (i, yi) in y.iter_mut().enumerate().take(remaining_n).rev() {
-                let modified_order = order + (i + 1) as f64;
-                (s1, s2) = (s2, s1 + modified_order * (rz * s2));
-                let mut unscaled_s2 = s2 * reciprocal_scale_factor;
-                let ck = unscaled_s2;
-
-                let mut c1 = *yi;
-                if scaling == Scaling::Scaled {
-                    nz += underflow_add_i_k(zr, &mut c1, &mut unscaled_s2, &mut dummy_n_good);
-                }
-                *yi = c1 * cspn + unscaled_s2;
-                cspn = -cspn;
-                if i_overflow_state == Overflow::NearOver {
-                    continue;
-                }
-                if max_abs_component(unscaled_s2) <= ASCLE {
-                    continue;
-                }
-                i_overflow_state.increment();
-                ASCLE = MACHINE_CONSTANTS.overflow_boundary[i_overflow_state];
-                s1 *= reciprocal_scale_factor;
-                s2 = ck; // ck is previously calculated s2 * reciprocal_scale_factor
-                s1 *= MACHINE_CONSTANTS.scaling_factors[i_overflow_state];
-                s2 *= MACHINE_CONSTANTS.scaling_factors[i_overflow_state];
-                reciprocal_scale_factor =
-                    MACHINE_CONSTANTS.reciprocal_scaling_factors[i_overflow_state];
-            }
         }
     }
     Ok((y, nz))
@@ -1670,7 +1670,7 @@ fn ZUNK2(
         };
     }
 
-    let rz = 2.0 * zr.conj() / zr.abs().powi(2);
+    let rz = calc_rz(zr);
     let mut phid = c_zero();
     let mut argd = c_zero();
     let mut zeta1d = c_zero();
@@ -1929,7 +1929,7 @@ fn ZBUNI(
         let mut s1 = cy[1] * CSCLR;
         let mut s2 = cy[0] * CSCLR;
         // working out rz in multiple steps seems to give different floating point answer.
-        let rz = 2.0 * z.conj() / z.abs().pow(2);
+        let rz = calc_rz(z);
 
         for _ in 0..NUI {
             let st = s2;
@@ -2292,7 +2292,7 @@ fn recurr(
     mut s2: Complex64,
     mut overflow_state: Overflow,
 ) {
-    let rz = 2.0 * z.conj() / z.abs().pow(2);
+    let rz = calc_rz(z);
 
     let base_iterator = y.iter_mut().enumerate();
     let iterator = if forward {

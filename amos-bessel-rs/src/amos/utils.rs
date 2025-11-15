@@ -1,5 +1,8 @@
 #![allow(clippy::excessive_precision)]
-use num::{complex::Complex64, pow::Pow};
+use num::{
+    complex::{Complex64, ComplexFloat},
+    pow::Pow,
+};
 
 use super::{BesselError, BesselResult, MACHINE_CONSTANTS};
 
@@ -7,6 +10,15 @@ pub const RTPI: f64 = 0.159154943091895336;
 pub const TWO_THIRDS: f64 = 6.66666666666666666e-01;
 pub const RT_THREE: f64 = 1.73205080757;
 pub const AIC: f64 = 1.265512123484645396; // == gamma_ln(-0.5).re
+
+/// This slightly odd form of caclulation avoids overflow/underflow
+/// when z is large/small respectively.
+pub(crate) fn calc_rz(z: Complex64) -> Complex64 {
+    //2.0 * z.conj() / abs_z.powi(2)
+    let r_abs_z = 1.0 / z.abs();
+    let intermediate = z.conj() * r_abs_z;
+    (intermediate + intermediate) * r_abs_z
+}
 
 pub(crate) fn imaginary_dominant(z: Complex64) -> bool {
     z.im.abs() > z.re.abs() * RT_THREE
