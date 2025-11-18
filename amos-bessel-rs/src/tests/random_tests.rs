@@ -12,8 +12,8 @@ use std::f64::consts::{FRAC_PI_2, PI};
 use approx::assert_relative_eq;
 
 use super::{
-    BesselFortranSig, BesselSig, TOLERANCE_MARGIN, airy_ref, bessel_h_ref, check_against_fortran,
-    check_complex_arrays_equal, fortran_bess_loop, sig_airy, sig_airy_fortran, sig_airyp,
+    BesselFortranSig, BesselSig, TOLERANCE_MARGIN, airy_ref, assert_complex_arrays_equal,
+    bessel_h_ref, check_against_fortran, fortran_bess_loop, sig_airy, sig_airy_fortran, sig_airyp,
     sig_airyp_fortran, sig_biry, sig_biry_fortran, sig_biryp, sig_biryp_fortran, zbesh_first,
     zbesh_fortran_first, zbesh_fortran_second, zbesh_second, zbesi_fortran, zbesj_fortran,
     zbesk_fortran, zbesy_fortran,
@@ -53,7 +53,7 @@ fn test_bessel_j_random(mut rng: SmallRng) {
         if let Ok(actual) = ans {
             let (cy_loop_fort, _, _) =
                 fortran_bess_loop(order, z, Scaling::Unscaled, 1, zbesj_fortran);
-            check_complex_arrays_equal(&actual, &expected.unwrap(), &cy_loop_fort);
+            assert_complex_arrays_equal(&actual, &expected.unwrap(), &cy_loop_fort);
         } else {
             let err = ans.unwrap_err();
             if err == BesselError::NotYetImplemented {
@@ -80,7 +80,7 @@ fn test_bessel_i_random(mut rng: SmallRng) {
         if let Ok(actual) = ans {
             let (cy_loop_fort, _, _) =
                 fortran_bess_loop(order, z, Scaling::Unscaled, 1, zbesj_fortran);
-            check_complex_arrays_equal(&actual, &expected.unwrap(), &cy_loop_fort);
+            assert_complex_arrays_equal(&actual, &expected.unwrap(), &cy_loop_fort);
         } else {
             let err = ans.unwrap_err();
             if err == BesselError::NotYetImplemented {
@@ -107,7 +107,7 @@ fn test_bessel_k_random(mut rng: SmallRng) {
         if let Ok(actual) = ans {
             let (cy_loop_fort, _, _) =
                 fortran_bess_loop(order, z, Scaling::Unscaled, 1, zbesk_fortran);
-            check_complex_arrays_equal(&actual, &expected.unwrap(), &cy_loop_fort);
+            assert_complex_arrays_equal(&actual, &expected.unwrap(), &cy_loop_fort);
         } else {
             let err = ans.unwrap_err();
             if err == BesselError::NotYetImplemented {
@@ -134,7 +134,7 @@ fn test_bessel_y_random(mut rng: SmallRng) {
         if let Ok(actual) = ans {
             let (cy_loop_fort, _, _) =
                 fortran_bess_loop(order, z, Scaling::Unscaled, 1, zbesk_fortran);
-            check_complex_arrays_equal(&actual, &expected.unwrap(), &cy_loop_fort);
+            assert_complex_arrays_equal(&actual, &expected.unwrap(), &cy_loop_fort);
         } else {
             let err = ans.unwrap_err();
             if err == BesselError::NotYetImplemented {
@@ -164,7 +164,7 @@ fn test_bessel_h_random(
         if let Ok(actual) = ans {
             let (cy_loop_fort, _, _) =
                 fortran_bess_loop(order, z, Scaling::Unscaled, 1, zbesj_fortran);
-            check_complex_arrays_equal(&actual, &expected.unwrap(), &cy_loop_fort);
+            assert_complex_arrays_equal(&actual, &expected.unwrap(), &cy_loop_fort);
         } else {
             let err = ans.unwrap_err();
             if err == BesselError::NotYetImplemented {
