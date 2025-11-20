@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use crate::{amos::c_zero, bessel_j, bessel_y};
+use crate::{bessel_j, bessel_y};
 
 use crate::{BesselFunType, bessel_zeros};
 use approx::assert_relative_eq;
@@ -108,7 +108,7 @@ fn test_evaluation_at_zero_y() {
     for order in 0..20 {
         let zeros = bessel_zeros(&BesselFunType::Y, order, 100, 0.1e-6);
         for v in zeros {
-            assert_relative_eq!(c_zero(), bessel_y(order, v).unwrap(), epsilon = 1e-6);
+            assert_relative_eq!(0.0, bessel_y(order, v).unwrap(), epsilon = 1e-6);
         }
     }
 }

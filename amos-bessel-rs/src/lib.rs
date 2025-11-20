@@ -56,64 +56,86 @@ where
         .map(|v| v.back_to())
 }
 
-pub fn bessel_i<ZT, OT>(order: OT, z: ZT) -> Result<Complex64, BesselError>
+pub fn bessel_i<ZT, OT>(order: OT, z: ZT) -> Result<ZT, BesselError>
 where
     ZT: Into<Complex<f64>> + BackTo<ZT>,
+    Complex64: BackTo<ZT>,
     OT: Into<f64>,
 {
-    complex_bessel_i(z.into(), order.into(), Scaling::Unscaled, 1).map(|v| v.0[0])
+    complex_bessel_i(z.into(), order.into(), Scaling::Unscaled, 1)
+        .map(|v| v.0[0])
+        .map(|v| v.back_to())
 }
 
-pub fn bessel_k<ZT, OT>(order: OT, z: ZT) -> Result<Complex64, BesselError>
+pub fn bessel_k<ZT, OT>(order: OT, z: ZT) -> Result<ZT, BesselError>
 where
     ZT: Into<Complex<f64>> + BackTo<ZT>,
+    Complex64: BackTo<ZT>,
     OT: Into<f64>,
 {
-    complex_bessel_k(z.into(), order.into(), Scaling::Unscaled, 1).map(|v| v.0[0])
+    complex_bessel_k(z.into(), order.into(), Scaling::Unscaled, 1)
+        .map(|v| v.0[0])
+        .map(|v| v.back_to())
 }
 
-pub fn bessel_y<ZT, OT>(order: OT, z: ZT) -> Result<Complex64, BesselError>
+pub fn bessel_y<ZT, OT>(order: OT, z: ZT) -> Result<ZT, BesselError>
 where
     ZT: Into<Complex<f64>> + BackTo<ZT>,
+    Complex64: BackTo<ZT>,
     OT: Into<f64>,
 {
-    complex_bessel_y(z.into(), order.into(), Scaling::Unscaled, 1).map(|v| v.0[0])
+    complex_bessel_y(z.into(), order.into(), Scaling::Unscaled, 1)
+        .map(|v| v.0[0])
+        .map(|v| v.back_to())
 }
 
-pub fn hankel<ZT, OT>(order: OT, z: ZT, kind: HankelKind) -> Result<Complex64, BesselError>
+pub fn hankel<ZT, OT>(order: OT, z: ZT, kind: HankelKind) -> Result<ZT, BesselError>
 where
     ZT: Into<Complex<f64>> + BackTo<ZT>,
+    Complex64: BackTo<ZT>,
     OT: Into<f64>,
 {
-    complex_bessel_h(z.into(), order.into(), Scaling::Unscaled, kind, 1).map(|v| v.0[0])
+    complex_bessel_h(z.into(), order.into(), Scaling::Unscaled, kind, 1)
+        .map(|v| v.0[0])
+        .map(|v| v.back_to())
 }
 
-pub fn airy<ZT>(z: ZT) -> Result<Complex64, BesselError>
+pub fn airy<ZT>(z: ZT) -> Result<ZT, BesselError>
 where
     ZT: Into<Complex<f64>> + BackTo<ZT>,
+    Complex64: BackTo<ZT>,
 {
-    complex_airy(z.into(), false, Scaling::Unscaled).map(|v| v.0)
+    complex_airy(z.into(), false, Scaling::Unscaled)
+        .map(|v| v.0)
+        .map(|v| v.back_to())
 }
 
-pub fn airyp<ZT>(z: ZT) -> Result<Complex64, BesselError>
+pub fn airyp<ZT>(z: ZT) -> Result<ZT, BesselError>
 where
+    Complex64: BackTo<ZT>,
     ZT: Into<Complex<f64>> + BackTo<ZT>,
 {
-    complex_airy(z.into(), true, Scaling::Unscaled).map(|v| v.0)
+    complex_airy(z.into(), true, Scaling::Unscaled)
+        .map(|v| v.0)
+        .map(|v| v.back_to())
 }
 
-pub fn airy_b<ZT>(z: ZT) -> Result<Complex64, BesselError>
+pub fn airy_b<ZT>(z: ZT) -> Result<ZT, BesselError>
 where
+    Complex64: BackTo<ZT>,
     ZT: Into<Complex<f64>> + BackTo<ZT>,
 {
-    complex_airy_b(z.into(), false, Scaling::Unscaled).map(|v| v)
+    complex_airy_b(z.into(), false, Scaling::Unscaled)
+        .map(|v| v)
+        .map(|v| v.back_to())
 }
 
-pub fn airy_bp<ZT>(z: ZT) -> Result<Complex64, BesselError>
+pub fn airy_bp<ZT>(z: ZT) -> Result<ZT, BesselError>
 where
+    Complex64: BackTo<ZT>,
     ZT: Into<Complex<f64>> + BackTo<ZT>,
 {
-    complex_airy_b(z.into(), true, Scaling::Unscaled)
+    complex_airy_b(z.into(), true, Scaling::Unscaled).map(|v| v.back_to())
 }
 
 #[cfg(test)]
