@@ -1,4 +1,4 @@
-use amos_bessel_rs::{bessel_j, bessel_k};
+use bessel_rs::{bessel_j, bessel_k};
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_fort;
 use complex_bessel_rs::bessel_k::bessel_k as bessel_k_fort;
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};

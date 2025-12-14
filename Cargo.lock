@@ -12,23 +12,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "amos-bessel-rs"
-version = "0.1.0"
-dependencies = [
- "approx",
- "complex-bessel-rs",
- "conv",
- "criterion",
- "csv",
- "itertools 0.14.0",
- "num",
- "rand 0.9.2",
- "rstest",
- "rstest_reuse",
- "thiserror",
-]
-
-[[package]]
 name = "anes"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -55,6 +38,23 @@ name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
+
+[[package]]
+name = "bessel-rs"
+version = "0.1.0"
+dependencies = [
+ "approx",
+ "complex-bessel-rs",
+ "conv",
+ "criterion",
+ "csv",
+ "itertools 0.14.0",
+ "num",
+ "rand 0.9.2",
+ "rstest",
+ "rstest_reuse",
+ "thiserror",
+]
 
 [[package]]
 name = "bumpalo"
