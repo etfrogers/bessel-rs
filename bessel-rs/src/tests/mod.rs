@@ -8,7 +8,7 @@ use crate::amos::{HankelKind, complex_airy, complex_airy_b};
 
 pub use bessel_h_wrappers::*;
 pub use fortran_calls::*;
-use parametrisation::bessel_cases;
+pub(crate) use parametrisation::bessel_cases;
 
 pub use utils::check_against_fortran;
 
