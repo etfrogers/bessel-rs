@@ -71,15 +71,10 @@
 
 use std::f64;
 use std::f64::consts::PI;
-use std::sync::LazyLock;
 
+use super::{TWO_129, TWO_M13, TWO_M27};
 use crate::BesselError;
 use crate::amos::BesselResult;
-
-const _HUGE: f64 = 1e300;
-const TWO_M27: f64 = 1.0 / (1 << 27) as f64; // 2**-27 0x3e40000000000000
-const TWO_M13: f64 = 1.0 / (1 << 13) as f64; // 2**-13 0x3f20000000000000
-static TWO_129: LazyLock<f64> = LazyLock::new(|| 2.0_f64.powi(129)); // 2**129 0x4800000000000000
 
 // J0 returns the order-zero Bessel function of the first kind.
 //
