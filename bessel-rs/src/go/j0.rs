@@ -71,6 +71,15 @@
 
 use std::f64;
 use std::f64::consts::PI;
+use std::sync::LazyLock;
+
+use crate::BesselError;
+use crate::amos::BesselResult;
+
+const _HUGE: f64 = 1e300;
+const TWO_M27: f64 = 1.0 / (1 << 27) as f64; // 2**-27 0x3e40000000000000
+const TWO_M13: f64 = 1.0 / (1 << 13) as f64; // 2**-13 0x3f20000000000000
+static TWO_129: LazyLock<f64> = LazyLock::new(|| 2.0_f64.powi(129)); // 2**129 0x4800000000000000
 
 // J0 returns the order-zero Bessel function of the first kind.
 //
@@ -79,11 +88,7 @@ use std::f64::consts::PI;
 //	J0(±Inf) = 0
 //	J0(0) = 1
 //	J0(NaN) = NaN
-pub fn j0(x: f64) -> f64 {
-    const HUGE: f64 = 1e300;
-    const TWO_M27: f64 = 1.0 / (1 << 27) as f64; // 2**-27 0x3e40000000000000
-    const TWO_M13: f64 = 1.0 / (1 << 13) as f64; // 2**-13 0x3f20000000000000
-    let two129: f64 = 2.0_f64.powi(129); // 2**129 0x4800000000000000
+pub fn j0(x: f64) -> BesselResult<f64> {
     // R0/S0 on [0, 2]
     const R02: f64 = 1.56249999999999947958e-02; // 0x3F8FFFFFFFFFFFFD
     const R03: f64 = -1.89979294238854721751e-04; // 0xBF28E6A5B61AC6E9
@@ -97,13 +102,13 @@ pub fn j0(x: f64) -> f64 {
     // special cases
     // switch {
     if x.is_nan() {
-        return x;
+        return Ok(f64::NAN);
     }
     if x.is_infinite() {
-        return 0.0;
+        return Ok(0.0);
     }
     if x == 0.0 {
-        return 1.0;
+        return Ok(1.0);
     }
 
     let x = x.abs();
@@ -125,7 +130,7 @@ pub fn j0(x: f64) -> f64 {
         // j0(x) = 1/sqrt(pi) * (P(0,x)*cc - Q(0,x)*ss) / sqrt(x)
         // y0(x) = 1/sqrt(pi) * (P(0,x)*ss + Q(0,x)*cc) / sqrt(x)
 
-        let z = if x > two129 {
+        let z = if x > *TWO_129 {
             // |x| > ~6.8056e+38
             (1.0 / PI.sqrt()) * cc / x.sqrt()
         } else {
@@ -133,27 +138,28 @@ pub fn j0(x: f64) -> f64 {
             let v = qzero(x);
             (1.0 / PI.sqrt()) * (u * cc - v * ss) / x.sqrt()
         };
-        return z; // |x| >= 2.0
+        return Ok(z); // |x| >= 2.0
     }
+
     if x < TWO_M13 {
         // |x| < ~1.2207e-4
         return if x < TWO_M27 {
-            1.0 // |x| < ~7.4506e-9
+            Ok(1.0) // |x| < ~7.4506e-9
         } else {
-            1.0 - 0.25 * x * x // ~7.4506e-9 < |x| < ~1.2207e-4
+            Ok(1.0 - 0.25 * x * x) // ~7.4506e-9 < |x| < ~1.2207e-4
         };
     }
     let z = x * x;
     let r = z * (R02 + z * (R03 + z * (R04 + z * R05)));
     let s = 1.0 + z * (S01 + z * (S02 + z * (S03 + z * S04)));
-    if x < 1.0 {
-        return 1.0 + z * (-0.25 + (r / s)); // |x| < 1.00
-    }
-    let u = 0.5 * x;
-    (1.0 + u) * (1.0 - u) + z * (r / s) // 1.0 < |x| < 2.0
+    return if x < 1.0 {
+        Ok(1.0 + z * (-0.25 + (r / s))) // |x| < 1.00
+    } else {
+        let u = 0.5 * x;
+        Ok((1.0 + u) * (1.0 - u) + z * (r / s)) // 1.0 < |x| < 2.0
+    };
 }
 
-/*
 // Y0 returns the order-zero Bessel function of the second kind.
 //
 // Special cases are:
@@ -162,33 +168,39 @@ pub fn j0(x: f64) -> f64 {
 //	Y0(0) = -Inf
 //	Y0(x < 0) = NaN
 //	Y0(NaN) = NaN
-fn Y0(x f64) f64 {
-    const (
-        TwoM27 = 1.0 / (1 << 27)             // 2**-27 0x3e40000000000000
-        Two129 = 1 << 129                    // 2**129 0x4800000000000000
-        U00    = -7.38042951086872317523e-02 // 0xBFB2E4D699CBD01F
-        U01    = 1.76666452509181115538e-01  // 0x3FC69D019DE9E3FC
-        U02    = -1.38185671945596898896e-02 // 0xBF8C4CE8B16CFA97
-        U03    = 3.47453432093683650238e-04  // 0x3F36C54D20B29B6B
-        U04    = -3.81407053724364161125e-06 // 0xBECFFEA773D25CAD
-        U05    = 1.95590137035022920206e-08  // 0x3E5500573B4EABD4
-        U06    = -3.98205194132103398453e-11 // 0xBDC5E43D693FB3C8
-        V01    = 1.27304834834123699328e-02  // 0x3F8A127091C9C71A
-        V02    = 7.60068627350353253702e-05  // 0x3F13ECBBF578C6C1
-        V03    = 2.59150851840457805467e-07  // 0x3E91642D7FF202FD
-        V04    = 4.41110311332675467403e-10  // 0x3DFE50183BD6D9EF
-    )
+pub fn y0(x: f64) -> BesselResult<f64> {
+    // const TwoM27:f64 = 1.0 / (1 << 27)        ;     // 2**-27 0x3e40000000000000
+    // const Two129:f64  = 1 << 129                    // 2**129 0x4800000000000000
+    const U00: f64 = -7.38042951086872317523e-02; // 0xBFB2E4D699CBD01F
+    const U01: f64 = 1.76666452509181115538e-01; // 0x3FC69D019DE9E3FC
+    const U02: f64 = -1.38185671945596898896e-02; // 0xBF8C4CE8B16CFA97
+    const U03: f64 = 3.47453432093683650238e-04; // 0x3F36C54D20B29B6B
+    const U04: f64 = -3.81407053724364161125e-06; // 0xBECFFEA773D25CAD
+    const U05: f64 = 1.95590137035022920206e-08; // 0x3E5500573B4EABD4
+    const U06: f64 = -3.98205194132103398453e-11; // 0xBDC5E43D693FB3C8
+    const V01: f64 = 1.27304834834123699328e-02; // 0x3F8A127091C9C71A
+    const V02: f64 = 7.60068627350353253702e-05; // 0x3F13ECBBF578C6C1
+    const V03: f64 = 2.59150851840457805467e-07; // 0x3E91642D7FF202FD
+    const V04: f64 = 4.41110311332675467403e-10; // 0x3DFE50183BD6D9EF
+
     // special cases
-    switch {
-    case x < 0 || IsNaN(x):
-        return NaN()
-    case IsInf(x, 1):
-        return 0
-    case x == 0:
-        return Inf(-1)
+    if x < 0.0 {
+        return Err(BesselError::InvalidInput {
+            details: "y0 is not implemented for z < 0".to_string(),
+        });
+    }
+    if x.is_nan() {
+        return Ok(f64::NAN);
+    }
+    if x.is_infinite() && x > 0.0 {
+        return Ok(0.0);
+    }
+    if x == 0.0 {
+        return Ok(f64::NEG_INFINITY);
     }
 
-    if x >= 2 { // |x| >= 2.0
+    if x >= 2.0 {
+        // |x| >= 2.0
 
         // y0(x) = sqrt(2/(pi*x))*(p0(x)*sin(x0)+q0(x)*cos(x0))
         //     where x0 = x-pi/4
@@ -201,41 +213,42 @@ fn Y0(x f64) f64 {
         //     sin(x) +- cos(x) = -cos(2x)/(sin(x) -+ cos(x))
         // to compute the worse one.
 
-        let s, c = Sincos(x)
-        let ss = s - c
-        let cc = s + c
+        let (s, c) = x.sin_cos();
+        let mut ss = s - c;
+        let mut cc = s + c;
 
         // j0(x) = 1/sqrt(pi) * (P(0,x)*cc - Q(0,x)*ss) / sqrt(x)
         // y0(x) = 1/sqrt(pi) * (P(0,x)*ss + Q(0,x)*cc) / sqrt(x)
 
         // make sure x+x does not overflow
-        if x < MaxFloat64/2 {
-            let z = -Cos(x + x)
-            if s*c < 0 {
+        if x < f64::MAX / 2.0 {
+            let z = -(x + x).cos();
+            if s * c < 0.0 {
                 cc = z / ss
             } else {
-                ss = z / cc
+                ss = z / cc;
             }
         }
-        var z f64
-        if x > Two129 { // |x| > ~6.8056e+38
-            z = (1 / SqrtPi) * ss / Sqrt(x)
+        let z = if x > *TWO_129 {
+            // |x| > ~6.8056e+38
+            (1.0 / PI.sqrt()) * ss / x.sqrt()
         } else {
-            let u = pzero(x)
-            let v = qzero(x)
-            z = (1 / SqrtPi) * (u*ss + v*cc) / Sqrt(x)
-        }
-        return z // |x| >= 2.0
+            let u = pzero(x);
+            let v = qzero(x);
+            (1.0 / PI.sqrt()) * (u * ss + v * cc) / x.sqrt()
+        };
+        return Ok(z); // |x| >= 2.0
     }
-    if x <= TwoM27 {
-        return U00 + (2/Pi)*Log(x) // |x| < ~7.4506e-9
+    if x <= TWO_M27 {
+        Ok(U00 + (2.0 / PI) * x.ln()) // |x| < ~7.4506e-9
+    } else {
+        let z = x * x;
+        let u = U00 + z * (U01 + z * (U02 + z * (U03 + z * (U04 + z * (U05 + z * U06)))));
+        let v = 1.0 + z * (V01 + z * (V02 + z * (V03 + z * V04)));
+        Ok(u / v + (2.0 / PI) * j0(x)? * x.ln()) // ~7.4506e-9 < |x| < 2.0
     }
-    let z = x * x
-    let u = U00 + z*(U01+z*(U02+z*(U03+z*(U04+z*(U05+z*U06)))))
-    let v = 1 + z*(V01+z*(V02+z*(V03+z*V04)))
-    return u/v + (2/Pi)*J0(x)*Log(x) // ~7.4506e-9 < |x| < 2.0
 }
-*/
+
 // The asymptotic expansions of pzero is
 //      1 - 9/128 s**2 + 11025/98304 s**4 - ..., where s = 1/x.
 // For x >= 2, We approximate pzero by

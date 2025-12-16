@@ -84,13 +84,40 @@ pub use amos::{
     complex_airy, complex_airy_b, complex_bessel_h, complex_bessel_i, complex_bessel_j,
     complex_bessel_k, complex_bessel_y, complex_hankel1, complex_hankel2,
 };
-use num::{Complex, complex::Complex64};
-pub use types::{BackTo, BesselError};
-
-use crate::reflections::{
-    as_integer, integer_sign, reflect_h_element, reflect_i_element, reflect_j_element,
-    reflect_y_element,
+use num::{
+    Complex,
+    complex::{Complex64, ComplexFloat},
 };
+
+use crate::amos::MACHINE_CONSTANTS;
+pub use bessel_zeros::{BesselFunType, bessel_zeros};
+
+pub trait BackTo<T> {
+    fn back_to(&self) -> T;
+}
+
+impl BackTo<Complex64> for Complex64 {
+    fn back_to(&self) -> Complex64 {
+        *self
+    }
+}
+
+impl BackTo<f64> for f64 {
+    fn back_to(&self) -> f64 {
+        *self
+    }
+}
+
+impl BackTo<f64> for Complex64 {
+    fn back_to(&self) -> f64 {
+        assert!(
+            self.im() < 1000.0 * MACHINE_CONSTANTS.abs_error_tolerance,
+            "Imaginary part of Bessel funtion for real input is too large: {:?}",
+            self
+        );
+        self.re()
+    }
+}
 
 // TODO work with abritrary bit-depth floats
 // TODO bessel derivatives
