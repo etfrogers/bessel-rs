@@ -17,7 +17,7 @@
 // The latter is more extensible, but the former is more user-friendly. Maybe both?
 // Single functions might be better with a default precsision.
 
-use std::f64::consts::PI;
+use std::f64::consts::{FRAC_PI_2, PI};
 
 use amos_bessel_rs::types::BackFrom;
 
@@ -188,7 +188,7 @@ pub fn bessel_zeros<OT: Into<f64> + num::Num>(
 }
 
 fn fi(y: f64) -> f64 {
-    let c1 = std::f64::consts::FRAC_PI_2;
+    let c1 = FRAC_PI_2;
     if y == 0.0 {
         0.0
     } else if y > 1e5 {

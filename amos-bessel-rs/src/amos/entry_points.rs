@@ -274,7 +274,6 @@ pub fn complex_bessel_i(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
 /// A tuple containing:
 /// * A vector of complex numbers representing the sequence of Bessel functions.
 /// * The number of components set to zero due to underflow.
-
 pub fn complex_bessel_j(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
     sanitise_inputs(z, order, n, false)?;
 
@@ -344,7 +343,6 @@ pub fn complex_bessel_j(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
 /// A tuple containing:
 /// * A vector of complex numbers representing the sequence of Bessel functions.
 /// * The number of components set to zero due to underflow.
-
 pub fn complex_bessel_k(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
     sanitise_inputs(z, order, n, true)?;
     //-----------------------------------------------------------------------------;
@@ -460,7 +458,6 @@ pub fn complex_bessel_k(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
 /// A tuple containing:
 /// * A vector of complex numbers representing the sequence of Bessel functions.
 /// * The number of components set to zero due to underflow.
-
 pub fn complex_bessel_y(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
     sanitise_inputs(z, order, n, true)?;
     let zz = if z.im < 0.0 { z.conj() } else { z };
