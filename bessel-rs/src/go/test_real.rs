@@ -120,3 +120,25 @@ fn test_bessel_y1_against_amos(#[case] _order: f64, #[case] mut zr: f64, #[case]
 
     assert_relative_eq!(actual, expected, epsilon = 1e-10,);
 }
+
+#[apply(bessel_cases)]
+#[trace]
+fn test_bessel_jn_against_amos(
+    #[case] order: f64,
+    #[case] zr: f64,
+    #[case] _zi: f64,
+    // #[values(2, 3, 4, 5, 6, 7, 8, 9, 16, 125, 120923)] n: i32,
+) {
+    let integer_order = order as i32;
+    let result = crate::bessel_j(integer_order as f64, zr);
+    let expected = match result {
+        Ok(v) => v,
+        Err(BesselError::PartialLossOfSignificance { y, nz: _ }) => {
+            // assert_eq!(nz, 0);
+            y[0].re
+        }
+        Err(e) => panic!("Unexpected error from bessel_j: {:?}", e),
+    };
+    let actual = crate::go::bessel_jn_real(integer_order, zr).unwrap();
+    assert_relative_eq!(actual, expected, epsilon = 1e-10,);
+}
