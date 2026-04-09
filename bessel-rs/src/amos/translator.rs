@@ -607,7 +607,7 @@ fn ZKSCL(
     //     S2 GETS LARGER THAN EXP(ELIM/2)
     let mut skip_to_40 = false;
     let mut I = 0;
-    for i in 2..n {
+    for (i, yi) in y.iter_mut().enumerate().take(n).skip(2) {
         I = i;
         let mut cs = s2;
         s2 = cs * ck + s1;
@@ -615,12 +615,12 @@ fn ZKSCL(
         ck += rz;
         let ALAS = s2.abs().ln();
         *nz += 1;
-        y[i] = Complex64::zero();
+        *yi = Complex64::zero();
         if -zd.re + s2.abs().ln() >= -MACHINE_CONSTANTS.exponent_limit {
             cs = s2.ln() - zd;
             cs = cs.exp() / MACHINE_CONSTANTS.abs_error_tolerance;
             if !will_underflow(cs, ASCLE, MACHINE_CONSTANTS.abs_error_tolerance) {
-                y[i] = cs;
+                *yi = cs;
                 *nz -= 1;
                 if i_completed == i - 1 {
                     skip_to_40 = true;
@@ -2282,6 +2282,7 @@ fn ZUNI2(
     Ok((nz, 0))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn recurr(
     forward: bool,
     order: f64,

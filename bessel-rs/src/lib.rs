@@ -6,7 +6,7 @@
 //! The development of this crate started as a a reaction to finding that:
 //! 1) no pure Rust implementations of Bessel functions existed
 //! 2) all the standard library functions (in all languages) seem to use a wrapper
-//! around Amos' original fortran.
+//!    around Amos' original fortran.
 //!
 //! For example,
 //! - [Python - Scipy](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.jv.html#scipy.special.jv)
@@ -195,9 +195,7 @@ where
     Complex64: BackTo<ZT>,
     ZT: Into<Complex<f64>> + BackTo<ZT>,
 {
-    complex_airy_b(z.into(), false, Scaling::Unscaled)
-        .map(|v| v)
-        .map(|v| v.back_to())
+    complex_airy_b(z.into(), false, Scaling::Unscaled).map(|v| v.back_to())
 }
 
 pub fn airy_bp<ZT>(z: ZT) -> Result<ZT, BesselError>

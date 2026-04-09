@@ -6,7 +6,6 @@ use super::{bessel_j, bessel_y};
 use conv::ConvUtil;
 use num::Complex;
 
-
 #[derive(Debug, PartialEq)]
 pub enum BesselFunType {
     J,
@@ -17,7 +16,7 @@ pub enum BesselFunType {
 
 impl BesselFunType {
     fn is_non_derivative(&self) -> bool {
-        return *self == BesselFunType::J || *self == BesselFunType::Y;
+        *self == BesselFunType::J || *self == BesselFunType::Y
     }
 }
 
@@ -148,8 +147,8 @@ pub fn bessel_zeros<OT: Into<f64> + num::Num>(
                 let xx = x.powf(2.0);
                 let x4 = x.powf(4.0);
                 let a2 = aa - xx;
-                let r0 = bessr(&func_type, order, x);
-                j = j + 1;
+                let r0 = bessr(func_type, order, x);
+                j += 1;
                 let q: f64;
                 let u: f64;
                 if func_type.is_non_derivative() {
@@ -165,16 +164,16 @@ pub fn bessel_zeros<OT: Into<f64> + num::Num>(
                     p = v * (1.0 + (40.0 * mu * xx + 48.0 * x4 - mu2) / w);
                 }
                 w = u * (1.0 + p * r0) / (1.0 + q * r0);
-                x = x + w;
+                x += w;
             }
         }
         z[s - 1] = x;
     }
-    return z;
+    z
 }
 
 fn fi(y: f64) -> f64 {
-    let c1 = 1.570796;
+    let c1 = std::f64::consts::FRAC_PI_2;
     if y == 0.0 {
         0.0
     } else if y > 1e5 {
@@ -216,10 +215,10 @@ where
         }
         BesselFunType::Y => bessel_y(order, z).unwrap() / bessel_y(order + 1.0, z).unwrap(),
         BesselFunType::JP => {
-            (order / z - bessel_j(order + 1.0, z).unwrap() / bessel_j(order, z).unwrap()).into()
+            order / z - bessel_j(order + 1.0, z).unwrap() / bessel_j(order, z).unwrap()
         }
         BesselFunType::YP => {
-            (order / z - bessel_y(order + 1.0, z).unwrap() / bessel_y(order, z).unwrap()).into()
+            order / z - bessel_y(order + 1.0, z).unwrap() / bessel_y(order, z).unwrap()
         }
     };
     cpx_value.back_to()

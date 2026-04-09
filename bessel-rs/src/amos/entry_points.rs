@@ -1270,8 +1270,8 @@ pub fn complex_airy(
     //                 TRANS. MATH. SOFTWARE, VOL. 12, NO. 3, SEPTEMBER 1986,
     //                 PP 265-273.
 
-    const POWER_SERIES_COEFFS: (f64, f64) = (3.55028053887817240e-01, 2.58819403792806799e-01);
-    const COEFF: f64 = 1.83776298473930683e-01;
+    const POWER_SERIES_COEFFS: (f64, f64) = (3.550_280_538_878_172e-1, 2.588_194_037_928_068e-1);
+    const COEFF: f64 = 1.837_762_984_739_306_8e-1;
 
     let abs_z = z.abs();
     let float_is_derivative = if return_derivative { 1.0 } else { 0.0 };
@@ -1484,8 +1484,8 @@ pub fn complex_airy_b(
     //                 ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, ACM
     //                 TRANS. MATH. SOFTWARE, VOL. 12, NO. 3, SEPTEMBER 1986,
     //                 PP 265-273.
-    const POWER_SERIES_COEFFS: (f64, f64) = (6.14926627446000736e-01, -4.48288357353826359e-01);
-    const COEF: f64 = 5.77350269189625765e-01;
+    const POWER_SERIES_COEFFS: (f64, f64) = (6.149_266_274_460_007e-1, -4.482_883_573_538_264e-1);
+    const COEF: f64 = 5.773_502_691_896_257e-1;
 
     let abs_z = z.abs();
     let float_is_derivative = if return_derivative { 1.0 } else { 0.0 };

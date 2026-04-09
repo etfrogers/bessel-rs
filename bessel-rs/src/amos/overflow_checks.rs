@@ -748,9 +748,9 @@ pub fn zunhj(
                 if !a_converged {
                     let mut suma = up[lrp1 - 1];
                     let mut ju = lrp1;
-                    for jr in 0..lr {
+                    for cr_i in cr.iter().take(lr) {
                         ju -= 1;
-                        suma += cr[jr] * up[ju - 1];
+                        suma += cr_i * up[ju - 1];
                     }
                     asum += suma;
                     let test = suma.re.abs() + suma.im.abs();
@@ -763,9 +763,9 @@ pub fn zunhj(
                 if !b_converged {
                     let mut sumb = up[lr + 1] + up[lrp1 - 1] * zc;
                     let mut ju = lrp1;
-                    for jr in 0..lr {
+                    for jr_i in dr.iter().take(lr) {
                         ju -= 1;
-                        sumb += dr[jr] * up[ju - 1];
+                        sumb += jr_i * up[ju - 1];
                     }
                     bsum += sumb;
                     let test = sumb.re.abs() + sumb.im.abs();
