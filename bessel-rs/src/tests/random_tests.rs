@@ -202,6 +202,7 @@ fn test_airy_random(mut rng: SmallRng, #[values(true, false)] is_derivative: boo
 }
 
 #[rstest]
+#[should_panic(expected = "Add negative values")]
 fn test_bessel_j_random_negative() {
     todo!("Add negative values")
 }
