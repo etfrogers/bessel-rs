@@ -94,10 +94,8 @@ fn test_against_hard_coded_zeros(#[case] fun_type: BesselFunType, #[case] zeros:
 #[rstest]
 fn test_evaluation_at_zero_j() {
     for order in 0..20 {
-        println!("{}", order);
         let zeros = bessel_zeros(&BesselFunType::J, order, 100, 0.1e-6);
         for v in zeros {
-            print!("{}, ", v);
             assert_relative_eq!(0.0, bessel_j(order, v).unwrap(), epsilon = 1e-6)
         }
     }
