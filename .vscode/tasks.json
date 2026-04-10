@@ -11,10 +11,11 @@
 				"zbesh.for",
 				"machine.for",
 				"-g",
-				"-Wall"
+				"-Wall",
+				"-O3"
 			],
 			"options": {
-				"cwd": "${workspaceRoot}/amos-bessel-rs/src/amos/"
+				"cwd": "${workspaceRoot}/bessel-rs/src/amos/"
 			}
 		}
 	]

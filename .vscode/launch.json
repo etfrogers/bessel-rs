@@ -8,7 +8,7 @@
             "name": "Run Fortran GDB",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceRoot}/amos-bessel-rs/src/amos/a.out",
+            "program": "${workspaceRoot}/bessel-rs/src/amos/a.out",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceRoot}",
