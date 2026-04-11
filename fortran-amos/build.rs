@@ -1,26 +1,16 @@
 fn main() {
-    #[cfg(feature = "run-fortran-tests")]
-    {
-        // if std::env::var("CARGO_PRIMARY_PACKAGE").is_ok() {
-        build_fortran();
-        // }
-    }
-}
-
-#[cfg(feature = "run-fortran-tests")]
-fn build_fortran() {
     // 1. Tell Cargo to rerun this script if the Fortran files change
-    println!("cargo:rerun-if-changed=src/amos/amos_iso_c_fortran_wrapper.f90");
-    println!("cargo:rerun-if-changed=src/amos/machine.for");
-    println!("cargo:rerun-if-changed=src/amos/zbesh.for");
+    println!("cargo:rerun-if-changed=src/amos_iso_c_fortran_wrapper.f90");
+    println!("cargo:rerun-if-changed=src/machine.for");
+    println!("cargo:rerun-if-changed=src/zbesh.for");
 
     // 2. Configure the Fortran compiler
     cc::Build::new()
         .compiler("gfortran")
         .files([
-            "src/amos/amos_iso_c_fortran_wrapper.f90",
-            "src/amos/machine.for",
-            "src/amos/zbesh.for",
+            "src/amos_iso_c_fortran_wrapper.f90",
+            "src/machine.for",
+            "src/zbesh.for",
         ])
         // Basic flags
         .flag("-O0")
@@ -34,5 +24,5 @@ fn build_fortran() {
         .flag("-fno-unsafe-math-optimizations")
         .flag("-frounding-math")
         .flag("-fsignaling-nans")
-        .compile("amos_local"); // This creates libamos_local.a
+        .compile("amos_testing"); // This creates libamos_testing.a
 }

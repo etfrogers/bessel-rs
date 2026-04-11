@@ -1,9 +1,8 @@
-use crate::amos::{
-    HankelKind,
-    bindings::{
-        zairy_wrap, zbesh_wrap, zbesi_wrap, zbesj_wrap, zbesk_wrap, zbesy_wrap, zbiry_wrap,
-    },
+use crate::amos::HankelKind;
+use fortran_amos::{
+    zairy_wrap, zbesh_wrap, zbesi_wrap, zbesj_wrap, zbesk_wrap, zbesy_wrap, zbiry_wrap,
 };
+
 use num::complex::Complex64;
 
 use crate::Scaling;

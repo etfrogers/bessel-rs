@@ -1,3 +1,0 @@
-[alias]
-
-t = "test --features run-fortran-tests"

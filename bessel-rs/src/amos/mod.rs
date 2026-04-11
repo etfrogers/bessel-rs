@@ -11,7 +11,6 @@ pub(crate) use i_power_series::i_power_series;
 pub(crate) use machine::MACHINE_CONSTANTS;
 
 mod asymptotic_i;
-pub(crate) mod bindings;
 mod entry_points;
 mod gamma_ln;
 mod i_power_series;

@@ -1,6 +1,13 @@
 [workspace]
 resolver = "3"
-members = ["bessel-rs", "bessel_zeros", "complex-bessel-test", "real-bessel"]
+members = [
+    "bessel-rs",
+    "bessel_zeros",
+    "complex-bessel-test",
+    "real-bessel",
+    "fortran-amos",
+]
+
 
 [profile.profiling]
 inherits = "release"

@@ -29,6 +29,7 @@ rstest_reuse = "0.7.0"
 criterion = "0.7.0"
 complex-bessel = "0.2.0"
 pymath = "0.2.0"
+fortran-amos = { path = "../fortran-amos" }
 
 [[bench]]
 name = "bessel_bench"
