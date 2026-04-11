@@ -2,7 +2,7 @@
 use std::ffi::{c_double, c_int};
 
 #[cfg(test)]
-// #[link(name = "amos_local", kind = "static")]
+#[link(name = "amos_local", kind = "static")]
 unsafe extern "C" {
     pub fn zbesy_wrap(
         zr: c_double,

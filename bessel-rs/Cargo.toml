@@ -4,8 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
+default = ["run-fortran-tests"]
+run-fortran-tests = ["dep:cc"]
 # default = ["random_tests"]
 random_tests = []
+
+[build-dependencies]
+cc = { version = "1.2.60", optional = true }
 
 [dependencies]
 conv = "0.3.3"
