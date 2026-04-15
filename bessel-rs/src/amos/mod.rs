@@ -51,8 +51,6 @@ pub enum BesselError {
     LossOfSignificance = 4,
     #[error("Algorithm failed to terminate")]
     DidNotConverge = 5,
-    #[error("not yet implemented")]
-    NotYetImplemented = 100,
 }
 
 impl BesselError {
@@ -63,7 +61,6 @@ impl BesselError {
             BesselError::PartialLossOfSignificance { .. } => 3,
             BesselError::LossOfSignificance => 4,
             BesselError::DidNotConverge => 5,
-            BesselError::NotYetImplemented => 100,
         }
     }
 }

@@ -18,12 +18,6 @@ pub fn check_against_fortran(
     fortran_func: BesselFortranSig,
 ) {
     let actual = rust_func(z, order, scaling, n);
-    if let Err(ref err) = actual {
-        if *err == BesselError::NotYetImplemented {
-            return;
-            // panic!("NotYetImplemented should not occur")
-        }
-    }
 
     let (cy, nz, ierr) = fortran_func(order, z, scaling, n);
     let (cy_loop_fort, _, _) = fortran_bess_loop(order, z, scaling, n, fortran_func);
@@ -31,7 +25,6 @@ pub fn check_against_fortran(
     let fail = |reason: &str| -> () {
         let cy_loop_rust = match rust_bess_loop(order, z, scaling, n, rust_func) {
             Ok((data, _)) => data,
-            Err(BesselError::NotYetImplemented) => vec![Complex64::new(f64::NAN, f64::NAN); n],
             Err(err) => {
                 panic!(
                     "Error generated in looped rust that was not present in unlooped case: {err:?}"

@@ -12,7 +12,7 @@ use complex_bessel_rs::bessel_k::bessel_k as bessel_k_ref;
 use complex_bessel_rs::bessel_y::bessel_y as bessel_y_ref;
 
 use crate::{
-    BesselError, HankelKind, Scaling, airy, airy_b, airy_bp, airyp,
+    HankelKind, Scaling, airy, airy_b, airy_bp, airyp,
     amos::{
         MACHINE_CONSTANTS, complex_bessel_i, complex_bessel_j, complex_bessel_k, complex_bessel_y,
     },
@@ -27,10 +27,6 @@ fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     let z = Complex64::new(zr, zi);
     let actual = bessel_j(order, z);
 
-    if actual == Err(BesselError::NotYetImplemented) {
-        todo!()
-    }
-
     let expected = bessel_j_ref(order, z.into());
     if let Ok(actual) = actual {
         assert_complex_arrays_equal(&actual, &expected.unwrap(), &Vec::new());
@@ -44,10 +40,7 @@ fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
 fn test_bessel_i(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     let z = Complex64::new(zr, zi);
     let actual = bessel_i(order, z);
-    dbg!(&actual);
-    if actual == Err(BesselError::NotYetImplemented) {
-        todo!()
-    }
+    // dbg!(&actual);
 
     let expected = bessel_i_ref(order, z.into());
     if let Ok(actual) = actual {
@@ -63,10 +56,6 @@ fn test_bessel_k(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     let z = Complex64::new(zr, zi);
     let actual = bessel_k(order, z);
 
-    if actual == Err(BesselError::NotYetImplemented) {
-        todo!()
-    }
-
     let expected = bessel_k_ref(order, z.into());
     if let Ok(actual) = actual {
         assert_complex_arrays_equal(&actual, &expected.unwrap(), &Vec::new());
@@ -80,10 +69,6 @@ fn test_bessel_k(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
 fn test_bessel_y(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     let z = Complex64::new(zr, zi);
     let actual = bessel_y(order, z);
-
-    if actual == Err(BesselError::NotYetImplemented) {
-        todo!()
-    }
 
     let expected = bessel_y_ref(order, z.into());
     if let Ok(actual) = actual {
@@ -99,16 +84,11 @@ fn test_bessel_h(
     #[case] order: f64,
     #[case] zr: f64,
     #[case] zi: f64,
-    #[values(HankelKind::First , HankelKind::Second)] kind: HankelKind,
+    #[values(HankelKind::First, HankelKind::Second)] kind: HankelKind,
 ) {
     let z = Complex64::new(zr, zi);
     let actual = hankel(order, z, kind);
     // dbg!(&actual);
-    if actual == Err(BesselError::NotYetImplemented) {
-        return;
-        //todo!()
-    }
-
     let expected = bessel_h_ref(order, z.into(), kind);
     // dbg!(&expected);
     if let Ok(actual) = actual {

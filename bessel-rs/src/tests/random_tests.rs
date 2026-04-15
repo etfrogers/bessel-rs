@@ -20,7 +20,7 @@ use super::{
 };
 
 use crate::{
-    BesselError, HankelKind, Scaling, airy, airyp,
+    HankelKind, Scaling, airy, airyp,
     amos::{
         MACHINE_CONSTANTS, complex_bessel_i, complex_bessel_j, complex_bessel_k, complex_bessel_y,
     },
@@ -56,10 +56,6 @@ fn test_bessel_j_random(mut rng: SmallRng) {
             assert_complex_arrays_equal(&actual, &expected.unwrap(), &cy_loop_fort);
         } else {
             let err = ans.unwrap_err();
-            if err == BesselError::NotYetImplemented {
-                // continue;
-                panic!("NotYetImplemented should not occur")
-            }
             // dbg!(&err, &expected);
             assert_eq!(err.error_code(), expected.unwrap_err());
         }
@@ -83,10 +79,6 @@ fn test_bessel_i_random(mut rng: SmallRng) {
             assert_complex_arrays_equal(&actual, &expected.unwrap(), &cy_loop_fort);
         } else {
             let err = ans.unwrap_err();
-            if err == BesselError::NotYetImplemented {
-                // continue;
-                panic!("NotYetImplemented should not occur")
-            }
             // dbg!(&err, &expected);
             assert_eq!(err.error_code(), expected.unwrap_err());
         }
@@ -110,10 +102,6 @@ fn test_bessel_k_random(mut rng: SmallRng) {
             assert_complex_arrays_equal(&actual, &expected.unwrap(), &cy_loop_fort);
         } else {
             let err = ans.unwrap_err();
-            if err == BesselError::NotYetImplemented {
-                // continue;
-                panic!("NotYetImplemented should not occur")
-            }
             // dbg!(&err, &expected);
             assert_eq!(err.error_code(), expected.unwrap_err());
         }
@@ -137,10 +125,6 @@ fn test_bessel_y_random(mut rng: SmallRng) {
             assert_complex_arrays_equal(&actual, &expected.unwrap(), &cy_loop_fort);
         } else {
             let err = ans.unwrap_err();
-            if err == BesselError::NotYetImplemented {
-                // continue;
-                panic!("NotYetImplemented should not occur")
-            }
             // dbg!(&err, &expected);
             assert_eq!(err.error_code(), expected.unwrap_err());
         }
@@ -167,10 +151,6 @@ fn test_bessel_h_random(
             assert_complex_arrays_equal(&actual, &expected.unwrap(), &cy_loop_fort);
         } else {
             let err = ans.unwrap_err();
-            if err == BesselError::NotYetImplemented {
-                continue;
-                // panic!("NotYetImplemented should not occur")
-            }
             // dbg!(&err, &expected);
             assert_eq!(err.error_code(), expected.unwrap_err());
         }
