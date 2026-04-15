@@ -941,7 +941,7 @@ fn i_miller(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
     Ok((y, NZ))
 }
 
-// zwrsk computes the i bessel function for re(z) >= 0.0 by
+// i_wronksian computes the i bessel function for re(z) >= 0.0 by
 // normalizing the i function ratios from zrati by the Wronskian
 // Originally ZWRSK
 fn i_wronksian(
