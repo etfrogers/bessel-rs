@@ -51,11 +51,7 @@ use num::Integer;
 
 use crate::amos::BesselResult;
 
-use super::{
-    TWO_302, TWO_M29,
-    j0::{j0, y0},
-    j1::{j1, y1},
-};
+use super::{TWO_302, TWO_M29, j0::j0, j1::j1};
 use std::f64::{self, consts::PI};
 
 // Jn returns the order-n Bessel function of the first kind.
