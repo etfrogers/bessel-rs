@@ -10,7 +10,7 @@ run-fortran-tests = ["dep:cc"]
 random_tests = []
 
 [build-dependencies]
-cc = { version = "1.2.60", optional = true }
+cc = { version = "1.2", optional = true }
 
 [dependencies]
 conv = "0.3.3"
