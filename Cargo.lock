@@ -45,7 +45,6 @@ version = "0.1.0"
 dependencies = [
  "approx",
  "cc",
- "complex-bessel",
  "complex-bessel-rs",
  "conv",
  "criterion",
