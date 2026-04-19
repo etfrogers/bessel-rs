@@ -71,7 +71,7 @@
 mod amos;
 mod bessel_zeros;
 
-pub use amos::{BesselError, GammaError, Scaling};
+pub use amos::{BesselError, GammaError, Scaling, HankelKind};
 use amos::{
     complex_airy, complex_airy_b, complex_bessel_h, complex_bessel_i, complex_bessel_j,
     complex_bessel_k, complex_bessel_y,
@@ -81,7 +81,7 @@ use num::{
     complex::{Complex64, ComplexFloat},
 };
 
-use crate::amos::{HankelKind, MACHINE_CONSTANTS};
+use crate::amos::{MACHINE_CONSTANTS};
 pub use bessel_zeros::{BesselFunType, bessel_zeros};
 
 pub trait BackTo<T> {
