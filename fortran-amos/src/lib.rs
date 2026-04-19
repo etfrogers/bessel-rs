@@ -2,7 +2,7 @@ use std::ffi::{c_double, c_int};
 
 #[link(name = "amos_testing", kind = "static")]
 unsafe extern "C" {
-    pub fn zbesy_wrap(
+    pub fn zbesy_wrap_testing(
         zr: c_double,
         zi: c_double,
         nu: c_double,
@@ -16,7 +16,7 @@ unsafe extern "C" {
         ierr: *mut c_int,
     );
 
-    pub fn zbesj_wrap(
+    pub fn zbesj_wrap_testing(
         zr: c_double,
         zi: c_double,
         nu: c_double,
@@ -28,7 +28,7 @@ unsafe extern "C" {
         ierr: *mut c_int,
     );
 
-    pub fn zbesk_wrap(
+    pub fn zbesk_wrap_testing(
         zr: c_double,
         zi: c_double,
         nu: c_double,
@@ -40,7 +40,7 @@ unsafe extern "C" {
         ierr: *mut c_int,
     );
 
-    pub fn zbesi_wrap(
+    pub fn zbesi_wrap_testing(
         zr: c_double,
         zi: c_double,
         nu: c_double,
@@ -52,7 +52,7 @@ unsafe extern "C" {
         ierr: *mut c_int,
     );
 
-    pub fn zbesh_wrap(
+    pub fn zbesh_wrap_testing(
         zr: c_double,
         zi: c_double,
         nu: c_double,
@@ -65,7 +65,7 @@ unsafe extern "C" {
         ierr: *mut c_int,
     );
 
-    pub unsafe fn zairy_wrap(
+    pub unsafe fn zairy_wrap_testing(
         zr: c_double,
         zi: c_double,
         id: c_int,
@@ -76,7 +76,7 @@ unsafe extern "C" {
         ierr: *mut c_int,
     );
 
-    pub unsafe fn zbiry_wrap(
+    pub unsafe fn zbiry_wrap_testing(
         zr: c_double,
         zi: c_double,
         id: c_int,

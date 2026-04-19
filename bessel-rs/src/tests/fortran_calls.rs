@@ -1,6 +1,7 @@
 use crate::amos::HankelKind;
 use fortran_amos::{
-    zairy_wrap, zbesh_wrap, zbesi_wrap, zbesj_wrap, zbesk_wrap, zbesy_wrap, zbiry_wrap,
+    zairy_wrap_testing, zbesh_wrap_testing, zbesi_wrap_testing, zbesj_wrap_testing,
+    zbesk_wrap_testing, zbesy_wrap_testing, zbiry_wrap_testing,
 };
 
 use num::complex::Complex64;
@@ -19,7 +20,7 @@ pub fn zbesj_fortran(
     let mut ierr = 0;
 
     unsafe {
-        zbesj_wrap(
+        zbesj_wrap_testing(
             z.re,
             z.im,
             order,
@@ -51,7 +52,7 @@ pub fn zbesi_fortran(
     let mut ierr = 0;
 
     unsafe {
-        zbesi_wrap(
+        zbesi_wrap_testing(
             z.re,
             z.im,
             order,
@@ -83,7 +84,7 @@ pub fn zbesk_fortran(
     let mut ierr = 0;
 
     unsafe {
-        zbesk_wrap(
+        zbesk_wrap_testing(
             z.re,
             z.im,
             order,
@@ -117,7 +118,7 @@ pub fn zbesy_fortran(
     let mut ierr = 0;
 
     unsafe {
-        zbesy_wrap(
+        zbesy_wrap_testing(
             z.re,
             z.im,
             order,
@@ -152,7 +153,7 @@ pub fn zbesh_fortran(
     let mut ierr = 0;
 
     unsafe {
-        zbesh_wrap(
+        zbesh_wrap_testing(
             z.re,
             z.im,
             order,
@@ -184,7 +185,7 @@ pub fn zairy_fortran(
     let mut ierr = 0;
 
     unsafe {
-        zairy_wrap(
+        zairy_wrap_testing(
             z.re,
             z.im,
             is_derivative as i32,
@@ -208,7 +209,7 @@ pub fn zbiry_fortran(
     let mut ierr = 0;
 
     unsafe {
-        zbiry_wrap(
+        zbiry_wrap_testing(
             z.re,
             z.im,
             is_derivative as i32,
