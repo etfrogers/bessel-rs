@@ -4,9 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = ["run-fortran-tests"]
-# default = ["run-fortran-tests", "random_tests"]
-run-fortran-tests = ["dep:cc"]
+# default = ["random_tests"]
 random_tests = []
 
 [build-dependencies]
