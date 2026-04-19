@@ -1,4 +1,5 @@
-use core::f64;
+use std::f64;
+use std::fmt::Debug;
 
 use approx::relative_eq;
 use num::{Zero, complex::Complex64, pow::Pow};
@@ -8,6 +9,21 @@ use crate::{
     amos::{BesselResult, MACHINE_CONSTANTS},
     tests::{BesselFortranSig, BesselSig, TOLERANCE_MARGIN},
 };
+
+pub fn assert_results_are_equal<T: IntoComplexVec + Debug>(
+    actual: &BesselResult<T>,
+    expected: &Result<T, i32>,
+    reference: &impl IntoComplexVec,
+) {
+    if let Ok(actual) = actual {
+        assert_complex_arrays_equal(actual, expected.as_ref().unwrap(), reference);
+    } else {
+        assert_eq!(
+            actual.as_ref().unwrap_err().error_code(),
+            *expected.as_ref().unwrap_err()
+        )
+    }
+}
 
 pub fn check_against_fortran(
     order: f64,
@@ -267,14 +283,6 @@ impl Tolerances {
             used_ref_im,
         }
     }
-}
-
-pub fn complex_relative_equal_default_tol(a: Complex64, b: Complex64) -> bool {
-    complex_relative_eq(
-        a,
-        b,
-        &Tolerances::new(a, b, None, MACHINE_CONSTANTS.abs_error_tolerance),
-    )
 }
 
 fn complex_relative_eq(a: Complex64, b: Complex64, tolerances: &Tolerances) -> bool {
