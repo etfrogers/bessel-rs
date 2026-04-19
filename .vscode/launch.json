@@ -5,6 +5,31 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Bench",
+            "program": "${workspaceFolder}/target/debug/bench",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=bench" // Or "--example=bench" if it's an example
+                ],
+                "filter": {
+                    "name": "bench",
+                    "kind": "bin"
+                },
+            },
+            "stdio": [
+                "complex-bessel-test/results/test_grid.json",
+                null,
+                null
+            ],
+            "args": [
+                "bessel-rs"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
             "name": "Run Fortran GDB",
             "type": "cppdbg",
             "request": "launch",
