@@ -16,6 +16,7 @@ pub use utils::fortran_bess_loop;
 
 mod bessel_h_wrappers;
 mod fortran_calls;
+mod grid_tests;
 mod parametrisation;
 #[cfg(feature = "random_tests")]
 mod random_tests;

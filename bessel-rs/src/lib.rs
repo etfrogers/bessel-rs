@@ -71,8 +71,8 @@
 mod amos;
 mod bessel_zeros;
 
-pub use amos::{BesselError, GammaError, Scaling, HankelKind};
-use amos::{
+pub use amos::{BesselError, GammaError, HankelKind, Scaling};
+pub use amos::{
     complex_airy, complex_airy_b, complex_bessel_h, complex_bessel_i, complex_bessel_j,
     complex_bessel_k, complex_bessel_y,
 };
@@ -81,7 +81,7 @@ use num::{
     complex::{Complex64, ComplexFloat},
 };
 
-use crate::amos::{MACHINE_CONSTANTS};
+use crate::amos::MACHINE_CONSTANTS;
 pub use bessel_zeros::{BesselFunType, bessel_zeros};
 
 pub trait BackTo<T> {
@@ -114,6 +114,10 @@ impl BackTo<f64> for Complex64 {
 // TODO work with abritrary bit-depth floats
 // TODO bessel derivatives
 // TODO negative orders
+// TODO Make tolerance margin variable (particularly for partial loss of siginifcance)
+// TODO ignore nans in PLOS
+// TODO Overflow to pos of negative infinity
+// TODO ComplexOutputForRealInput error, rather than panic
 
 pub fn bessel_j<ZT, OT>(order: OT, z: ZT) -> Result<ZT, BesselError>
 where
