@@ -1,9 +1,10 @@
 use f64;
 
+use crate::types::BesselResult;
 use num::complex::Complex64;
 
 use crate::Scaling;
-use crate::amos::{BesselResult, HankelKind, complex_airy, complex_airy_b};
+use crate::amos::{HankelKind, complex_airy, complex_airy_b};
 
 pub use bessel_h_wrappers::*;
 pub use fortran_calls::*;

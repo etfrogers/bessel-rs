@@ -4,7 +4,9 @@ use num::{
     pow::Pow,
 };
 
-use super::{BesselError, BesselResult, MACHINE_CONSTANTS};
+use crate::types::{BesselError, BesselResult};
+
+use super::MACHINE_CONSTANTS;
 
 pub const RTPI: f64 = 0.159154943091895336;
 pub const TWO_THIRDS: f64 = 6.66666666666666666e-01;

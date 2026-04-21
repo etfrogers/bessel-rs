@@ -4,9 +4,11 @@ use std::fmt::Debug;
 use approx::relative_eq;
 use num::{Zero, complex::Complex64, pow::Pow};
 
+use crate::types::{BesselError, BesselResult};
+
 use crate::{
-    BesselError, Scaling,
-    amos::{BesselResult, MACHINE_CONSTANTS},
+    Scaling,
+    amos::MACHINE_CONSTANTS,
     tests::{BesselFortranSig, BesselSig, TOLERANCE_MARGIN},
 };
 

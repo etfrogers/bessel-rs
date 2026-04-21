@@ -5,9 +5,8 @@ use num::complex::{Complex64, ComplexFloat};
 use crate::{
     Scaling,
     amos::{
-        BesselError::*,
-        BesselResult, CIP, HankelKind, IKType, MACHINE_CONSTANTS, RotationDirection, c_one, c_zero,
-        c_zeros, max_abs_component,
+        CIP, HankelKind, IKType, MACHINE_CONSTANTS, RotationDirection, c_one, c_zero, c_zeros,
+        max_abs_component,
         overflow_checks::check_underflow_uniform_asymp_params,
         translator::{
             ZACAI, ZBUNK, airy_power_series, analytic_continuation, i_right_half_plane,
@@ -15,6 +14,7 @@ use crate::{
         },
         utils::{TWO_THIRDS, is_sigificance_lost, sanitise_inputs},
     },
+    types::{BesselError::*, BesselResult},
 };
 
 /// complex_bessel_h computes the H-bessel functions (Hankel functions) of a complex argument
@@ -197,7 +197,7 @@ pub fn complex_bessel_h(
 
                 nz += n_underflow;
 
-                // Here nn=n or nn=0 since n_undeflow=(0 or nn) on return from
+                // Here nn=n or nn=0 since n_underflow=(0 or nn) on return from
                 // check_underflow_uniform_asymp_params (for ik_type = k)
                 //
                 // if nuf=nn, then cy[i]=c_zero() for all i

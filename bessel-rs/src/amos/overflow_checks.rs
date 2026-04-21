@@ -9,10 +9,10 @@ use std::{
 use num::complex::{Complex64, ComplexFloat};
 
 use crate::amos::utils::{AIC, imaginary_dominant};
+use crate::types::{BesselError::*, BesselResult};
 
 use super::{
-    BesselError::*, BesselResult, IKType, MACHINE_CONSTANTS, PositiveArg, Scaling, c_one, c_zero,
-    c_zeros, utils::will_underflow,
+    IKType, MACHINE_CONSTANTS, PositiveArg, Scaling, c_one, c_zero, c_zeros, utils::will_underflow,
 };
 
 #[allow(unused_imports)]

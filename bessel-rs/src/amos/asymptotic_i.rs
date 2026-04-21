@@ -5,11 +5,9 @@ use num::{
     complex::{Complex64, ComplexFloat},
 };
 
+use super::{MACHINE_CONSTANTS, Scaling, c_one, c_zero, c_zeros, utils::RTPI};
 use crate::amos::utils::calc_rz;
-
-use super::{
-    BesselError::*, BesselResult, MACHINE_CONSTANTS, Scaling, c_one, c_zero, c_zeros, utils::RTPI,
-};
+use crate::types::{BesselError::*, BesselResult};
 
 /// asymptotic_i computes the I bessel function for real(z) >= 0.0 by
 /// means of the asymptotic expansion for large z.abs() in the

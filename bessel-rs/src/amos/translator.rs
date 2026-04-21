@@ -1,11 +1,12 @@
 #![allow(non_snake_case, clippy::excessive_precision)]
 use super::{
-    BesselError, BesselResult, IKType, Scaling, c_one, c_zero, c_zeros, gamma_ln, i_power_series,
+    IKType, Scaling, c_one, c_zero, c_zeros, gamma_ln, i_power_series,
     overflow_checks::{check_underflow_uniform_asymp_params, underflow_add_i_k, zunik},
     utils::{AIC, TWO_THIRDS, will_underflow},
 };
+use crate::types::{BesselError, BesselError::*, BesselResult};
+
 use crate::amos::{
-    BesselError::*,
     CIP, MACHINE_CONSTANTS, RotationDirection,
     asymptotic_i::asymptotic_i,
     complex_airy, max_abs_component,

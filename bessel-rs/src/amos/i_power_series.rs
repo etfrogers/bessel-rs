@@ -4,11 +4,9 @@ use num::{
 };
 
 use crate::amos::utils::calc_rz;
+use crate::types::{BesselResult, BesselValues};
 
-use super::{
-    BesselResult, BesselValues, MACHINE_CONSTANTS, Scaling, c_one, c_zero, c_zeros, gamma_ln,
-    utils::will_underflow,
-};
+use super::{MACHINE_CONSTANTS, Scaling, c_one, c_zero, c_zeros, gamma_ln, utils::will_underflow};
 
 /// z_power_series computes the i bessel function for `real(z) >= 0.0`` by
 /// means of the power series for large `z.abs()` in the

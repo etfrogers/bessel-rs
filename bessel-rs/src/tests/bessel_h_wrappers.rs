@@ -1,8 +1,9 @@
+use crate::types::BesselResult;
 use num::complex::Complex64;
 
 use crate::{
     Scaling,
-    amos::{BesselResult, HankelKind, complex_bessel_h},
+    amos::{HankelKind, complex_bessel_h},
     tests::zbesh_fortran,
 };
 
