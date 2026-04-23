@@ -13,6 +13,9 @@
 //! - [Julia - OpenSpecFunc](https://github.com/JuliaMath/openspecfun)
 //! - [Rust (the best way of calculating Bessel functions I've found)](https://crates.io/crates/complex-bessel-rs/1.2.1)
 //!
+//! TODO other options
+//! TODO negative approach
+//!
 //! There are other implentations in some cases for integer order and real argument,
 //! but the general case is all Amos.
 //!
@@ -90,6 +93,7 @@ pub use bessel_zeros::{BesselFunType, bessel_zeros};
 // TODO ignore nans in PLOS
 // TODO Overflow to positive or negative infinity, or zero?
 // TODO Handle Vectors/ndarrays for z
+// TODO Unwrap PLOS?
 
 pub fn bessel_j<ZT, OT>(order: OT, z: ZT) -> Result<ZT, BesselError>
 where
@@ -97,9 +101,7 @@ where
     Complex64: BackTo<ZT>,
     OT: Into<f64>,
 {
-    complex_bessel_j(z.into(), order.into(), Scaling::Unscaled, 1)
-        .map(|v| v.0[0])
-        .map(|v| v.back_to())?
+    complex_bessel_j(z.into(), order.into(), Scaling::Unscaled, 1)?.0[0].back_to()
 }
 
 pub fn bessel_i<ZT, OT>(order: OT, z: ZT) -> Result<ZT, BesselError>
@@ -108,9 +110,7 @@ where
     Complex64: BackTo<ZT>,
     OT: Into<f64>,
 {
-    complex_bessel_i(z.into(), order.into(), Scaling::Unscaled, 1)
-        .map(|v| v.0[0])
-        .map(|v| v.back_to())?
+    complex_bessel_i(z.into(), order.into(), Scaling::Unscaled, 1)?.0[0].back_to()
 }
 
 pub fn bessel_k<ZT, OT>(order: OT, z: ZT) -> Result<ZT, BesselError>
@@ -119,9 +119,7 @@ where
     Complex64: BackTo<ZT>,
     OT: Into<f64>,
 {
-    complex_bessel_k(z.into(), order.into(), Scaling::Unscaled, 1)
-        .map(|v| v.0[0])
-        .map(|v| v.back_to())?
+    complex_bessel_k(z.into(), order.into(), Scaling::Unscaled, 1)?.0[0].back_to()
 }
 
 pub fn bessel_y<ZT, OT>(order: OT, z: ZT) -> Result<ZT, BesselError>
@@ -130,9 +128,7 @@ where
     Complex64: BackTo<ZT>,
     OT: Into<f64>,
 {
-    complex_bessel_y(z.into(), order.into(), Scaling::Unscaled, 1)
-        .map(|v| v.0[0])
-        .map(|v| v.back_to())?
+    complex_bessel_y(z.into(), order.into(), Scaling::Unscaled, 1)?.0[0].back_to()
 }
 
 pub fn hankel<ZT, OT>(order: OT, z: ZT, kind: HankelKind) -> Result<ZT, BesselError>
@@ -141,9 +137,7 @@ where
     Complex64: BackTo<ZT>,
     OT: Into<f64>,
 {
-    complex_bessel_h(z.into(), order.into(), Scaling::Unscaled, kind, 1)
-        .map(|v| v.0[0])
-        .map(|v| v.back_to())?
+    complex_bessel_h(z.into(), order.into(), Scaling::Unscaled, kind, 1)?.0[0].back_to()
 }
 
 pub fn airy<ZT>(z: ZT) -> Result<ZT, BesselError>
@@ -151,9 +145,9 @@ where
     ZT: Into<Complex<f64>> + BackTo<ZT>,
     Complex64: BackTo<ZT>,
 {
-    complex_airy(z.into(), false, Scaling::Unscaled)
-        .map(|v| v.0)
-        .map(|v| v.back_to())?
+    complex_airy(z.into(), false, Scaling::Unscaled)?
+        .0
+        .back_to()
 }
 
 pub fn airyp<ZT>(z: ZT) -> Result<ZT, BesselError>
@@ -161,9 +155,7 @@ where
     Complex64: BackTo<ZT>,
     ZT: Into<Complex<f64>> + BackTo<ZT>,
 {
-    complex_airy(z.into(), true, Scaling::Unscaled)
-        .map(|v| v.0)
-        .map(|v| v.back_to())?
+    complex_airy(z.into(), true, Scaling::Unscaled)?.0.back_to()
 }
 
 pub fn airy_b<ZT>(z: ZT) -> Result<ZT, BesselError>
@@ -171,7 +163,7 @@ where
     Complex64: BackTo<ZT>,
     ZT: Into<Complex<f64>> + BackTo<ZT>,
 {
-    complex_airy_b(z.into(), false, Scaling::Unscaled).map(|v| v.back_to())?
+    complex_airy_b(z.into(), false, Scaling::Unscaled)?.back_to()
 }
 
 pub fn airy_bp<ZT>(z: ZT) -> Result<ZT, BesselError>
@@ -179,7 +171,7 @@ where
     Complex64: BackTo<ZT>,
     ZT: Into<Complex<f64>> + BackTo<ZT>,
 {
-    complex_airy_b(z.into(), true, Scaling::Unscaled).map(|v| v.back_to())?
+    complex_airy_b(z.into(), true, Scaling::Unscaled)?.back_to()
 }
 
 #[cfg(test)]
