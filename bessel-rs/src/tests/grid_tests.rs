@@ -65,9 +65,38 @@ type Sig<T> = fn(f64, Complex<f64>) -> Result<Complex<f64>, T>;
 fn hankel1(order: f64, z: Complex<f64>) -> Result<Complex<f64>, BesselError> {
     hankel(order, z, HankelKind::First)
 }
+
 fn hankel2(order: f64, z: Complex<f64>) -> Result<Complex<f64>, BesselError> {
     hankel(order, z, HankelKind::Second)
 }
+
+///Compute relative error between computed and reference complex values.
+/// Returns None when both values are near zero (comparison meaningless).
+/// math.hypot is used to avoid overflow on large intermediate values.
+fn complex_bessel_test_relative_error(
+    computed: Complex<f64>,
+    ref_val: Complex<f64>,
+) -> Option<f64> {
+    let diff_re = computed.re - ref_val.re;
+    let diff_im = computed.im - ref_val.im;
+    let diff_mag = pymath::math::hypot(&[diff_re, diff_im]);
+
+    let ref_mag = pymath::math::hypot(&[ref_val.re, ref_val.im]);
+
+    // Both values near zero: comparison meaningless (e.g. analytic zeros,
+    // f64 underflow at extreme orders). Skip these points entirely.
+    if ref_mag < 1e-14 && diff_mag < 1e-14 {
+        return None;
+    }
+
+    if ref_mag < 1e-300 {
+        // Reference essentially zero but computed is not: real problem
+        return Some(diff_mag);
+    }
+
+    Some(diff_mag / ref_mag)
+}
+
 /// Tests for a grid of values, comparing against the complex-bessel crate.
 /// This is not intended to be exhaustive, but to catch any major issues with
 /// the implementation across a wide range of inputs. The test_bessel_extremes
@@ -104,14 +133,27 @@ fn test_bessel_grid_complex_besssel(
                     );
                     return;
                 }
-                if let Some(msg) =
-                    check_complex_arrays_equal(&actual.unwrap(), &expected.unwrap(), &Vec::new())
-                {
+                let actual = actual.unwrap();
+                let expected = expected.unwrap();
+                let rel_err = complex_bessel_test_relative_error(actual, expected);
+                print!(
+                    "\norder: {order}\nz: {z}\nactual: {actual:?}\nexpected: {expected:?}\nRelative Error: {rel_err:?}\n"
+                );
+
+                if let Some(msg) = check_complex_arrays_equal(&actual, &expected, &Vec::new()) {
                     panic!(
                         "Grid test failed\norder: {order}\nz: {z}
                     {msg}"
                     )
                 }
+                // below is the measure which is used by complex_bessel-test (though it only
+                // prints the relative error: it doesn't assert.)
+                // It's a very different measure to the one used in the fortran tests,
+                // which is based on the number of matching significant digits.
+                assert!(
+                    rel_err.is_none() || rel_err.unwrap() < 1e-10,
+                    "Relative error {rel_err:?} exceeds threshold for order {order} and z {z}",
+                );
             }
         }
     }
