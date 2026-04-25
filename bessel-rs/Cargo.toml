@@ -16,6 +16,7 @@ cc = { version = "1.2", optional = true }
 conv = "0.3.3"
 itertools = "0.14.0"
 num = "0.4.3"
+paste = "1.0.15"
 thiserror = "2.0.17"
 
 [dev-dependencies]
@@ -27,6 +28,7 @@ rstest = "0.26.1"
 rstest_reuse = "0.7.0"
 csv = "1.4.0"
 criterion = "0.7.0"
+complex-bessel = "0.2.0"
 
 [[bench]]
 name = "bessel_bench"

@@ -1,15 +1,7 @@
-use crate::types::BesselResult;
+use crate::HankelKind;
 use num::complex::Complex64;
 
-use crate::{
-    Scaling,
-    amos::{HankelKind, complex_bessel_h},
-    tests::zbesh_fortran,
-};
-
-pub fn zbesh_first(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
-    complex_bessel_h(z, order, scaling, HankelKind::First, n)
-}
+use crate::{Scaling, tests::zbesh_fortran};
 
 pub fn zbesh_fortran_first(
     order: f64,
@@ -18,10 +10,6 @@ pub fn zbesh_fortran_first(
     n: usize,
 ) -> (Vec<Complex64>, usize, i32) {
     zbesh_fortran(order, z, scaling, HankelKind::First, n)
-}
-
-pub fn zbesh_second(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
-    complex_bessel_h(z, order, scaling, HankelKind::Second, n)
 }
 
 pub fn zbesh_fortran_second(

@@ -181,7 +181,7 @@ pub fn assert_complex_arrays_equal(
 }
 
 #[must_use]
-fn check_complex_arrays_equal(
+pub fn check_complex_arrays_equal(
     actual: &impl IntoComplexVec,
     expected: &impl IntoComplexVec,
     reference: &impl IntoComplexVec,

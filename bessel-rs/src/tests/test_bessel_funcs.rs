@@ -1,9 +1,9 @@
 use super::{
     BesselFortranSig, BesselSig, airy_ref, bessel_cases, bessel_h_ref, biry_ref,
     check_against_fortran, sig_airy, sig_airy_fortran, sig_airyp, sig_airyp_fortran, sig_biry,
-    sig_biry_fortran, sig_biryp, sig_biryp_fortran, utils::assert_results_are_equal, zbesh_first,
-    zbesh_fortran_first, zbesh_fortran_second, zbesh_second, zbesi_fortran, zbesj_fortran,
-    zbesk_fortran, zbesy_fortran,
+    sig_biry_fortran, sig_biryp, sig_biryp_fortran, utils::assert_results_are_equal,
+    zbesh_fortran_first, zbesh_fortran_second, zbesi_fortran, zbesj_fortran, zbesk_fortran,
+    zbesy_fortran,
 };
 
 use complex_bessel_rs::bessel_i::bessel_i as bessel_i_ref;
@@ -14,7 +14,7 @@ use complex_bessel_rs::bessel_y::bessel_y as bessel_y_ref;
 use crate::{
     HankelKind, Scaling, airy, airy_b, airy_bp, airyp,
     amos::{complex_bessel_i, complex_bessel_j, complex_bessel_k, complex_bessel_y},
-    bessel_i, bessel_j, bessel_k, bessel_y, hankel,
+    bessel_i, bessel_j, bessel_k, bessel_y, complex_hankel1, complex_hankel2, hankel,
 };
 use num::complex::Complex64;
 use rstest::rstest;
@@ -111,8 +111,8 @@ fn test_bessel_extremes(
     #[values(
         (complex_bessel_j as BesselSig, zbesj_fortran as BesselFortranSig),
         (complex_bessel_i as BesselSig, zbesi_fortran as BesselFortranSig),
-        (zbesh_first as BesselSig , zbesh_fortran_first as BesselFortranSig),
-        (zbesh_second as BesselSig , zbesh_fortran_second as BesselFortranSig),
+        (complex_hankel1 as BesselSig , zbesh_fortran_first as BesselFortranSig),
+        (complex_hankel2 as BesselSig , zbesh_fortran_second as BesselFortranSig),
         (complex_bessel_k as BesselSig, zbesk_fortran as BesselFortranSig),
         (complex_bessel_y as BesselSig, zbesy_fortran as BesselFortranSig),
         (sig_airy as BesselSig, sig_airy_fortran as BesselFortranSig),

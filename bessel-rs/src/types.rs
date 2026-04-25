@@ -81,3 +81,22 @@ impl BesselError {
         }
     }
 }
+
+#[macro_export]
+macro_rules! simple_bessel_wrapper {
+    (
+        $(#[$meta:meta])*
+        $base_func:ident // We only pass the base function name now!
+    ) => {
+        // The paste! macro allows us to create new identifiers
+        paste! {
+            $(#[$meta])*
+            // [<simple_ $base_func>] concatenates into simple_bessel_j
+            #[inline]
+            fn [<$base_func _single>](order: f64, z: Complex64) -> Result<Complex64, BesselError> {
+                let (result_vec, _nz) = [<complex_$base_func>](z, order, Scaling::Unscaled, 1)?;
+                Ok(result_vec[0])
+            }
+        }
+    };
+}

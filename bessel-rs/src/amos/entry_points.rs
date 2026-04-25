@@ -281,6 +281,14 @@ pub fn complex_bessel_h(
     }
 }
 
+pub fn complex_hankel1(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
+    complex_bessel_h(z, order, scaling, HankelKind::First, n)
+}
+
+pub fn complex_hankel2(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
+    complex_bessel_h(z, order, scaling, HankelKind::Second, n)
+}
+
 pub fn complex_bessel_i(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
     // ***BEGIN PROLOGUE  ZBESI
     // ***DATE WRITTEN   830501   (YYMMDD)
