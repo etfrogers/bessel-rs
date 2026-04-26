@@ -1,8 +1,8 @@
 use std::f64::consts::PI;
 
-use crate::types::BackTo;
+use bessel_rs::types::BackTo;
 
-use super::{bessel_j, bessel_y};
+use bessel_rs::{bessel_j, bessel_y};
 use conv::ConvUtil;
 use num::Complex;
 

@@ -49,7 +49,6 @@ dependencies = [
  "complex-bessel-rs",
  "conv",
  "criterion",
- "csv",
  "itertools 0.14.0",
  "num",
  "paste",
@@ -58,6 +57,18 @@ dependencies = [
  "rstest",
  "rstest_reuse",
  "thiserror",
+]
+
+[[package]]
+name = "bessel_zeros"
+version = "0.1.0"
+dependencies = [
+ "approx",
+ "bessel-rs",
+ "conv",
+ "csv",
+ "num",
+ "rstest",
 ]
 
 [[package]]

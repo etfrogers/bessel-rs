@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["bessel-rs", "complex-bessel-test"]
+members = ["bessel-rs", "bessel_zeros", "complex-bessel-test"]
 
 [profile.profiling]
 inherits = "release"

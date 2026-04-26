@@ -72,9 +72,9 @@
 //! or -pi/2+p.
 
 mod amos;
-mod bessel_zeros;
+
 mod reflections;
-mod types;
+pub mod types;
 
 use std::ops::Mul;
 
@@ -86,7 +86,7 @@ pub use amos::{
 use num::{Complex, complex::Complex64};
 pub use types::{BackTo, BesselError};
 
-pub use bessel_zeros::{BesselFunType, bessel_zeros};
+
 
 use crate::reflections::{
     as_integer, integer_sign, reflect_h_element, reflect_i_element, reflect_j_element,

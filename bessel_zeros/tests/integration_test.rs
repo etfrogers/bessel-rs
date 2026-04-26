@@ -1,8 +1,8 @@
 use std::error::Error;
 
-use crate::{bessel_j, bessel_y};
+use bessel_rs::{bessel_j, bessel_y};
 
-use crate::{BesselFunType, bessel_zeros};
+use bessel_zeros::{BesselFunType, bessel_zeros};
 use approx::assert_relative_eq;
 use rstest::rstest;
 
