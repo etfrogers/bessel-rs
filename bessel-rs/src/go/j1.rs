@@ -70,7 +70,7 @@
 use std::f64::{self, consts::PI};
 
 use super::{TWO_129, TWO_M27, TWO_M54};
-use crate::{BesselError, amos::BesselResult};
+use crate::types::{BesselError, BesselResult};
 
 // J1 returns the order-one Bessel function of the first kind.
 //

@@ -1,6 +1,6 @@
-use crate::BesselError;
 use crate::go::{bessel_j0_real, bessel_y0_real};
 use crate::tests::bessel_cases;
+use crate::types::BesselError;
 use approx::assert_relative_eq;
 use rstest::rstest;
 use rstest_reuse::apply;

@@ -7,8 +7,9 @@ use crate::tests::{
     zbesy_fortran,
 };
 use crate::{
-    BesselError, HankelKind, Scaling, bessel_i, bessel_j, bessel_k, bessel_y, complex_bessel_i,
+    HankelKind, Scaling, bessel_i, bessel_j, bessel_k, bessel_y, complex_bessel_i,
     complex_bessel_j, complex_bessel_k, complex_bessel_y, complex_hankel1, complex_hankel2, hankel,
+    types::BesselError,
 };
 
 use complex_bessel::besseli as bessel_i_ref;

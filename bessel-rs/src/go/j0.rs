@@ -73,8 +73,7 @@ use std::f64;
 use std::f64::consts::PI;
 
 use super::{TWO_129, TWO_M13, TWO_M27};
-use crate::BesselError;
-use crate::amos::BesselResult;
+use crate::types::{BesselError, BesselResult};
 
 // J0 returns the order-zero Bessel function of the first kind.
 //

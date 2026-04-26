@@ -49,7 +49,7 @@
 
 use num::Integer;
 
-use crate::amos::BesselResult;
+use crate::types::BesselResult;
 
 use super::{TWO_302, TWO_M29, j0::j0, j1::j1};
 use std::f64::{self, consts::PI};
