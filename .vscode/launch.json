@@ -5,6 +5,17 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python: Current File (uv)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "python": "${workspaceFolder}/complex-bessel-test/python/.venv/bin/python", // On Windows use: "${workspaceFolder}/.venv/Scripts/python.exe"
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
             "type": "lldb",
             "request": "launch",
             "name": "Debug Bench",
