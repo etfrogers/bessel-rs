@@ -1,3 +1,22 @@
+//! # Bessel Zeros
+//!
+//! A crate for finding the zeros of the Bessel functions.
+//!
+//! This crate uses the routine described in:
+//! "An Algorithm with ALGOL 60 Program for the Computation of the
+//! zeros of the Ordinary Bessel Functions and those of their
+//! Derivatives".
+//! N. M. Temme
+//! Journal of Computational Physics, 32, 270-279 (1979)
+//!
+//! This is a translation (via several intermediate steps)
+//! of Adam Wyatt's Matlab version of this code
+
+// TODO: consider the API. Would it be worth separate functions for each type of Bessel function,
+// or is it better to have a single function with an enum argument? \
+// The latter is more extensible, but the former is more user-friendly. Maybe both?
+// Single functions might be better with a default precsision.
+
 use std::f64::consts::PI;
 
 use bessel_rs::types::BackTo;
@@ -6,11 +25,16 @@ use bessel_rs::{bessel_j, bessel_y};
 use conv::ConvUtil;
 use num::Complex;
 
+/// The type of Bessel function of which to find the zeros.
 #[derive(Debug, PartialEq)]
 pub enum BesselFunType {
+    /// Bessel function of the first kind, Jv(x)
     J,
+    /// Bessel function of the second kind, Yv(x)
     Y,
+    /// Derivative of the Bessel function of the first kind, Jv'(x)
     JP,
+    /// Derivative of the Bessel function of the second kind, Yv'(x)
     YP,
 }
 
@@ -20,28 +44,19 @@ impl BesselFunType {
     }
 }
 
-//BESSEL_ZEROS: Finds the first n zeros of a bessel function
-//
-//	z = bessel_zeros(d, a, n, e)
-//
-//	z	=	zeros of the bessel function
-//	d	=	Bessel function type:
-//			1:	Ja
-//			2:	Ya
-//			3:	Ja'
-//			4:	Ya'
-//	a	=	Bessel order (a>=0)
-//	n	=	Number of zeros to find
-//	e	=	Relative error in root
-//
-//	This function uses the routine described in:
-//		"An Algorithm with ALGOL 60 Program for the Computation of the
-//		zeros of the Ordinary Bessel Functions and those of their
-//		Derivatives".
-//		N. M. Temme
-//		Journal of Computational Physics, 32, 270-279 (1979)
-//
-// Translated from Adam Wyatt's Matlab version
+/// Finds the first n zeros of a Bessel function.
+///
+/// # Arguments
+///
+/// * `func_type` - The type of Bessel function to find the zeros of.
+/// * `order` - The order of the Bessel function (must be >= 0).
+/// * `n_zeros` - The number of zeros to find.
+/// * `precision` - The relative error in the root.
+///
+/// # Returns
+///
+/// A vector containing the first `n_zeros` of the specified Bessel function.
+///
 pub fn bessel_zeros<OT: Into<f64> + num::Num>(
     func_type: &BesselFunType,
     order: OT,
