@@ -68,11 +68,11 @@
 //         by the method mentioned above.
 //      3. Special cases: y0(0)=-inf, y0(x<0)=NaN, y0(inf)=0.
 //
-
-use std::f64;
-use std::f64::consts::PI;
+#![allow(clippy::excessive_precision)]
 
 use super::{TWO_129, TWO_M13, TWO_M27};
+use std::f64;
+use std::f64::consts::PI;
 
 // J0 returns the order-zero Bessel function of the first kind.
 //
@@ -145,12 +145,12 @@ pub fn j0(x: f64) -> f64 {
     let z = x * x;
     let r = z * (R02 + z * (R03 + z * (R04 + z * R05)));
     let s = 1.0 + z * (S01 + z * (S02 + z * (S03 + z * S04)));
-    return if x < 1.0 {
+    if x < 1.0 {
         1.0 + z * (-0.25 + (r / s)) // |x| < 1.00
     } else {
         let u = 0.5 * x;
         (1.0 + u) * (1.0 - u) + z * (r / s) // 1.0 < |x| < 2.0
-    };
+    }
 }
 
 // Y0 returns the order-zero Bessel function of the second kind.

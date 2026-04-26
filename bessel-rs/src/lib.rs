@@ -131,7 +131,7 @@ where
     let j = bessel_j_single(abs_order, z)?;
     let y = bessel_y_single(abs_order, z)?;
 
-    Ok(reflect_j_element(abs_order, j.into(), y.into()).back_to()?)
+    reflect_j_element(abs_order, j, y).back_to()
 }
 
 pub fn bessel_i<ZT, OT>(order: OT, z: ZT) -> Result<ZT, BesselError>
@@ -157,7 +157,7 @@ where
     let i = bessel_i_single(abs_order, z)?;
     let k = bessel_k_single(abs_order, z)?;
 
-    Ok(reflect_i_element(abs_order, i, k).back_to()?)
+    reflect_i_element(abs_order, i, k).back_to()
 }
 
 pub fn bessel_k<ZT, OT>(order: OT, z: ZT) -> Result<ZT, BesselError>
@@ -188,14 +188,14 @@ where
     // Integer shortcut: Y_{-n}(z) = (-1)^n * Y_n(z)
     if let Some(n) = as_integer(abs_order) {
         let y = bessel_y_single(abs_order, z)?;
-        return Ok((y * integer_sign(n)).back_to()?);
+        return (y * integer_sign(n)).back_to();
     }
 
     // General case: need both J and Y at positive |ν|
     let j = bessel_j_single(abs_order, z)?;
     let y = bessel_y_single(abs_order, z)?;
 
-    Ok(reflect_y_element(abs_order, j, y).back_to()?)
+    reflect_y_element(abs_order, j, y).back_to()
 }
 
 pub fn hankel<ZT, OT>(order: OT, z: ZT, kind: HankelKind) -> Result<ZT, BesselError>
@@ -215,7 +215,7 @@ where
         // Need to reflect the Hankel function for negative orders, but this is just a rotation, so no loss of significance.
         h = reflect_h_element(abs_order, kind, h);
     }
-    Ok(h.back_to()?)
+    h.back_to()
 }
 
 pub fn airy<ZT>(z: ZT) -> Result<ZT, BesselError>

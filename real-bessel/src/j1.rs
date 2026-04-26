@@ -66,7 +66,7 @@
 //               y1(x) = sqrt(2/(pi*x))*(p1(x)*sin(x1)+q1(x)*cos(x1))
 //         where x1 = x-3*pi/4. It is better to compute sin(x1),cos(x1)
 //         by method mentioned above.
-
+#![allow(clippy::excessive_precision)]
 use std::f64::{self, consts::PI};
 
 use super::{TWO_129, TWO_M27, TWO_M54};

@@ -47,7 +47,7 @@
 //      yn(n,x) is similar in all respects, except
 //      that forward recursion is used for all
 //      values of n>1.
-
+#![allow(clippy::excessive_precision)]
 use num::Integer;
 
 use super::{TWO_302, TWO_M29, j0::j0, j1::j1};
