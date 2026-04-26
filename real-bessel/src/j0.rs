@@ -73,7 +73,6 @@ use std::f64;
 use std::f64::consts::PI;
 
 use super::{TWO_129, TWO_M13, TWO_M27};
-use crate::types::{BesselError, BesselResult};
 
 // J0 returns the order-zero Bessel function of the first kind.
 //
@@ -82,7 +81,7 @@ use crate::types::{BesselError, BesselResult};
 //	J0(±Inf) = 0
 //	J0(0) = 1
 //	J0(NaN) = NaN
-pub fn j0(x: f64) -> BesselResult<f64> {
+pub fn j0(x: f64) -> f64 {
     // R0/S0 on [0, 2]
     const R02: f64 = 1.56249999999999947958e-02; // 0x3F8FFFFFFFFFFFFD
     const R03: f64 = -1.89979294238854721751e-04; // 0xBF28E6A5B61AC6E9
@@ -96,13 +95,13 @@ pub fn j0(x: f64) -> BesselResult<f64> {
     // special cases
     // switch {
     if x.is_nan() {
-        return Ok(f64::NAN);
+        return f64::NAN;
     }
     if x.is_infinite() {
-        return Ok(0.0);
+        return 0.0;
     }
     if x == 0.0 {
-        return Ok(1.0);
+        return 1.0;
     }
 
     let x = x.abs();
@@ -132,25 +131,25 @@ pub fn j0(x: f64) -> BesselResult<f64> {
             let v = qzero(x);
             (1.0 / PI.sqrt()) * (u * cc - v * ss) / x.sqrt()
         };
-        return Ok(z); // |x| >= 2.0
+        return z; // |x| >= 2.0
     }
 
     if x < TWO_M13 {
         // |x| < ~1.2207e-4
         return if x < TWO_M27 {
-            Ok(1.0) // |x| < ~7.4506e-9
+            1.0 // |x| < ~7.4506e-9
         } else {
-            Ok(1.0 - 0.25 * x * x) // ~7.4506e-9 < |x| < ~1.2207e-4
+            1.0 - 0.25 * x * x // ~7.4506e-9 < |x| < ~1.2207e-4
         };
     }
     let z = x * x;
     let r = z * (R02 + z * (R03 + z * (R04 + z * R05)));
     let s = 1.0 + z * (S01 + z * (S02 + z * (S03 + z * S04)));
     return if x < 1.0 {
-        Ok(1.0 + z * (-0.25 + (r / s))) // |x| < 1.00
+        1.0 + z * (-0.25 + (r / s)) // |x| < 1.00
     } else {
         let u = 0.5 * x;
-        Ok((1.0 + u) * (1.0 - u) + z * (r / s)) // 1.0 < |x| < 2.0
+        (1.0 + u) * (1.0 - u) + z * (r / s) // 1.0 < |x| < 2.0
     };
 }
 
@@ -162,7 +161,7 @@ pub fn j0(x: f64) -> BesselResult<f64> {
 //	Y0(0) = -Inf
 //	Y0(x < 0) = NaN
 //	Y0(NaN) = NaN
-pub fn y0(x: f64) -> BesselResult<f64> {
+pub fn y0(x: f64) -> Result<f64, String> {
     // const TwoM27:f64 = 1.0 / (1 << 27)        ;     // 2**-27 0x3e40000000000000
     // const Two129:f64  = 1 << 129                    // 2**129 0x4800000000000000
     const U00: f64 = -7.38042951086872317523e-02; // 0xBFB2E4D699CBD01F
@@ -179,9 +178,7 @@ pub fn y0(x: f64) -> BesselResult<f64> {
 
     // special cases
     if x < 0.0 {
-        return Err(BesselError::InvalidInput {
-            details: "y0 is not implemented for z < 0".to_string(),
-        });
+        return Err("y0 is not implemented for z < 0".to_string());
     }
     if x.is_nan() {
         return Ok(f64::NAN);
@@ -239,7 +236,7 @@ pub fn y0(x: f64) -> BesselResult<f64> {
         let z = x * x;
         let u = U00 + z * (U01 + z * (U02 + z * (U03 + z * (U04 + z * (U05 + z * U06)))));
         let v = 1.0 + z * (V01 + z * (V02 + z * (V03 + z * V04)));
-        Ok(u / v + (2.0 / PI) * j0(x)? * x.ln()) // ~7.4506e-9 < |x| < 2.0
+        Ok(u / v + (2.0 / PI) * j0(x) * x.ln()) // ~7.4506e-9 < |x| < 2.0
     }
 }
 

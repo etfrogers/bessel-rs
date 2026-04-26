@@ -12,7 +12,8 @@
 
 // The original C code and the long comment below are
 // from FreeBSD's /usr/src/lib/msun/src/e_jn.c and
-// came with this notice. The go code is a simplified
+// came with this notice.
+// The go code is a simplified
 // version of the original C.
 //
 // ====================================================
@@ -49,8 +50,6 @@
 
 use num::Integer;
 
-use crate::types::BesselResult;
-
 use super::{TWO_302, TWO_M29, j0::j0, j1::j1};
 use std::f64::{self, consts::PI};
 
@@ -60,7 +59,7 @@ use std::f64::{self, consts::PI};
 //
 //	Jn(n, ±Inf) = 0
 //	Jn(n, NaN) = NaN
-pub fn jn(n: i32, x: f64) -> BesselResult<f64> {
+pub fn jn(n: i32, x: f64) -> f64 {
     // const (
     // 	TwoM29 = 1.0 / (1 << 29) // 2**-29 0x3e10000000000000
     // 	Two302 = 1 << 302        // 2**302 0x52D0000000000000
@@ -68,13 +67,13 @@ pub fn jn(n: i32, x: f64) -> BesselResult<f64> {
     // special cases
     // switch {\
     if x.is_nan() {
-        return Ok(f64::NAN);
+        return f64::NAN;
     }
     // case IsNaN(x):
     // 	return x
     // case IsInf(x, 0):
     if x.is_infinite() {
-        return Ok(0.0);
+        return 0.0;
     }
     // J(-n, x) = (-1)**n * J(n, x), J(n, -x) = (-1)**n * J(n, x)
     // Thus, J(-n, x) = J(n, -x)
@@ -83,7 +82,7 @@ pub fn jn(n: i32, x: f64) -> BesselResult<f64> {
         return j0(x);
     }
     if x == 0.0 {
-        return Ok(0.0);
+        return 0.0;
     }
     let (n, x) = if n < 0 { (-n, -x) } else { (n, x) };
     if n == 1 {
@@ -123,8 +122,8 @@ pub fn jn(n: i32, x: f64) -> BesselResult<f64> {
             };
             (1.0 / PI.sqrt()) * temp / x.sqrt()
         } else {
-            let mut b = j1(x)?;
-            let mut a = j0(x)?;
+            let mut b = j1(x);
+            let mut a = j0(x);
             for i in 1..n {
                 let two_i: f64 = (i + i).into();
                 (a, b) = (b, b * (two_i / x) - a) // avoid underflow
@@ -242,11 +241,11 @@ pub fn jn(n: i32, x: f64) -> BesselResult<f64> {
                     }
                 }
             }
-            b = t * j0(x)? / b;
+            b = t * j0(x) / b;
             b
         }
     };
-    if sign { Ok(-b) } else { Ok(b) }
+    if sign { -b } else { b }
 }
 /*
 // Yn returns the order-n Bessel function of the second kind.

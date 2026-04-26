@@ -77,13 +77,12 @@ mod reflections;
 pub mod types;
 
 use std::ops::Mul;
-pub mod go;
 
 use crate::reflections::{
     as_integer, integer_sign, reflect_h_element, reflect_i_element, reflect_j_element,
     reflect_y_element,
 };
-use crate::types::{BackTo, BesselError};
+pub use crate::types::{BackTo, BesselError};
 pub use amos::{GammaError, HankelKind, Scaling};
 pub use amos::{
     complex_airy, complex_airy_b, complex_bessel_h, complex_bessel_i, complex_bessel_j,

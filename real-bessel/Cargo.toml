@@ -1,0 +1,14 @@
+[package]
+name = "real-bessel"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+thiserror = "2.0.17"
+num = "0.4.3"
+
+[dev-dependencies]
+bessel-rs = { path = "../bessel-rs" }
+approx = { version = "0.5.1", features = ["num-complex"] }
+rstest = "0.26.1"
+rstest_reuse = "0.7.0"
