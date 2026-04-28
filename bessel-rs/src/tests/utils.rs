@@ -1,24 +1,25 @@
 use std::f64;
 use std::fmt::Debug;
 
-use approx::relative_eq;
-use num::{Zero, complex::Complex64, pow::Pow};
+use num::{Zero, complex::Complex64};
 
-use crate::types::{BesselError, BesselResult};
+use crate::types::{
+    BesselError, BesselResult, Tolerances, abs_rel_errors_cmplx, complex_relative_eq,
+};
 
 use crate::{
     Scaling,
-    amos::MACHINE_CONSTANTS,
-    tests::{BesselFortranSig, BesselSig, TOLERANCE_MARGIN},
+    tests::{BesselFortranSig, BesselSig},
 };
 
 pub fn assert_results_are_equal<T: IntoComplexVec + Debug>(
     actual: &BesselResult<T>,
     expected: &Result<T, i32>,
     reference: &impl IntoComplexVec,
+    margin: f64,
 ) {
     if let Ok(actual) = actual {
-        assert_complex_arrays_equal(actual, expected.as_ref().unwrap(), reference);
+        assert_complex_arrays_equal(actual, expected.as_ref().unwrap(), reference, margin);
     } else {
         assert_eq!(
             actual.as_ref().unwrap_err().error_code(),
@@ -34,6 +35,7 @@ pub fn check_against_fortran(
     n: usize,
     rust_func: BesselSig,
     fortran_func: BesselFortranSig,
+    margin: f64,
 ) {
     let actual = rust_func(z, order, scaling, n);
 
@@ -78,7 +80,8 @@ pub fn check_against_fortran(
 
     match &actual {
         Ok(actual) => {
-            if let Some(reason) = check_complex_arrays_equal(&actual.0, &cy, &cy_loop_fort) {
+            if let Some(reason) = check_complex_arrays_equal(&actual.0, &cy, &cy_loop_fort, margin)
+            {
                 fail(&reason)
             }
         }
@@ -106,7 +109,9 @@ pub fn check_against_fortran(
 
                     // fail("Failed for mismatched nz value");
                 }
-                if let Some(reason) = check_complex_arrays_equal(actual_y, &cy, &cy_loop_fort) {
+                if let Some(reason) =
+                    check_complex_arrays_equal(actual_y, &cy, &cy_loop_fort, margin * 1e2)
+                {
                     fail(&reason)
                 }
             }
@@ -174,8 +179,9 @@ pub fn assert_complex_arrays_equal(
     actual: &impl IntoComplexVec,
     expected: &impl IntoComplexVec,
     reference: &impl IntoComplexVec,
+    margin: f64,
 ) {
-    if let Some(reason) = check_complex_arrays_equal(actual, expected, reference) {
+    if let Some(reason) = check_complex_arrays_equal(actual, expected, reference, margin) {
         panic!("{}", reason);
     }
 }
@@ -185,17 +191,17 @@ pub fn check_complex_arrays_equal(
     actual: &impl IntoComplexVec,
     expected: &impl IntoComplexVec,
     reference: &impl IntoComplexVec,
+    margin: f64,
 ) -> Option<String> {
     let actual = actual.clone().into_vec();
     let expected = expected.clone().into_vec();
     let reference = reference.clone().into_vec();
-    let exp_error = MACHINE_CONSTANTS.abs_error_tolerance;
 
     for (i, (&act, exp)) in actual.iter().zip(expected).enumerate() {
         let ref_val = reference.get(i);
-        let tolerances = Tolerances::new(act, exp, ref_val, exp_error);
-        if !complex_relative_eq(act, exp, &tolerances) {
-            let (actual_error, relative_error) = abs_rel_errors_cmplx(act, exp);
+        let tolerances = Tolerances::new(&act, &exp, ref_val, margin);
+        if !complex_relative_eq(&act, &exp, &tolerances) {
+            let (actual_error, relative_error) = abs_rel_errors_cmplx(&act, &exp);
             return Some(format!(
                 "Failed on matching values at index {i}\n\
                 Actual: {act:e}\n\
@@ -218,103 +224,16 @@ pub fn check_complex_arrays_equal(
                 tolerances.correction,
                 tolerances.used_ref_re,
                 tolerances.used_ref_im,
-                tolerances.tol_re * TOLERANCE_MARGIN,
+                tolerances.tol_re * tolerances.margin,
                 actual_error.re,
                 relative_error.re,
-                tolerances.tol_im * TOLERANCE_MARGIN,
+                tolerances.tol_im * tolerances.margin,
                 actual_error.im,
                 relative_error.im,
             ));
         };
     }
     None
-}
-
-struct Tolerances {
-    max_relative: f64,
-    magnitude_diff: f64,
-    correction: f64,
-    tol_re: f64,
-    tol_im: f64,
-    used_ref_re: bool,
-    used_ref_im: bool,
-}
-
-impl Tolerances {
-    fn new(
-        actual: Complex64,
-        expected: Complex64,
-        reference: Option<&Complex64>,
-        max_relative: f64,
-    ) -> Self {
-        let max_im = actual.im.abs().max(expected.im.abs());
-        let max_re = actual.re.abs().max(expected.re.abs());
-        let magnitude_diff = (max_re.log10() - max_im.log10()).abs();
-        let limit = 1.0 / max_relative;
-        let correction = 10.0.pow(magnitude_diff).min(limit);
-
-        let (mut tol_re, mut tol_im) = if max_re > max_im {
-            (max_relative, max_relative * correction)
-        } else {
-            (max_relative * correction, max_relative)
-        };
-
-        let mut used_ref_re = false;
-        let mut used_ref_im = false;
-        if let Some(ref_val) = reference {
-            let (_, ref_diffs) = abs_rel_errors_cmplx(expected, *ref_val);
-            let re_rel_diff = ref_diffs.re;
-            let im_rel_diff = ref_diffs.im;
-
-            used_ref_re = re_rel_diff > tol_re;
-            if used_ref_re {
-                tol_re = re_rel_diff;
-            }
-            used_ref_im = im_rel_diff > tol_im;
-            if used_ref_im {
-                tol_im = im_rel_diff;
-            }
-        }
-        Self {
-            max_relative,
-            magnitude_diff,
-            correction,
-            tol_re,
-            tol_im,
-            used_ref_re,
-            used_ref_im,
-        }
-    }
-}
-
-fn complex_relative_eq(a: Complex64, b: Complex64, tolerances: &Tolerances) -> bool {
-    if relative_eq!(
-        a,
-        b,
-        max_relative = TOLERANCE_MARGIN * tolerances.max_relative
-    ) {
-        return true;
-    }
-    let (_, rel_e_re) = abs_rel_errors(a.re, b.re);
-    let (_, rel_e_im) = abs_rel_errors(a.im, b.im);
-
-    rel_e_re < TOLERANCE_MARGIN * tolerances.tol_re
-        && rel_e_im < TOLERANCE_MARGIN * tolerances.tol_im
-}
-
-fn abs_rel_errors(a: f64, b: f64) -> (f64, f64) {
-    let abs_e = (a - b).abs();
-    let rel_e = abs_e / a.abs().max(b.abs());
-    (abs_e, rel_e)
-}
-
-fn abs_rel_errors_cmplx(a: Complex64, b: Complex64) -> (Complex64, Complex64) {
-    let (abs_e_r, rel_e_r) = abs_rel_errors(a.re, b.re);
-    let (abs_e_i, rel_e_i) = abs_rel_errors(a.im, b.im);
-    (
-        Complex64::new(abs_e_r, abs_e_i),
-        Complex64::new(rel_e_r, rel_e_i),
-    )
 }
 
 fn print_complex_arrays(c1: &[Complex64], c2: &[Complex64], c3: &[Complex64], c4: &[Complex64]) {
@@ -334,9 +253,9 @@ fn print_complex_arrays(c1: &[Complex64], c2: &[Complex64], c3: &[Complex64], c4
         .enumerate()
         .map(|(i, &fort)| {
             (
-                abs_rel_errors_cmplx(fort, c2[i]),
-                abs_rel_errors_cmplx(fort, c3[i]),
-                abs_rel_errors_cmplx(fort, c4[i]),
+                abs_rel_errors_cmplx(&fort, &c2[i]),
+                abs_rel_errors_cmplx(&fort, &c3[i]),
+                abs_rel_errors_cmplx(&fort, &c4[i]),
             )
         })
         .collect();

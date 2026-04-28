@@ -26,7 +26,7 @@ fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     let actual = bessel_j(order, z);
 
     let expected = bessel_j_ref(order, z.into());
-    assert_results_are_equal(&actual, &expected, &Vec::new());
+    assert_results_are_equal(&actual, &expected, &Vec::new(), 1e6);
 }
 
 #[apply(bessel_cases)]
@@ -37,7 +37,7 @@ fn test_bessel_i(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     // dbg!(&actual);
 
     let expected = bessel_i_ref(order, z.into());
-    assert_results_are_equal(&actual, &expected, &Vec::new());
+    assert_results_are_equal(&actual, &expected, &Vec::new(), 1e6);
 }
 
 #[apply(bessel_cases)]
@@ -47,7 +47,7 @@ fn test_bessel_k(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     let actual = bessel_k(order, z);
 
     let expected = bessel_k_ref(order, z.into());
-    assert_results_are_equal(&actual, &expected, &Vec::new());
+    assert_results_are_equal(&actual, &expected, &Vec::new(), 1e6);
 }
 
 #[apply(bessel_cases)]
@@ -57,7 +57,7 @@ fn test_bessel_y(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     let actual = bessel_y(order, z);
 
     let expected = bessel_y_ref(order, z.into());
-    assert_results_are_equal(&actual, &expected, &Vec::new());
+    assert_results_are_equal(&actual, &expected, &Vec::new(), 1e6);
 }
 
 #[apply(bessel_cases)]
@@ -73,7 +73,7 @@ fn test_bessel_h(
     // dbg!(&actual);
     let expected = bessel_h_ref(order, z.into(), kind);
     // dbg!(&expected);
-    assert_results_are_equal(&actual, &expected, &Vec::new());
+    assert_results_are_equal(&actual, &expected, &Vec::new(), 1e6);
 }
 
 #[apply(bessel_cases)]
@@ -88,7 +88,7 @@ fn test_airy(
 
     let actual = if is_derivative { airyp(z) } else { airy(z) };
     let expected = airy_ref(z, is_derivative);
-    assert_results_are_equal(&actual, &expected, &Vec::new());
+    assert_results_are_equal(&actual, &expected, &Vec::new(), 1e6);
 }
 
 #[apply(bessel_cases)]
@@ -103,7 +103,7 @@ fn test_biry(
 
     let actual = if is_derivative { airy_bp(z) } else { airy_b(z) };
     let expected = biry_ref(z, is_derivative);
-    assert_results_are_equal(&actual, &expected, &Vec::new());
+    assert_results_are_equal(&actual, &expected, &Vec::new(), 1e6);
 }
 
 #[rstest]
@@ -149,5 +149,5 @@ fn test_bessel_extremes(
 ) {
     let n = 9;
     let z = Complex64::new(zr, zi);
-    check_against_fortran(order, z, scaling, n, rust_fn, fortran_fn);
+    check_against_fortran(order, z, scaling, n, rust_fn, fortran_fn, 1e6);
 }

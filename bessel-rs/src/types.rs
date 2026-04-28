@@ -1,6 +1,8 @@
+use approx::relative_eq;
 use num::{
     Complex,
     complex::{Complex64, ComplexFloat},
+    pow::Pow,
 };
 use thiserror::Error;
 
@@ -27,10 +29,16 @@ impl BackTo<f64> for f64 {
 
 impl BackTo<f64> for Complex64 {
     fn back_to(&self) -> BesselResult<f64> {
-        if self.im() > 1000.0 * MACHINE_CONSTANTS.abs_error_tolerance {
-            Err(BesselError::ComplexOutputForRealInput { output: *self })
-        } else {
+        const MARGIN: f64 = 1000.0;
+        if self.im() < MARGIN * MACHINE_CONSTANTS.abs_error_tolerance {
+            return Ok(self.re());
+        }
+
+        let tolerances = Tolerances::new(&self, &self, None, MARGIN);
+        if complex_relative_eq(self, &Complex::new(self.re(), 0.0), &tolerances) {
             Ok(self.re())
+        } else {
+            Err(BesselError::ComplexOutputForRealInput { output: *self })
         }
     }
 }
@@ -99,4 +107,97 @@ macro_rules! simple_bessel_wrapper {
             }
         }
     };
+}
+
+// Dead code is used in the tests, but not in the main library, so we allow it here.
+#[allow(dead_code)]
+pub(crate) struct Tolerances {
+    pub max_relative: f64,
+    pub magnitude_diff: f64,
+    pub correction: f64,
+    pub tol_re: f64,
+    pub tol_im: f64,
+    pub used_ref_re: bool,
+    pub used_ref_im: bool,
+    pub margin: f64,
+}
+
+impl Tolerances {
+    pub(crate) fn new(
+        actual: &Complex64,
+        expected: &Complex64,
+        reference: Option<&Complex64>,
+        margin: f64,
+    ) -> Self {
+        let max_relative = MACHINE_CONSTANTS.abs_error_tolerance;
+
+        let max_im = actual.im.abs().max(expected.im.abs());
+        let max_re = actual.re.abs().max(expected.re.abs());
+        let magnitude_diff = (max_re.log10() - max_im.log10()).abs();
+        let limit = 1.0 / max_relative;
+        let correction = 10.0.pow(magnitude_diff).min(limit);
+
+        let (mut tol_re, mut tol_im) = if max_re > max_im {
+            (max_relative, max_relative * correction)
+        } else {
+            (max_relative * correction, max_relative)
+        };
+
+        let mut used_ref_re = false;
+        let mut used_ref_im = false;
+        if let Some(ref_val) = reference {
+            let (_, ref_diffs) = abs_rel_errors_cmplx(expected, ref_val);
+            let re_rel_diff = ref_diffs.re;
+            let im_rel_diff = ref_diffs.im;
+
+            used_ref_re = re_rel_diff > tol_re;
+            if used_ref_re {
+                tol_re = re_rel_diff;
+            }
+            used_ref_im = im_rel_diff > tol_im;
+            if used_ref_im {
+                tol_im = im_rel_diff;
+            }
+        }
+        Self {
+            max_relative,
+            magnitude_diff,
+            correction,
+            tol_re,
+            tol_im,
+            used_ref_re,
+            used_ref_im,
+            margin,
+        }
+    }
+}
+
+pub(crate) fn complex_relative_eq(a: &Complex64, b: &Complex64, tolerances: &Tolerances) -> bool {
+    if relative_eq!(
+        a,
+        b,
+        max_relative = tolerances.margin * tolerances.max_relative
+    ) {
+        return true;
+    }
+    let (_, rel_e_re) = abs_rel_errors(a.re, b.re);
+    let (_, rel_e_im) = abs_rel_errors(a.im, b.im);
+
+    rel_e_re < tolerances.margin * tolerances.tol_re
+        && rel_e_im < tolerances.margin * tolerances.tol_im
+}
+
+fn abs_rel_errors(a: f64, b: f64) -> (f64, f64) {
+    let abs_e = (a - b).abs();
+    let rel_e = abs_e / a.abs().max(b.abs());
+    (abs_e, rel_e)
+}
+
+pub(crate) fn abs_rel_errors_cmplx(a: &Complex64, b: &Complex64) -> (Complex64, Complex64) {
+    let (abs_e_r, rel_e_r) = abs_rel_errors(a.re, b.re);
+    let (abs_e_i, rel_e_i) = abs_rel_errors(a.im, b.im);
+    (
+        Complex64::new(abs_e_r, abs_e_i),
+        Complex64::new(rel_e_r, rel_e_i),
+    )
 }

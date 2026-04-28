@@ -97,7 +97,6 @@ use num::{Complex, complex::Complex64};
 // TODO Overflow to positive or negative infinity, or zero?
 // TODO Handle Vectors/ndarrays for z
 // TODO Unwrap PLOS?
-// TODO smaller crates for real, zeros
 // TODO check validity of real functions
 
 pub trait BesselInput: Into<Complex<f64>> + BackTo<Self> + Mul<f64, Output = Self>

@@ -35,7 +35,7 @@ fn test_bessel_large_n_real(
     // #[values(Scaling::Unscaled)] scaling: Scaling,
 ) {
     // ignores the zi input
-    check_against_fortran(order, zr.into(), scaling, n, rust_fn, fortran_fn);
+    check_against_fortran(order, zr.into(), scaling, n, rust_fn, fortran_fn, 1e6);
 }
 
 #[apply(bessel_cases)]
@@ -59,5 +59,5 @@ fn test_bessel_large_n_complex(
     // #[values(Scaling::Unscaled)] scaling: Scaling,
 ) {
     let z = Complex64::new(zr, zi);
-    check_against_fortran(order, z, scaling, n, rust_fn, fortran_fn);
+    check_against_fortran(order, z, scaling, n, rust_fn, fortran_fn, 1e6);
 }

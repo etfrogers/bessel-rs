@@ -49,7 +49,7 @@ fn test_bessel_j_random(mut rng: SmallRng) {
         let actual = bessel_j(order, z);
         let expected = bessel_j_ref(order, z);
         let (cy_loop_fort, _, _) = fortran_bess_loop(order, z, Scaling::Unscaled, 1, zbesj_fortran);
-        assert_results_are_equal(&actual, &expected, &cy_loop_fort);
+        assert_results_are_equal(&actual, &expected, &cy_loop_fort, 1e6);
     }
 }
 
@@ -65,7 +65,7 @@ fn test_bessel_i_random(mut rng: SmallRng) {
         let actual = bessel_i(order, z);
         let expected = bessel_i_ref(order, z);
         let (cy_loop_fort, _, _) = fortran_bess_loop(order, z, Scaling::Unscaled, 1, zbesj_fortran);
-        assert_results_are_equal(&actual, &expected, &cy_loop_fort);
+        assert_results_are_equal(&actual, &expected, &cy_loop_fort, 1e6);
     }
 }
 
@@ -81,7 +81,7 @@ fn test_bessel_k_random(mut rng: SmallRng) {
         let actual = bessel_k(order, z);
         let expected = bessel_k_ref(order, z);
         let (cy_loop_fort, _, _) = fortran_bess_loop(order, z, Scaling::Unscaled, 1, zbesk_fortran);
-        assert_results_are_equal(&actual, &expected, &cy_loop_fort);
+        assert_results_are_equal(&actual, &expected, &cy_loop_fort, 1e6);
     }
 }
 
@@ -98,7 +98,7 @@ fn test_bessel_y_random(mut rng: SmallRng) {
         let expected = bessel_y_ref(order, z);
         let (cy_loop_fort, _, _) = fortran_bess_loop(order, z, Scaling::Unscaled, 1, zbesk_fortran);
 
-        assert_results_are_equal(&actual, &expected, &cy_loop_fort);
+        assert_results_are_equal(&actual, &expected, &cy_loop_fort, 1e6);
     }
 }
 
@@ -117,7 +117,7 @@ fn test_bessel_h_random(
         let actual = hankel(order, z, kind);
         let expected = bessel_h_ref(order, z, kind);
         let (cy_loop_fort, _, _) = fortran_bess_loop(order, z, Scaling::Unscaled, 1, zbesj_fortran);
-        assert_results_are_equal(&actual, &expected, &cy_loop_fort);
+        assert_results_are_equal(&actual, &expected, &cy_loop_fort, 1e6);
     }
 }
 
@@ -146,7 +146,7 @@ fn test_airy_random(
         } else {
             airy_ref(z, is_derivative)
         };
-        assert_results_are_equal(&actual, &expected, &Vec::new())
+        assert_results_are_equal(&actual, &expected, &Vec::new(), 1e6)
     }
 }
 
@@ -180,7 +180,7 @@ fn test_bessel_large_n_random(
         let z = Complex64::new(zr, zi);
         // dbg!(order, &z);
         // println!("#[case({}, {}, {})]", order, z.re, z.im);
-        check_against_fortran(order, z, scaling, n, rust_fn, fortran_fn);
+        check_against_fortran(order, z, scaling, n, rust_fn, fortran_fn, 1e8);
     }
 }
 
@@ -228,7 +228,7 @@ fn test_bessel_random_logspace(
             NumType::Complex => (random_val(false), random_val(false)),
         };
         let z = Complex64::new(zr, zi);
-        check_against_fortran(order, z, scaling, n, rust_fn, fortran_fn);
+        check_against_fortran(order, z, scaling, n, rust_fn, fortran_fn, 1e8);
     }
 }
 

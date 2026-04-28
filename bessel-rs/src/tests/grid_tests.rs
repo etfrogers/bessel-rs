@@ -54,7 +54,7 @@ fn test_bessel_grid_fortran(
         for re in Z_PARTS {
             for im in Z_PARTS {
                 let z = Complex::new(re, im);
-                check_against_fortran(order, z, scaling, n, rust_fn, fortran_fn);
+                check_against_fortran(order, z, scaling, n, rust_fn, fortran_fn, 1e6);
             }
         }
     }
@@ -137,11 +137,12 @@ fn test_bessel_grid_complex_besssel(
                 let actual = actual.unwrap();
                 let expected = expected.unwrap();
                 let rel_err = complex_bessel_test_relative_error(actual, expected);
-                print!(
-                    "\norder: {order}\nz: {z}\nactual: {actual:?}\nexpected: {expected:?}\nRelative Error: {rel_err:?}\n"
-                );
+                // print!(
+                //     "\norder: {order}\nz: {z}\nactual: {actual:?}\nexpected: {expected:?}\nRelative Error: {rel_err:?}\n"
+                // );
 
-                if let Some(msg) = check_complex_arrays_equal(&actual, &expected, &Vec::new()) {
+                if let Some(msg) = check_complex_arrays_equal(&actual, &expected, &Vec::new(), 1e3)
+                {
                     panic!(
                         "Grid test failed\norder: {order}\nz: {z}
                     {msg}"
@@ -174,7 +175,7 @@ fn test_airy_grid_fortran(
     for re in Z_PARTS {
         for im in Z_PARTS {
             let z = Complex::new(re, im);
-            check_against_fortran(dummy_order, z, scaling, n, rust_fn, fortran_fn);
+            check_against_fortran(dummy_order, z, scaling, n, rust_fn, fortran_fn, 1e6);
         }
     }
 }
