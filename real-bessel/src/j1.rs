@@ -167,7 +167,7 @@ pub fn y1(x: f64) -> Result<f64, String> {
     // special cases
 
     if x < 0.0 {
-        return Err("j1 is not implemented for z < 0".to_string());
+        return Err("j1 is complex for z < 0, and this function is soley real".to_string());
     }
     if x.is_nan() {
         return Ok(f64::NAN);

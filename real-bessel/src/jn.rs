@@ -50,7 +50,11 @@
 #![allow(clippy::excessive_precision)]
 use num::Integer;
 
-use super::{TWO_302, TWO_M29, j0::j0, j1::j1};
+use super::{
+    TWO_302, TWO_M29,
+    j0::{j0, y0},
+    j1::{j1, y1},
+};
 use std::f64::{self, consts::PI};
 
 // Jn returns the order-n Bessel function of the first kind.
@@ -60,18 +64,10 @@ use std::f64::{self, consts::PI};
 //	Jn(n, ±Inf) = 0
 //	Jn(n, NaN) = NaN
 pub fn jn(n: i32, x: f64) -> f64 {
-    // const (
-    // 	TwoM29 = 1.0 / (1 << 29) // 2**-29 0x3e10000000000000
-    // 	Two302 = 1 << 302        // 2**302 0x52D0000000000000
-    // )
     // special cases
-    // switch {\
     if x.is_nan() {
         return f64::NAN;
     }
-    // case IsNaN(x):
-    // 	return x
-    // case IsInf(x, 0):
     if x.is_infinite() {
         return 0.0;
     }
@@ -128,9 +124,6 @@ pub fn jn(n: i32, x: f64) -> f64 {
                 let two_i: f64 = (i + i).into();
                 (a, b) = (b, b * (two_i / x) - a) // avoid underflow
             }
-            // for i, a := 1, J0(x); i < n; i++ {
-            // 	a, b = b, b*(f64(i+i)/x)-a // avoid underflow
-            // }
             b
         }
     } else {
@@ -138,24 +131,11 @@ pub fn jn(n: i32, x: f64) -> f64 {
             // x < 2**-29
             // x is tiny, return the first Taylor expansion of J(n,x)
             // J(n,x) = 1/n!*(x/2)**n  - ...
-            // let mut b=
             if n > 33 {
                 // underflow
                 0.0
             } else {
-                // let temp = x * 0.5;
-                // b = temp;
-                // let mut a = 1.0;
                 let n_factorial = (1..=n).fold(1.0, |acc, i| acc * i as f64);
-                // for i in 2..=n {
-                //     a *= i.into(); // a = n!
-                //     b *= temp; //b = (x/2)**n
-                // }
-                // for i := 2; i <= n; i++ {
-                // 	a *= f64(i) // a = n!
-                // 	b *= temp       // b = (x/2)**n
-                // }
-                // b /= a
                 (x / 2.0).powi(n) / n_factorial
             }
             // b
@@ -206,9 +186,6 @@ pub fn jn(n: i32, x: f64) -> f64 {
             for i in (m..(2 * (n + k))).step_by(2).rev() {
                 t = 1.0 / (((i as f64) / x) - t);
             }
-            // for i := 2 * (n + k); i >= m; i -= 2 {
-            // 	t = 1 / (f64(i)/x - t)
-            // }
             let mut a = t;
             let mut b = 1.0;
             //  estimate log((2/x)**n*n!) = n*log(2/x)+n*ln(n)
@@ -247,7 +224,7 @@ pub fn jn(n: i32, x: f64) -> f64 {
     };
     if sign { -b } else { b }
 }
-/*
+
 // Yn returns the order-n Bessel function of the second kind.
 //
 // Special cases are:
@@ -257,40 +234,38 @@ pub fn jn(n: i32, x: f64) -> f64 {
 //	Yn(n < 0, 0) = +Inf if n is odd, -Inf if n is even
 //	Yn(n, x < 0) = NaN
 //	Yn(n, NaN) = NaN
-fn Yn(n int, x f64) f64 {
-    const Two302 = 1 << 302 // 2**302 0x52D0000000000000
+pub fn yn(n: i32, x: f64) -> Result<f64, String> {
     // special cases
-    switch {
-    case x < 0 || IsNaN(x):
-        return NaN()
-    case IsInf(x, 1):
-        return 0
+    if x < 0.0 {
+        return Err("yn is complex for z < 0, and this function is soley real".to_string());
+    }
+    if x.is_nan() {
+        return Ok(f64::NAN);
+    }
+    if x.is_infinite() && x.is_sign_positive() {
+        return Ok(0.0);
     }
 
     if n == 0 {
-        return Y0(x)
+        return y0(x);
     }
-    if x == 0 {
-        if n < 0 && n&1 == 1 {
-            return Inf(1)
-        }
-        return Inf(-1)
+    if x == 0.0 {
+        return Ok(if n < 0 && n & 1 == 1 {
+            f64::INFINITY
+        } else {
+            f64::NEG_INFINITY
+        });
     }
-    let sign = false
-    if n < 0 {
-        n = -n
-        if n&1 == 1 {
-            sign = true // sign true if n < 0 && |n| odd
-        }
-    }
+    let (n, sign) = if n < 0 {
+        (-n, n.is_odd()) // sign true if n < 0 && |n| odd
+    } else {
+        (n, false)
+    };
     if n == 1 {
-        if sign {
-            return -Y1(x)
-        }
-        return Y1(x)
+        return Ok(if sign { -y1(x)? } else { y1(x)? });
     }
-    var b f64
-    if x >= Two302 { // x > 2**302
+    let mut b = if x >= *TWO_302 {
+        // x > 2**302
         // (x >> n**2)
         //	    Jn(x) = cos(x-(2n+1)*pi/4)*sqrt(2/x*pi)
         //	    Yn(x) = sin(x-(2n+1)*pi/4)*sqrt(2/x*pi)
@@ -303,30 +278,26 @@ fn Yn(n int, x f64) f64 {
         //		   1	-s-c 		-c+s
         //		   2	-s+c		-c-s
         //		   3	 s+c		 c-s
-
-        var temp f64
-        switch s, c := Sincos(x); n & 3 {
-        case 0:
-            temp = s - c
-        case 1:
-            temp = -s - c
-        case 2:
-            temp = -s + c
-        case 3:
-            temp = s + c
-        }
-        b = (1 / SqrtPi) * temp / Sqrt(x)
+        let (s, c) = x.sin_cos();
+        let temp = match n % 3 {
+            0 => s - c,
+            1 => -s - c,
+            2 => -s + c,
+            3 => s + c,
+            _ => panic!("Not reachable"),
+        };
+        (1.0 / PI.sqrt()) * temp / x.sqrt()
     } else {
-        let a = Y0(x)
-        b = Y1(x)
-        // quit if b is -inf
-        for i := 1; i < n && !IsInf(b, -1); i++ {
-            a, b = b, (f64(i+i)/x)*b-a
+        let mut a = y0(x)?;
+        let mut b = y1(x)?;
+        for i in 1..n {
+            let two_i: f64 = (i + i).into();
+            (a, b) = (b, b * (two_i / x) - a) // avoid underflow
         }
-    }
+        b
+    };
     if sign {
-        return -b
+        b = -b;
     }
-    return b
+    Ok(b)
 }
-*/

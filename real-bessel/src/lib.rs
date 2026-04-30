@@ -9,6 +9,8 @@ pub use j0::y0 as bessel_y0;
 pub use j1::j1 as bessel_j1;
 pub use j1::y1 as bessel_y1;
 pub use jn::jn as bessel_jn;
+pub use jn::yn as bessel_yn;
+
 use std::sync::LazyLock;
 
 const _HUGE: f64 = 1e300;
