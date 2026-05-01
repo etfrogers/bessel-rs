@@ -1,16 +1,108 @@
 use std::f64;
 use std::fmt::Debug;
 
+use approx::relative_eq;
+use num::pow::Pow;
 use num::{Zero, complex::Complex64};
 
-use crate::types::{
-    BesselError, BesselResult, Tolerances, abs_rel_errors_cmplx, complex_relative_eq,
-};
+use crate::amos::MACHINE_CONSTANTS;
+use crate::types::{BesselError, BesselResult};
 
 use crate::{
     Scaling,
     tests::{BesselFortranSig, BesselSig},
 };
+
+pub(crate) struct Tolerances {
+    pub max_relative: f64,
+    pub magnitude_diff: f64,
+    pub correction: f64,
+    pub tol_re: f64,
+    pub tol_im: f64,
+    pub used_ref_re: bool,
+    pub used_ref_im: bool,
+    pub margin: f64,
+}
+
+impl Tolerances {
+    pub(crate) fn new(
+        actual: &Complex64,
+        expected: &Complex64,
+        reference: Option<&Complex64>,
+        margin: f64,
+    ) -> Self {
+        let max_relative = MACHINE_CONSTANTS.abs_error_tolerance;
+
+        let max_im = actual.im.abs().max(expected.im.abs());
+        let max_re = actual.re.abs().max(expected.re.abs());
+        let magnitude_diff = (max_re.log10() - max_im.log10()).abs();
+        let limit = 1.0 / max_relative;
+        let correction = 10.0.pow(magnitude_diff).min(limit);
+
+        let (mut tol_re, mut tol_im) = if max_re > max_im {
+            (max_relative, max_relative * correction)
+        } else {
+            (max_relative * correction, max_relative)
+        };
+
+        let mut used_ref_re = false;
+        let mut used_ref_im = false;
+        if let Some(ref_val) = reference {
+            let (_, ref_diffs) = abs_rel_errors_cmplx(expected, ref_val);
+            let re_rel_diff = ref_diffs.re;
+            let im_rel_diff = ref_diffs.im;
+
+            used_ref_re = re_rel_diff > tol_re;
+            if used_ref_re {
+                tol_re = re_rel_diff;
+            }
+            used_ref_im = im_rel_diff > tol_im;
+            if used_ref_im {
+                tol_im = im_rel_diff;
+            }
+        }
+        Self {
+            max_relative,
+            magnitude_diff,
+            correction,
+            tol_re,
+            tol_im,
+            used_ref_re,
+            used_ref_im,
+            margin,
+        }
+    }
+}
+
+pub(crate) fn complex_relative_eq(a: &Complex64, b: &Complex64, tolerances: &Tolerances) -> bool {
+    if relative_eq!(
+        a,
+        b,
+        max_relative = tolerances.margin * tolerances.max_relative
+    ) {
+        return true;
+    }
+    let (_, rel_e_re) = abs_rel_errors(a.re, b.re);
+    let (_, rel_e_im) = abs_rel_errors(a.im, b.im);
+
+    rel_e_re < tolerances.margin * tolerances.tol_re
+        && rel_e_im < tolerances.margin * tolerances.tol_im
+}
+
+fn abs_rel_errors(a: f64, b: f64) -> (f64, f64) {
+    let abs_e = (a - b).abs();
+    let rel_e = abs_e / a.abs().max(b.abs());
+    (abs_e, rel_e)
+}
+
+pub(crate) fn abs_rel_errors_cmplx(a: &Complex64, b: &Complex64) -> (Complex64, Complex64) {
+    let (abs_e_r, rel_e_r) = abs_rel_errors(a.re, b.re);
+    let (abs_e_i, rel_e_i) = abs_rel_errors(a.im, b.im);
+    (
+        Complex64::new(abs_e_r, abs_e_i),
+        Complex64::new(rel_e_r, rel_e_i),
+    )
+}
 
 pub fn assert_results_are_equal<T: IntoComplexVec + Debug>(
     actual: &BesselResult<T>,
@@ -41,7 +133,11 @@ pub fn check_against_fortran(
 
     let (cy, nz, ierr) = fortran_func(order, z, scaling as i32, n);
     let (cy_loop_fort, _, _) = fortran_bess_loop(order, z, scaling, n, fortran_func);
-
+    // DEBUG PRINT
+    println!(
+        "DEBUG values: order={:?}, z={:?}, scaling={:?}\nActual: {:?}\nExpected: {:?}\n",
+        order, z, scaling, actual, cy
+    );
     let fail = |reason: &str| -> () {
         let cy_loop_rust = match rust_bess_loop(order, z, scaling, n, rust_func) {
             Ok((data, _)) => data,
