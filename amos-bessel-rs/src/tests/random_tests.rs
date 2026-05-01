@@ -11,13 +11,14 @@ use std::f64::consts::{FRAC_PI_2, PI};
 
 use approx::assert_relative_eq;
 
-use super::{
-    BesselFortranSig, BesselSig, airy_ref, bessel_h_ref, biry_ref, check_against_fortran,
-    fortran_bess_loop, sig_airy, sig_airy_fortran, sig_airyp, sig_airyp_fortran, sig_biry,
-    sig_biry_fortran, sig_biryp, sig_biryp_fortran, utils::assert_results_are_equal,
-    zbesh_fortran_first, zbesh_fortran_second, zbesi_fortran, zbesj_fortran, zbesk_fortran,
-    zbesy_fortran,
+use crate::test_utils::{
+    BesselFortranSig, BesselSig, airy_ref, assert_results_are_equal, bessel_h_ref, biry_ref,
+    check_against_fortran, fortran_bess_loop, sig_airy, sig_airy_fortran, sig_airyp,
+    sig_airyp_fortran, sig_biry, sig_biry_fortran, sig_biryp, sig_biryp_fortran,
+    zbesh_fortran_first, zbesh_fortran_second,
 };
+
+use fortran_amos::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
 
 use crate::{
     HankelKind, Scaling, airy, airy_b, airy_bp, airyp,

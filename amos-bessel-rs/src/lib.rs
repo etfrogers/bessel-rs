@@ -261,3 +261,7 @@ simple_bessel_wrapper!(hankel2);
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(any(test, feature = "test-utils"))]
+#[doc(hidden)]
+pub mod test_utils;

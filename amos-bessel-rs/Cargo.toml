@@ -10,6 +10,7 @@ keywords = ["bessel-functions"]
 [features]
 # default = ["random_tests"]
 random_tests = []
+test-utils = []
 
 [build-dependencies]
 cc = { version = "1.2", optional = true }
@@ -37,3 +38,9 @@ fortran-amos = { path = "../fortran-amos" }
 [[bench]]
 name = "bessel_bench"
 harness = false
+
+
+[[test]]
+name = "grid_tests"
+path = "tests/grid_tests.rs"
+required-features = ["test-utils"]
