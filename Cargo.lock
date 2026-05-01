@@ -306,6 +306,7 @@ name = "fortran-amos"
 version = "0.1.0"
 dependencies = [
  "cc",
+ "num",
 ]
 
 [[package]]

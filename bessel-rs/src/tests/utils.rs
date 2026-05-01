@@ -39,7 +39,7 @@ pub fn check_against_fortran(
 ) {
     let actual = rust_func(z, order, scaling, n);
 
-    let (cy, nz, ierr) = fortran_func(order, z, scaling, n);
+    let (cy, nz, ierr) = fortran_func(order, z, scaling as i32, n);
     let (cy_loop_fort, _, _) = fortran_bess_loop(order, z, scaling, n, fortran_func);
 
     let fail = |reason: &str| -> () {
@@ -150,7 +150,7 @@ pub fn fortran_bess_loop(
     let mut y = vec![Complex64::zero(); n];
     let mut nz = 0;
     for i in 0..n {
-        let (yi, nzi, ierr) = func(order + i as f64, z, scaling, 1);
+        let (yi, nzi, ierr) = func(order + i as f64, z, scaling as i32, 1);
         if ierr != 0 {
             return (y, nz, ierr);
         }
