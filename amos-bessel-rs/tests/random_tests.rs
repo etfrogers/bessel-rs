@@ -1,0 +1,275 @@
+// #[cfg(feature = "random_tests")]
+
+extern crate fortran_amos;
+
+use complex_bessel_rs::{
+    bessel_i::bessel_i as bessel_i_ref, bessel_j::bessel_j as bessel_j_ref,
+    bessel_k::bessel_k as bessel_k_ref, bessel_y::bessel_y as bessel_y_ref,
+};
+use fortran_amos::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
+use num::complex::Complex64;
+use num::pow::Pow;
+use rand::seq::IndexedRandom;
+use rand::{Rng, SeedableRng, rngs::SmallRng};
+use rstest::{fixture, rstest};
+use std::f64::consts::{FRAC_PI_2, PI};
+
+use approx::assert_relative_eq;
+
+use amos_bessel_rs::{
+    HankelKind, Scaling, airy, airy_b, airy_bp, airyp, bessel_i, bessel_j, bessel_k, bessel_y,
+    complex_bessel_i, complex_bessel_j, complex_bessel_k, complex_bessel_y, complex_hankel1,
+    complex_hankel2, hankel,
+    test_utils::{
+        BesselFortranSig, BesselSig, airy_ref, assert_results_are_equal, bessel_h_ref, biry_ref,
+        check_against_fortran, fortran_bess_loop, sig_airy, sig_airy_fortran, sig_airyp,
+        sig_airyp_fortran, sig_biry, sig_biry_fortran, sig_biryp, sig_biryp_fortran,
+        zbesh_fortran_first, zbesh_fortran_second,
+    },
+};
+
+const RANDOM_LIMIT: f64 = 10_000.0;
+
+enum NumType {
+    Real,
+    Imaginary,
+    Complex,
+}
+
+fn random_val_rng(rng: &mut SmallRng) -> f64 {
+    rng.random_range(-RANDOM_LIMIT..RANDOM_LIMIT)
+}
+
+#[rstest]
+fn test_bessel_j_random(mut rng: SmallRng) {
+    for _ in 0..1000000 {
+        let order = rng.random_range(f64::EPSILON..RANDOM_LIMIT);
+        let zr = random_val_rng(&mut rng);
+        let zi = random_val_rng(&mut rng);
+        let z = Complex64::new(zr, zi);
+        // dbg!(order, &z);
+        // println!("#[case({}, {}, {})]", order, z.re, z.im);
+        let actual = bessel_j(order, z);
+        let expected = bessel_j_ref(order, z);
+        let (cy_loop_fort, _, _) = fortran_bess_loop(order, z, Scaling::Unscaled, 1, zbesj_fortran);
+        assert_results_are_equal(&actual, &expected, &cy_loop_fort, 1e6);
+    }
+}
+
+#[rstest]
+fn test_bessel_i_random(mut rng: SmallRng) {
+    for _ in 0..1000000 {
+        let order = rng.random_range(f64::EPSILON..RANDOM_LIMIT);
+        let zr = random_val_rng(&mut rng);
+        let zi = random_val_rng(&mut rng);
+        let z = Complex64::new(zr, zi);
+        // dbg!(order, &z);
+        // println!("#[case({}, {}, {})]", order, z.re, z.im);
+        let actual = bessel_i(order, z);
+        let expected = bessel_i_ref(order, z);
+        let (cy_loop_fort, _, _) = fortran_bess_loop(order, z, Scaling::Unscaled, 1, zbesj_fortran);
+        assert_results_are_equal(&actual, &expected, &cy_loop_fort, 1e6);
+    }
+}
+
+#[rstest]
+fn test_bessel_k_random(mut rng: SmallRng) {
+    for _ in 0..1000000 {
+        let order = rng.random_range(f64::EPSILON..RANDOM_LIMIT);
+        let zr = random_val_rng(&mut rng);
+        let zi = random_val_rng(&mut rng);
+        let z = Complex64::new(zr, zi);
+        // dbg!(order, &z);
+        // println!("#[case({}, {}, {})]", order, z.re, z.im);
+        let actual = bessel_k(order, z);
+        let expected = bessel_k_ref(order, z);
+        let (cy_loop_fort, _, _) = fortran_bess_loop(order, z, Scaling::Unscaled, 1, zbesk_fortran);
+        assert_results_are_equal(&actual, &expected, &cy_loop_fort, 1e6);
+    }
+}
+
+#[rstest]
+fn test_bessel_y_random(mut rng: SmallRng) {
+    for _ in 0..1000000 {
+        let order = rng.random_range(f64::EPSILON..RANDOM_LIMIT);
+        let zr = random_val_rng(&mut rng);
+        let zi = random_val_rng(&mut rng);
+        let z = Complex64::new(zr, zi);
+        // dbg!(order, &z);
+        // println!("#[case({}, {}, {})]", order, z.re, z.im);
+        let actual = bessel_y(order, z);
+        let expected = bessel_y_ref(order, z);
+        let (cy_loop_fort, _, _) = fortran_bess_loop(order, z, Scaling::Unscaled, 1, zbesk_fortran);
+
+        assert_results_are_equal(&actual, &expected, &cy_loop_fort, 1e6);
+    }
+}
+
+#[rstest]
+fn test_bessel_h_random(
+    mut rng: SmallRng,
+    #[values(HankelKind::First, HankelKind::Second)] kind: HankelKind,
+) {
+    for _ in 0..1000000 {
+        let order = rng.random_range(f64::EPSILON..RANDOM_LIMIT);
+        let zr = random_val_rng(&mut rng);
+        let zi = random_val_rng(&mut rng);
+        let z = Complex64::new(zr, zi);
+        // dbg!(order, &z);
+        // println!("#[case({}, {}, {})]", order, z.re, z.im);
+        let actual = hankel(order, z, kind);
+        let expected = bessel_h_ref(order, z, kind);
+        let (cy_loop_fort, _, _) = fortran_bess_loop(order, z, Scaling::Unscaled, 1, zbesj_fortran);
+        assert_results_are_equal(&actual, &expected, &cy_loop_fort, 1e6);
+    }
+}
+
+#[rstest]
+fn test_airy_random(
+    mut rng: SmallRng,
+    #[values(true, false)] is_derivative: bool,
+    #[values(true, false)] is_b_function: bool,
+) {
+    for _ in 0..1000000 {
+        let zr = random_val_rng(&mut rng);
+        let zi = random_val_rng(&mut rng);
+
+        let z = Complex64::new(zr, zi);
+        // dbg!(&z);
+        // println!("#[case({}, {}, {})]", 1, z.re, z.im);
+
+        let actual = match (is_b_function, is_derivative) {
+            (false, false) => airy(z),
+            (false, true) => airyp(z),
+            (true, false) => airy_b(z),
+            (true, true) => airy_bp(z),
+        };
+        let expected = if is_b_function {
+            biry_ref(z, is_derivative)
+        } else {
+            airy_ref(z, is_derivative)
+        };
+        assert_results_are_equal(&actual, &expected, &Vec::new(), 1e6)
+    }
+}
+
+#[rstest]
+fn test_bessel_large_n_random(
+    #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
+    #[values(NumType::Real, NumType::Imaginary, NumType::Complex)] num_type: NumType,
+    #[values(
+        (complex_bessel_j as BesselSig, zbesj_fortran as BesselFortranSig),
+        (complex_bessel_i as BesselSig, zbesi_fortran as BesselFortranSig),
+        (complex_hankel1 as BesselSig , zbesh_fortran_first as BesselFortranSig),
+        (complex_hankel2 as BesselSig , zbesh_fortran_second as BesselFortranSig),
+        (complex_bessel_k as BesselSig, zbesk_fortran as BesselFortranSig),
+        (complex_bessel_y as BesselSig, zbesy_fortran as BesselFortranSig),
+        (sig_airy as BesselSig, sig_airy_fortran as BesselFortranSig),
+        (sig_airyp as BesselSig, sig_airyp_fortran as BesselFortranSig),
+        (sig_biry as BesselSig, sig_biry_fortran as BesselFortranSig),
+        (sig_biryp as BesselSig, sig_biryp_fortran as BesselFortranSig),
+    )]
+    (rust_fn, fortran_fn): (BesselSig, BesselFortranSig),
+    mut rng: SmallRng,
+) {
+    let n = 9;
+    for _ in 0..100000 {
+        let order = rng.random_range(f64::EPSILON..RANDOM_LIMIT);
+        let (zr, zi) = match num_type {
+            NumType::Real => (random_val_rng(&mut rng), 0.0),
+            NumType::Imaginary => (0.0, random_val_rng(&mut rng)),
+            NumType::Complex => (random_val_rng(&mut rng), random_val_rng(&mut rng)),
+        };
+        let z = Complex64::new(zr, zi);
+        // dbg!(order, &z);
+        // println!("#[case({}, {}, {})]", order, z.re, z.im);
+        check_against_fortran(order, z, scaling, n, rust_fn, fortran_fn, 1e8);
+    }
+}
+
+#[fixture]
+fn rng() -> SmallRng {
+    SmallRng::seed_from_u64(42)
+}
+
+#[rstest]
+fn test_bessel_random_logspace(
+    #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
+    #[values(NumType::Real, NumType::Imaginary, NumType::Complex)] num_type: NumType,
+    mut rng: SmallRng,
+    #[values(
+        (complex_bessel_j as BesselSig, zbesj_fortran as BesselFortranSig),
+        (complex_bessel_i as BesselSig, zbesi_fortran as BesselFortranSig),
+        (complex_hankel1 as BesselSig , zbesh_fortran_first as BesselFortranSig),
+        (complex_hankel2 as BesselSig , zbesh_fortran_second as BesselFortranSig),
+        (complex_bessel_k as BesselSig, zbesk_fortran as BesselFortranSig),
+        (complex_bessel_y as BesselSig, zbesy_fortran as BesselFortranSig),
+        (sig_airy as BesselSig, sig_airy_fortran as BesselFortranSig),
+        (sig_airyp as BesselSig, sig_airyp_fortran as BesselFortranSig),
+        (sig_biry as BesselSig, sig_biry_fortran as BesselFortranSig),
+        (sig_biryp as BesselSig, sig_biryp_fortran as BesselFortranSig),
+    )]
+    (rust_fn, fortran_fn): (BesselSig, BesselFortranSig),
+) {
+    let n = 9;
+    let mut random_val = |pos: bool| -> f64 {
+        let ll = f64::MIN_POSITIVE;
+        let ul = f64::MAX;
+        let r = rng.random_range(ll.log10()..ul.log10());
+        let sign = if pos {
+            1.0
+        } else {
+            *([-1.0, 1.0].choose(&mut rng).unwrap())
+        };
+        sign * 10.0.pow(r)
+    };
+    for _ in 0..500000 {
+        let order = random_val(true);
+        let (zr, zi) = match num_type {
+            NumType::Real => (random_val(false), 0.0),
+            NumType::Imaginary => (0.0, random_val(false)),
+            NumType::Complex => (random_val(false), random_val(false)),
+        };
+        let z = Complex64::new(zr, zi);
+        check_against_fortran(order, z, scaling, n, rust_fn, fortran_fn, 1e8);
+    }
+}
+
+#[rstest]
+fn test_fortran_ang(mut rng: SmallRng) {
+    let mut random_val = || random_val_rng(&mut rng);
+    const THREE_PI_BY_2: f64 = 4.71238898038468986e+00;
+
+    let fortran_ang = |zth: Complex64| -> f64 {
+        let mut ang = THREE_PI_BY_2;
+        if !(zth.re >= 0.0 && zth.im < 0.0) {
+            ang = FRAC_PI_2;
+            if zth.re != 0.0 {
+                // ang = zth.arg();
+                ang = (zth.im / zth.re).atan();
+            }
+            if zth.re < 0.0 {
+                ang += PI;
+            }
+        }
+        ang
+    };
+
+    let shift_arg = |zth: Complex64| -> f64 {
+        let mut ang = zth.arg();
+        if ang < 0.0 {
+            ang = (PI * 2.0) + ang;
+        }
+        ang.clamp(0.0, THREE_PI_BY_2)
+    };
+
+    for _ in 0..1000000 {
+        let z = Complex64::new(random_val(), random_val());
+        let z_re = Complex64::new(z.re, 0.0);
+        let z_im = Complex64::new(0.0, z.im);
+
+        assert_relative_eq!(fortran_ang(z), shift_arg(z));
+        assert_relative_eq!(fortran_ang(z_re), shift_arg(z_re));
+        assert_relative_eq!(fortran_ang(z_im), shift_arg(z_im));
+    }
+}
