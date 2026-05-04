@@ -3,8 +3,8 @@ macro_rules! unwrap_real_bessel {
     ($fun: ident, $order:expr, $zr: expr) => {
         match $fun::<f64, f64>($order, $zr) {
             Ok(v) => v,
-            Err(::bessel_rs::BesselError::PartialLossOfSignificance { y, nz: _ }) => y[0].re,
-            Err(::bessel_rs::BesselError::Overflow) => f64::NAN,
+            Err(::amos_bessel_rs::BesselError::PartialLossOfSignificance { y, nz: _ }) => y[0].re,
+            Err(::amos_bessel_rs::BesselError::Overflow) => f64::NAN,
             Err(e) => panic!("Unexpected error from {}: {:?}", stringify!($fun), e),
         }
     };

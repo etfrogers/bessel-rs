@@ -1,4 +1,4 @@
-//! # Bessel-Rs: Bessel functions in pure Rust
+//! # amos-bessel-rs: Bessel functions in pure Rust
 //!
 //! A crate implementing pure Rust translations of [Amos' complex
 //! Bessel function algorthims](https://www.netlib.org/amos/)

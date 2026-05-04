@@ -19,9 +19,9 @@
 
 use std::f64::consts::PI;
 
-use bessel_rs::types::BackTo;
+use amos_bessel_rs::types::BackTo;
 
-use bessel_rs::{bessel_j, bessel_y};
+use amos_bessel_rs::{bessel_j, bessel_y};
 use conv::ConvUtil;
 use num::Complex;
 

@@ -1,7 +1,11 @@
 [package]
-name = "bessel-rs"
+name = "amos-bessel-rs"
 version = "0.1.0"
 edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "An idiomatic rust translation of Amos algorithm for calculating bessel functions"
+repository = "https://github.com/etfrogers/bessel-rs"
+keywords = ["bessel-functions"]
 
 [features]
 # default = ["random_tests"]

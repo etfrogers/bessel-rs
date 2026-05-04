@@ -8,7 +8,7 @@ thiserror = "2.0.17"
 num = "0.4.3"
 
 [dev-dependencies]
-bessel-rs = { path = "../bessel-rs" }
+amos-bessel-rs = { path = "../amos-bessel-rs" }
 approx = { version = "0.5.1", features = ["num-complex"] }
 rstest = "0.26.1"
 rstest_reuse = "0.7.0"

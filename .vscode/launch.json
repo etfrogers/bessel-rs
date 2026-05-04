@@ -1,56 +1,50 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "Python: Current File (uv)",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${file}",
-            "console": "integratedTerminal",
-            "python": "${workspaceFolder}/complex-bessel-test/python/.venv/bin/python", // On Windows use: "${workspaceFolder}/.venv/Scripts/python.exe"
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: Current File (uv)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "python": "${workspaceFolder}/complex-bessel-test/python/.venv/bin/python", // On Windows use: "${workspaceFolder}/.venv/Scripts/python.exe"
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+      },
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug Bench",
+      "program": "${workspaceFolder}/target/debug/bench",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=bench", // Or "--example=bench" if it's an example
+        ],
+        "filter": {
+          "name": "bench",
+          "kind": "bin",
         },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug Bench",
-            "program": "${workspaceFolder}/target/debug/bench",
-            "cargo": {
-                "args": [
-                    "build",
-                    "--bin=bench" // Or "--example=bench" if it's an example
-                ],
-                "filter": {
-                    "name": "bench",
-                    "kind": "bin"
-                },
-            },
-            "stdio": [
-                "complex-bessel-test/results/test_grid.json",
-                null,
-                null
-            ],
-            "args": [
-                "bessel-rs"
-            ],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "name": "Run Fortran GDB",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceRoot}/bessel-rs/src/amos/a.out",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceRoot}",
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "preLaunchTask": "compile fortran",
-        },
-    ]
+      },
+      "stdio": ["complex-bessel-test/results/test_grid.json", null, null],
+      "args": ["amos-bessel-rs"],
+      "cwd": "${workspaceFolder}",
+    },
+    {
+      "name": "Run Fortran GDB",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceRoot}/bessel-rs/src/amos/a.out",
+      "args": [],
+      "stopAtEntry": false,
+      "cwd": "${workspaceRoot}",
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "preLaunchTask": "compile fortran",
+    },
+  ],
 }

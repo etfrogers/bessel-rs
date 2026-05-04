@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bessel-rs = { path = "../bessel-rs" }
+amos-bessel-rs = { path = "../amos-bessel-rs" }
 conv = "0.3.3"
 num = "0.4.3"
 

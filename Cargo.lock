@@ -12,6 +12,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "amos-bessel-rs"
+version = "0.1.0"
+dependencies = [
+ "approx",
+ "cc",
+ "complex-bessel",
+ "complex-bessel-rs",
+ "conv",
+ "criterion",
+ "fortran-amos",
+ "itertools 0.14.0",
+ "num",
+ "paste",
+ "pymath",
+ "rand 0.9.4",
+ "rstest",
+ "rstest_reuse",
+ "thiserror",
+]
+
+[[package]]
 name = "anes"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -40,32 +61,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
-name = "bessel-rs"
-version = "0.1.0"
-dependencies = [
- "approx",
- "cc",
- "complex-bessel",
- "complex-bessel-rs",
- "conv",
- "criterion",
- "fortran-amos",
- "itertools 0.14.0",
- "num",
- "paste",
- "pymath",
- "rand 0.9.4",
- "rstest",
- "rstest_reuse",
- "thiserror",
-]
-
-[[package]]
 name = "bessel_zeros"
 version = "0.1.0"
 dependencies = [
+ "amos-bessel-rs",
  "approx",
- "bessel-rs",
  "conv",
  "csv",
  "num",
@@ -176,7 +176,7 @@ dependencies = [
 name = "complex-bessel-test"
 version = "0.1.0"
 dependencies = [
- "bessel-rs",
+ "amos-bessel-rs",
  "complex-bessel",
  "num-complex",
  "serde",
@@ -721,8 +721,8 @@ dependencies = [
 name = "real-bessel"
 version = "0.1.0"
 dependencies = [
+ "amos-bessel-rs",
  "approx",
- "bessel-rs",
  "num",
  "rstest",
  "rstest_reuse",

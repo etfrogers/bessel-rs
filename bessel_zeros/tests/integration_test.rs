@@ -1,9 +1,9 @@
 use std::error::Error;
 
-use bessel_rs::{bessel_j, bessel_y};
+use amos_bessel_rs::{bessel_j, bessel_y};
 
-use bessel_zeros::{BesselFunType, bessel_zeros};
 use approx::assert_relative_eq;
+use bessel_zeros::{BesselFunType, bessel_zeros};
 use rstest::rstest;
 
 const J_ZEROS: &str = "#
