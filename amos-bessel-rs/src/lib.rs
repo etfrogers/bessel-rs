@@ -1,3 +1,4 @@
+#![warn(missing_docs)]
 //! # amos-bessel-rs: Bessel functions in pure Rust
 //!
 //! A crate implementing pure Rust translations of [Amos' complex
@@ -74,7 +75,7 @@
 mod amos;
 
 mod reflections;
-pub mod types;
+mod types;
 
 use std::ops::Mul;
 
@@ -88,8 +89,8 @@ pub use amos::{
     complex_bessel_k, complex_bessel_y, complex_hankel1, complex_hankel2,
 };
 use num::{Complex, complex::Complex64};
-use types::BesselResult;
 pub use types::{BackFrom, BesselError};
+use types::{BesselResult, simple_bessel_wrapper};
 
 // TODO work with abritrary bit-depth floats
 // TODO bessel derivatives

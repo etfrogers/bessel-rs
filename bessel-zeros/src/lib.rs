@@ -39,10 +39,6 @@
 //! ```
 
 #![warn(missing_docs)]
-// TODO: consider the API. Would it be worth separate functions for each type of Bessel function,
-// or is it better to have a single function with an enum argument? \
-// The latter is more extensible, but the former is more user-friendly. Maybe both?
-// Single functions might be better with a default precsision
 use std::f64::consts::{FRAC_PI_2, PI};
 
 use amos_bessel_rs::{bessel_j, bessel_y};
