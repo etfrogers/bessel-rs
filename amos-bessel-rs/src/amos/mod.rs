@@ -44,7 +44,7 @@ pub enum HankelKind {
 }
 
 impl HankelKind {
-    pub fn get_rotation(&self) -> RotationDirection {
+    pub(crate) fn get_rotation(&self) -> RotationDirection {
         match self {
             HankelKind::First => RotationDirection::Right,
             HankelKind::Second => RotationDirection::Left,
@@ -60,7 +60,7 @@ pub enum Scaling {
 }
 
 impl Scaling {
-    pub fn scale_zetas(
+    pub(crate) fn scale_zetas(
         &self,
         z: Complex64,
         modified_order: f64,
