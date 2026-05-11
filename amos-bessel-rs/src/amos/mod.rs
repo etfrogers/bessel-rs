@@ -6,9 +6,12 @@ use num::{
 use std::{f64::consts::PI, ops::Neg};
 
 pub use entry_points::*;
-pub use gamma_ln::{GammaError, gamma_ln};
+pub(crate) use gamma_ln::gamma_ln;
 pub(crate) use i_power_series::i_power_series;
 pub(crate) use machine::MACHINE_CONSTANTS;
+
+#[cfg(test)]
+pub(crate) use gamma_ln::GammaError;
 
 mod asymptotic_i;
 mod entry_points;
