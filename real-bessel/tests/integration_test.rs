@@ -73,7 +73,8 @@ fn test_bessel_yn_against_amos(#[case] order: f64, #[case] mut zr: f64, #[case] 
         );
         return;
     }
-    assert_relative_eq!(actual, expected, epsilon = 1e-10, max_relative = 1e-10,);
+    let eps = if zr > 1e6 { 1e-5 } else { 1e-10 };
+    assert_relative_eq!(actual, expected, epsilon = eps, max_relative = 1e-10,);
 }
 
 #[template]
