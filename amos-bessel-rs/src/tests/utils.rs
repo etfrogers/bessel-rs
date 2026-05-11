@@ -205,6 +205,11 @@ pub fn check_against_fortran(
 
                     // fail("Failed for mismatched nz value");
                 }
+                if cy.iter().any(|x| x.is_nan()) {
+                    // if the fortran failed to give a sensible answer, we don;t have anything to check
+                    // against. So far this has only been observed on Linux on CI, not on Mac OS
+                    return;
+                }
                 if let Some(reason) =
                     check_complex_arrays_equal(actual_y, &cy, &cy_loop_fort, margin * 1e2)
                 {
