@@ -3,13 +3,13 @@ use std::f64;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Eq)]
-pub enum GammaError {
+pub(crate) enum GammaError {
     #[error("Gamma ln can only be calculated for input z > 0.0")]
     ZLessThanZero,
 }
 
 // DOUBLE PRECISION FUNCTION DGAMLN(Z,IERR)
-pub fn gamma_ln(z: f64) -> Result<f64, GammaError> {
+pub(crate) fn gamma_ln(z: f64) -> Result<f64, GammaError> {
     // ***BEGIN PROLOGUE  DGAMLN
     // ***DATE WRITTEN   830501   (YYMMDD)
     // ***REVISION DATE  830501   (YYMMDD)

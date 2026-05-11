@@ -2,7 +2,7 @@ use approx::assert_relative_eq;
 use rstest::rstest;
 use rstest_reuse::{apply, template};
 
-use crate::{GammaError, amos::gamma_ln};
+use crate::amos::{GammaError, gamma_ln};
 
 // Below is the copy of code from std::sys::cmath to expose the tgamma function
 // This avoids using the unstable float_gamma feature, but gives the same functionality
