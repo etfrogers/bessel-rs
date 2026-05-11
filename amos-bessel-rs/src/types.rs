@@ -68,41 +68,74 @@ impl BackFrom<BesselResult<Complex64>> for Complex<f64> {
     }
 }
 
-/// Original Docs:
-/// IERR   - ERROR FLAG
-///         IERR=0, NORMAL RETURN - COMPUTATION COMPLETED
-///         IERR=1, INPUT ERROR   - NO COMPUTATION
-///        IERR=2, OVERFLOW      - NO COMPUTATION, order TOO
-///                 LARGE OR CABS(Z) TOO SMALL OR BOTH
-///         IERR=3, CABS(Z) OR order+N-1 LARGE - COMPUTATION DONE
-///                BUT LOSSES OF SIGNIFCANCE BY ARGUMENT
-///                 REDUCTION PRODUCE LESS THAN HALF OF MACHINE
-///                 ACCURACY
-///         IERR=4, CABS(Z) OR order+N-1 TOO LARGE - NO COMPUTA-
-///                 TION BECAUSE OF COMPLETE LOSSES OF SIGNIFI-
-///                 CANCE BY ARGUMENT REDUCTION
-///         IERR=5, ERROR              - NO COMPUTATION,
-///                 ALGORITHM TERMINATION CONDITION NOT MET
+// Original Docs:
+// IERR   - ERROR FLAG
+//         IERR=0, NORMAL RETURN - COMPUTATION COMPLETED
+//         IERR=1, INPUT ERROR   - NO COMPUTATION
+//         IERR=2, OVERFLOW      - NO COMPUTATION, order TOO
+//                 LARGE OR CABS(Z) TOO SMALL OR BOTH
+//         IERR=3, CABS(Z) OR order+N-1 LARGE - COMPUTATION DONE
+//                BUT LOSSES OF SIGNIFCANCE BY ARGUMENT
+//                 REDUCTION PRODUCE LESS THAN HALF OF MACHINE
+//                 ACCURACY
+//         IERR=4, CABS(Z) OR order+N-1 TOO LARGE - NO COMPUTA-
+//                 TION BECAUSE OF COMPLETE LOSSES OF SIGNIFI-
+//                 CANCE BY ARGUMENT REDUCTION
+//         IERR=5, ERROR              - NO COMPUTATION,
+//                 ALGORITHM TERMINATION CONDITION NOT MET
+/// Error stuct returned by Bessel function calculations indicating the
+/// nature of the error
 #[derive(Error, Debug, PartialEq, Clone)]
 #[repr(i32)]
 pub enum BesselError {
-    // This correpsonds to IERR
-    // 0 = no error
+    /// Indicates that the input is invalid (usually out of bounds) in some way.
+    /// Documentation for each function lists valid and invalid inputs
     #[error("Invalid input: {details}")]
-    InvalidInput { details: String } = 1,
-    #[error("Overflow: order TOO LARGE OR CABS(Z) TOO SMALL OR BOTH")]
+    InvalidInput {
+        /// Explanation of why the input was invalid.
+        details: String,
+    } = 1,
+    /// Overflow (or underflow) error in calculation: a valid answer cannot be calculated
+    /// Usually caused by a (very) large `order`, or small `z.abs()`.
+    #[error("Overflow: order too large or z.abs() too small or both")]
     Overflow = 2, //{ too_large: bool },
+    /// Calculation is done, and a valkue returned wrapped in this error,
+    /// however the value is lower in accuracy than normally expected from these algorithms.
+    /// As `z.abs()` or `order` are large, losses of significnace produce
+    /// less than half of machine accuracy. This error is conservative, in
+    /// that it assume argument reduction causes problems that may not occur
+    /// in some architectures.
+    /// Not returned by the reduced API `bessel_...` functions, as they unwrap this and
+    /// return the value. To detect partial loss of significance, the `complex_bessel_..`
+    /// function must be used.
     #[error("Partial loss of significance in output. Losssy values returned.")]
-    PartialLossOfSignificance { y: Vec<Complex64>, nz: usize } = 3,
+    PartialLossOfSignificance {
+        /// Value(s) of Bessel function (reduced accuracy)
+        y: Vec<Complex64>,
+        /// Number of entries in `y` explicitly set to zero (as per the `complex_bessel_...` docs`)
+        nz: usize,
+    } = 3,
     #[error("Loss of too much significance in output")]
+    /// Complete loss of significance in output. No value could be calculated
     LossOfSignificance = 4,
+    /// Algorithm failed to converge to a an answer
     #[error("Algorithm failed to terminate")]
     DidNotConverge = 5,
+    /// Returned only when the input `z` to the `bessel_...` functions is real.
+    /// As these function return a real output for a real input, the output is
+    /// only valid if the imaginary part is small. If the imaginary part of the
+    /// answer is siginificant this error is returned. The complex answer is returned
+    /// in the output field, if that is wanted.
     #[error("Real input returned complex output. Output value {output}")]
-    ComplexOutputForRealInput { output: Complex<f64> } = 6,
+    ComplexOutputForRealInput {
+        /// Complex result of the Bessel function calculation.
+        output: Complex<f64>,
+    } = 6,
 }
 
 impl BesselError {
+    /// A numeric form of the error equivalent to the error codes returned by the Amos
+    /// Fortran code (where equivalence exists)
     pub fn error_code(&self) -> i32 {
         match self {
             BesselError::InvalidInput { .. } => 1,
@@ -115,7 +148,6 @@ impl BesselError {
     }
 }
 
-#[macro_export]
 macro_rules! simple_bessel_wrapper {
     (
         $(#[$meta:meta])*
@@ -133,3 +165,5 @@ macro_rules! simple_bessel_wrapper {
         }
     };
 }
+
+pub(crate) use simple_bessel_wrapper;

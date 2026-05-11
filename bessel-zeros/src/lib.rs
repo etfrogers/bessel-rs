@@ -16,10 +16,11 @@
 // or is it better to have a single function with an enum argument? \
 // The latter is more extensible, but the former is more user-friendly. Maybe both?
 // Single functions might be better with a default precsision.
+// TODO use real bessel function here?
 
 use std::f64::consts::{FRAC_PI_2, PI};
 
-use amos_bessel_rs::types::BackFrom;
+use amos_bessel_rs::BackFrom;
 
 use amos_bessel_rs::{bessel_j, bessel_y};
 use conv::ConvUtil;
