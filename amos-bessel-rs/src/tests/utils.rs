@@ -134,10 +134,10 @@ pub fn check_against_fortran(
     let (cy, nz, ierr) = fortran_func(order, z, scaling as i32, n);
     let (cy_loop_fort, _, _) = fortran_bess_loop(order, z, scaling, n, fortran_func);
     // DEBUG PRINT
-    println!(
-        "DEBUG values: order={:?}, z={:?}, scaling={:?}\nActual: {:?}\nExpected: {:?}\n",
-        order, z, scaling, actual, cy
-    );
+    // println!(
+    //     "DEBUG values: order={:?}, z={:?}, scaling={:?}\nActual: {:?}\nExpected: {:?}\n",
+    //     order, z, scaling, actual, cy
+    // );
     let fail = |reason: &str| -> () {
         let cy_loop_rust = match rust_bess_loop(order, z, scaling, n, rust_func) {
             Ok((data, _)) => data,
