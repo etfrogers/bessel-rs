@@ -182,17 +182,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "complex-bessel-test"
-version = "0.1.0"
-dependencies = [
- "amos-bessel-rs",
- "complex-bessel",
- "num-complex",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "conv"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

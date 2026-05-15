@@ -3,7 +3,6 @@ resolver = "3"
 members = [
     "amos-bessel-rs",
     "bessel_zeros",
-    "complex-bessel-test",
     "real-bessel",
     "fortran-amos",
 ]
