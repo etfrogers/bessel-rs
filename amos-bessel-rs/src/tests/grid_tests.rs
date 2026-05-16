@@ -71,7 +71,7 @@ fn hankel2(order: f64, z: Complex<f64>) -> Result<Complex<f64>, BesselError> {
     hankel(order, z, HankelKind::Second)
 }
 
-///Compute relative error between computed and reference complex values.
+/// Compute relative error between computed and reference complex values.
 /// Returns None when both values are near zero (comparison meaningless).
 /// math.hypot is used to avoid overflow on large intermediate values.
 fn complex_bessel_test_relative_error(

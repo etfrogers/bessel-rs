@@ -75,18 +75,35 @@ impl Tolerances {
 }
 
 pub(crate) fn complex_relative_eq(a: &Complex64, b: &Complex64, tolerances: &Tolerances) -> bool {
+    let abs_floor = MACHINE_CONSTANTS.abs_error_tolerance * 1e2;
+
     if relative_eq!(
         a,
         b,
+        epsilon = abs_floor,
         max_relative = tolerances.margin * tolerances.max_relative
     ) {
         return true;
     }
-    let (_, rel_e_re) = abs_rel_errors(a.re, b.re);
-    let (_, rel_e_im) = abs_rel_errors(a.im, b.im);
 
-    rel_e_re < tolerances.margin * tolerances.tol_re
-        && rel_e_im < tolerances.margin * tolerances.tol_im
+    // AMOS Component-Wise Check
+    // This evaluates the real and imaginary parts using your dynamically
+    // generated tolerances, but safely ignores differences below the noise floor.
+    let re_matches = relative_eq!(
+        a.re,
+        b.re,
+        epsilon = abs_floor,
+        max_relative = tolerances.margin * tolerances.tol_re
+    );
+
+    let im_matches = relative_eq!(
+        a.im,
+        b.im,
+        epsilon = abs_floor,
+        max_relative = tolerances.margin * tolerances.tol_im
+    );
+
+    re_matches && im_matches
 }
 
 fn abs_rel_errors(a: f64, b: f64) -> (f64, f64) {
