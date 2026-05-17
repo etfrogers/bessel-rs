@@ -30,7 +30,7 @@ impl BackTo<f64> for Complex64 {
         const MARGIN: f64 = 1000.0;
         let tol = MARGIN * MACHINE_CONSTANTS.abs_error_tolerance;
         if self.im().abs() < tol || self.im().abs() < self.re().abs() * tol {
-            return Ok(self.re());
+            Ok(self.re())
         } else {
             Err(BesselError::ComplexOutputForRealInput { output: *self })
         }
