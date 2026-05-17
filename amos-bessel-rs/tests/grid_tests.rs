@@ -1,15 +1,17 @@
-use crate::test_utils::{
-    BesselFortranSig, BesselSig, check_against_fortran, check_complex_arrays_equal, sig_airy,
-    sig_airy_fortran, sig_airyp, sig_airyp_fortran, sig_biry, sig_biry_fortran, sig_biryp,
-    sig_biryp_fortran, zbesh_fortran_first, zbesh_fortran_second,
+extern crate fortran_amos;
+
+mod common;
+use amos_bessel_rs::{
+    BesselError, HankelKind, Scaling, bessel_i, bessel_j, bessel_k, bessel_y, complex_bessel_i,
+    complex_bessel_j, complex_bessel_k, complex_bessel_y, complex_hankel1, complex_hankel2, hankel,
+    test_utils::{
+        BesselFortranSig, BesselSig, check_against_fortran, check_complex_arrays_equal, sig_airy,
+        sig_airy_fortran, sig_airyp, sig_airyp_fortran, sig_biry, sig_biry_fortran, sig_biryp,
+        sig_biryp_fortran, zbesh_fortran_first, zbesh_fortran_second,
+    },
 };
 
-use crate::tests::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
-use crate::{
-    HankelKind, Scaling, bessel_i, bessel_j, bessel_k, bessel_y, complex_bessel_i,
-    complex_bessel_j, complex_bessel_k, complex_bessel_y, complex_hankel1, complex_hankel2, hankel,
-    types::BesselError,
-};
+use fortran_amos::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
 
 use complex_bessel::besseli as bessel_i_ref;
 use complex_bessel::besselj as bessel_j_ref;
@@ -23,14 +25,11 @@ use num::Complex;
 use rstest::rstest;
 
 const ORDERS: [f64; 21] = [
-    // 1.5,
     0.0, 0.25, 0.5, 1.0, 1.5, 2.0, 5.0, 10.0, 25.0, 50.0, 75.0, 85.0, 90.0, 100.0, 150.0, 200.0,
     500.0, 1000.0, -0.5, -1.5, -2.0,
 ];
 
 const Z_PARTS: [f64; 37] = [
-    // -1.0,
-    // 0.0,
     -50.0, -40.0, -30.0, -25.0, -20.0, -15.0, -12.0, -10.0, -8.0, -6.0, -4.0, -3.0, -2.0, -1.0,
     -0.5, -0.1, -0.001, -1e-6, 0.0, 1e-6, 0.001, 0.1, 0.5, 1.0, 2.0, 3.0, 4.0, 6.0, 8.0, 10.0,
     12.0, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0,
@@ -73,7 +72,7 @@ fn hankel2(order: f64, z: Complex<f64>) -> Result<Complex<f64>, BesselError> {
     hankel(order, z, HankelKind::Second)
 }
 
-/// Compute relative error between computed and reference complex values.
+///Compute relative error between computed and reference complex values.
 /// Returns None when both values are near zero (comparison meaningless).
 /// math.hypot is used to avoid overflow on large intermediate values.
 fn complex_bessel_test_relative_error(

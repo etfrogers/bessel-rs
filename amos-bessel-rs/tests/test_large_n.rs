@@ -1,18 +1,18 @@
+extern crate fortran_amos;
+mod common;
+use common::parametrisation::bessel_cases;
 use rstest::rstest;
 use rstest_reuse::apply;
 
-use super::{bessel_cases, zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
-use crate::{
-    Scaling,
-    amos::{
-        complex_bessel_i, complex_bessel_j, complex_bessel_k, complex_bessel_y, complex_hankel1,
-        complex_hankel2,
-    },
+use amos_bessel_rs::{
+    Scaling, complex_bessel_i, complex_bessel_j, complex_bessel_k, complex_bessel_y,
+    complex_hankel1, complex_hankel2,
     test_utils::{
         BesselFortranSig, BesselSig, check_against_fortran, zbesh_fortran_first,
         zbesh_fortran_second,
     },
 };
+use fortran_amos::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
 use num::complex::Complex64;
 
 #[apply(bessel_cases)]
@@ -32,10 +32,10 @@ fn test_bessel_large_n_real(
         (complex_bessel_y as BesselSig, zbesy_fortran as BesselFortranSig)
     )]
     (rust_fn, fortran_fn): (BesselSig, BesselFortranSig),
-    // #[values(4)] n: usize,
-    // #[values(Scaling::Unscaled)] scaling: Scaling,
 ) {
     // ignores the zi input
+    // let z = Complex64::new(zr, zi);
+    // check_against_fortran(order, z, scaling, n, rust_fn, fortran_fn);
     check_against_fortran(order, zr.into(), scaling, n, rust_fn, fortran_fn, 1e6);
 }
 
@@ -56,8 +56,6 @@ fn test_bessel_large_n_complex(
         (complex_bessel_y as BesselSig, zbesy_fortran as BesselFortranSig)
     )]
     (rust_fn, fortran_fn): (BesselSig, BesselFortranSig),
-    // #[values(9)] n: usize,
-    // #[values(Scaling::Unscaled)] scaling: Scaling,
 ) {
     let z = Complex64::new(zr, zi);
     check_against_fortran(order, z, scaling, n, rust_fn, fortran_fn, 1e6);

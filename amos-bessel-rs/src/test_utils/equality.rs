@@ -1,17 +1,8 @@
-use std::f64;
+use approx::relative_eq;
+use num::{Complex, pow::Pow};
 use std::fmt::Debug;
 
-use approx::relative_eq;
-use num::pow::Pow;
-use num::{Zero, complex::Complex64};
-
-use crate::amos::MACHINE_CONSTANTS;
-use crate::types::{BesselError, BesselResult};
-
-use crate::{
-    Scaling,
-    tests::{BesselFortranSig, BesselSig},
-};
+use crate::{amos::MACHINE_CONSTANTS, types::BesselResult};
 
 pub(crate) struct Tolerances {
     pub max_relative: f64,
@@ -26,9 +17,9 @@ pub(crate) struct Tolerances {
 
 impl Tolerances {
     pub(crate) fn new(
-        actual: &Complex64,
-        expected: &Complex64,
-        reference: Option<&Complex64>,
+        actual: &Complex<f64>,
+        expected: &Complex<f64>,
+        reference: Option<&Complex<f64>>,
         margin: f64,
     ) -> Self {
         let max_relative = MACHINE_CONSTANTS.abs_error_tolerance;
@@ -74,7 +65,11 @@ impl Tolerances {
     }
 }
 
-pub(crate) fn complex_relative_eq(a: &Complex64, b: &Complex64, tolerances: &Tolerances) -> bool {
+pub(crate) fn complex_relative_eq(
+    a: &Complex<f64>,
+    b: &Complex<f64>,
+    tolerances: &Tolerances,
+) -> bool {
     let abs_floor = MACHINE_CONSTANTS.abs_error_tolerance * 1e2;
 
     if relative_eq!(
@@ -112,12 +107,15 @@ fn abs_rel_errors(a: f64, b: f64) -> (f64, f64) {
     (abs_e, rel_e)
 }
 
-pub(crate) fn abs_rel_errors_cmplx(a: &Complex64, b: &Complex64) -> (Complex64, Complex64) {
+pub(crate) fn abs_rel_errors_cmplx(
+    a: &Complex<f64>,
+    b: &Complex<f64>,
+) -> (Complex<f64>, Complex<f64>) {
     let (abs_e_r, rel_e_r) = abs_rel_errors(a.re, b.re);
     let (abs_e_i, rel_e_i) = abs_rel_errors(a.im, b.im);
     (
-        Complex64::new(abs_e_r, abs_e_i),
-        Complex64::new(rel_e_r, rel_e_i),
+        Complex::<f64>::new(abs_e_r, abs_e_i),
+        Complex::<f64>::new(rel_e_r, rel_e_i),
     )
 }
 
@@ -137,158 +135,17 @@ pub fn assert_results_are_equal<T: IntoComplexVec + Debug>(
     }
 }
 
-pub fn check_against_fortran(
-    order: f64,
-    z: Complex64,
-    scaling: Scaling,
-    n: usize,
-    rust_func: BesselSig,
-    fortran_func: BesselFortranSig,
-    margin: f64,
-) {
-    let actual = rust_func(z, order, scaling, n);
-
-    let (cy, nz, ierr) = fortran_func(order, z, scaling as i32, n);
-    let (cy_loop_fort, _, _) = fortran_bess_loop(order, z, scaling, n, fortran_func);
-    // DEBUG PRINT
-    // println!(
-    //     "DEBUG values: order={:?}, z={:?}, scaling={:?}\nActual: {:?}\nExpected: {:?}\n",
-    //     order, z, scaling, actual, cy
-    // );
-    let fail = |reason: &str| -> () {
-        let cy_loop_rust = match rust_bess_loop(order, z, scaling, n, rust_func) {
-            Ok((data, _)) => data,
-            Err(err) => {
-                panic!(
-                    "Error generated in looped rust that was not present in unlooped case: {err:?}"
-                );
-            }
-        };
-        println!("Order: {order:e}\nz: {z:e}\nscaling: {scaling:?}\nn: {n}");
-        println!("#[case({:e}, {:e}, {:e})]", order, z.re, z.im);
-        println!("#[case({:.1}, {:.1}, {:.1})]\n", order, z.re, z.im);
-        match &actual {
-            Ok(actual) => {
-                println!("Fortran Nz: {nz}, translator Nz: {}\n", actual.1);
-                print_complex_arrays(&cy, &actual.0, &cy_loop_fort, &cy_loop_rust);
-            }
-            Err(err) => {
-                println!(
-                    "Fortran error: {ierr}. Translation error: {err:?} ({})",
-                    err.error_code()
-                );
-                if let BesselError::PartialLossOfSignificance {
-                    y: ref actual_y,
-                    nz: actual_nz,
-                } = *err
-                {
-                    println!("Fortran Nz: {nz}, translator Nz: {}\n", actual_nz);
-                    print_complex_arrays(&cy, actual_y, &cy_loop_fort, &cy_loop_rust);
-                }
-            }
-        }
-        println!();
-        panic!("{reason}")
-    };
-
-    match &actual {
-        Ok(actual) => {
-            if let Some(reason) = check_complex_arrays_equal(&actual.0, &cy, &cy_loop_fort, margin)
-            {
-                fail(&reason)
-            }
-        }
-        Err(err) => {
-            if ierr != err.error_code() {
-                fail("Failed for mismatched error code")
-            };
-            if let BesselError::PartialLossOfSignificance {
-                y: ref actual_y,
-                nz: actual_nz,
-            } = *err
-            {
-                if nz != actual_nz {
-                    // for partial loss of significance, it seems occasionally fortran
-                    // will return some values very nearly zero, but it's only happening
-                    // on a release build, so it may be some optimization issue. It also occurs
-                    // sometimes (though flakily on a linux build) To avoid
-                    // this causing test failures, effectively skipping the check on the nz value
-                    // And falling through to the value checks, below, but these will catch large errors.
-                    // This is not ideal, but I have not been able to find a better solution.
-                    //
-                    // Note this is only for the partial loss of significance case, which is
-                    // already a case where the results are not fully trustworthy, so it seems
-                    // reasonable to me to allow this kind of mismatch in this case.
-
-                    // fail("Failed for mismatched nz value");
-                }
-                if cy.iter().any(|x| x.is_nan()) {
-                    // if the fortran failed to give a sensible answer, we don;t have anything to check
-                    // against. So far this has only been observed on Linux on CI, not on Mac OS
-                    return;
-                }
-                if let Some(reason) =
-                    check_complex_arrays_equal(actual_y, &cy, &cy_loop_fort, margin * 1e2)
-                {
-                    fail(&reason)
-                }
-            }
-        }
-    }
-}
-
-fn rust_bess_loop(
-    order: f64,
-    z: Complex64,
-    scaling: Scaling,
-    n: usize,
-    func: BesselSig,
-) -> BesselResult {
-    let mut y = vec![Complex64::zero(); n];
-    let mut nz = 0;
-    for i in 0..n {
-        let (yi, nzi) = match func(z, order + i as f64, scaling, 1) {
-            Ok((y_, nz_)) => (y_, nz_),
-            Err(BesselError::PartialLossOfSignificance { y, nz }) => (y, nz),
-            Err(err) => return Err(err),
-        };
-        y[i] = yi[0];
-        nz += nzi;
-    }
-    return Ok((y, nz));
-}
-
-pub fn fortran_bess_loop(
-    order: f64,
-    z: Complex64,
-    scaling: Scaling,
-    n: usize,
-    func: BesselFortranSig,
-) -> (Vec<Complex64>, usize, i32) {
-    let mut y = vec![Complex64::zero(); n];
-    let mut nz = 0;
-    for i in 0..n {
-        let (yi, nzi, ierr) = func(order + i as f64, z, scaling as i32, 1);
-        if ierr != 0 {
-            return (y, nz, ierr);
-        }
-        y[i] = yi[0];
-        nz += nzi;
-    }
-    (y, nz, 0)
-}
-
 pub trait IntoComplexVec: Clone {
-    fn into_vec(self) -> Vec<Complex64>;
+    fn into_vec(self) -> Vec<Complex<f64>>;
 }
-impl IntoComplexVec for Complex64 {
-    fn into_vec(self) -> Vec<Complex64> {
+impl IntoComplexVec for Complex<f64> {
+    fn into_vec(self) -> Vec<Complex<f64>> {
         vec![self]
     }
 }
 
-impl IntoComplexVec for Vec<Complex64> {
-    fn into_vec(self) -> Vec<Complex64> {
+impl IntoComplexVec for Vec<Complex<f64>> {
+    fn into_vec(self) -> Vec<Complex<f64>> {
         self
     }
 }
@@ -354,7 +211,12 @@ pub fn check_complex_arrays_equal(
     None
 }
 
-fn print_complex_arrays(c1: &[Complex64], c2: &[Complex64], c3: &[Complex64], c4: &[Complex64]) {
+pub fn print_complex_arrays(
+    c1: &[Complex<f64>],
+    c2: &[Complex<f64>],
+    c3: &[Complex<f64>],
+    c4: &[Complex<f64>],
+) {
     println!("i\tFortran\t\t\t\tTranslator\t\t\t\tFortran looped\t\t\t\tRust looped");
     c1.iter().enumerate().for_each(|(i, fort)| {
         println!(
@@ -401,6 +263,6 @@ fn print_complex_arrays(c1: &[Complex64], c2: &[Complex64], c3: &[Complex64], c4
     });
 }
 
-fn to_str(c: &Complex64) -> String {
+fn to_str(c: &Complex<f64>) -> String {
     format!("{:>+1.5e} {:>+1.5e}i", c.re, c.im)
 }
