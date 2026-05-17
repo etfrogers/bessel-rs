@@ -82,13 +82,13 @@ use crate::reflections::{
     as_integer, integer_sign, reflect_h_element, reflect_i_element, reflect_j_element,
     reflect_y_element,
 };
-pub use crate::types::{BackTo, BesselError};
 pub use amos::{GammaError, HankelKind, Scaling};
 pub use amos::{
     complex_airy, complex_airy_b, complex_bessel_h, complex_bessel_i, complex_bessel_j,
     complex_bessel_k, complex_bessel_y, complex_hankel1, complex_hankel2,
 };
 use num::{Complex, complex::Complex64};
+pub use types::{BackTo, BesselError};
 
 // TODO work with abritrary bit-depth floats
 // TODO bessel derivatives
