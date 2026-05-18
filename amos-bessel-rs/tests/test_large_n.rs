@@ -1,4 +1,4 @@
-extern crate fortran_amos;
+extern crate fortran_amos_testing;
 mod common;
 use common::parametrisation::bessel_cases;
 use rstest::rstest;
@@ -12,7 +12,7 @@ use amos_bessel_rs::{
         zbesh_fortran_second,
     },
 };
-use fortran_amos::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
+use fortran_amos_testing::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
 use num::complex::Complex64;
 
 #[apply(bessel_cases)]

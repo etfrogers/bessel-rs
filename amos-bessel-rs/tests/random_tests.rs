@@ -1,12 +1,12 @@
 // #[cfg(feature = "random_tests")]
 
-extern crate fortran_amos;
+extern crate fortran_amos_testing;
 
 use complex_bessel_rs::{
     bessel_i::bessel_i as bessel_i_ref, bessel_j::bessel_j as bessel_j_ref,
     bessel_k::bessel_k as bessel_k_ref, bessel_y::bessel_y as bessel_y_ref,
 };
-use fortran_amos::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
+use fortran_amos_testing::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
 use num::complex::Complex64;
 use num::pow::Pow;
 use rand::seq::IndexedRandom;

@@ -30,7 +30,7 @@ dependencies = [
  "complex-bessel-rs",
  "conv",
  "criterion 0.7.0",
- "fortran-amos",
+ "fortran-amos-testing",
  "itertools 0.14.0",
  "num",
  "paste",
@@ -70,7 +70,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
-name = "bessel_zeros"
+name = "bessel-zeros"
 version = "0.1.0"
 dependencies = [
  "amos-bessel-rs",
@@ -335,7 +335,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
 
 [[package]]
-name = "fortran-amos"
+name = "fortran-amos-testing"
 version = "0.1.0"
 dependencies = [
  "cc",

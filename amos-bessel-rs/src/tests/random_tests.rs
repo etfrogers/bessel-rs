@@ -18,7 +18,7 @@ use crate::test_utils::{
     zbesh_fortran_first, zbesh_fortran_second,
 };
 
-use fortran_amos::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
+use fortran_amos_testing::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
 
 use crate::{
     HankelKind, Scaling, airy, airy_b, airy_bp, airyp,

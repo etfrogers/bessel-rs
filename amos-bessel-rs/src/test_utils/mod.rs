@@ -1,6 +1,6 @@
 use std::f64;
 
-use fortran_amos::{zairy_fortran, zbesh_fortran, zbiry_fortran};
+use fortran_amos_testing::{zairy_fortran, zbesh_fortran, zbiry_fortran};
 use num::{Zero, complex::Complex64};
 
 use crate::types::{BesselError, BesselResult};
