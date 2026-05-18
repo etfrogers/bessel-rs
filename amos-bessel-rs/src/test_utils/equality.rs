@@ -126,6 +126,15 @@ pub fn assert_results_are_equal<T: IntoComplexVec + Debug>(
     margin: f64,
 ) {
     if let Ok(actual) = actual {
+        // The single-output function unwrap PartialLossOfSignificance errors, and return Ok(),
+        // This corresponds to the ref function returning ierr=3, we need to allow expected
+        // to be error code 3.
+        // Not that the reference functions don't return any values to check against if
+        // ierr != 0
+        // Tests against Fortran should allow test of values.
+        if expected.as_ref().is_err_and(|err| *err == 3) {
+            return;
+        }
         assert_complex_arrays_equal(actual, expected.as_ref().unwrap(), reference, margin);
     } else {
         assert_eq!(

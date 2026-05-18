@@ -31,10 +31,39 @@ impl BackFrom<Complex64> for f64 {
     fn back_from(val: &Complex64) -> BesselResult<Self> {
         const MARGIN: f64 = 1000.0;
         let tol = MARGIN * MACHINE_CONSTANTS.abs_error_tolerance;
-        if val.im().abs() < tol || val.im().abs() < val.re().abs() * tol {
+        // if the imainary part is small, pass the value on
+        // if the imaginary part is small compared to the real part, pass the value on
+        // if the real part is small, the imaginary part is likely inaccurate, so pass the value on
+        if val.im().abs() < tol || val.im().abs() < val.re().abs() * tol || val.re() < tol {
             Ok(val.re())
         } else {
             Err(BesselError::ComplexOutputForRealInput { output: *val })
+        }
+    }
+}
+
+impl BackFrom<BesselResult<Complex64>> for f64 {
+    #[inline]
+    fn back_from(val: &BesselResult<Complex<f64>>) -> BesselResult<Self> {
+        match val {
+            Ok(cpx) => f64::back_from(cpx),
+            // below we can assume that y has one element, as the input type is BesselResult<Complex<f64>> not
+            // BesselResult<Vec<Complex<f64>>>
+            Err(BesselError::PartialLossOfSignificance { y, nz: _ }) => f64::back_from(&y[0]),
+            Err(err) => Err((*err).clone()),
+        }
+    }
+}
+
+impl BackFrom<BesselResult<Complex64>> for Complex<f64> {
+    #[inline]
+    fn back_from(val: &BesselResult<Complex<f64>>) -> BesselResult<Self> {
+        match val {
+            Ok(cpx) => Ok(*cpx),
+            // below we can assume that y has one element, as the input type is BesselResult<Complex<f64>> not
+            // BesselResult<Vec<Complex<f64>>>
+            Err(BesselError::PartialLossOfSignificance { y, nz: _ }) => Ok(y[0]),
+            Err(err) => Err((*err).clone()),
         }
     }
 }
@@ -54,7 +83,7 @@ impl BackFrom<Complex64> for f64 {
 ///                 CANCE BY ARGUMENT REDUCTION
 ///         IERR=5, ERROR              - NO COMPUTATION,
 ///                 ALGORITHM TERMINATION CONDITION NOT MET
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug, PartialEq, Clone)]
 #[repr(i32)]
 pub enum BesselError {
     // This correpsonds to IERR
