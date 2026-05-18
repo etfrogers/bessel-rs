@@ -1,6 +1,10 @@
 Amos Bessel functions in idomatic Rust
 ======================================
 
+[![Crates.io](https://img.shields.io/crates/v/amos-bessel-rs.svg)](https://crates.io/crates/amos-bessel-rs)
+[![Build Status](https://github.com/etfrogers/bessel-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/etfrogers/bessel-rs/actions/workflows/rust.yml)
+[![codecov](https://codecov.io/gh/etfrogers/bessel-rs/branch/main/graph/badge.svg)](https://codecov.io/gh/etfrogers/bessel-rs)
+
 A crate implementing idiomatic, pure Rust translations of [Amos' complex
 Bessel function algorthims](https://www.netlib.org/amos/)
 
