@@ -1,4 +1,4 @@
-extern crate fortran_amos;
+extern crate fortran_amos_testing;
 
 mod common;
 use amos_bessel_rs::{
@@ -11,7 +11,7 @@ use amos_bessel_rs::{
     },
 };
 
-use fortran_amos::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
+use fortran_amos_testing::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
 
 use complex_bessel::besseli as bessel_i_ref;
 use complex_bessel::besselj as bessel_j_ref;

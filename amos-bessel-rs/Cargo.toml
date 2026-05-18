@@ -10,7 +10,7 @@ keywords = ["bessel-functions"]
 [features]
 # default = ["random_tests"]
 random_tests = []
-test-utils = ["rstest", "rstest_reuse", "fortran-amos"]
+test-utils = ["rstest", "rstest_reuse", "fortran-amos-testing"]
 [build-dependencies]
 cc = { version = "1.2", optional = true }
 
@@ -23,7 +23,7 @@ thiserror = "2.0.17"
 approx = { version = "0.5.1", features = ["num-complex"] }
 rstest = { version = "0.26.1", optional = true }
 rstest_reuse = { version = "0.7.0", optional = true }
-fortran-amos = { path = "../fortran-amos", optional = true }
+fortran-amos-testing = { path = "../fortran-amos-testing", optional = true }
 
 
 [dev-dependencies]
@@ -35,7 +35,7 @@ rstest_reuse = "0.7.0"
 criterion = "0.7.0"
 complex-bessel = "0.2.0"
 pymath = "0.2.0"
-fortran-amos = { path = "../fortran-amos" }
+fortran-amos-testing = { path = "../fortran-amos-testing" }
 
 [[bench]]
 name = "bessel_bench"

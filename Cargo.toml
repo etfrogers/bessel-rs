@@ -4,7 +4,7 @@ members = [
     "amos-bessel-rs",
     "bessel_zeros",
     "real-bessel",
-    "fortran-amos",
+    "fortran-amos-testing",
 ]
 
 

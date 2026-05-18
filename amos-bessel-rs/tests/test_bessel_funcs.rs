@@ -1,4 +1,4 @@
-extern crate fortran_amos;
+extern crate fortran_amos_testing;
 mod common;
 use amos_bessel_rs::test_utils::{
     BesselFortranSig, BesselSig, airy_ref, assert_results_are_equal, bessel_h_ref, biry_ref,
@@ -11,7 +11,7 @@ use complex_bessel_rs::bessel_i::bessel_i as bessel_i_ref;
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_ref;
 use complex_bessel_rs::bessel_k::bessel_k as bessel_k_ref;
 use complex_bessel_rs::bessel_y::bessel_y as bessel_y_ref;
-use fortran_amos::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
+use fortran_amos_testing::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
 
 use amos_bessel_rs::{
     HankelKind, Scaling, airy, airy_b, airy_bp, airyp, bessel_i, bessel_j, bessel_k, bessel_y,

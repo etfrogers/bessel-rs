@@ -1,5 +1,5 @@
 pub(crate) use crate::test_utils::parametrisation::bessel_cases;
-pub use fortran_amos::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
+pub use fortran_amos_testing::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
 
 mod grid_tests;
 #[cfg(feature = "random_tests")]
