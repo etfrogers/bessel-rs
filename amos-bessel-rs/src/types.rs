@@ -1,38 +1,40 @@
+use crate::amos::MACHINE_CONSTANTS;
 use num::{
     Complex,
     complex::{Complex64, ComplexFloat},
 };
 use thiserror::Error;
 
-use crate::amos::MACHINE_CONSTANTS;
-
 pub(crate) type BesselValues<T = usize> = (Vec<Complex64>, T);
 pub(crate) type BesselResult<T = BesselValues> = Result<T, BesselError>;
 
-pub trait BackTo<T> {
-    fn back_to(&self) -> BesselResult<T>;
+pub trait BackFrom<T>: Sized {
+    fn back_from(val: &T) -> BesselResult<Self>;
 }
 
-impl BackTo<Complex64> for Complex64 {
-    fn back_to(&self) -> BesselResult<Complex64> {
-        Ok(*self)
+impl BackFrom<Complex64> for Complex64 {
+    #[inline]
+    fn back_from(val: &Complex64) -> BesselResult<Self> {
+        Ok(*val)
     }
 }
 
-impl BackTo<f64> for f64 {
-    fn back_to(&self) -> BesselResult<f64> {
-        Ok(*self)
+impl BackFrom<f64> for f64 {
+    #[inline]
+    fn back_from(val: &f64) -> BesselResult<Self> {
+        Ok(*val)
     }
 }
 
-impl BackTo<f64> for Complex64 {
-    fn back_to(&self) -> BesselResult<f64> {
+impl BackFrom<Complex64> for f64 {
+    #[inline]
+    fn back_from(val: &Complex64) -> BesselResult<Self> {
         const MARGIN: f64 = 1000.0;
         let tol = MARGIN * MACHINE_CONSTANTS.abs_error_tolerance;
-        if self.im().abs() < tol || self.im().abs() < self.re().abs() * tol {
-            Ok(self.re())
+        if val.im().abs() < tol || val.im().abs() < val.re().abs() * tol {
+            Ok(val.re())
         } else {
-            Err(BesselError::ComplexOutputForRealInput { output: *self })
+            Err(BesselError::ComplexOutputForRealInput { output: *val })
         }
     }
 }
