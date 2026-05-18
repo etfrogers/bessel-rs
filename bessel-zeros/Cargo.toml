@@ -1,5 +1,5 @@
 [package]
-name = "bessel_zeros"
+name = "bessel-zeros"
 version = "0.1.0"
 edition = "2024"
 

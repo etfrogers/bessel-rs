@@ -2,7 +2,7 @@
 resolver = "3"
 members = [
     "amos-bessel-rs",
-    "bessel_zeros",
+    "bessel-zeros",
     "real-bessel",
     "fortran-amos-testing",
 ]
