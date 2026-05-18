@@ -88,17 +88,19 @@ pub use amos::{
     complex_bessel_k, complex_bessel_y, complex_hankel1, complex_hankel2,
 };
 use num::{Complex, complex::Complex64};
+use types::BesselResult;
 pub use types::{BackFrom, BesselError};
 
 // TODO work with abritrary bit-depth floats
 // TODO bessel derivatives
 // TODO Overflow to positive or negative infinity, or zero?
 // TODO Handle Vectors/ndarrays for z
-// TODO Unwrap PLOS?
-// TODO check validity of real functions
 
 pub trait BesselInput:
-    Into<Complex<f64>> + BackFrom<Complex<f64>> + Mul<f64, Output = Self>
+    Into<Complex<f64>>
+    + BackFrom<Complex<f64>>
+    + Mul<f64, Output = Self>
+    + BackFrom<BesselResult<Complex<f64>>>
 {
 }
 
@@ -109,13 +111,13 @@ pub fn bessel_j<ZT: BesselInput, OT: Into<f64>>(order: OT, z: ZT) -> Result<ZT, 
     let order: f64 = order.into();
     let z: Complex<f64> = z.into();
     if order >= 0.0 {
-        return ZT::back_from(&bessel_j_single(order, z)?);
+        return ZT::back_from(&bessel_j_single(order, z));
     }
 
     // Special case for negative integer order: J(-n, z) = (-1)^n J(n, z)
     let abs_order: f64 = order.abs();
     if let Some(n) = as_integer(abs_order) {
-        return Ok(ZT::back_from(&bessel_j_single(abs_order, z)?)? * integer_sign(n));
+        return ZT::back_from(&bessel_j_single(abs_order, z)).map(|x| x * integer_sign(n));
     }
 
     // General case: need both J and Y at positive |ν|
@@ -129,14 +131,14 @@ pub fn bessel_i<ZT: BesselInput, OT: Into<f64>>(order: OT, z: ZT) -> Result<ZT, 
     let order = order.into();
     let z = z.into();
     if order >= 0.0 {
-        return ZT::back_from(&bessel_i_single(order, z)?);
+        return ZT::back_from(&bessel_i_single(order, z));
     }
 
     let abs_order = order.abs();
 
     // Integer shortcut: I_{-n}(z) = I_n(z)
     if as_integer(abs_order).is_some() {
-        return ZT::back_from(&bessel_i_single(abs_order, z)?);
+        return ZT::back_from(&bessel_i_single(abs_order, z));
     }
 
     // General case: need both I and K at positive |ν|
@@ -149,14 +151,14 @@ pub fn bessel_i<ZT: BesselInput, OT: Into<f64>>(order: OT, z: ZT) -> Result<ZT, 
 pub fn bessel_k<ZT: BesselInput, OT: Into<f64>>(order: OT, z: ZT) -> Result<ZT, BesselError> {
     // K_{-ν}(z) = K_ν(z) (DLMF 10.27.3)
     let abs_order = order.into().abs();
-    ZT::back_from(&bessel_k_single(abs_order, z.into())?)
+    ZT::back_from(&bessel_k_single(abs_order, z.into()))
 }
 
 pub fn bessel_y<ZT: BesselInput, OT: Into<f64>>(order: OT, z: ZT) -> Result<ZT, BesselError> {
     let order = order.into();
     let z = z.into();
     if order >= 0.0 {
-        return ZT::back_from(&bessel_y_single(order, z)?);
+        return ZT::back_from(&bessel_y_single(order, z));
     }
 
     let abs_order = order.abs();
@@ -194,19 +196,19 @@ pub fn hankel<ZT: BesselInput, OT: Into<f64>>(
 }
 
 pub fn airy<ZT: BesselInput>(z: ZT) -> Result<ZT, BesselError> {
-    ZT::back_from(&complex_airy(z.into(), false, Scaling::Unscaled)?.0)
+    ZT::back_from(&complex_airy(z.into(), false, Scaling::Unscaled).map(|x| x.0))
 }
 
 pub fn airyp<ZT: BesselInput>(z: ZT) -> Result<ZT, BesselError> {
-    ZT::back_from(&complex_airy(z.into(), true, Scaling::Unscaled)?.0)
+    ZT::back_from(&complex_airy(z.into(), true, Scaling::Unscaled).map(|x| x.0))
 }
 
 pub fn airy_b<ZT: BesselInput>(z: ZT) -> Result<ZT, BesselError> {
-    ZT::back_from(&complex_airy_b(z.into(), false, Scaling::Unscaled)?)
+    ZT::back_from(&complex_airy_b(z.into(), false, Scaling::Unscaled))
 }
 
 pub fn airy_bp<ZT: BesselInput>(z: ZT) -> Result<ZT, BesselError> {
-    ZT::back_from(&complex_airy_b(z.into(), true, Scaling::Unscaled)?)
+    ZT::back_from(&complex_airy_b(z.into(), true, Scaling::Unscaled))
 }
 
 use paste::paste;
