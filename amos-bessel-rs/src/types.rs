@@ -12,46 +12,29 @@ pub trait BackFrom<T>: Sized {
     fn back_from(val: &T) -> BesselResult<Self>;
 }
 
-// impl BackFrom<T> for T < where <T: BackTo<>{
-
-// }
-
-impl<T, U> BackFrom<U> for T
-where
-    U: BackTo<T>,
-{
+impl BackFrom<Complex64> for Complex64 {
     #[inline]
-    fn back_from(val: &U) -> BesselResult<Self> {
-        U::back_to(val)
-    }
-}
-pub trait BackTo<T> {
-    fn back_to(&self) -> BesselResult<T>;
-}
-
-impl BackTo<Complex64> for Complex64 {
-    #[inline]
-    fn back_to(&self) -> BesselResult<Complex64> {
-        Ok(*self)
+    fn back_from(val: &Complex64) -> BesselResult<Self> {
+        Ok(*val)
     }
 }
 
-impl BackTo<f64> for f64 {
+impl BackFrom<f64> for f64 {
     #[inline]
-    fn back_to(&self) -> BesselResult<f64> {
-        Ok(*self)
+    fn back_from(val: &f64) -> BesselResult<Self> {
+        Ok(*val)
     }
 }
 
-impl BackTo<f64> for Complex64 {
+impl BackFrom<Complex64> for f64 {
     #[inline]
-    fn back_to(&self) -> BesselResult<f64> {
+    fn back_from(val: &Complex64) -> BesselResult<Self> {
         const MARGIN: f64 = 1000.0;
         let tol = MARGIN * MACHINE_CONSTANTS.abs_error_tolerance;
-        if self.im().abs() < tol || self.im().abs() < self.re().abs() * tol {
-            Ok(self.re())
+        if val.im().abs() < tol || val.im().abs() < val.re().abs() * tol {
+            Ok(val.re())
         } else {
-            Err(BesselError::ComplexOutputForRealInput { output: *self })
+            Err(BesselError::ComplexOutputForRealInput { output: *val })
         }
     }
 }

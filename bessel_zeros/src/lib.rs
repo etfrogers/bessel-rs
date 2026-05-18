@@ -19,7 +19,7 @@
 
 use std::f64::consts::PI;
 
-use amos_bessel_rs::types::BackTo;
+use amos_bessel_rs::types::BackFrom;
 
 use amos_bessel_rs::{bessel_j, bessel_y};
 use conv::ConvUtil;
@@ -215,7 +215,7 @@ fn fi(y: f64) -> f64 {
 
 fn bessr<ZT, OT>(fun_type: &BesselFunType, order_: OT, z_: ZT) -> f64
 where
-    ZT: Into<Complex<f64>> + BackTo<ZT> + Copy,
+    ZT: Into<Complex<f64>> + BackFrom<Complex<f64>> + Copy,
     OT: Into<f64>,
 {
     // TODO think about whether unwrapping is appropriate here
@@ -236,5 +236,5 @@ where
             order / z - bessel_y(order + 1.0, z).unwrap() / bessel_y(order, z).unwrap()
         }
     };
-    cpx_value.back_to().unwrap()
+    f64::back_from(&cpx_value).unwrap()
 }
