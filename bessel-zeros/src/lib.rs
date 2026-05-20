@@ -63,11 +63,11 @@ pub fn bessel_zeros<OT: Into<f64> + num::Num>(
     n_zeros: usize,
     precision: f64,
 ) -> Vec<f64> {
-    let a: f64 = order.into();
-    let order = a as i32;
+    let order: f64 = order.into();
+    let order_int = order as i32;
     let mut z = vec![0.0; n_zeros];
 
-    let aa = a.powf(2.0);
+    let aa = order.powf(2.0);
     let mu = 4.0 * aa;
     let mu2 = mu.powf(2.0);
     let mu3 = mu.powf(3.0);
@@ -116,20 +116,24 @@ pub fn bessel_zeros<OT: Into<f64> + num::Num>(
     };
 
     let y = 0.375 * PI;
-    let bb = if a >= 3.0 { a.powf(-2.0 / 3.0) } else { 1.0 };
+    let bb = if order >= 3.0 {
+        order.powf(-2.0 / 3.0)
+    } else {
+        1.0
+    };
 
-    let a1 = 3 * order - 8;
+    let a1 = 3 * order_int - 8;
     // psi = (.5*a + .25)*PI;
 
     for s in 1..=n_zeros {
         let sf: f64 = s.value_as().unwrap();
         let mut x: f64;
         let mut w: f64 = 0.0;
-        if (order == 0) && (s == 1) && (*func_type == BesselFunType::JP) {
+        if (order_int == 0) && (s == 1) && (*func_type == BesselFunType::JP) {
             x = 0.0;
         } else {
             if TryInto::<i32>::try_into(s).unwrap() >= a1 {
-                let b = (sf + 0.5 * a - t) * PI;
+                let b = (sf + 0.5 * order - t) * PI;
                 let c = 0.015625 / (b.powf(2.0));
                 x = b - 0.125 * (p0 - p1 * c) / (b * (1.0 - q1 * c));
             } else {
@@ -151,9 +155,9 @@ pub fn bessel_zeros<OT: Into<f64> + num::Num>(
                 let xx = 1.0 - w.powf(2.0);
                 let c = (u / xx).sqrt();
                 x = if func_type.is_non_derivative() {
-                    w * (a + c * (-5.0 / u - c * (6.0 - 10.0 / xx)) / (48.0 * a * u))
+                    w * (order + c * (-5.0 / u - c * (6.0 - 10.0 / xx)) / (48.0 * order * u))
                 } else {
-                    w * (a + c * (7.0 / u + c * (18.0 - 14.0 / xx)) / (48.0 * a * u))
+                    w * (order + c * (7.0 / u + c * (18.0 - 14.0 / xx)) / (48.0 * order * u))
                 }
             }
 
@@ -168,9 +172,9 @@ pub fn bessel_zeros<OT: Into<f64> + num::Num>(
                 let u: f64;
                 if func_type.is_non_derivative() {
                     u = r0;
-                    w = 6.0 * x * (2.0 * a + 1.0);
+                    w = 6.0 * x * (2.0 * order + 1.0);
                     p = (1.0 - 4.0 * a2) / w;
-                    q = (4.0 * (xx - mu) - 2.0 - 12.0 * a) / w;
+                    q = (4.0 * (xx - mu) - 2.0 - 12.0 * order) / w;
                 } else {
                     u = -xx * r0 / a2;
                     let v = 2.0 * x * a2 / (3.0 * (aa + xx));
@@ -220,7 +224,6 @@ where
 {
     // TODO think about whether unwrapping is appropriate here
     let z = z_.into();
-    // Complex64::new(x, 0.0);
     let order: f64 = order_.into();
     let cpx_value = match fun_type {
         BesselFunType::J => {

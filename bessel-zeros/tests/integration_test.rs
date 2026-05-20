@@ -92,7 +92,7 @@ fn test_against_hard_coded_zeros(#[case] fun_type: BesselFunType, #[case] zeros:
 }
 
 #[rstest]
-fn test_evaluation_at_zero_j() {
+fn test_evaluation_at_zero_j_integer() {
     for order in 0..20 {
         let zeros = bessel_zeros(&BesselFunType::J, order, 100, 0.1e-6);
         for v in zeros {
@@ -102,8 +102,30 @@ fn test_evaluation_at_zero_j() {
 }
 
 #[rstest]
-fn test_evaluation_at_zero_y() {
+fn test_evaluation_at_zero_y_integer() {
     for order in 0..20 {
+        let zeros = bessel_zeros(&BesselFunType::Y, order, 100, 0.1e-6);
+        for v in zeros {
+            assert_relative_eq!(0.0, bessel_y(order, v).unwrap(), epsilon = 1e-6);
+        }
+    }
+}
+
+#[rstest]
+fn test_evaluation_at_zero_j_float() {
+    for order_int in 0..200 {
+        let order = order_int as f64 / 50.0;
+        let zeros = bessel_zeros(&BesselFunType::J, order, 100, 0.1e-6);
+        for v in zeros {
+            assert_relative_eq!(0.0, bessel_j(order, v).unwrap(), epsilon = 1e-6)
+        }
+    }
+}
+
+#[rstest]
+fn test_evaluation_at_zero_y_float() {
+    for order_int in 0..200 {
+        let order = order_int as f64 / 50.0;
         let zeros = bessel_zeros(&BesselFunType::Y, order, 100, 0.1e-6);
         for v in zeros {
             assert_relative_eq!(0.0, bessel_y(order, v).unwrap(), epsilon = 1e-6);
