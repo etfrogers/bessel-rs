@@ -10,21 +10,70 @@
 //! Journal of Computational Physics, 32, 270-279 (1979)
 //!
 //! This crate is inspired by (via several intermediate steps)
-//! Adam Wyatt's Matlab version of this code
+//! Adam Wyatt's Matlab version of this code.
+//!
+//! ## Primary API
+//!
+//! The primary API for this crate consists of the specialized functions:
+//! - [`bessel_zeros_j`]
+//! - [`bessel_zeros_y`]
+//! - [`bessel_zeros_jp`]
+//! - [`bessel_zeros_yp`]
+//!
+//! These functions provide a convenient way to find the first `n` zeros with a default precision of `1e-14`.
+//!
+//! If you require more control over the precision of the results, use the [`bessel_zeros`] function
+//! which accepts a [`BesselFunType`] and a custom precision value.
+//!
+//! ## Example
+//!
+//! ```rust
+//! use bessel_zeros::bessel_zeros_j;
+//!
+//! let n = 5;
+//! let order = 0.0;
+//! let zeros = bessel_zeros_j(order, n);
+//!
+//! assert_eq!(zeros.len(), 5);
+//! assert!((zeros[0] - 2.40482555769577).abs() < 1e-10);
+//! ```
+
 #![warn(missing_docs)]
 // TODO: consider the API. Would it be worth separate functions for each type of Bessel function,
 // or is it better to have a single function with an enum argument? \
 // The latter is more extensible, but the former is more user-friendly. Maybe both?
-// Single functions might be better with a default precsision.
-use std::f64::consts::PI;
+// Single functions might be better with a default precsision
+use std::f64::consts::{FRAC_PI_2, PI};
 
-use amos_bessel_rs::types::BackFrom;
+use amos_bessel_rs::BesselInput;
 
-use amos_bessel_rs::{bessel_j, bessel_y};
+use amos_bessel_rs::{BackFrom, bessel_j, bessel_y};
 use conv::ConvUtil;
-use num::Complex;
+
+const DEFAULT_PRECISION: f64 = 1e-14;
+
+/// Finds the first n zeros of the Bessel function of the first kind Jv(x).
+pub fn bessel_zeros_j<OT: Into<f64> + num::Num>(order: OT, n_zeros: usize) -> Vec<f64> {
+    bessel_zeros(&BesselFunType::J, order, n_zeros, DEFAULT_PRECISION)
+}
+
+/// Finds the first n zeros of the Bessel function of the second kind Yv(x).
+pub fn bessel_zeros_y<OT: Into<f64> + num::Num>(order: OT, n_zeros: usize) -> Vec<f64> {
+    bessel_zeros(&BesselFunType::Y, order, n_zeros, DEFAULT_PRECISION)
+}
+
+/// Finds the first n zeros of the derivative of the Bessel function of the first kind Jv'(x).
+pub fn bessel_zeros_jp<OT: Into<f64> + num::Num>(order: OT, n_zeros: usize) -> Vec<f64> {
+    bessel_zeros(&BesselFunType::JP, order, n_zeros, DEFAULT_PRECISION)
+}
+
+/// Finds the first n zeros of the derivative of the Bessel function of the second kind Yv'(x).
+pub fn bessel_zeros_yp<OT: Into<f64> + num::Num>(order: OT, n_zeros: usize) -> Vec<f64> {
+    bessel_zeros(&BesselFunType::YP, order, n_zeros, DEFAULT_PRECISION)
+}
 
 /// The type of Bessel function of which to find the zeros.
+
 #[derive(Debug, PartialEq)]
 pub enum BesselFunType {
     /// Bessel function of the first kind, Jv(x)
@@ -191,7 +240,7 @@ pub fn bessel_zeros<OT: Into<f64> + num::Num>(
 }
 
 fn fi(y: f64) -> f64 {
-    let c1 = std::f64::consts::FRAC_PI_2;
+    let c1 = FRAC_PI_2;
     if y == 0.0 {
         0.0
     } else if y > 1e5 {
@@ -216,11 +265,7 @@ fn fi(y: f64) -> f64 {
     }
 }
 
-fn bessr<ZT, OT>(fun_type: &BesselFunType, order_: OT, z_: ZT) -> f64
-where
-    ZT: Into<Complex<f64>> + BackFrom<Complex<f64>> + Copy,
-    OT: Into<f64>,
-{
+fn bessr<ZT: BesselInput, OT: Into<f64>>(fun_type: &BesselFunType, order_: OT, z_: ZT) -> f64 {
     // TODO think about whether unwrapping is appropriate here
     let z = z_.into();
     let order: f64 = order_.into();
