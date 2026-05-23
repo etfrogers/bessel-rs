@@ -16,3 +16,8 @@ num = "0.4.3"
 approx = { version = "0.5.1", features = ["num-complex"] }
 rstest = "0.26.1"
 csv = "1.4.0"
+criterion = "0.5.1"
+
+[[bench]]
+name = "zeros_bench"
+harness = false
