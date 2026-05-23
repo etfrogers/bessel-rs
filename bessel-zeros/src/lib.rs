@@ -9,14 +9,13 @@
 //! N. M. Temme
 //! Journal of Computational Physics, 32, 270-279 (1979)
 //!
-//! This is a translation (via several intermediate steps)
-//! of Adam Wyatt's Matlab version of this code
-
+//! This crate is inspired by (via several intermediate steps)
+//! Adam Wyatt's Matlab version of this code
+#![warn(missing_docs)]
 // TODO: consider the API. Would it be worth separate functions for each type of Bessel function,
 // or is it better to have a single function with an enum argument? \
 // The latter is more extensible, but the former is more user-friendly. Maybe both?
 // Single functions might be better with a default precsision.
-
 use std::f64::consts::PI;
 
 use amos_bessel_rs::types::BackFrom;
