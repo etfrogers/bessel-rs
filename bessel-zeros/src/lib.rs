@@ -45,9 +45,7 @@
 // Single functions might be better with a default precsision
 use std::f64::consts::{FRAC_PI_2, PI};
 
-use amos_bessel_rs::BesselInput;
-
-use amos_bessel_rs::{BackFrom, bessel_j, bessel_y};
+use amos_bessel_rs::{bessel_j, bessel_y};
 use conv::ConvUtil;
 
 const DEFAULT_PRECISION: f64 = 1e-14;
@@ -265,11 +263,9 @@ fn fi(y: f64) -> f64 {
     }
 }
 
-fn bessr<ZT: BesselInput, OT: Into<f64>>(fun_type: &BesselFunType, order_: OT, z_: ZT) -> f64 {
+fn bessr(fun_type: &BesselFunType, order: f64, z: f64) -> f64 {
     // TODO think about whether unwrapping is appropriate here
-    let z = z_.into();
-    let order: f64 = order_.into();
-    let cpx_value = match fun_type {
+    match fun_type {
         BesselFunType::J => {
             let a = bessel_j(order, z).unwrap();
             let b = bessel_j(order + 1.0, z).unwrap();
@@ -282,6 +278,5 @@ fn bessr<ZT: BesselInput, OT: Into<f64>>(fun_type: &BesselFunType, order_: OT, z
         BesselFunType::YP => {
             order / z - bessel_y(order + 1.0, z).unwrap() / bessel_y(order, z).unwrap()
         }
-    };
-    f64::back_from(&cpx_value).unwrap()
+    }
 }
