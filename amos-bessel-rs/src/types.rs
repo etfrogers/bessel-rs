@@ -8,7 +8,14 @@ use thiserror::Error;
 pub(crate) type BesselValues<T = usize> = (Vec<Complex64>, T);
 pub(crate) type BesselResult<T = BesselValues> = Result<T, BesselError>;
 
+/// A trait for converting back from a type `T` into a `BesselResult<Self>`.
+/// Used for allowing both real and complex inputs to the Bessel functions,
+/// with real output for real input (provided the answer is real)
+/// Implemented for `f64` and `Complex<f64>`
 pub trait BackFrom<T>: Sized {
+    /// Converts a value (number or `Result<number, BesselError>` wrapping that number)
+    /// into the number itself (wrapped in a `Result<number, BesselError>`, due to the
+    /// possibility of complex output for real input)
     fn back_from(val: &T) -> BesselResult<Self>;
 }
 
@@ -83,7 +90,7 @@ impl BackFrom<BesselResult<Complex64>> for Complex<f64> {
 //                 CANCE BY ARGUMENT REDUCTION
 //         IERR=5, ERROR              - NO COMPUTATION,
 //                 ALGORITHM TERMINATION CONDITION NOT MET
-/// Error stuct returned by Bessel function calculations indicating the
+/// Error struct returned by Bessel function calculations indicating the
 /// nature of the error
 #[derive(Error, Debug, PartialEq, Clone)]
 #[repr(i32)]

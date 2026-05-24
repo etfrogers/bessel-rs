@@ -1,14 +1,14 @@
 use std::sync::LazyLock;
 
-/// `elim` is a nunber such that if you take `elim.exp()` or `(-elim).exp()`, you will create a
-/// number that is at risk of overflowing `f64`. In this case "at risk of overflow" means
-/// within a factor of 1000.0 of `f64::MAX_POSITIVE` for `elim.exp()` or
-/// `f64::MIN_POSITIVE` for `(-elim).exp()`.
+/// `exponent_limit` is a number such that if you take `exponent_limit.exp()` or `(-exponent_limit).exp()`
+/// , you will create a number that is at risk of overflowing `f64`. In this case "at risk of overflow" means
+/// within a factor of 1000.0 of `f64::MAX_POSITIVE` for `exponent_limit.exp()` or
+/// `f64::MIN_POSITIVE` for `(-exponent_limit).exp()`.
 ///
 /// As the two conditions (positive and negative) above are not exactly the same, the code chooses
 /// the most conservative (which as standard is the MIN_POSITIVE version)
 ///
-/// `approximation_limit` is a number a bit smaller than `elim` above which scaled calculations are used to
+/// `approximation_limit` is a number a bit smaller than `exponent_limit` above which scaled calculations are used to
 /// ensure that over/underflow is mitigated. Here "a bit smaller" means "reduced by a factor of
 /// the smaller of 18 digits or the number of (decimal) digits stored in the mantissa of `f64`
 /// (which as standard is ~15.6). For `x > approximation_limit`, e^x will start to lose precision.

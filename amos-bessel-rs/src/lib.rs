@@ -1,33 +1,85 @@
-#![warn(missing_docs)]
+#![warn(missing_docs, clippy::all)]
 //! # amos-bessel-rs: Bessel functions in pure Rust
 //!
 //! A crate implementing pure Rust translations of [Amos' complex
-//! Bessel function algorthims](https://www.netlib.org/amos/)
-//!
-//! The development of this crate started as a a reaction to finding that:
-//! 1) no pure Rust implementations of Bessel functions existed
-//! 2) all the standard library functions (in all languages) seem to use a wrapper
-//!    around Amos' original fortran.
-//!
-//! For example,
-//! - [Python - Scipy](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.jv.html#scipy.special.jv)
-//! - [Julia - OpenSpecFunc](https://github.com/JuliaMath/openspecfun)
-//! - [Rust (the best way of calculating Bessel functions I've found)](https://crates.io/crates/complex-bessel-rs/1.2.1)
-//!
-//! TODO other options
-//! TODO negative approach
-//!
-//! There are other implentations in some cases for integer order and real argument,
-//! but the general case is all Amos.
+//! Bessel function algorithms](https://www.netlib.org/amos/)
 //!
 //! The aim of this crate is to translate the Amos Fortran code
-//! into idomatic Rust, while retaining full compatibility with Amos' code.
+//! into idiomatic Rust, while retaining full compatibility with Amos' code.
+//!
+//! ## Alternatives
+//!
+//! To calculate Bessel functions in Rust there are now several alternatives
+//!
+//! - [Complex Bessel rs](https://crates.io/crates/complex-bessel-rs/) - A wrapper around the Amos' Fortran functions with a Rust API.
+//!   Good if you want guarantees that answers will be the same as Fortran, but requires a Fortran compiler in your toolchain to compile.
+//! - [Complex Bessel](http://docs.rs/complex-bessel/latest/complex_bessel/) - A line-by-line translation of Amos code with a very good
+//!   [comparison tool](https://github.com/elgar328/complex-bessel-test) to confirm both accuracy and computational speed. Carefully optimised
+//!   for accuracy and speed using detailed tools (e.g. implementation of FMA) to aid the compiler.
+//! - [This crate](https://docs.rs/amos-bessel-rs/latest/amos_bessel_rs/) - A more idiomatic translation of the Fortran code: using Rust
+//!   tools. Relies on the compiler to optimise as best it can. A fork of the elgar328's [comparison tool](https://github.com/etfrogers/complex-bessel-test) shows similar accuracy and
+//!   execution speed.
+//! - **Real Bessel** - WIP (soon to be released) crate that calculates real-only Bessel function's *J*, and *Y* for integer order. *J* takes
+//!   real inputs, *Y* is restricted to positive inputs (to give real answers). This implementation is faster for these simple cases.
 //!
 //! The primary test of this crate is that it gives the same values
 //! (to within approx 10 significant figures, subject to the considerations
 //! below) as the Fortran code for all inputs.
 //!
-//! ## Note on errors - edited from the original Amos documentation
+//! ## Usage
+//!
+//! The primary interface to this crate are the functions in the crate root:
+//! [bessel_j], [bessel_i], etc.
+//! These functions are implemented for any real `order` (including negative orders)
+//! and real or complex argument `z`. All return a single value of the function at the
+//! given order and argument. If the argument is real (f64) then the function will attempt to
+//! return a real (f64) output. If the calculated answer is complex, then a [BesselError::ComplexOutputForRealInput]
+//! error will be returned, which contains the complex value, in case it is needed.
+//! If the argument is complex, the output will be complex.
+//!
+//! Other errors returned by these functions are on overflow, failure to converge, or
+//! loss of significance in the answer (triggered by extreme values of inputs). See [BesselError] for more details.
+//!
+//! These functions implement calculation for negative orders (not in Amos' original functions)
+//! using the reflection formulae from [DLMF](https://dlmf.nist.gov/10)
+//!
+//! ### Amos interface
+//!
+//! Amos' original functions are available in the [amos] module, and are called complex_\[func\].
+//! These functions expose additional functionality, but at some loss of simplicity.
+//!
+//! #### Limitations
+//!
+//! - They do not implement the reflection formulae, and so are limited to positive orders (returning a [BesselError::InvalidInput]
+//!   error if a negative order is requested).
+//!
+//! #### Inputs
+//!
+//! - The Amos functions take an additional `scaling` parameter, of type [Scaling], which, if set to [Scaling::Scaled],
+//!   returns the scaled Bessel function value. That is, the return value is the function value multiplied by a
+//!   (positive or negative) exponential factor to remove the exponential growth or decay that occurs as the argument is goes to infinity.
+//!   The precise formula for the scaled function value is given in documentation for each function. The simple functions
+//!   always return the unscaled function value.
+//!
+//! - The Amos functions take an additional argument `n` which specifies the number of orders to return. The return value is a
+//!   vector of `Complex<f64>` containing the values of the function at orders `[order, order + 1, ..., order + n]`.
+//!   This is implemented because, if multiple orders are required, the computation of them in a single run of the algroithm
+//!   is more efficient than running it multiple times.
+//!
+//! #### Return values
+//!
+//! - They return an additional error: [BesselError::PartialLossOfSignificance], in cases where the algorithm
+//!   as converged, but the result is not as accurate as normal due to loss of significance. It occurs on
+//!   extreme values of inputs, and is a feature of the Amos algorithm. It is hidden from the user in the simpler functions,
+//!   so that the user does not need to worry about it: if the error is returned by the underlying Amos function, then
+//!   it is unwrapped and returned as `Ok(value)`. by the simpler functions.
+//!
+//! - The general form of the Amos functions return is a `Result<(Vec<Complex<f64>>, usize>, BesselError>`, where the `Vec` contains
+//!   the values of the function at orders `[order, order + 1, ..., order + n]` and `nz` contains the number of the elements
+//!   in the Vec that have been set to zero due to underflow.
+//!
+//!
+//! ## Note on accuracy - edited from the original Amos documentation
 //!
 //! In most complex variable computation, one must evaluate
 //! elementary functions. When the magnitude of z or (effective) order is
@@ -72,7 +124,7 @@
 //! the principal phase angle is on the order of +p, -p, pi/2-p,
 //! or -pi/2+p.
 
-/// Contains for the complex_[func] version of the Bessel and Airy functions
+/// Container for the complex_\[func\] version of the Bessel and Airy functions
 /// for finer control of the calculation and results
 pub mod amos;
 
@@ -102,6 +154,10 @@ use types::{BesselResult, simple_bessel_wrapper};
 // TODO Overflow to positive or negative infinity, or zero?
 // TODO Handle Vectors/ndarrays for z
 
+/// A trait for types that can be used as input to Bessel functions.
+///
+/// This trait is implemented for `f64` and `Complex<f64>`, allowing the Bessel functions
+/// to accept both real and complex arguments.
 pub trait BesselInput:
     Into<Complex<f64>>
     + BackFrom<Complex<f64>>
@@ -113,6 +169,11 @@ pub trait BesselInput:
 impl BesselInput for f64 {}
 impl BesselInput for Complex<f64> {}
 
+/// Computes the Bessel function of the first kind Jv(z).
+///
+/// # Arguments
+/// * `order` - The order of the Bessel function (can be non-integer).
+/// * `z` - The complex or real argument.
 pub fn bessel_j<ZT: BesselInput, OT: Into<f64>>(order: OT, z: ZT) -> Result<ZT, BesselError> {
     let order: f64 = order.into();
     let z: Complex<f64> = z.into();
@@ -133,6 +194,11 @@ pub fn bessel_j<ZT: BesselInput, OT: Into<f64>>(order: OT, z: ZT) -> Result<ZT, 
     ZT::back_from(&reflect_j_element(abs_order, j, y))
 }
 
+/// Computes the modified Bessel function of the first kind Iv(z).
+///
+/// # Arguments
+/// * `order` - The order of the Bessel function.
+/// * `z` - The complex or real argument.
 pub fn bessel_i<ZT: BesselInput, OT: Into<f64>>(order: OT, z: ZT) -> Result<ZT, BesselError> {
     let order = order.into();
     let z = z.into();
@@ -154,12 +220,22 @@ pub fn bessel_i<ZT: BesselInput, OT: Into<f64>>(order: OT, z: ZT) -> Result<ZT, 
     ZT::back_from(&reflect_i_element(abs_order, i, k))
 }
 
+/// Computes the modified Bessel function of the second kind Kv(z).
+///
+/// # Arguments
+/// * `order` - The order of the Bessel function.
+/// * `z` - The complex or real argument.
 pub fn bessel_k<ZT: BesselInput, OT: Into<f64>>(order: OT, z: ZT) -> Result<ZT, BesselError> {
     // K_{-ν}(z) = K_ν(z) (DLMF 10.27.3)
     let abs_order = order.into().abs();
     ZT::back_from(&bessel_k_single(abs_order, z.into()))
 }
 
+/// Computes the Bessel function of the second kind Yv(z).
+///
+/// # Arguments
+/// * `order` - The order of the Bessel function.
+/// * `z` - The complex or real argument.
 pub fn bessel_y<ZT: BesselInput, OT: Into<f64>>(order: OT, z: ZT) -> Result<ZT, BesselError> {
     let order = order.into();
     let z = z.into();
@@ -182,6 +258,12 @@ pub fn bessel_y<ZT: BesselInput, OT: Into<f64>>(order: OT, z: ZT) -> Result<ZT, 
     ZT::back_from(&reflect_y_element(abs_order, j, y))
 }
 
+/// Computes the Hankel function Hv(z) of the first or second kind.
+///
+/// # Arguments
+/// * `order` - The order of the Hankel function.
+/// * `z` - The complex or real argument.
+/// * `kind` - The kind of Hankel function (First or Second).
 pub fn hankel<ZT: BesselInput, OT: Into<f64>>(
     order: OT,
     z: ZT,
@@ -201,18 +283,22 @@ pub fn hankel<ZT: BesselInput, OT: Into<f64>>(
     ZT::back_from(&h)
 }
 
+/// Computes the Airy function Ai(z).
 pub fn airy<ZT: BesselInput>(z: ZT) -> Result<ZT, BesselError> {
     ZT::back_from(&complex_airy(z.into(), false, Scaling::Unscaled).map(|x| x.0))
 }
 
+/// Computes the derivative of the Airy function Ai'(z).
 pub fn airyp<ZT: BesselInput>(z: ZT) -> Result<ZT, BesselError> {
     ZT::back_from(&complex_airy(z.into(), true, Scaling::Unscaled).map(|x| x.0))
 }
 
+/// Computes the Airy function of the second kind Bi(z).
 pub fn airy_b<ZT: BesselInput>(z: ZT) -> Result<ZT, BesselError> {
     ZT::back_from(&complex_airy_b(z.into(), false, Scaling::Unscaled))
 }
 
+/// Computes the derivative of the Airy function of the second kind Bi'(z).
 pub fn airy_bp<ZT: BesselInput>(z: ZT) -> Result<ZT, BesselError> {
     ZT::back_from(&complex_airy_b(z.into(), true, Scaling::Unscaled))
 }

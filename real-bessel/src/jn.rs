@@ -38,11 +38,11 @@
 //      for n<x, forward recursion is used starting
 //      from values of j0(x) and j1(x).
 //      for n>x, a continued fraction approximation to
-//      j(n,x)/j(n-1,x) is evaluated and then backward
+//      J(n,x)/j(n-1,x) is evaluated and then backward
 //      recursion is used starting from a supposed value
-//      for j(n,x). The resulting value of j(0,x) is
+//      for J(n,x). The resulting value of J(0,x) is
 //      compared with the actual value to correct the
-//      supposed value of j(n,x).
+//      supposed value of J(n,x).
 //
 //      yn(n,x) is similar in all respects, except
 //      that forward recursion is used for all

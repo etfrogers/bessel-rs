@@ -36,10 +36,14 @@ const CIP: [Complex64; 4] = [
     Complex64::new(0.0, -1.0),
 ];
 
+/// Used to specify the kind of Hankel function in the [hankel](crate::hankel) and
+/// [complex_bessel_h] functions.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(usize)]
 pub enum HankelKind {
+    /// Hankel function of the first kind, H1v(z) = Jv(z) + i*Yv(z)
     First = 1,
+    /// Hankel function of the second kind, H2v(z) = Jv(z) - i*Yv(z)
     Second = 2,
 }
 
@@ -52,10 +56,13 @@ impl HankelKind {
     }
 }
 
+/// Represents the scaling option for Bessel and Airy complex_... functions.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(i32)]
 pub enum Scaling {
+    /// No scaling is applied.
     Unscaled = 1,
+    /// Scaling is applied to remove exponential growth or decay.
     Scaled = 2,
 }
 

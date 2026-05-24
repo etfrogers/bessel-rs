@@ -12,7 +12,7 @@ use crate::{
             ZACAI, ZBUNK, airy_power_series, analytic_continuation, i_right_half_plane,
             k_right_half_plane,
         },
-        utils::{TWO_THIRDS, is_sigificance_lost, sanitise_inputs},
+        utils::{TWO_THIRDS, is_significance_lost, sanitise_inputs},
     },
     types::{BesselError::*, BesselResult},
 };
@@ -21,7 +21,7 @@ use crate::{
 ///
 /// This function computes a sequence of complex Hankel (Bessel) functions
 /// `cy[j] = H(order + j - 1, z)` real, non-negative
-/// orders `order + j - 1` (`j = 1, ..., N`), and a complex argument `z` which is
+/// orders `order + j - 1` (`j = 1, ..., n`), and a complex argument `z` which is
 /// not equal to `(0.0, 0.0)`. The computation is valid in the cut plane
 /// `-PI < z.arg() <= PI`.
 ///
@@ -70,7 +70,7 @@ pub fn complex_bessel_h(
     //     TEST FOR PROPER RANGE
     //-----------------------------------------------------------------------
     let abs_z = z.abs();
-    let partial_loss_of_significance = is_sigificance_lost(abs_z, modified_order, false)?;
+    let partial_loss_of_significance = is_significance_lost(abs_z, modified_order, false)?;
     //-----------------------------------------------------------------------
     //     OVERFLOW TEST ON THE LAST MEMBER OF THE SEQUENCE
     //-----------------------------------------------------------------------
@@ -176,10 +176,18 @@ pub fn complex_bessel_h(
     }
 }
 
+/// Computes the Hankel function of the first kind H1v(z) for a complex argument.
+///
+/// An alternative interface to [`complex_bessel_h`]
+#[inline]
 pub fn complex_hankel1(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
     complex_bessel_h(z, order, scaling, HankelKind::First, n)
 }
 
+/// Computes the Hankel function of the second kind H2v(z) for a complex argument.
+///
+/// An alternative interface to [`complex_bessel_h`]
+#[inline]
 pub fn complex_hankel2(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
     complex_bessel_h(z, order, scaling, HankelKind::Second, n)
 }
@@ -187,7 +195,7 @@ pub fn complex_hankel2(z: Complex64, order: f64, scaling: Scaling, n: usize) -> 
 /// Computes the I-Bessel function of a complex argument.
 ///
 /// This function computes a sequence of complex Bessel functions `cy(j) = I(order + j - 1, z)`
-/// for real, non-negative orders `order + j - 1` (`j = 1, ..., N`) and a complex argument `z`
+/// for real, non-negative orders `order + j - 1` (`j = 1, ..., n`) and a complex argument `z`
 /// in the cut plane `-PI < z.arg() <= PI`.
 ///
 /// When `scaling` is `Scaling::Scaled`, this function returns the scaled functions
@@ -215,7 +223,7 @@ pub fn complex_hankel2(z: Complex64, order: f64, scaling: Scaling, n: usize) -> 
 /// * `scaling` - A parameter to indicate the scaling option.
 ///     * `Scaling::Unscaled`: returns `cy(j) = I(order + j - 1, z)`.
 ///     * `Scaling::Scaled`: returns `cy(j) = I(order + j - 1, z) * (-z.re().abs()).exp()`.
-/// * `n` - Number of members of the sequence, `N >= 1`.
+/// * `n` - Number of members of the sequence, `n >= 1`.
 ///
 /// # Returns
 ///
@@ -228,7 +236,7 @@ pub fn complex_bessel_i(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
 
     let abs_z = z.abs();
     let modified_order = order + ((n - 1) as f64);
-    let partial_significance_loss = is_sigificance_lost(abs_z, modified_order, false)?;
+    let partial_significance_loss = is_significance_lost(abs_z, modified_order, false)?;
 
     let (zn, mut csgn) = if z.re >= 0.0 {
         (z, c_one())
@@ -274,8 +282,8 @@ pub fn complex_bessel_i(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
 
 /// Computes the J-Bessel function of a complex argument.
 ///
-/// This function computes a sequence of complex Bessel functions `cy(j) = j(order + j - 1, z)`
-/// for real, non-negative orders `order + j - 1` (`j = 1, ..., N`) and a complex argument `z`
+/// This function computes a sequence of complex Bessel functions `cy(j) = J(order + j - 1, z)`
+/// for real, non-negative orders `order + j - 1` (`j = 1, ..., n`) and a complex argument `z`
 /// in the cut plane `-PI < z.arg() <= PI`.
 ///
 /// When `scaling` is `Scaling::Scaled`, this function returns the scaled functions
@@ -288,7 +296,7 @@ pub fn complex_bessel_i(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
 ///
 /// `J(order, Z) = (-order * PI * i / 2).exp() * I(order, i*z)`    if `z.im < 0.0`
 ///
-/// where `i` is the imaginary unit and `I(order ,z)` is the I Bessel function.
+/// where `i` is the imaginary unit and `I(order, z)` is the I Bessel function.
 ///
 /// # Arguments
 ///
@@ -297,7 +305,7 @@ pub fn complex_bessel_i(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
 /// * `scaling` - A parameter to indicate the scaling option.
 ///     * `Scaling::Unscaled`: returns `cy(j) = J(order + j - 1, z)`.
 ///     * `Scaling::Scaled`: returns `cy(j) = J(order + j - 1, z) * (-(z.im.abs())).exp()`.
-/// * `n` - Number of members of the sequence, `N >= 1`.
+/// * `n` - Number of members of the sequence, `n >= 1`.
 ///
 /// # Returns
 ///
@@ -308,7 +316,7 @@ pub fn complex_bessel_i(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
 pub fn complex_bessel_j(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
     sanitise_inputs(z, order, n, false)?;
 
-    let partial_significance_loss = is_sigificance_lost(z.abs(), order + ((n - 1) as f64), false)?;
+    let partial_significance_loss = is_significance_lost(z.abs(), order + ((n - 1) as f64), false)?;
     //-----------------------------------------------------------------------
     //     CALCULATE CSGN=EXP(order*FRAC_PI_2*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
     //     WHEN order IS LARGE
@@ -352,7 +360,7 @@ pub fn complex_bessel_j(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
 /// Computes the K-Bessel function of a complex argument.
 ///
 /// This function computes a sequence of complex Bessel functions `cy(j) = K(order + j - 1, z)`
-/// for real, non-negative orders `order + j - 1` (`j = 1, ..., N`) and a complex argument `z`
+/// for real, non-negative orders `order + j - 1` (`j = 1, ..., n`) and a complex argument `z`
 /// which is not equal to `(0.0, 0.0)`. The computation is valid in the cut plane
 /// `-PI < z.arg() <= PI`.
 ///
@@ -378,9 +386,9 @@ pub fn complex_bessel_j(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
 /// * `z` - Complex argument `z`, `z != (0.0, 0.0)`, `-PI < z.arg() <= PI`.
 /// * `order` - Order of the initial K function, `order >= 0.0`.
 /// * `scaling` - A parameter to indicate the scaling option.
-///     * `Scaling::Unscaled`: returns `cy(I) = K(order + I - 1, z)`.
-///     * `Scaling::Scaled`: returns `cy(I) = K(order + I - 1, z) * EXP(z)`.
-/// * `n` - Number of members of the sequence, `N >= 1`.
+///     * `Scaling::Unscaled`: returns `cy(j) = K(order + j - 1, z)`.
+///     * `Scaling::Scaled`: returns `cy(j) = K(order + j - 1, z) * z.exp()`.
+/// * `n` - Number of members of the sequence, `n >= 1`.
 ///
 /// # Returns
 ///
@@ -395,7 +403,7 @@ pub fn complex_bessel_k(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
     //-----------------------------------------------------------------------;
     let abs_z = z.abs();
     let modified_order = order + ((n - 1) as f64);
-    let partial_significance_loss = is_sigificance_lost(abs_z, modified_order, false)?;
+    let partial_significance_loss = is_significance_lost(abs_z, modified_order, false)?;
 
     //-----------------------------------------------------------------------;
     //     OVERFLOW TEST ON THE LAST MEMBER OF THE SEQUENCE;
@@ -432,7 +440,7 @@ pub fn complex_bessel_k(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
         nz += n_underflow;
 
         //-----------------------------------------------------------------------;
-        //     HERE NN=N OR NN=0 SINCE NUF=0,NN, OR -1 ON RETURN FROM CUOIK;
+        //     HERE NN=n OR NN=0 SINCE NUF=0,NN, OR -1 ON RETURN FROM CUOIK;
         //     if NUF=NN, THEN cy(I)=CZERO FOR ALL I;
         //-----------------------------------------------------------------------;
         if n_underflow == n {
@@ -489,8 +497,8 @@ pub fn complex_bessel_k(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
 /// `cy(j) = (-(z.im.abs())).exp() * Y(order + j - 1, z)`, which remove the
 /// exponential growth in both the upper and lower half-planes for `z` to infinity.
 ///
-/// The computation is carried out in terms of the I(FNU,Z) and
-/// K(FNU,Z) Bessel functions in the right half-plane by
+/// The computation is carried out in terms of the I(order, z) and
+/// K(order, z) Bessel functions in the right half-plane by
 ///
 /// `Y(order, z) = i * cc * I(order, arg) - (2/PI) * cc.conj() * K(order, arg)` if `z.im >= 0`
 ///
@@ -504,9 +512,9 @@ pub fn complex_bessel_k(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
 /// * `z` - Complex argument `z`, `z != (0.0, 0.0)`, `-PI < z.arg() <= PI`.
 /// * `order` - Order of the initial Y function, `order >= 0.0`.
 /// * `scaling` - A parameter to indicate the scaling option.
-///     * `Scaling::Unscaled`: returns `cy(I) = Y(order + I - 1, z)`.
-///     * `Scaling::Scaled`: returns `cy(I) = Y(order + I - 1, z) * EXP(-ABS(Y))`.
-/// * `n` - Number of members of the sequence, `N >= 1`.
+///     * `Scaling::Unscaled`: returns `cy(j) = Y(order + j - 1, z)`.
+///     * `Scaling::Scaled`: returns `cy(j) = Y(order + j - 1, z) * (-(z.im.abs())).exp()`.
+/// * `n` - Number of members of the sequence, `n >= 1`.
 ///
 /// # Returns
 ///
@@ -611,11 +619,11 @@ fn scaled_multiply(mut z: Complex64, coeff: Complex64, scaling: Scaling) -> Comp
 /// Ai(z) AND dAi(z)/dz are computed for `z.abs() > 1.0` from the K Bessel functions
 /// by the formulae:
 ///
-/// `Ai(z) = c * z.sqrt() * K(1/3, zta)`, and
-/// `dAi(z)/dz = -c * z * K(2/3, zta)`
+/// `Ai(z) = c * z.sqrt() * K(1/3, zeta)`, and
+/// `dAi(z)/dz = -c * z * K(2/3, zeta)`
 ///
 /// where `c = 1.0 / (PI * (3.0).sqrt())`
-/// and `zta = (2/3) * z.powf(3/2)`
+/// and `zeta = (2/3) * z.powf(3/2)`
 ///
 /// and with the power series for `z.abs() <= 1.0`.
 ///
@@ -627,8 +635,8 @@ fn scaled_multiply(mut z: Complex64, coeff: Complex64, scaling: Scaling) -> Comp
 ///     * `true`: computes `dAi(z)/dz`.
 /// * `scaling` - A parameter to indicate the scaling option.
 ///     * `Scaling::Unscaled`: returns `Ai(z)` or `dAi(z)/dz`.
-///     * `Scaling::Scaled`: returns `zta.exp() * Ai(z)` or `zta.exp() * dAi(z)/dz`,
-///       where `zta = (2/3) * z * z.sqrt()`.
+///     * `Scaling::Scaled`: returns `zeta.exp() * Ai(z)` or `zeta.exp() * dAi(z)/dz`,
+///       where `zeta = (2/3) * z * z.sqrt()`.
 ///
 /// # Returns
 ///
@@ -649,7 +657,7 @@ pub fn complex_airy(
     //     TEST FOR PROPER RANGE
     //-----------------------------------------------------------------------
     // significance loss only tested against z, not order, so 0.0 is used to never cause significance loss
-    let partial_loss_of_significance = is_sigificance_lost(abs_z, 0.0, true)?;
+    let partial_loss_of_significance = is_significance_lost(abs_z, 0.0, true)?;
 
     let retval = if abs_z <= 1.0 {
         //-----------------------------------------------------------------------
@@ -671,49 +679,49 @@ pub fn complex_airy(
         let ln_abs_z = abs_z.ln();
 
         let sqrt_z = z.sqrt();
-        let mut zta = TWO_THIRDS * z * sqrt_z;
+        let mut zeta = TWO_THIRDS * z * sqrt_z;
         //-----------------------------------------------------------------------
-        //     RE(ZTA) <= 0 WHEN RE(z) < 0, ESPECIALLY WHEN IM(z) IS SMALL
+        //     RE(zeta) <= 0 WHEN RE(z) < 0, ESPECIALLY WHEN IM(z) IS SMALL
         //-----------------------------------------------------------------------
         let mut scale_factor = 1.0;
         if z.re < 0.0 {
-            zta.re = -zta.re.abs();
+            zeta.re = -zeta.re.abs();
         }
         if z.im == 0.0 && z.re <= 0.0 {
-            zta.re = 0.0;
+            zeta.re = 0.0;
         }
-        let re_zta = zta.re;
-        let (cy, nz) = if re_zta < 0.0 || z.re <= 0.0 {
+        let re_zeta = zeta.re;
+        let (cy, nz) = if re_zeta < 0.0 || z.re <= 0.0 {
             //-----------------------------------------------------------------------
             //     OVERFLOW TEST
             //-----------------------------------------------------------------------
-            if scaling == Scaling::Unscaled && re_zta <= -MACHINE_CONSTANTS.approximation_limit {
+            if scaling == Scaling::Unscaled && re_zeta <= -MACHINE_CONSTANTS.approximation_limit {
                 scale_factor = MACHINE_CONSTANTS.abs_error_tolerance;
-                if (-re_zta + 0.25 * ln_abs_z) > MACHINE_CONSTANTS.exponent_limit {
+                if (-re_zeta + 0.25 * ln_abs_z) > MACHINE_CONSTANTS.exponent_limit {
                     return Err(Overflow);
                 }
             }
             //-----------------------------------------------------------------------
-            //     CBKNU AND CACON RETURN EXP(ZTA)*K(order,ZTA) ON KODE=2
+            //     CBKNU AND CACON RETURN EXP(zeta)*K(order,zeta) ON KODE=2
             //-----------------------------------------------------------------------
             let rotation = if z.im < 0.0 {
                 RotationDirection::Left
             } else {
                 RotationDirection::Right
             };
-            ZACAI(zta, order, scaling, rotation, 1)?
+            ZACAI(zeta, order, scaling, rotation, 1)?
         } else {
             //-----------------------------------------------------------------------
             //     UNDERFLOW TEST
             //-----------------------------------------------------------------------
             let mut retval = None;
-            if scaling == Scaling::Unscaled && re_zta > MACHINE_CONSTANTS.approximation_limit {
+            if scaling == Scaling::Unscaled && re_zeta > MACHINE_CONSTANTS.approximation_limit {
                 scale_factor = 1.0 / MACHINE_CONSTANTS.abs_error_tolerance;
-                if (-re_zta - 0.25 * ln_abs_z) < -MACHINE_CONSTANTS.exponent_limit {
+                if (-re_zeta - 0.25 * ln_abs_z) < -MACHINE_CONSTANTS.exponent_limit {
                     retval = Some(Ok((c_zeros(1), 1)));
                 }
             }
-            retval.unwrap_or_else(|| k_right_half_plane(zta, order, scaling, 1))?
+            retval.unwrap_or_else(|| k_right_half_plane(zeta, order, scaling, 1))?
         };
 
         let mut s1 = cy[0] * COEFF * scale_factor;
@@ -738,10 +746,10 @@ pub fn complex_airy(
 ///
 /// Bi and dBi are computed for `z.abs() > 1.0` from the I Bessel functions by
 ///
-/// Bi(z) = c* z.sqrt() * ( I(-1/3, zta) + I(1/3, zta) )
-/// dBi(z) = c *  z  * ( I(-2/3, zta) + I(2/3, zta) )
+/// Bi(z) = c* z.sqrt() * ( I(-1/3, zeta) + I(1/3, zeta) )
+/// dBi(z) = c *  z  * ( I(-2/3, zeta) + I(2/3, zeta) )
 ///
-/// where `c = 1.0 / (3.0).sqrt()` and `zta = (2/3) * z.powf(3/2)`
+/// where `c = 1.0 / (3.0).sqrt()` and `zeta = (2/3) * z.powf(3/2)`
 ///
 /// and with the power series for `z.abs() <= 1.0`.
 ///
@@ -754,8 +762,8 @@ pub fn complex_airy(
 ///     * `true`: computes `dBi(z)/dz`.
 /// * `scaling` - A parameter to indicate the scaling option.
 ///     * `Scaling::Unscaled`: returns `Bi(z)` or `dBi(z)/dz`.
-///     * `Scaling::Scaled`: returns `(-zta.re.abs()).exp() * Bi(z)` or `(-zta.re.abs()).exp() * dBi(z)/dz`,
-///       where `zta = (2/3) * z.powf(3/2)`.
+///     * `Scaling::Scaled`: returns `(-zeta.re.abs()).exp() * Bi(z)` or `(-zeta.re.abs()).exp() * dBi(z)/dz`,
+///       where `zeta = (2/3) * z.powf(3/2)`.
 ///
 /// # Returns
 ///
@@ -779,9 +787,9 @@ pub fn complex_airy_b(
         let bi = airy_power_series(z, return_derivative, POWER_SERIES_COEFFS);
         match scaling {
             Scaling::Scaled => {
-                //TODO ZTA used many places with similar definition
-                let zta = TWO_THIRDS * (z * z.sqrt());
-                bi * (-(zta.re.abs())).exp()
+                //TODO zeta used many places with similar definition
+                let zeta = TWO_THIRDS * (z * z.sqrt());
+                bi * (-(zeta.re.abs())).exp()
             }
             Scaling::Unscaled => bi,
         }
@@ -794,54 +802,54 @@ pub fn complex_airy_b(
         //     TEST FOR RANGE;
         //-----------------------------------------------------------------------;
         // significance loss only tested against z, not order, so 0.0 is used to never cause significance loss
-        partial_loss_of_significance = is_sigificance_lost(abs_z, 0.0, true)?;
+        partial_loss_of_significance = is_significance_lost(abs_z, 0.0, true)?;
         let mut scale_factor = 1.0;
-        let mut zta = TWO_THIRDS * (z * z.sqrt());
+        let mut zeta = TWO_THIRDS * (z * z.sqrt());
 
         //-----------------------------------------------------------------------;
-        //     RE(ZTA) <= 0 WHEN RE(z) < 0, ESPECIALLY WHEN IM(z) IS SMALL;
+        //     RE(zeta) <= 0 WHEN RE(z) < 0, ESPECIALLY WHEN IM(z) IS SMALL;
         //-----------------------------------------------------------------------;
         if z.re < 0.0 {
-            zta.re = -zta.re.abs();
+            zeta.re = -zeta.re.abs();
         }
         if z.im == 0.0 && z.re < 0.0 {
-            zta.re = 0.0;
+            zeta.re = 0.0;
         }
         if scaling == Scaling::Unscaled {
             //-----------------------------------------------------------------------;
             //     OVERFLOW TEST;
             //-----------------------------------------------------------------------;
-            let re_zta = zta.re.abs();
-            if re_zta > MACHINE_CONSTANTS.approximation_limit {
+            let re_zeta = zeta.re.abs();
+            if re_zeta > MACHINE_CONSTANTS.approximation_limit {
                 scale_factor = MACHINE_CONSTANTS.abs_error_tolerance;
-                if re_zta + 0.25 * abs_z.ln() > MACHINE_CONSTANTS.exponent_limit {
+                if re_zeta + 0.25 * abs_z.ln() > MACHINE_CONSTANTS.exponent_limit {
                     return Err(Overflow);
                 }
             }
         }
         let mut rotation_angle = 0.0;
-        if zta.re < 0.0 || z.re <= 0.0 {
+        if zeta.re < 0.0 || z.re <= 0.0 {
             rotation_angle = PI;
             if z.im < 0.0 {
                 rotation_angle = -PI;
             }
-            zta *= -1.0;
+            zeta *= -1.0;
         }
         //-----------------------------------------------------------------------;
-        //     AA=FACTOR FOR ANALYTIC CONTINUATION OF I(order,ZTA);
-        //     KODE=2 RETURNS EXP(-ABS(XZTA))*I(order,ZTA) FROM ZBESI;
+        //     AA=FACTOR FOR ANALYTIC CONTINUATION OF I(order,zeta);
+        //     KODE=2 RETURNS EXP(-ABS(Xzeta))*I(order,zeta) FROM ZBESI;
         //-----------------------------------------------------------------------;
-        let (cy, _) = i_right_half_plane(zta, order, scaling, 1)?;
+        let (cy, _) = i_right_half_plane(zeta, order, scaling, 1)?;
         let mut s1 = Complex64::cis(rotation_angle * order) * cy[0] * scale_factor;
         let order = (2.0 - float_is_derivative) / 3.0;
-        let (mut cy, _) = i_right_half_plane(zta, order, scaling, 2)?;
+        let (mut cy, _) = i_right_half_plane(zeta, order, scaling, 2)?;
         cy[0] *= scale_factor;
         cy[1] *= scale_factor;
 
         //-----------------------------------------------------------------------;
         //     BACKWARD RECUR ONE STEP FOR ORDERS -1/3 OR -2/3;
         //-----------------------------------------------------------------------;
-        let s2 = (2.0 * order) * (cy[0] / zta) + cy[1];
+        let s2 = (2.0 * order) * (cy[0] / zeta) + cy[1];
         s1 = COEF * (s1 + s2 * Complex64::cis(rotation_angle * (order - 1.0)));
         let z_factor = if return_derivative { z } else { z.sqrt() };
         s1 * z_factor / scale_factor

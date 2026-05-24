@@ -8,7 +8,7 @@ use crate::types::{BesselResult, BesselValues};
 
 use super::{MACHINE_CONSTANTS, Scaling, c_one, c_zero, c_zeros, gamma_ln, utils::will_underflow};
 
-/// z_power_series computes the i bessel function for `real(z) >= 0.0`` by
+/// z_power_series computes the I bessel function for `real(z) >= 0.0` by
 /// means of the power series for large `z.abs()` in the
 /// region `z.abs() <= 2*sqrt(fnu+1)`. nz=0 is a normal return.
 /// nz > 0 means that the last nz components were set to zero

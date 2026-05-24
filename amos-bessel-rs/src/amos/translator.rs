@@ -757,9 +757,9 @@ fn ratios_i(z: Complex64, order: f64, n: usize) -> Vec<Complex64> {
     cy
 }
 
-/// zbunk computes the k Bessel function for order > asymptotic_order_limit.
-/// according to the uniform asymptotic expansion for k(order, z)
-/// in zunk1 and the expansion for h(2, order, z) in zunk2
+/// zbunk computes the K Bessel function for order > asymptotic_order_limit.
+/// according to the uniform asymptotic expansion for K(order, z)
+/// in zunk1 and the expansion for H(2, order, z) in zunk2
 pub fn ZBUNK(
     z: Complex64,
     order: f64,
@@ -1000,7 +1000,7 @@ fn i_wronksian(
 }
 
 /// Applies the analytic continuation formula
-///     k(fnu,zn*exp(mp))=k(fnu,zn)*exp(-mp*fnu) - mp*i(fnu,zn)
+///     K(fnu, zn*exp(mp))=K(fnu, zn)*exp(-mp*fnu) - mp*I(fnu, zn)
 ///             mp=pi*mr*cmplx(0.0,1.0)
 ///
 /// to continue the k function from the right half to the left
@@ -1207,7 +1207,7 @@ pub fn i_right_half_plane(z: Complex64, order: f64, KODE: Scaling, N: usize) -> 
 
 /// Applies the analytic continuation formula
 ///
-/// k(fnu, zn*exp(mp)) = k(fnu, zn) * exp(-mp*fnu) - mp*i(fnu,zn)
+/// K(fnu, zn*exp(mp)) = K(fnu, zn) * exp(-mp*fnu) - mp*I(fnu,zn)
 /// mp = pi * mr * cmplx(0.0,1.0)
 ///
 /// to continue the k function from the right half to the left
@@ -1279,7 +1279,7 @@ pub fn ZACAI(
     Ok((y, NZ))
 }
 
-/// zunk1 computes k(fnu,z) and its analytic continuation from the
+/// zunk1 computes K(fnu,z) and its analytic continuation from the
 /// right half plane to the left half plane by means of the
 /// uniform asymptotic expansion.
 /// `rotation` indicates the direction of rotation for analytic continuation.
@@ -1534,9 +1534,9 @@ fn ZUNK1(
     Ok((y, nz))
 }
 
-/// zunk2 computes k(fnu,z) and its analytic continuation from the
+/// zunk2 computes K(fnu,z) and its analytic continuation from the
 /// right half plane to the left half plane by means of the
-/// uniform asymptotic expansions for h(kind,fnu,zn) and j(fnu,zn)
+/// uniform asymptotic expansions for H(kind,fnu,zn) and J(fnu,zn)
 /// where zn is in the right half plane, kind=(3-mr)/2, mr=+1 or
 /// -1. here zn=zr*i or -zr*i where zr=z if z is in the right
 /// half plane or zr=-z if z is in the left half plane.
@@ -1852,8 +1852,8 @@ fn ZUNK2(
 /// asymptotic_order_limit and fnu+n-1 < asymptotic_order_limit.
 /// The order is increased from
 /// fnu+n-1 greater than asymptotic_order_limit by adding nui and computing
-/// according to the uniform asymptotic expansion for j(fnu,z)
-///  if z is imaginary_dominant and the expansion for i(fnu,z)
+/// according to the uniform asymptotic expansion for J(fnu,z)
+///  if z is imaginary_dominant and the expansion for I(fnu,z)
 /// if z is _not_ imaginary_dominant.
 ///
 /// Originally ZBUNI
@@ -1985,8 +1985,8 @@ fn ZBUNI(
     Ok((NW, NLAST))
 }
 
-/// zuni1 computes i(fnu,z)  by means of the uniform asymptotic
-/// expansion for i(fnu,z) in -pi/3 <= arg z <= pi/3.
+/// zuni1 computes I(fnu,z)  by means of the uniform asymptotic
+/// expansion for I(fnu,z) in -pi/3 <= arg z <= pi/3.
 ///
 /// asymptotic_order_limit is the smallest order permitted for the asymptotic
 /// expansion. nlast=0 means all of the y values were set.
@@ -2101,8 +2101,8 @@ fn ZUNI1(
     Ok((nz, 0))
 }
 
-/// zuni2 computes i(fnu,z) in the right half plane by means of
-/// uniform asymptotic expansion for j(fnu,zn) where zn is z*i
+/// zuni2 computes I(fnu,z) in the right half plane by means of
+/// uniform asymptotic expansion for J(fnu,zn) where zn is z*i
 /// or -z*i and zn is in the right half plane also.
 ///
 /// asymptotic_order_limit is the smallest order permitted for the asymptotic
