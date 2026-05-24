@@ -5,8 +5,11 @@ use rstest::rstest;
 use rstest_reuse::apply;
 
 use amos_bessel_rs::{
-    Scaling, complex_bessel_i, complex_bessel_j, complex_bessel_k, complex_bessel_y,
-    complex_hankel1, complex_hankel2,
+    Scaling,
+    amos::{
+        complex_bessel_i, complex_bessel_j, complex_bessel_k, complex_bessel_y, complex_hankel1,
+        complex_hankel2,
+    },
     test_utils::{
         BesselFortranSig, BesselSig, check_against_fortran, zbesh_fortran_first,
         zbesh_fortran_second,

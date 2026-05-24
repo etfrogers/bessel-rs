@@ -72,22 +72,27 @@
 //! the principal phase angle is on the order of +p, -p, pi/2-p,
 //! or -pi/2+p.
 
-mod amos;
+/// Contains for the complex_[func] version of the Bessel and Airy functions
+/// for finer control of the calculation and results
+pub mod amos;
 
 mod reflections;
 mod types;
 
 use std::ops::Mul;
 
-use crate::reflections::{
-    as_integer, integer_sign, reflect_h_element, reflect_i_element, reflect_j_element,
-    reflect_y_element,
+use crate::{
+    amos::{
+        complex_airy, complex_airy_b, complex_bessel_i, complex_bessel_j, complex_bessel_k,
+        complex_bessel_y, complex_hankel1, complex_hankel2,
+    },
+    reflections::{
+        as_integer, integer_sign, reflect_h_element, reflect_i_element, reflect_j_element,
+        reflect_y_element,
+    },
 };
 pub use amos::{HankelKind, Scaling};
-pub use amos::{
-    complex_airy, complex_airy_b, complex_bessel_h, complex_bessel_i, complex_bessel_j,
-    complex_bessel_k, complex_bessel_y, complex_hankel1, complex_hankel2,
-};
+
 use num::{Complex, complex::Complex64};
 pub use types::{BackFrom, BesselError};
 use types::{BesselResult, simple_bessel_wrapper};

@@ -17,9 +17,12 @@ use std::f64::consts::{FRAC_PI_2, PI};
 use approx::assert_relative_eq;
 
 use amos_bessel_rs::{
-    HankelKind, Scaling, airy, airy_b, airy_bp, airyp, bessel_i, bessel_j, bessel_k, bessel_y,
-    complex_bessel_i, complex_bessel_j, complex_bessel_k, complex_bessel_y, complex_hankel1,
-    complex_hankel2, hankel,
+    HankelKind, Scaling, airy, airy_b, airy_bp, airyp,
+    amos::{
+        complex_bessel_i, complex_bessel_j, complex_bessel_k, complex_bessel_y, complex_hankel1,
+        complex_hankel2,
+    },
+    bessel_i, bessel_j, bessel_k, bessel_y, hankel,
     test_utils::{
         BesselFortranSig, BesselSig, airy_ref, assert_results_are_equal, bessel_h_ref, biry_ref,
         check_against_fortran, fortran_bess_loop, sig_airy, sig_airy_fortran, sig_airyp,

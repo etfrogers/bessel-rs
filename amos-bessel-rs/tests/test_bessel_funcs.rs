@@ -14,9 +14,12 @@ use complex_bessel_rs::bessel_y::bessel_y as bessel_y_ref;
 use fortran_amos_testing::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
 
 use amos_bessel_rs::{
-    HankelKind, Scaling, airy, airy_b, airy_bp, airyp, bessel_i, bessel_j, bessel_k, bessel_y,
-    complex_bessel_i, complex_bessel_j, complex_bessel_k, complex_bessel_y, complex_hankel1,
-    complex_hankel2, hankel,
+    HankelKind, Scaling, airy, airy_b, airy_bp, airyp,
+    amos::{
+        complex_bessel_i, complex_bessel_j, complex_bessel_k, complex_bessel_y, complex_hankel1,
+        complex_hankel2,
+    },
+    bessel_i, bessel_j, bessel_k, bessel_y, hankel,
 };
 use num::complex::Complex64;
 use rstest::rstest;

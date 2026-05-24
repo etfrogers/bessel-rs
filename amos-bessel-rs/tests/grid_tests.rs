@@ -2,8 +2,12 @@ extern crate fortran_amos_testing;
 
 mod common;
 use amos_bessel_rs::{
-    BesselError, HankelKind, Scaling, bessel_i, bessel_j, bessel_k, bessel_y, complex_bessel_i,
-    complex_bessel_j, complex_bessel_k, complex_bessel_y, complex_hankel1, complex_hankel2, hankel,
+    BesselError, HankelKind, Scaling,
+    amos::{
+        complex_bessel_i, complex_bessel_j, complex_bessel_k, complex_bessel_y, complex_hankel1,
+        complex_hankel2,
+    },
+    bessel_i, bessel_j, bessel_k, bessel_y, hankel,
     test_utils::{
         BesselFortranSig, BesselSig, check_against_fortran, check_complex_arrays_equal, sig_airy,
         sig_airy_fortran, sig_airyp, sig_airyp_fortran, sig_biry, sig_biry_fortran, sig_biryp,

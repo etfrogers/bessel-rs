@@ -24,7 +24,7 @@ mod utils;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(usize)]
-pub enum IKType {
+pub(crate) enum IKType {
     I = 1,
     K = 2,
 }
@@ -80,7 +80,7 @@ impl Scaling {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(i32)]
-pub enum RotationDirection {
+pub(crate) enum RotationDirection {
     Left = -1,
     None = 0,
     Right = 1,
