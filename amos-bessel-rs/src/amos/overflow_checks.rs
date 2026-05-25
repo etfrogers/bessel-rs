@@ -101,7 +101,7 @@ impl Index<Overflow> for [f64] {
 ///
 /// Returns Err(Overflow) on overflow
 ///
-/// ik_type specifies the type o squence to test ([I](IKType::I) or [K](IKType::K))
+/// ik_type specifies the type of squence to test ([I](IKType::I) or [K](IKType::K))
 ///
 /// Below the returned value is designated n_underflow.
 ///
@@ -259,7 +259,7 @@ pub fn check_underflow_uniform_asymp_params(
 /// set to (s1.ln() - 2.0 * zr).exp(); That is, 2*zr is subtracted
 /// from the exponent.
 ///
-/// If undeflow is found, the function sets s1 and s2 to zero.
+/// If underflow is found, the function sets s1 and s2 to zero.
 ///
 /// Originally ZS1S2
 pub fn underflow_add_i_k(

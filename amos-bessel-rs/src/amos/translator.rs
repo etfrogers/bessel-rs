@@ -552,6 +552,8 @@ fn k_right_half_plane_helper(
 /// Set k functions to zero on underflow, continue recurrence
 /// on scaled functions until two members come on scale, then
 /// return with min(nz+2,n) values scaled by 1/tol.
+///
+/// Originally ZKSCL
 fn ZKSCL(
     zr: Complex64,
     order: f64,
@@ -608,7 +610,7 @@ fn ZKSCL(
     //     S2 GETS LARGER THAN EXP(ELIM/2)
     let mut skip_to_40 = false;
     let mut I = 0;
-    for (i, yi) in y.iter_mut().enumerate().take(n).skip(2) {
+    for (i, yi) in y.iter_mut().enumerate().skip(2) {
         I = i;
         let mut cs = s2;
         s2 = cs * ck + s1;
@@ -755,6 +757,9 @@ fn ratios_i(z: Complex64, order: f64, n: usize) -> Vec<Complex64> {
     cy
 }
 
+/// zbunk computes the K Bessel function for order > asymptotic_order_limit.
+/// according to the uniform asymptotic expansion for K(order, z)
+/// in zunk1 and the expansion for H(2, order, z) in zunk2
 pub fn ZBUNK(
     z: Complex64,
     order: f64,
@@ -762,13 +767,6 @@ pub fn ZBUNK(
     rotation: RotationDirection,
     N: usize,
 ) -> BesselResult {
-    // ***BEGIN PROLOGUE  ZBUNK
-    // ***REFER TO  ZBESK,ZBESH
-    //
-    //     ZBUNK COMPUTES THE K BESSEL FUNCTION FOR FNU > FNUL.
-    //     ACCORDING TO THE UNIFORM ASYMPTOTIC EXPANSION FOR K(FNU,Z)
-    //     IN ZUNK1 AND THE EXPANSION FOR H(2,FNU,Z) IN ZUNK2
-    //
     if imaginary_dominant(z) {
         //-----------------------------------------------------------------------
         //     ASYMPTOTIC EXPANSION FOR H(2,FNU,Z*EXP(M*FRAC_PI_2)) FOR LARGE FNU
@@ -785,14 +783,10 @@ pub fn ZBUNK(
     }
 }
 
+/// i_miller computes the i bessel function for re(z) >= 0.0 by the
+/// Miller algorithm normalized by a Neumann series.
+/// Originally ZMLRI
 fn i_miller(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
-    // ***BEGIN PROLOGUE  ZMLRI
-    // ***REFER TO  ZBESI,ZBESK
-    //
-    //     ZMLRI COMPUTES THE I BESSEL FUNCTION FOR RE(Z) >= 0.0 BY THE
-    //     MILLER ALGORITHM NORMALIZED BY A NEUMANN SERIES.
-    //
-
     let SCLE: f64 = 2.0 * f64::MIN_POSITIVE / MACHINE_CONSTANTS.abs_error_tolerance;
     let NZ = 0;
     let AZ = z.abs();
@@ -947,6 +941,9 @@ fn i_miller(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
     Ok((y, NZ))
 }
 
+// i_wronksian computes the i bessel function for re(z) >= 0.0 by
+// normalizing the i function ratios from zrati by the Wronskian
+// Originally ZWRSK
 fn i_wronksian(
     zr: Complex64,
     order: f64,
@@ -954,13 +951,6 @@ fn i_wronksian(
     N: usize,
     y: &mut [Complex64],
 ) -> BesselResult<usize> {
-    // ***BEGIN PROLOGUE  ZWRSK
-    // ***REFER TO  ZBESI,ZBESK
-    //
-    //     ZWRSK COMPUTES THE I BESSEL FUNCTION FOR RE(Z) >= 0.0 BY
-    //     NORMALIZING THE I FUNCTION RATIOS FROM ZRATI BY THE WRONSKIAN
-    //
-
     //-----------------------------------------------------------------------
     //     I(FNU+I-1,Z) BY BACKWARD RECURRENCE FOR RATIOS
     //     Y(I)=I(FNU+I,Z)/I(FNU+I-1,Z) FROM CRATI NORMALIZED BY THE
@@ -1009,6 +999,13 @@ fn i_wronksian(
     Ok(NZ)
 }
 
+/// Applies the analytic continuation formula
+///     K(fnu, zn*exp(mp))=K(fnu, zn)*exp(-mp*fnu) - mp*I(fnu, zn)
+///             mp=pi*mr*cmplx(0.0,1.0)
+///
+/// to continue the k function from the right half to the left
+/// half z plane
+/// Originally ZACON
 pub fn analytic_continuation(
     z: Complex64,
     order: f64,
@@ -1016,18 +1013,6 @@ pub fn analytic_continuation(
     rotation: RotationDirection,
     n: usize,
 ) -> BesselResult {
-    // ***BEGIN PROLOGUE  ZACON
-    // ***REFER TO  ZBESK,ZBESH
-    //
-    //     ZACON APPLIES THE ANALYTIC CONTINUATION FORMULA
-    //
-    //         K(FNU,ZN*EXP(MP))=K(FNU,ZN)*EXP(-MP*FNU) - MP*I(FNU,ZN)
-    //                 MP=PI*MR*CMPLX(0.0,1.0)
-    //
-    //     TO CONTINUE THE K FUNCTION FROM THE RIGHT HALF TO THE LEFT
-    //     HALF Z PLANE
-    //
-
     let mut nz = 0;
     let zn = -z;
     let (mut y, _) = i_right_half_plane(zn, order, scaling, n)?;
@@ -1220,6 +1205,18 @@ pub fn i_right_half_plane(z: Complex64, order: f64, KODE: Scaling, N: usize) -> 
     }
 }
 
+/// Applies the analytic continuation formula
+///
+/// K(fnu, zn*exp(mp)) = K(fnu, zn) * exp(-mp*fnu) - mp*I(fnu,zn)
+/// mp = pi * mr * cmplx(0.0,1.0)
+///
+/// to continue the k function from the right half to the left
+/// half z plane for use with complex_airy where fnu=1/3 or 2/3 and n=1.
+/// zacai is the same as analytic_continuation (zacon) with the parts for larger orders and
+/// recurrence removed. A recursive call to zacon can result if zacon
+/// is called from complex_airy.
+///
+/// Originally ZACAI
 pub fn ZACAI(
     z: Complex64,
     order: f64,
@@ -1227,21 +1224,6 @@ pub fn ZACAI(
     rotation: RotationDirection,
     N: usize,
 ) -> BesselResult {
-    // ***BEGIN PROLOGUE  ZACAI
-    // ***REFER TO  ZAIRY
-    //
-    //     ZACAI APPLIES THE ANALYTIC CONTINUATION FORMULA
-    //
-    //         K(FNU,ZN*EXP(MP))=K(FNU,ZN)*EXP(-MP*FNU) - MP*I(FNU,ZN)
-    //                 MP=PI*MR*CMPLX(0.0,1.0)
-    //
-    //     TO CONTINUE THE K FUNCTION FROM THE RIGHT HALF TO THE LEFT
-    //     HALF Z PLANE FOR USE WITH ZAIRY WHERE FNU=1/3 OR 2/3 AND N=1.
-    //     ZACAI IS THE SAME AS ZACON WITH THE PARTS FOR LARGER ORDERS AND
-    //     RECURRENCE REMOVED. A RECURSIVE CALL TO ZACON CAN RESULT if ZACON
-    //     IS CALLED FROM ZAIRY.
-    //
-
     let mut NZ = 0;
     let zn = -z;
     let AZ = z.abs();
@@ -1297,6 +1279,12 @@ pub fn ZACAI(
     Ok((y, NZ))
 }
 
+/// zunk1 computes K(fnu,z) and its analytic continuation from the
+/// right half plane to the left half plane by means of the
+/// uniform asymptotic expansion.
+/// `rotation` indicates the direction of rotation for analytic continuation.
+///
+/// Originally ZUNK1
 fn ZUNK1(
     z: Complex64,
     order: f64,
@@ -1304,11 +1292,6 @@ fn ZUNK1(
     rotation: RotationDirection,
     n: usize,
 ) -> BesselResult {
-    //     ZUNK1 COMPUTES K(FNU,Z) AND ITS ANALYTIC CONTINUATION FROM THE
-    //     RIGHT HALF PLANE TO THE LEFT HALF PLANE BY MEANS OF THE
-    //     UNIFORM ASYMPTOTIC EXPANSION.
-    //     MR INDICATES THE DIRECTION OF ROTATION FOR ANALYTIC CONTINUATION.
-
     let mut found_one_good_entry = false;
     let mut nz = 0;
     //-----------------------------------------------------------------------
@@ -1551,6 +1534,16 @@ fn ZUNK1(
     Ok((y, nz))
 }
 
+/// zunk2 computes K(fnu,z) and its analytic continuation from the
+/// right half plane to the left half plane by means of the
+/// uniform asymptotic expansions for H(kind,fnu,zn) and J(fnu,zn)
+/// where zn is in the right half plane, kind=(3-mr)/2, mr=+1 or
+/// -1. here zn=zr*i or -zr*i where zr=z if z is in the right
+/// half plane or zr=-z if z is in the left half plane.
+///
+/// `rotation` indicates the direction of rotation for analytic continuation.
+///
+/// Originally ZUNK2
 fn ZUNK2(
     z: Complex64,
     order: f64,
@@ -1558,14 +1551,6 @@ fn ZUNK2(
     rotation: RotationDirection,
     n: usize,
 ) -> BesselResult {
-    //     ZUNK2 COMPUTES K(FNU,Z) AND ITS ANALYTIC CONTINUATION FROM THE
-    //     RIGHT HALF PLANE TO THE LEFT HALF PLANE BY MEANS OF THE
-    //     UNIFORM ASYMPTOTIC EXPANSIONS FOR H(KIND,FNU,ZN) AND J(FNU,ZN)
-    //     WHERE ZN IS IN THE RIGHT HALF PLANE, KIND=(3-MR)/2, MR=+1 OR
-    //     -1. HERE ZN=ZR*I OR -ZR*I WHERE ZR=Z if Z IS IN THE RIGHT
-    //     HALF PLANE OR ZR=-Z if Z IS IN THE LEFT HALF PLANE. MR INDIC-
-    //     ATES THE DIRECTION OF ROTATION FOR ANALYTIC CONTINUATION.
-
     const CR1: Complex64 = Complex64::new(1.0, 1.73205080756887729);
     const CR2: Complex64 = Complex64::new(-0.5, -8.66025403784438647e-01);
 
@@ -1863,6 +1848,15 @@ fn ZUNK2(
     Ok((y, nz))
 }
 
+/// zbuni computes the i bessel function for large cabs(z) >
+/// asymptotic_order_limit and fnu+n-1 < asymptotic_order_limit.
+/// The order is increased from
+/// fnu+n-1 greater than asymptotic_order_limit by adding nui and computing
+/// according to the uniform asymptotic expansion for J(fnu,z)
+///  if z is imaginary_dominant and the expansion for I(fnu,z)
+/// if z is _not_ imaginary_dominant.
+///
+/// Originally ZBUNI
 fn ZBUNI(
     z: Complex64,
     order: f64,
@@ -1871,18 +1865,6 @@ fn ZBUNI(
     NUI: usize,
     y: &mut [Complex64],
 ) -> Result<(usize, usize), BesselError> {
-    // ***BEGIN PROLOGUE  ZBUNI
-    // ***REFER TO  ZBESI,ZBESK
-    //
-    //     ZBUNI COMPUTES THE I BESSEL FUNCTION FOR LARGE CABS(Z) >
-    //     FNUL AND FNU+N-1 < FNUL. THE ORDER IS INCREASED FROM
-    //     FNU+N-1 GREATER THAN FNUL BY ADDING NUI AND COMPUTING
-    //     ACCORDING TO THE UNIFORM ASYMPTOTIC EXPANSION FOR I(FNU,Z)
-    //     ON IFORM=1 AND THE EXPANSION FOR J(FNU,Z) ON IFORM=2
-    //
-    // ***ROUTINES CALLED  ZUNI1,ZUNI2,ZABS,d1mach
-    // ***END PROLOGUE  ZBUNI
-
     let imaginary_dominant = imaginary_dominant(z);
     if NUI != 0 {
         let mut FNUI = NUI as f64;
@@ -2003,6 +1985,17 @@ fn ZBUNI(
     Ok((NW, NLAST))
 }
 
+/// zuni1 computes I(fnu,z)  by means of the uniform asymptotic
+/// expansion for I(fnu,z) in -pi/3 <= arg z <= pi/3.
+///
+/// asymptotic_order_limit is the smallest order permitted for the asymptotic
+/// expansion. nlast=0 means all of the y values were set.
+/// nlast != 0 is the number left to be computed by another
+/// formula for orders fnu to fnu+nlast-1 because
+/// fnu+nlast-1 < asymptotic_order_limit.
+/// y(i)=czero for i = nlast+1,n
+///
+/// Originally ZUNI1
 fn ZUNI1(
     z: Complex64,
     order: f64,
@@ -2010,18 +2003,6 @@ fn ZUNI1(
     n: usize,
     y: &mut [Complex64],
 ) -> BesselResult<(usize, usize)> {
-    // ***BEGIN PROLOGUE  ZUNI1
-    // ***REFER TO  ZBESI,ZBESK
-    //
-    //     ZUNI1 COMPUTES I(FNU,Z)  BY MEANS OF THE UNIFORM ASYMPTOTIC
-    //     EXPANSION FOR I(FNU,Z) IN -PI/3 <= ARG Z <= PI/3.
-    //
-    //     FNUL IS THE SMALLEST ORDER PERMITTED FOR THE ASYMPTOTIC
-    //     EXPANSION. NLAST=0 MEANS ALL OF THE Y VALUES WERE SET.
-    //     NLAST != 0 IS THE NUMBER LEFT TO BE COMPUTED BY ANOTHER
-    //     FORMULA FOR ORDERS FNU TO FNU+NLAST-1 BECAUSE FNU+NLAST-1 < FNUL.
-    //     Y(I)=CZERO FOR I=NLAST+1,N
-
     let mut nz = 0;
     let mut n_remaining = n;
     //-----------------------------------------------------------------------
@@ -2120,6 +2101,15 @@ fn ZUNI1(
     Ok((nz, 0))
 }
 
+/// zuni2 computes I(fnu,z) in the right half plane by means of
+/// uniform asymptotic expansion for J(fnu,zn) where zn is z*i
+/// or -z*i and zn is in the right half plane also.
+///
+/// asymptotic_order_limit is the smallest order permitted for the asymptotic
+/// expansion. nlast=0 means all of the y values were set.
+/// nlast != 0 is the number left to be computed by another
+/// formula for orders fnu to fnu+nlast-1 because fnu+nlast-1 < asymptotic_order_limit.
+/// y(i)=czero for i=nlast+1,n
 fn ZUNI2(
     z: Complex64,
     order: f64,
@@ -2127,22 +2117,6 @@ fn ZUNI2(
     n: usize,
     y: &mut [Complex64],
 ) -> BesselResult<(usize, usize)> {
-    // ***BEGIN PROLOGUE  ZUNI2
-    // ***REFER TO  ZBESI,ZBESK
-    //
-    //     ZUNI2 COMPUTES I(FNU,Z) IN THE RIGHT HALF PLANE BY MEANS OF
-    //     UNIFORM ASYMPTOTIC EXPANSION FOR J(FNU,ZN) WHERE ZN IS Z*I
-    //     OR -Z*I AND ZN IS IN THE RIGHT HALF PLANE ALSO.
-    //
-    //     FNUL IS THE SMALLEST ORDER PERMITTED FOR THE ASYMPTOTIC
-    //     EXPANSION. NLAST=0 MEANS ALL OF THE Y VALUES WERE SET.
-    //     NLAST != 0 IS THE NUMBER LEFT TO BE COMPUTED BY ANOTHER
-    //     FORMULA FOR ORDERS FNU TO FNU+NLAST-1 BECAUSE FNU+NLAST-1 < FNUL.
-    //     Y(I)=CZERO FOR I=NLAST+1,N
-    //
-    // ***ROUTINES CALLED  ZAIRY,ZUunderflowCHK,ZUNHJ,ZUOIK,d1mach,ZABS
-    // ***END PROLOGUE  ZUNI2
-
     let mut nz = 0;
     let mut n_remaining = n;
 

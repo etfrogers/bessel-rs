@@ -13,7 +13,7 @@ pub const TWO_THIRDS: f64 = 6.66666666666666666e-01;
 pub const RT_THREE: f64 = 1.73205080757;
 pub const AIC: f64 = 1.265512123484645396; // == gamma_ln(-0.5).re
 
-/// This slightly odd form of caclulation avoids overflow/underflow
+/// This slightly odd form of calculation avoids overflow/underflow
 /// when z is large/small respectively.
 pub(crate) fn calc_rz(z: Complex64) -> Complex64 {
     //2.0 * z.conj() / abs_z.powi(2)
@@ -48,7 +48,7 @@ pub(crate) fn will_underflow(y: Complex64, ascle: f64, tol: f64) -> bool {
     }
 }
 
-pub fn is_sigificance_lost(
+pub fn is_significance_lost(
     z_abs: f64,
     modified_order: f64,
     modify_threshold: bool,

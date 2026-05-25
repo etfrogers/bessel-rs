@@ -6,9 +6,12 @@ use num::{
 use std::{f64::consts::PI, ops::Neg};
 
 pub use entry_points::*;
-pub use gamma_ln::{GammaError, gamma_ln};
+pub(crate) use gamma_ln::gamma_ln;
 pub(crate) use i_power_series::i_power_series;
 pub(crate) use machine::MACHINE_CONSTANTS;
+
+#[cfg(test)]
+pub(crate) use gamma_ln::GammaError;
 
 mod asymptotic_i;
 mod entry_points;
@@ -21,7 +24,7 @@ mod utils;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(usize)]
-pub enum IKType {
+pub(crate) enum IKType {
     I = 1,
     K = 2,
 }
@@ -33,15 +36,19 @@ const CIP: [Complex64; 4] = [
     Complex64::new(0.0, -1.0),
 ];
 
+/// Used to specify the kind of Hankel function in the [hankel](crate::hankel) and
+/// [complex_bessel_h] functions.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(usize)]
 pub enum HankelKind {
+    /// Hankel function of the first kind, H1v(z) = Jv(z) + i*Yv(z)
     First = 1,
+    /// Hankel function of the second kind, H2v(z) = Jv(z) - i*Yv(z)
     Second = 2,
 }
 
 impl HankelKind {
-    pub fn get_rotation(&self) -> RotationDirection {
+    pub(crate) fn get_rotation(&self) -> RotationDirection {
         match self {
             HankelKind::First => RotationDirection::Right,
             HankelKind::Second => RotationDirection::Left,
@@ -49,15 +56,18 @@ impl HankelKind {
     }
 }
 
+/// Represents the scaling option for Bessel and Airy complex_... functions.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(i32)]
 pub enum Scaling {
+    /// No scaling is applied.
     Unscaled = 1,
+    /// Scaling is applied to remove exponential growth or decay.
     Scaled = 2,
 }
 
 impl Scaling {
-    pub fn scale_zetas(
+    pub(crate) fn scale_zetas(
         &self,
         z: Complex64,
         modified_order: f64,
@@ -77,7 +87,7 @@ impl Scaling {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(i32)]
-pub enum RotationDirection {
+pub(crate) enum RotationDirection {
     Left = -1,
     None = 0,
     Right = 1,

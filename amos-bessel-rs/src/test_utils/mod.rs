@@ -5,7 +5,10 @@ use num::{Zero, complex::Complex64};
 
 use crate::types::{BesselError, BesselResult};
 
-use crate::{HankelKind, Scaling, complex_airy, complex_airy_b};
+use crate::{
+    HankelKind, Scaling,
+    amos::{complex_airy, complex_airy_b},
+};
 
 mod bessel_h_wrappers;
 mod equality;
