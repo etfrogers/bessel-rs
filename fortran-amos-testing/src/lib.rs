@@ -1,3 +1,13 @@
+//! # fortran-amos-testing
+//!
+//! This crate is an internal testing utility for `amos-bessel-rs`. It is NOT
+//! intended for direct use or installation.
+//!
+//! If you require a production-ready Rust wrapper for the Amos' Fortran functions,
+//! please use the [complex-bessel-rs](https://crates.io/crates/complex-bessel-rs) crate.
+
+#![doc(hidden)]
+
 use num::complex::Complex64;
 use std::ffi::{c_double, c_int};
 
