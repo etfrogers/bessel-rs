@@ -1,5 +1,5 @@
 use num::{
-    Complex, One, Zero,
+    Complex, Float, One, Zero,
     complex::{Complex64, ComplexFloat},
     traits::Pow,
 };
@@ -131,7 +131,7 @@ pub(crate) fn c_zeros(n: usize) -> Vec<Complex64> {
     vec![Complex64::zero(); n]
 }
 
-pub(crate) fn max_abs_component(c: Complex64) -> f64 {
+pub(crate) fn max_abs_component<T: Float>(c: Complex<T>) -> T {
     c.re.abs().max(c.im.abs())
 }
 

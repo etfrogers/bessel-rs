@@ -1,9 +1,39 @@
 use crate::amos::MACHINE_CONSTANTS;
 use num::{
-    Complex,
+    Complex, Float,
     complex::{Complex64, ComplexFloat},
 };
 use thiserror::Error;
+
+pub(crate) trait BesselFloat: Float + From<u32> + From<f64> + From<i32> {
+    fn radix() -> u32;
+    fn mantissa_digits() -> u32;
+    fn from_f64(value: f64) -> Self;
+    fn min_exp() -> i32;
+    fn max_exp() -> i32;
+}
+
+impl BesselFloat for f64 {
+    fn radix() -> u32 {
+        f64::RADIX
+    }
+
+    fn mantissa_digits() -> u32 {
+        f64::MANTISSA_DIGITS
+    }
+
+    fn from_f64(value: f64) -> Self {
+        value
+    }
+
+    fn min_exp() -> i32 {
+        f64::MIN_EXP
+    }
+
+    fn max_exp() -> i32 {
+        f64::MAX_EXP
+    }
+}
 
 pub(crate) type BesselValues<T = usize> = (Vec<Complex64>, T);
 pub(crate) type BesselResult<T = BesselValues> = Result<T, BesselError>;
