@@ -1,10 +1,10 @@
 #![allow(clippy::excessive_precision)]
 use num::{
-    complex::{Complex64, ComplexFloat},
+    complex::{Complex, ComplexFloat},
     pow::Pow,
 };
 
-use crate::types::{BesselError, BesselResult};
+use crate::types::{BesselError, BesselFloat, BesselResult};
 
 use super::MACHINE_CONSTANTS;
 
@@ -15,14 +15,14 @@ pub const AIC: f64 = 1.265512123484645396; // == gamma_ln(-0.5).re
 
 /// This slightly odd form of calculation avoids overflow/underflow
 /// when z is large/small respectively.
-pub(crate) fn calc_rz(z: Complex64) -> Complex64 {
+pub(crate) fn calc_rz<T: BesselFloat>(z: Complex<T>) -> Complex<T> {
     //2.0 * z.conj() / abs_z.powi(2)
-    let r_abs_z = 1.0 / z.abs();
+    let r_abs_z = T::one() / z.abs();
     let intermediate = z.conj() * r_abs_z;
     (intermediate + intermediate) * r_abs_z
 }
 
-pub(crate) fn imaginary_dominant(z: Complex64) -> bool {
+pub(crate) fn imaginary_dominant(z: Complex<f64>) -> bool {
     z.im.abs() > z.re.abs() * RT_THREE
 }
 
@@ -36,7 +36,7 @@ pub(crate) fn imaginary_dominant(z: Complex64) -> bool {
 /// if the underflow is at least one precision below the magnitude
 /// of the largest component; otherwise the phase angle does not have
 /// absolute accuracy and an underflow is assumed
-pub(crate) fn will_underflow(y: Complex64, ascle: f64, tol: f64) -> bool {
+pub(crate) fn will_underflow<T: BesselFloat>(y: Complex<T>, ascle: T, tol: T) -> bool {
     let re_abs = y.re.abs();
     let im_abs = y.im.abs();
     let min_abs_component = re_abs.min(im_abs);
@@ -68,7 +68,7 @@ pub fn is_significance_lost(
 }
 
 pub(crate) fn sanitise_inputs(
-    z: Complex64,
+    z: Complex<f64>,
     order: f64,
     n: usize,
     check_z_zero: bool,

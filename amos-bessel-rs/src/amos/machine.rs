@@ -1,4 +1,4 @@
-use std::{convert::From, sync::LazyLock};
+use std::sync::LazyLock;
 
 use crate::types::BesselFloat;
 
@@ -56,8 +56,8 @@ impl<T: BesselFloat> MachineConsts<T> {
         // absolute_approximation_limit == (-approximation_limit).exp() -- see test
         let absolute_approximation_limit = underflow_limit / abs_error_tolerance;
 
-        let digits_per_bit: T = <T as From<u32>>::from(T::radix()).log10();
-        let exponent_bit_limit: T = (T::min_exp().abs().min(T::max_exp().abs())).into();
+        let digits_per_bit: T = (T::from_f64(T::RADIX as f64)).log10();
+        let exponent_bit_limit: T = T::from_f64((T::MIN_EXP.abs().min(T::MAX_EXP.abs())) as f64);
 
         // Subtract 3.0 (digits) to give a number above which 10^decimal_exponent_limit would
         // be close to overflowing (i.e. within 1000 == 10^3.0 of the actual limit)
@@ -65,9 +65,10 @@ impl<T: BesselFloat> MachineConsts<T> {
         // Multiplying by ln_10 converts from 10^x overflowing to e^x overflowing
         let exponent_limit = ln_10 * decimal_exponent_limit;
 
-        let f64_siginficant_digits = digits_per_bit * ((T::mantissa_digits() - 1).into());
+        let base_type_siginficant_digits: T =
+            digits_per_bit * (T::from_f64(T::MANTISSA_DIGITS as f64) - T::one());
         // siginficant_digits == abs_error_tolerance.log10() -- see test
-        let significant_digits = f64_siginficant_digits.min(18.0.into());
+        let significant_digits = base_type_siginficant_digits.min(T::from_f64(18.0));
         // Again, multiply number of base 10 digits by ln_10 to convert to e^x
         let approximation_limit = exponent_limit - (significant_digits * ln_10);
 
@@ -105,4 +106,7 @@ impl<T: BesselFloat> MachineConsts<T> {
 }
 
 pub(crate) static MACHINE_CONSTANTS: LazyLock<MachineConsts<f64>> =
+    LazyLock::new(MachineConsts::new);
+
+pub(crate) static MACHINE_CONSTANTS_64: LazyLock<MachineConsts<f64>> =
     LazyLock::new(MachineConsts::new);

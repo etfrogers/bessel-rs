@@ -1,41 +1,79 @@
-use crate::amos::MACHINE_CONSTANTS;
+use std::{
+    fmt::Debug,
+    ops::{AddAssign, DivAssign, MulAssign, RemAssign, SubAssign},
+    sync::LazyLock,
+};
+
+use crate::amos::{MACHINE_CONSTANTS_64, MachineConsts};
 use num::{
     Complex, Float,
     complex::{Complex64, ComplexFloat},
+    traits::{ConstOne, ConstZero, FloatConst},
 };
 use thiserror::Error;
 
-pub(crate) trait BesselFloat: Float + From<u32> + From<f64> + From<i32> {
-    fn radix() -> u32;
-    fn mantissa_digits() -> u32;
+pub(crate) trait BesselFloat:
+    Float
+    + Debug
+    + FloatConst
+    + ConstZero
+    + ConstOne
+    + MulAssign
+    + AddAssign
+    + SubAssign
+    + DivAssign
+    + RemAssign
+    + 'static
+// where Complex<Self>: MulAssign<Complex<Self>>
+// where Complex<Self>: Pow<Self, Output = Complex<Self>>
+{
+    const RADIX: u32;
+    const MANTISSA_DIGITS: u32;
+    const MIN_EXP: i32;
+    const MAX_EXP: i32;
+    const EPSILON: Self;
+    const C_ONE: Complex<Self> = Complex::<Self>::ONE;
+    const C_ZERO: Complex<Self> = Complex::<Self>::ZERO;
+
     fn from_f64(value: f64) -> Self;
-    fn min_exp() -> i32;
-    fn max_exp() -> i32;
+    fn half() -> Self;
+    fn two() -> Self;
+
+    #[inline]
+    fn c_zeros(n: usize) -> Vec<Complex<Self>> {
+        vec![Complex::<Self>::ZERO; n]
+    }
+
+    const MACHINE_CONSTANTS: &'static LazyLock<MachineConsts<Self>>;
 }
 
 impl BesselFloat for f64 {
-    fn radix() -> u32 {
-        f64::RADIX
-    }
+    const RADIX: u32 = f64::RADIX;
+    const MANTISSA_DIGITS: u32 = f64::MANTISSA_DIGITS;
+    const MIN_EXP: i32 = f64::MIN_EXP;
+    const MAX_EXP: i32 = f64::MAX_EXP;
+    const EPSILON: Self = f64::EPSILON;
 
-    fn mantissa_digits() -> u32 {
-        f64::MANTISSA_DIGITS
-    }
+    const MACHINE_CONSTANTS: &'static LazyLock<MachineConsts<Self>> = &MACHINE_CONSTANTS_64;
 
+    #[inline]
     fn from_f64(value: f64) -> Self {
         value
     }
 
-    fn min_exp() -> i32 {
-        f64::MIN_EXP
+    #[inline]
+    fn half() -> Self {
+        0.5
     }
 
-    fn max_exp() -> i32 {
-        f64::MAX_EXP
+    #[inline]
+    fn two() -> Self {
+        2.
     }
 }
 
-pub(crate) type BesselValues<T = usize> = (Vec<Complex64>, T);
+#[allow(type_alias_bounds)]
+pub(crate) type BesselValues<FT: BesselFloat = f64, NT = usize> = (Vec<Complex<FT>>, NT);
 pub(crate) type BesselResult<T = BesselValues> = Result<T, BesselError>;
 
 /// A trait for converting back from a type `T` into a `BesselResult<Self>`.
@@ -67,7 +105,7 @@ impl BackFrom<Complex64> for f64 {
     #[inline]
     fn back_from(val: &Complex64) -> BesselResult<Self> {
         const MARGIN: f64 = 1000.0;
-        let tol = MARGIN * MACHINE_CONSTANTS.abs_error_tolerance;
+        let tol = MARGIN * f64::MACHINE_CONSTANTS.abs_error_tolerance;
         // if the imainary part is small, pass the value on
         // if the imaginary part is small compared to the real part, pass the value on
         // if the real part is small, the imaginary part is likely inaccurate, so pass the value on

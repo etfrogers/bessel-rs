@@ -106,7 +106,7 @@ pub fn bessel_zeros<OT: Into<f64> + num::Num>(
     precision: f64,
 ) -> Vec<f64> {
     let order: f64 = order.into();
-    let order_int = order as i32;
+    let order_int = order as i64;
     let mut z = vec![0.0; n_zeros];
 
     let aa = order.powf(2.0);
@@ -174,7 +174,7 @@ pub fn bessel_zeros<OT: Into<f64> + num::Num>(
         if (order_int == 0) && (s == 1) && (*func_type == BesselFunType::JP) {
             x = 0.0;
         } else {
-            if TryInto::<i32>::try_into(s).unwrap() >= a1 {
+            if TryInto::<i64>::try_into(s).unwrap() >= a1 {
                 let b = (sf + 0.5 * order - t) * PI;
                 let c = 0.015625 / (b.powf(2.0));
                 x = b - 0.125 * (p0 - p1 * c) / (b * (1.0 - q1 * c));
