@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     fmt::Debug,
-    ops::{AddAssign, DivAssign, Mul, MulAssign, RemAssign, SubAssign},
+    ops::{AddAssign, Div, DivAssign, Mul, MulAssign, RemAssign, SubAssign},
     sync::{LazyLock, Mutex},
 };
 
@@ -26,6 +26,7 @@ pub(crate) trait BesselFloat:
     + DivAssign
     + RemAssign
     + Mul<Complex<Self>, Output = Complex<Self>>
+    + Div<Complex<Self>, Output = Complex<Self>>
     + 'static
 // where Complex<Self>: MulAssign<Complex<Self>>
 // where Complex<Self>: Pow<Self, Output = Complex<Self>>
