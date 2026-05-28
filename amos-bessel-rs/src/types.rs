@@ -1,10 +1,11 @@
 use std::{
+    collections::HashMap,
     fmt::Debug,
-    ops::{AddAssign, DivAssign, MulAssign, RemAssign, SubAssign},
-    sync::LazyLock,
+    ops::{AddAssign, DivAssign, Mul, MulAssign, RemAssign, SubAssign},
+    sync::{LazyLock, Mutex},
 };
 
-use crate::amos::{MACHINE_CONSTANTS_64, MachineConsts};
+use crate::amos::{MACHINE_CONSTANTS_32, MACHINE_CONSTANTS_64, MachineConsts};
 use num::{
     Complex, Float,
     complex::{Complex64, ComplexFloat},
@@ -14,6 +15,7 @@ use thiserror::Error;
 
 pub(crate) trait BesselFloat:
     Float
+    + CachableUAP<Self>
     + Debug
     + FloatConst
     + ConstZero
@@ -23,6 +25,7 @@ pub(crate) trait BesselFloat:
     + SubAssign
     + DivAssign
     + RemAssign
+    + Mul<Complex<Self>, Output = Complex<Self>>
     + 'static
 // where Complex<Self>: MulAssign<Complex<Self>>
 // where Complex<Self>: Pow<Self, Output = Complex<Self>>
@@ -34,10 +37,12 @@ pub(crate) trait BesselFloat:
     const EPSILON: Self;
     const C_ONE: Complex<Self> = Complex::<Self>::ONE;
     const C_ZERO: Complex<Self> = Complex::<Self>::ZERO;
+    const I: Complex<Self> = Complex::<Self>::I;
 
     fn from_f64(value: f64) -> Self;
     fn half() -> Self;
     fn two() -> Self;
+    fn to_bits(self) -> u64;
 
     #[inline]
     fn c_zeros(n: usize) -> Vec<Complex<Self>> {
@@ -68,8 +73,85 @@ impl BesselFloat for f64 {
 
     #[inline]
     fn two() -> Self {
-        2.
+        2.0
     }
+
+    #[inline]
+    fn to_bits(self) -> u64 {
+        f64::to_bits(self)
+    }
+}
+
+impl BesselFloat for f32 {
+    const RADIX: u32 = f32::RADIX;
+    const MANTISSA_DIGITS: u32 = f32::MANTISSA_DIGITS;
+    const MIN_EXP: i32 = f32::MIN_EXP;
+    const MAX_EXP: i32 = f32::MAX_EXP;
+    const EPSILON: Self = f32::EPSILON;
+
+    const MACHINE_CONSTANTS: &'static LazyLock<MachineConsts<Self>> = &MACHINE_CONSTANTS_32;
+
+    #[inline]
+    fn from_f64(value: f64) -> Self {
+        value as f32
+    }
+
+    #[inline]
+    fn half() -> Self {
+        0.5
+    }
+
+    #[inline]
+    fn two() -> Self {
+        2.0
+    }
+
+    #[inline]
+    fn to_bits(self) -> u64 {
+        f32::to_bits(self) as u64
+    }
+}
+
+pub(crate) trait CachableUAP<T: BesselFloat>: 'static {
+    const UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE: &'static LazyLock<
+        Mutex<HashMap<CacheKey, UniformAssymptoticParameters<T>>>,
+    >;
+}
+
+impl CachableUAP<f64> for f64 {
+    const UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE: &'static LazyLock<
+        Mutex<HashMap<CacheKey, UniformAssymptoticParameters<Self>>>,
+    > = &UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE_64;
+}
+
+impl CachableUAP<f32> for f32 {
+    const UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE: &'static LazyLock<
+        Mutex<HashMap<CacheKey, UniformAssymptoticParameters<Self>>>,
+    > = &UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE_32;
+}
+
+pub(crate) struct UniformAssymptoticParameters<T: BesselFloat> {
+    pub(crate) phi_i: Complex<T>,
+    pub(crate) phi_k: Complex<T>,
+    pub(crate) zeta1: Complex<T>,
+    pub(crate) zeta2: Complex<T>,
+    pub(crate) sum_i: Option<Complex<T>>,
+    pub(crate) sum_k: Option<Complex<T>>,
+    pub(crate) working: Option<Vec<Complex<T>>>,
+}
+
+pub(crate) type CacheKey = (u64, u64, u64);
+
+static UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE_64: LazyLock<
+    Mutex<HashMap<CacheKey, UniformAssymptoticParameters<f64>>>,
+> = LazyLock::new(|| Mutex::new(HashMap::new()));
+
+static UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE_32: LazyLock<
+    Mutex<HashMap<CacheKey, UniformAssymptoticParameters<f32>>>,
+> = LazyLock::new(|| Mutex::new(HashMap::new()));
+
+pub(crate) fn cache_key<T: BesselFloat>(z: Complex<T>, order: T) -> CacheKey {
+    (z.re.to_bits(), z.im.to_bits(), order.to_bits())
 }
 
 #[allow(type_alias_bounds)]

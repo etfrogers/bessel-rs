@@ -1,19 +1,16 @@
 #![allow(clippy::excessive_precision)]
 use std::f64::consts::FRAC_PI_2;
 use std::ops::Index;
-use std::{
-    collections::HashMap,
-    sync::{LazyLock, Mutex},
-};
 
-use num::complex::{Complex64, ComplexFloat};
+use num::Complex;
+use num::complex::ComplexFloat;
 
 use crate::amos::utils::{AIC, imaginary_dominant};
-use crate::types::{BesselError::*, BesselResult};
-
-use super::{
-    IKType, MACHINE_CONSTANTS, PositiveArg, Scaling, c_one, c_zero, c_zeros, utils::will_underflow,
+use crate::types::{
+    BesselError::*, BesselFloat, BesselResult, UniformAssymptoticParameters, cache_key,
 };
+
+use super::{IKType, PositiveArg, Scaling, utils::will_underflow};
 
 #[allow(unused_imports)]
 use super::machine::MachineConsts;
@@ -28,32 +25,32 @@ pub enum Overflow {
 }
 
 impl Overflow {
-    pub fn find_overflow(rs1: f64, phi: Complex64, extra_refinement: f64) -> Self {
+    pub fn find_overflow<T: BesselFloat>(rs1: T, phi: Complex<T>, extra_refinement: T) -> Self {
         //-----------------------------------------------------------------------
         //     TEST FOR UNDERFLOW AND OVERFLOW
         //-----------------------------------------------------------------------
-        if rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
-            return if rs1 > 0.0 {
+        if rs1.abs() > T::MACHINE_CONSTANTS.exponent_limit {
+            return if rs1 > T::zero() {
                 Self::Over(false)
             } else {
                 Self::Under(false)
             };
         }
-        if rs1.abs() < MACHINE_CONSTANTS.approximation_limit {
+        if rs1.abs() < T::MACHINE_CONSTANTS.approximation_limit {
             return Self::None;
         }
         //-----------------------------------------------------------------------
         //     REFINE  TEST AND SCALE
         //-----------------------------------------------------------------------
         let refined_rs1 = rs1 + phi.abs().ln() + extra_refinement;
-        if refined_rs1.abs() > MACHINE_CONSTANTS.exponent_limit {
-            return if refined_rs1 > 0.0 {
+        if refined_rs1.abs() > T::MACHINE_CONSTANTS.exponent_limit {
+            return if refined_rs1 > T::zero() {
                 Self::Over(true)
             } else {
                 Self::Under(true)
             };
         }
-        if refined_rs1 > 0.0 {
+        if refined_rs1 > T::zero() {
             Self::NearOver
         } else {
             Self::NearUnder
@@ -118,20 +115,20 @@ impl Index<Overflow> for [f64] {
 ///     another routine
 ///
 /// Originally ZUIOK
-pub fn check_underflow_uniform_asymp_params(
-    z: Complex64,
-    order: f64,
+pub fn check_underflow_uniform_asymp_params<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
     scaling: Scaling,
     ik_type: IKType,
     n_to_test: usize,
-    y: &mut [Complex64],
+    y: &mut [Complex<T>],
 ) -> BesselResult<usize> {
     let mut n_underflow = 0;
-    let zr = if z.re < 0.0 { -z } else { z };
-    let zn = if z.im <= 0.0 {
-        -Complex64::I * zr.conj()
+    let zr = if z.re < T::zero() { -z } else { z };
+    let zn = if z.im <= T::zero() {
+        -T::I * zr.conj()
     } else {
-        -Complex64::I * zr
+        -T::I * zr
     };
     let zb = zr;
     let imaginary_dominant = imaginary_dominant(z);
@@ -143,21 +140,21 @@ pub fn check_underflow_uniform_asymp_params(
 
     // This piece of code is used in two places, where there is essentially a switch on which function to use,
     // based on whether z is imaginary dominant or real dominant
-    let get_parameters = |modified_order: f64| {
+    let get_parameters = |modified_order: T| {
         let (mut cz, phi, arg, abs_arg) = if imaginary_dominant {
             let (phi, arg, zeta1, zeta2, _, _) = zunhj(zn, modified_order, true);
             (-zeta1 + zeta2, phi, arg, arg.abs())
         } else {
             let (phi, zeta1, zeta2, _) = zunik(zr, modified_order, ik_type, true);
-            (-zeta1 + zeta2, phi, c_zero(), 0.0)
+            (-zeta1 + zeta2, phi, T::C_ZERO, T::zero())
         };
         if scaling == Scaling::Scaled {
             cz -= zb;
         }
         let refinement = if imaginary_dominant {
-            -0.25 * abs_arg.ln() - AIC
+            -abs_arg.ln() * T::from_f64(0.25) - T::from_f64(AIC)
         } else {
-            0.0
+            T::zero()
         };
         (cz, phi, arg, refinement)
     };
@@ -165,11 +162,11 @@ pub fn check_underflow_uniform_asymp_params(
     // First checks the last element
     let modified_order = match ik_type {
         IKType::K => {
-            let float_n = n_to_test as f64;
-            let modified_order = order + float_n - 1.0;
+            let float_n = T::from_f64(n_to_test as f64);
+            let modified_order = order + float_n - T::one();
             modified_order.max(float_n)
         }
-        IKType::I => order.max(1.0),
+        IKType::I => order.max(T::one()),
     };
 
     let (mut cz, phi, arg, extra_refinement) = get_parameters(modified_order);
@@ -183,22 +180,22 @@ pub fn check_underflow_uniform_asymp_params(
         Overflow::Over(_) => return Err(Overflow),
         Overflow::Under(was_refined) => {
             if !was_refined {
-                y[0..n_to_test].iter_mut().for_each(|v| *v = c_zero());
+                y[0..n_to_test].iter_mut().for_each(|v| *v = T::C_ZERO);
             }
             return Ok(n_to_test);
         }
         Overflow::NearUnder => {
             cz += phi.ln();
             if imaginary_dominant {
-                cz -= 0.25 * arg.ln() + AIC
+                cz -= T::from_f64(0.25) * arg.ln() + T::from_f64(AIC);
             }
-            cz = cz.exp() / MACHINE_CONSTANTS.abs_error_tolerance;
+            cz = cz.exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
             if will_underflow(
                 cz,
-                MACHINE_CONSTANTS.absolute_approximation_limit,
-                MACHINE_CONSTANTS.abs_error_tolerance,
+                T::MACHINE_CONSTANTS.absolute_approximation_limit,
+                T::MACHINE_CONSTANTS.abs_error_tolerance,
             ) {
-                y[0..n_to_test].iter_mut().for_each(|v| *v = c_zero());
+                y[0..n_to_test].iter_mut().for_each(|v| *v = T::C_ZERO);
                 return Ok(n_to_test);
             }
         }
@@ -213,7 +210,7 @@ pub fn check_underflow_uniform_asymp_params(
     //-----------------------------------------------------------------------
     // Note n_to_test is NOT y.len() in this case.
     for (i, yi) in y.iter_mut().enumerate().take(n_to_test).rev() {
-        let modified_order = order + (i as f64);
+        let modified_order = order + T::from_f64(i as f64);
         let (mut cz, phi, _arg, extra_refinement) = get_parameters(modified_order);
         // Match below says that first time we get here and no underflow is found, we immediately return
         match Overflow::find_overflow(cz.re, phi, extra_refinement) {
@@ -223,13 +220,13 @@ pub fn check_underflow_uniform_asymp_params(
                     // than the absolute values used in find_overflow
                     cz += phi.ln();
                     if imaginary_dominant {
-                        cz -= 0.25 * arg.ln() + AIC
+                        cz -= arg.ln() * T::from_f64(0.25) + T::from_f64(AIC)
                     }
-                    cz = cz.exp() / MACHINE_CONSTANTS.abs_error_tolerance;
+                    cz = cz.exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
                     if !will_underflow(
                         cz,
-                        MACHINE_CONSTANTS.absolute_approximation_limit,
-                        MACHINE_CONSTANTS.abs_error_tolerance,
+                        T::MACHINE_CONSTANTS.absolute_approximation_limit,
+                        T::MACHINE_CONSTANTS.abs_error_tolerance,
                     ) {
                         return Ok(n_underflow);
                     }
@@ -238,7 +235,7 @@ pub fn check_underflow_uniform_asymp_params(
             Overflow::NearUnder => (),
             Overflow::None | Overflow::NearOver | Overflow::Over(_) => return Ok(n_underflow),
         }
-        *yi = c_zero();
+        *yi = T::C_ZERO;
         n_underflow += 1;
     }
     Ok(n_underflow)
@@ -262,62 +259,42 @@ pub fn check_underflow_uniform_asymp_params(
 /// If underflow is found, the function sets s1 and s2 to zero.
 ///
 /// Originally ZS1S2
-pub fn underflow_add_i_k(
-    zr: Complex64,
-    s_k: &mut Complex64,
-    s_i: &mut Complex64,
+pub fn underflow_add_i_k<T: BesselFloat>(
+    zr: Complex<T>,
+    s_k: &mut Complex<T>,
+    s_i: &mut Complex<T>,
     n_good: &mut isize,
 ) -> usize {
     let mut abs_s1 = s_k.abs();
     let abs_s2 = s_i.abs();
-    if (s_k.re != 0.0 || s_k.im != 0.0) && (abs_s1 != 0.0) {
-        let test = (-2.0 * zr.re) + abs_s1.ln();
+    if (s_k.re != T::zero() || s_k.im != T::zero()) && (abs_s1 != T::zero()) {
+        let test = (-T::two() * zr.re) + abs_s1.ln();
         let s1d = *s_k;
-        *s_k = c_zero();
-        abs_s1 = 0.0;
-        if test >= (-MACHINE_CONSTANTS.approximation_limit) {
-            *s_k = (s1d.ln() - 2.0 * zr).exp();
+        *s_k = T::C_ZERO;
+        abs_s1 = T::zero();
+        if test >= (-T::MACHINE_CONSTANTS.approximation_limit) {
+            *s_k = (s1d.ln() - zr * T::two()).exp();
             abs_s1 = s_k.abs();
             *n_good += 1;
         }
     }
-    if abs_s1.max(abs_s2) > MACHINE_CONSTANTS.absolute_approximation_limit {
+    if abs_s1.max(abs_s2) > T::MACHINE_CONSTANTS.absolute_approximation_limit {
         0
     } else {
-        *s_k = c_zero();
-        *s_i = c_zero();
+        *s_k = T::C_ZERO;
+        *s_i = T::C_ZERO;
         *n_good = 0;
         1
     }
 }
 
-struct UniformAssymptoticParameters {
-    phi_i: Complex64,
-    phi_k: Complex64,
-    zeta1: Complex64,
-    zeta2: Complex64,
-    sum_i: Option<Complex64>,
-    sum_k: Option<Complex64>,
-    working: Option<Vec<Complex64>>,
-}
-
-type CacheKey = (u64, u64, u64);
-
-static UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE: LazyLock<
-    Mutex<HashMap<CacheKey, UniformAssymptoticParameters>>,
-> = LazyLock::new(|| Mutex::new(HashMap::new()));
-
-fn cache_key(z: Complex64, order: f64) -> CacheKey {
-    (z.re.to_bits(), z.im.to_bits(), order.to_bits())
-}
-
 //TODO move to a more appropriate files (after renames)
-pub fn zunik(
-    zr: Complex64,
-    order: f64,
+pub fn zunik<T: BesselFloat>(
+    zr: Complex<T>,
+    order: T,
     ikflg: IKType,
     only_phi_zeta: bool,
-) -> (Complex64, Complex64, Complex64, Option<Complex64>) {
+) -> (Complex<T>, Complex<T>, Complex<T>, Option<Complex<T>>) {
     // ***BEGIN PROLOGUE  ZUNIK
     // ***REFER TO  ZBESI,ZBESK
     //
@@ -340,20 +317,20 @@ pub fn zunik(
     // ***END PROLOGUE  ZUNIK
     //
 
-    let compute_sum_i = |working: &Vec<num::Complex<f64>>| working.iter().sum::<Complex64>();
-    let compute_sum_k = |working: &Vec<num::Complex<f64>>| {
-        let mut term_sign = 1.0;
+    let compute_sum_i = |working: &Vec<Complex<T>>| working.iter().sum::<Complex<T>>();
+    let compute_sum_k = |working: &Vec<Complex<T>>| {
+        let mut term_sign = T::one();
         working
             .iter()
             .map(|v| {
-                let output = term_sign * v;
+                let output = v * term_sign;
                 term_sign = -term_sign;
                 output
             })
-            .sum::<Complex64>()
+            .sum::<Complex<T>>()
     };
 
-    let mut cache = (*UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE)
+    let mut cache = (*T::UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE)
         .lock()
         .expect("Failed to get results cache");
 
@@ -391,14 +368,14 @@ pub fn zunik(
     //-----------------------------------------------------------------------
     //     OVERFLOW TEST (ZR/FNU TOO SMALL)
     //-----------------------------------------------------------------------
-    let uflow_test = order * MACHINE_CONSTANTS.underflow_limit;
+    let uflow_test = order * T::MACHINE_CONSTANTS.underflow_limit;
     if zr.re.abs() < uflow_test && zr.im.abs() < uflow_test {
-        let zeta1 = Complex64::new(
-            2.0 * MACHINE_CONSTANTS.underflow_limit.ln().abs() + order,
-            0.0,
+        let zeta1 = Complex::<T>::new(
+            T::two() * T::MACHINE_CONSTANTS.underflow_limit.ln().abs() + order,
+            T::zero(),
         );
-        let zeta2 = Complex64::new(order, 0.0);
-        let phi = c_one();
+        let zeta2 = Complex::<T>::new(order, T::zero());
+        let phi = T::C_ONE;
         cache.insert(
             cache_key(zr, order),
             UniformAssymptoticParameters {
@@ -406,8 +383,8 @@ pub fn zunik(
                 phi_k: phi,
                 zeta1,
                 zeta2,
-                sum_i: Some(c_zero()),
-                sum_k: Some(c_zero()),
+                sum_i: Some(T::C_ZERO),
+                sum_k: Some(T::C_ZERO),
                 working: Some(vec![]),
             },
         );
@@ -415,25 +392,25 @@ pub fn zunik(
             phi,
             zeta1,
             zeta2,
-            if only_phi_zeta { None } else { Some(c_zero()) },
+            if only_phi_zeta { None } else { Some(T::C_ZERO) },
         );
     }
 
     //-----------------------------------------------------------------------
     //     INITIALIZE ALL VARIABLES
     //-----------------------------------------------------------------------
-    let reciprocal_order = 1.0 / order;
+    let reciprocal_order = T::one() / order;
     let t = zr * reciprocal_order;
-    let s = c_one() + t * t;
+    let s = T::C_ONE + t * t;
     let s_root = s.sqrt();
-    let zn = (c_one() + s_root) / t;
-    let zeta1 = order * zn.ln();
-    let zeta2 = order * s_root;
-    let t = c_one() / s_root;
+    let zn = (T::C_ONE + s_root) / t;
+    let zeta1 = zn.ln() * order;
+    let zeta2 = s_root * order;
+    let t = T::C_ONE / s_root;
     let sr = t * reciprocal_order;
     let sr_root = sr.sqrt();
-    let phi_i = sr_root * CON[0];
-    let phi_k = sr_root * CON[1];
+    let phi_i = sr_root * T::from_f64(CON[0]);
+    let phi_k = sr_root * T::from_f64(CON[1]);
     let phi = match ikflg {
         IKType::I => phi_i,
         IKType::K => phi_k,
@@ -455,23 +432,23 @@ pub fn zunik(
     };
 
     let mut working = Vec::new();
-    let t2 = c_one() / s;
-    working.push(c_one());
-    let mut crfn = c_one();
-    let mut ac = 1.0;
+    let t2 = T::C_ONE / s;
+    working.push(T::C_ONE);
+    let mut crfn = T::C_ONE;
+    let mut ac = T::one();
     let mut l = 0;
     for k in 1..15 {
-        let mut s = c_zero();
+        let mut s = T::C_ZERO;
         for _ in 0..=k {
             l += 1;
-            s = s * t2 + C_ZUNIK[l];
+            s = s * t2 + T::from_f64(C_ZUNIK[l]);
         }
         crfn *= sr;
         working.push(crfn * s);
         ac *= reciprocal_order;
         let test = working[k].re.abs() + working[k].im.abs();
-        if ac < MACHINE_CONSTANTS.abs_error_tolerance
-            && test < MACHINE_CONSTANTS.abs_error_tolerance
+        if ac < T::MACHINE_CONSTANTS.abs_error_tolerance
+            && test < T::MACHINE_CONSTANTS.abs_error_tolerance
         {
             break;
         }
@@ -503,17 +480,17 @@ pub fn zunik(
     (phi, zeta1, zeta2, Some(sum))
 }
 
-pub fn zunhj(
-    z: Complex64,
-    order: f64,
+pub fn zunhj<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
     only_phi_zeta: bool,
 ) -> (
-    Complex64,
-    Complex64,
-    Complex64,
-    Complex64,
-    Option<Complex64>,
-    Option<Complex64>,
+    Complex<T>,
+    Complex<T>,
+    Complex<T>,
+    Complex<T>,
+    Option<Complex<T>>,
+    Option<Complex<T>>,
 ) {
     // ***BEGIN PROLOGUE  ZUNHJ
     // ***REFER TO  ZBESI,ZBESK
@@ -550,47 +527,47 @@ pub fn zunhj(
     const EX1: f64 = 3.33333333333333333e-01;
     const EX2: f64 = 6.66666666666666667e-01;
     const THREE_PI_BY_2: f64 = 4.71238898038468986e+00;
-    let rfnu = 1.0 / order;
+    let reciprocal_order = T::one() / order;
     //-----------------------------------------------------------------------
     //     OVERFLOW TEST (Z/FNU TOO SMALL)
     //-----------------------------------------------------------------------
-    let test = MACHINE_CONSTANTS.underflow_limit;
+    let test = T::MACHINE_CONSTANTS.underflow_limit;
     let ac = order * test;
     if !((z.re).abs() > ac || (z.im).abs() > ac) {
-        let zeta1 = Complex64::new(2.0 * test.ln().abs() + order, 0.0);
-        let zeta2 = Complex64::new(order, 0.0);
-        let phi = c_one();
-        let arg = c_one();
+        let zeta1 = Complex::<T>::new(T::two() * test.ln().abs() + order, T::zero());
+        let zeta2 = Complex::<T>::new(order, T::zero());
+        let phi = T::C_ONE;
+        let arg = T::C_ONE;
         return (phi, arg, zeta1, zeta2, None, None);
     }
-    let zb = z * rfnu;
-    let rfnu2 = rfnu * rfnu;
+    let zb = z * reciprocal_order;
+    let rfnu2 = reciprocal_order * reciprocal_order;
     //-----------------------------------------------------------------------
     //     COMPUTE IN THE FOURTH QUADRANT
     //-----------------------------------------------------------------------
-    let fn13 = order.powf(EX1);
+    let fn13 = order.powf(T::from_f64(EX1));
     let fn23 = fn13 * fn13;
-    let rfn13 = 1.0 / fn13;
-    let w2 = c_one() - zb * zb;
+    let rfn13 = T::one() / fn13;
+    let w2 = T::C_ONE - zb * zb;
     let aw2 = w2.abs();
 
-    if aw2 <= 0.25 {
+    if aw2 <= T::from_f64(0.25) {
         //-----------------------------------------------------------------------
         //     POWER SERIES FOR CABS(W2) <= 0.25
         //-----------------------------------------------------------------------
         let mut k = 0;
-        let mut p = c_zeros(30);
-        let mut ap = vec![0.0; 30];
-        p[0] = c_one();
-        let mut suma = Complex64::new(GAMA[0], 0.0);
-        ap[0] = 1.0;
-        if aw2 >= MACHINE_CONSTANTS.abs_error_tolerance {
+        let mut p = T::c_zeros(30);
+        let mut ap = vec![T::zero(); 30];
+        p[0] = T::C_ONE;
+        let mut suma = Complex::<T>::new(T::from_f64(GAMA[0]), T::zero());
+        ap[0] = T::one();
+        if aw2 >= T::MACHINE_CONSTANTS.abs_error_tolerance {
             for k_ in 1..30 {
                 k = k_;
                 p[k_] = p[k_ - 1] * w2;
-                suma += p[k_] * GAMA[k_];
+                suma += p[k_] * T::from_f64(GAMA[k_]);
                 ap[k_] = ap[k_ - 1] * aw2;
-                if ap[k_] < MACHINE_CONSTANTS.abs_error_tolerance {
+                if ap[k_] < T::MACHINE_CONSTANTS.abs_error_tolerance {
                     break;
                 }
             }
@@ -600,8 +577,8 @@ pub fn zunhj(
         let arg = zeta * fn23;
         let mut za = suma.sqrt();
         let zeta2 = w2.sqrt() * order;
-        let zeta1 = (c_one() + EX2 * zeta * za) * zeta2;
-        za *= 2.0;
+        let zeta1 = (T::C_ONE + T::from_f64(EX2) * zeta * za) * zeta2;
+        za *= T::two();
         let phi = za.sqrt() * rfn13;
         if only_phi_zeta {
             return (phi, arg, zeta1, zeta2, None, None);
@@ -609,37 +586,41 @@ pub fn zunhj(
         //-----------------------------------------------------------------------
         //     SUM SERIES FOR ASUM AND BSUM
         //-----------------------------------------------------------------------
-        let sumb: Complex64 = p[..kmax].iter().zip(BETA).map(|(p, b)| p * b).sum();
-        let mut asum = c_zero();
+        let sumb: Complex<T> = p[..kmax]
+            .iter()
+            .zip(BETA)
+            .map(|(p, b)| p * T::from_f64(b))
+            .sum();
+        let mut asum = T::C_ZERO;
         let mut bsum = sumb;
         let mut l1 = 0;
         let mut l2 = 30;
-        let btol = MACHINE_CONSTANTS.abs_error_tolerance * (bsum.re.abs() + bsum.im.abs());
-        let mut atol = MACHINE_CONSTANTS.abs_error_tolerance;
-        let mut pp = 1.0;
+        let btol = T::MACHINE_CONSTANTS.abs_error_tolerance * (bsum.re.abs() + bsum.im.abs());
+        let mut atol = T::MACHINE_CONSTANTS.abs_error_tolerance;
+        let mut pp = T::one();
         let mut a_converged = false;
         let mut b_converged = false;
-        if rfnu2 >= MACHINE_CONSTANTS.abs_error_tolerance {
+        if rfnu2 >= T::MACHINE_CONSTANTS.abs_error_tolerance {
             for _ in 1..7 {
                 atol /= rfnu2;
                 pp *= rfnu2;
                 if !a_converged {
-                    let mut suma = c_zero();
+                    let mut suma = T::C_ZERO;
                     for k in 0..kmax {
-                        suma += p[k] * ALFA[l1 + k];
+                        suma += p[k] * T::from_f64(ALPHA[l1 + k]);
                         if ap[k] < atol {
                             break;
                         }
                     }
                     asum += suma * pp;
-                    if pp < MACHINE_CONSTANTS.abs_error_tolerance {
+                    if pp < T::MACHINE_CONSTANTS.abs_error_tolerance {
                         a_converged = true
                     };
                 }
                 if !b_converged {
-                    let mut sumb = c_zero();
+                    let mut sumb = T::C_ZERO;
                     for k in 0..kmax {
-                        sumb += p[k] * BETA[l2 + k];
+                        sumb += p[k] * T::from_f64(BETA[l2 + k]);
                         if ap[k] < atol {
                             break;
                         }
@@ -656,8 +637,8 @@ pub fn zunhj(
                 l2 += 30;
             }
         }
-        asum += 1.0;
-        pp = rfnu * rfn13;
+        asum += T::one();
+        pp = reciprocal_order * rfn13;
         bsum *= pp;
         (phi, arg, zeta1, zeta2, Some(asum), Some(bsum))
     } else {
@@ -665,30 +646,30 @@ pub fn zunhj(
         //     CABS(W2) > 0.25
         //-----------------------------------------------------------------------
         let mut w = w2.sqrt();
-        if w.re < 0.0 {
-            w.re = 0.0
+        if w.re < T::zero() {
+            w.re = T::zero()
         };
-        if w.im < 0.0 {
-            w.im = 0.0
+        if w.im < T::zero() {
+            w.im = T::zero()
         };
 
-        let za = (c_one() + w) / zb;
+        let za = (T::C_ONE + w) / zb;
         let mut zc = za.ln();
-        zc.im = zc.im.clamp(0.0, FRAC_PI_2);
-        if zc.re < 0.0 {
-            zc.re = 0.0
+        zc.im = zc.im.clamp(T::zero(), T::from_f64(FRAC_PI_2));
+        if zc.re < T::zero() {
+            zc.re = T::zero()
         };
-        let zth = (zc - w) * 1.5;
+        let zth = (zc - w) * T::from_f64(1.5);
         let zeta1 = zc * order;
         let zeta2 = w * order;
         let azth = zth.abs();
         let mut ang = zth.parg();
-        ang = ang.clamp(0.0, THREE_PI_BY_2);
-        let mut pp = azth.powf(EX2);
-        ang *= EX2;
-        let mut zeta = pp * Complex64::cis(ang);
-        if zeta.im < 0.0 {
-            zeta.im = 0.0
+        ang = ang.clamp(T::zero(), T::from_f64(THREE_PI_BY_2));
+        let mut pp = azth.powf(T::from_f64(EX2));
+        ang *= T::from_f64(EX2);
+        let mut zeta = Complex::<T>::cis(ang) * pp;
+        if zeta.im < T::zero() {
+            zeta.im = T::zero()
         };
         let arg = zeta * fn23;
         let rtzt = zth / zeta;
@@ -699,30 +680,30 @@ pub fn zunhj(
             return (phi, arg, zeta1, zeta2, None, None);
         }
 
-        let raw = 1.0 / aw2.sqrt();
-        let tfn = w.conj() * raw * raw * rfnu;
-        let razth = 1.0 / azth;
-        let rzth = zth.conj() * razth * razth * rfnu;
-        let zc = rzth * AR[1];
-        let raw2 = 1.0 / aw2;
+        let raw = T::one() / aw2.sqrt();
+        let tfn = w.conj() * raw * raw * reciprocal_order;
+        let razth = T::one() / azth;
+        let rzth = zth.conj() * razth * razth * reciprocal_order;
+        let zc = rzth * T::from_f64(AR[1]);
+        let raw2 = T::one() / aw2;
         let t2 = w2.conj() * raw2 * raw2;
-        let mut up = c_zeros(14);
-        up[1] = (t2 * C_ZUNHJ[1] + C_ZUNHJ[2]) * tfn;
+        let mut up = T::c_zeros(14);
+        up[1] = (t2 * T::from_f64(C_ZUNHJ[1]) + T::from_f64(C_ZUNHJ[2])) * tfn;
         let mut bsum = up[1] + zc;
-        let mut asum = c_zero();
-        if rfnu >= MACHINE_CONSTANTS.abs_error_tolerance {
+        let mut asum = T::C_ZERO;
+        if reciprocal_order >= T::MACHINE_CONSTANTS.abs_error_tolerance {
             let mut przth = rzth;
             let mut ptfn = tfn;
-            up[0] = c_one();
-            pp = 1.0;
-            let btol = MACHINE_CONSTANTS.abs_error_tolerance * (bsum.re.abs() + bsum.im.abs());
+            up[0] = T::C_ONE;
+            pp = T::one();
+            let btol = T::MACHINE_CONSTANTS.abs_error_tolerance * (bsum.re.abs() + bsum.im.abs());
             let mut ks = 0;
             let mut kp1 = 2;
             let mut l = 2; //3;
             let mut a_converged = false;
             let mut b_converged = false;
-            let mut cr = c_zeros(14);
-            let mut dr = c_zeros(14);
+            let mut cr = T::c_zeros(14);
+            let mut dr = T::c_zeros(14);
             for lr in (2..=12).step_by(2) {
                 let lrp1 = lr + 1;
                 //-----------------------------------------------------------------------
@@ -733,16 +714,16 @@ pub fn zunhj(
                     ks += 1;
                     kp1 += 1;
                     l += 1;
-                    let mut za = Complex64::new(C_ZUNHJ[l], 0.0);
+                    let mut za = Complex::<T>::new(T::from_f64(C_ZUNHJ[l]), T::zero());
                     for _ in 1..kp1 {
                         l += 1;
-                        za = za * t2 + C_ZUNHJ[l];
+                        za = za * t2 + T::from_f64(C_ZUNHJ[l]);
                     }
                     ptfn *= tfn;
                     up[kp1 - 1] = ptfn * za;
-                    cr[ks - 1] = przth * BR[ks];
+                    cr[ks - 1] = przth * T::from_f64(BR[ks]);
                     przth *= rzth;
-                    dr[ks - 1] = przth * AR[ks + 1];
+                    dr[ks - 1] = przth * T::from_f64(AR[ks + 1]);
                 }
                 pp *= rfnu2;
                 if !a_converged {
@@ -754,8 +735,8 @@ pub fn zunhj(
                     }
                     asum += suma;
                     let test = suma.re.abs() + suma.im.abs();
-                    if pp < MACHINE_CONSTANTS.abs_error_tolerance
-                        && test < MACHINE_CONSTANTS.abs_error_tolerance
+                    if pp < T::MACHINE_CONSTANTS.abs_error_tolerance
+                        && test < T::MACHINE_CONSTANTS.abs_error_tolerance
                     {
                         a_converged = true
                     };
@@ -778,7 +759,7 @@ pub fn zunhj(
                 }
             }
         }
-        asum += c_one();
+        asum += T::C_ONE;
         bsum = (-bsum * rfn13) / rtzt;
         (phi, arg, zeta1, zeta2, Some(asum), Some(bsum))
     }
@@ -1048,7 +1029,7 @@ const C_ZUNHJ: [f64; 105] = [
     -3.87183344257261262e+06,
     1.82577554742931747e+04,
 ];
-const ALFA: [f64; 180] = [
+const ALPHA: [f64; 180] = [
     -4.44444444444444444e-03,
     -9.22077922077922078e-04,
     -8.84892884892884893e-05,

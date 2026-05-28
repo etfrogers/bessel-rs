@@ -8,10 +8,14 @@ use std::{f64::consts::PI, ops::Neg};
 pub use entry_points::*;
 pub(crate) use gamma_ln::gamma_ln;
 pub(crate) use i_power_series::i_power_series;
-pub(crate) use machine::{MACHINE_CONSTANTS, MACHINE_CONSTANTS_64, MachineConsts};
+pub(crate) use machine::{
+    MACHINE_CONSTANTS, MACHINE_CONSTANTS_32, MACHINE_CONSTANTS_64, MachineConsts,
+};
 
 #[cfg(test)]
 pub(crate) use gamma_ln::GammaError;
+
+use crate::types::BesselFloat;
 
 mod asymptotic_i;
 mod entry_points;
@@ -135,15 +139,15 @@ pub(crate) fn max_abs_component<T: Float>(c: Complex<T>) -> T {
     c.re.abs().max(c.im.abs())
 }
 
-pub(crate) trait PositiveArg {
-    fn parg(&self) -> f64;
+pub(crate) trait PositiveArg<T> {
+    fn parg(&self) -> T;
 }
 
-impl PositiveArg for Complex<f64> {
-    fn parg(&self) -> f64 {
+impl<T: BesselFloat> PositiveArg<T> for Complex<T> {
+    fn parg(&self) -> T {
         let mut ang = self.arg();
-        if ang < 0.0 {
-            ang += PI * 2.0;
+        if ang < T::zero() {
+            ang += T::from_f64(PI * 2.0);
         }
         ang
     }

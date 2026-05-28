@@ -22,8 +22,8 @@ pub(crate) fn calc_rz<T: BesselFloat>(z: Complex<T>) -> Complex<T> {
     (intermediate + intermediate) * r_abs_z
 }
 
-pub(crate) fn imaginary_dominant(z: Complex<f64>) -> bool {
-    z.im.abs() > z.re.abs() * RT_THREE
+pub(crate) fn imaginary_dominant<T: BesselFloat>(z: Complex<T>) -> bool {
+    z.im.abs() > z.re.abs() * T::from_f64(RT_THREE)
 }
 
 /// `y` enters as a scaled quantity whose magnitude is greater than

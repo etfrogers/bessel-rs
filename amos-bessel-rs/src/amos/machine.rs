@@ -110,3 +110,6 @@ pub(crate) static MACHINE_CONSTANTS: LazyLock<MachineConsts<f64>> =
 
 pub(crate) static MACHINE_CONSTANTS_64: LazyLock<MachineConsts<f64>> =
     LazyLock::new(MachineConsts::new);
+
+pub(crate) static MACHINE_CONSTANTS_32: LazyLock<MachineConsts<f32>> =
+    LazyLock::new(MachineConsts::new);

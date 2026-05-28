@@ -4,7 +4,10 @@ use super::{
     overflow_checks::{check_underflow_uniform_asymp_params, underflow_add_i_k, zunik},
     utils::{AIC, TWO_THIRDS, will_underflow},
 };
-use crate::types::{BesselError, BesselError::*, BesselResult};
+use crate::types::{
+    BesselError::{self, *},
+    BesselFloat, BesselResult,
+};
 
 use crate::amos::{
     CIP, MACHINE_CONSTANTS, RotationDirection,
@@ -15,7 +18,7 @@ use crate::amos::{
 };
 use itertools::Either;
 use num::{
-    Integer, Zero,
+    Complex, Integer, Zero,
     complex::{Complex64, ComplexFloat},
     pow::Pow,
 };
@@ -1119,13 +1122,18 @@ pub fn analytic_continuation(
 
 /// i_right_half_plane computes the i function in the right half z plane
 /// Originally ZBINU
-pub fn i_right_half_plane(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
+pub fn i_right_half_plane<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
+    KODE: Scaling,
+    N: usize,
+) -> BesselResult {
     let mut NZ = 0;
     let AZ = z.abs();
     let mut NN: usize = N;
-    let mut DFNU = order + ((N - 1) as f64);
+    let mut DFNU = order + T::from_f64((N - 1) as f64);
     let mut cy = c_zeros(N);
-    if AZ <= 2.0 || AZ * AZ * 0.25 <= DFNU + 1.0 {
+    if AZ <= T::two() || AZ * AZ * T::from_f64(0.25) <= DFNU + T::one() {
         //-----------------------------------------------------------------------
         //     POWER SERIES
         //-----------------------------------------------------------------------
@@ -1138,10 +1146,12 @@ pub fn i_right_half_plane(z: Complex64, order: f64, KODE: Scaling, N: usize) -> 
             return Ok((cy, NZ));
         }
 
-        DFNU = order + ((NN as f64) - 1.0);
+        DFNU = order + T::from_f64((NN as f64) - 1.0);
     }
 
-    if (AZ >= MACHINE_CONSTANTS.asymptotic_z_limit) && ((DFNU <= 1.0) || (AZ + AZ >= DFNU * DFNU)) {
+    if (AZ >= T::MACHINE_CONSTANTS.asymptotic_z_limit)
+        && ((DFNU <= T::one()) || (AZ + AZ >= DFNU * DFNU))
+    {
         //-----------------------------------------------------------------------
         //     ASYMPTOTIC EXPANSION FOR LARGE Z
         //-----------------------------------------------------------------------
@@ -1150,7 +1160,7 @@ pub fn i_right_half_plane(z: Complex64, order: f64, KODE: Scaling, N: usize) -> 
         return Ok((cy, NZ));
     }
     let mut skip_az_rl_check = true;
-    if DFNU > 1.0 {
+    if DFNU > T::one() {
         skip_az_rl_check = false;
         //-----------------------------------------------------------------------
         //     OVERFLOW AND UNDERFLOW TEST ON I SEQUENCE FOR MILLER ALGORITHM
@@ -1161,16 +1171,19 @@ pub fn i_right_half_plane(z: Complex64, order: f64, KODE: Scaling, N: usize) -> 
         if NN == 0 {
             return Ok((cy, NZ));
         }
-        DFNU = order + ((NN - 1) as f64);
+        DFNU = order + T::from_f64((NN - 1) as f64);
     }
-    if (DFNU > MACHINE_CONSTANTS.asymptotic_order_limit)
-        || (AZ > MACHINE_CONSTANTS.asymptotic_order_limit)
+    if (DFNU > T::MACHINE_CONSTANTS.asymptotic_order_limit)
+        || (AZ > T::MACHINE_CONSTANTS.asymptotic_order_limit)
     {
         //-----------------------------------------------------------------------
         //     INCREMENT FNU+NN-1 UP TO FNUL, COMPUTE AND RECUR BACKWARD
         //-----------------------------------------------------------------------
-        let NUI_isize = (MACHINE_CONSTANTS.asymptotic_order_limit - DFNU) as isize + 1;
-        let NUI = NUI_isize.max(0) as usize;
+        let NUI = ((T::MACHINE_CONSTANTS.asymptotic_order_limit - DFNU).trunc() + T::one())
+            .max(T::zero())
+            .to_usize()
+            .unwrap();
+
         let (NW, NLAST) = ZBUNI(z, order, KODE, NN, NUI, &mut cy)?;
         NZ += NW;
         if NLAST == 0 {
@@ -1178,7 +1191,7 @@ pub fn i_right_half_plane(z: Complex64, order: f64, KODE: Scaling, N: usize) -> 
         }
         NN = NLAST;
     }
-    if !skip_az_rl_check && AZ <= MACHINE_CONSTANTS.asymptotic_z_limit {
+    if !skip_az_rl_check && AZ <= T::MACHINE_CONSTANTS.asymptotic_z_limit {
         //-----------------------------------------------------------------------
         //     MILLER ALGORITHM NORMALIZED BY THE SERIES
         //-----------------------------------------------------------------------
