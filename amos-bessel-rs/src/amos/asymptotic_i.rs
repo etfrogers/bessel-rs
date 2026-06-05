@@ -17,7 +17,7 @@ pub fn asymptotic_i<T: BesselFloat>(
     order: T,
     scaling: Scaling,
     n: usize,
-) -> BesselResult<(Vec<Complex<T>>, usize)> {
+) -> BesselResult<T, usize> {
     let nz = 0;
     let mut y = T::c_zeros(n);
     let abs_z = z.abs();
@@ -74,7 +74,7 @@ pub fn asymptotic_i<T: BesselFloat>(
     for (k, elem) in y.iter_mut().enumerate().rev().take(2.min(n)) {
         let (mut s1, s2) = {
             // this block is just to contain the large number of mutable variables in a small space
-            let modified_order = order + T::from_f64(k as f64);
+            let modified_order = order + T::from_usize(k);
             let modified_order_sqr = (T::two() * modified_order).powf(T::two());
             let mut sqk = modified_order_sqr - T::one();
             let atol = s * sqk.abs();
@@ -117,7 +117,7 @@ pub fn asymptotic_i<T: BesselFloat>(
         let rz = calc_rz(z);
         // recur downward from the last two elements
         for k in (0..n - 2).rev() {
-            y[k] = (rz * y[k + 1]) * (T::from_f64((k + 1) as f64) + order) + y[k + 2];
+            y[k] = (rz * y[k + 1]) * (T::from_usize(k + 1) + order) + y[k + 2];
         }
     }
     if scaled_calculations {

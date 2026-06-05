@@ -105,9 +105,6 @@ impl<T: BesselFloat> MachineConsts<T> {
     }
 }
 
-pub(crate) static MACHINE_CONSTANTS: LazyLock<MachineConsts<f64>> =
-    LazyLock::new(MachineConsts::new);
-
 pub(crate) static MACHINE_CONSTANTS_64: LazyLock<MachineConsts<f64>> =
     LazyLock::new(MachineConsts::new);
 

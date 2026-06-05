@@ -145,9 +145,9 @@ use crate::{
 };
 pub use amos::{HankelKind, Scaling};
 
-use num::{Complex, complex::Complex64};
+use num::Complex;
+use types::simple_bessel_wrapper;
 pub use types::{BackFrom, BesselError};
-use types::{BesselResult, simple_bessel_wrapper};
 
 // TODO work with abritrary bit-depth floats
 // TODO bessel derivatives
@@ -160,9 +160,9 @@ use types::{BesselResult, simple_bessel_wrapper};
 /// to accept both real and complex arguments.
 pub trait BesselInput:
     Into<Complex<f64>>
-    + BackFrom<Complex<f64>>
+    + BackFrom<Complex<f64>, f64>
     + Mul<f64, Output = Self>
-    + BackFrom<BesselResult<Complex<f64>>>
+    + BackFrom<Result<Complex<f64>, BesselError<f64>>, f64>
 {
 }
 

@@ -1,34 +1,34 @@
-use approx::relative_eq;
-use num::{Complex, pow::Pow};
-use std::fmt::Debug;
+use approx::{AbsDiffEq, RelativeEq, relative_eq};
+use num::{Complex, Float};
+use std::fmt::{Display, LowerExp};
 
-use crate::{amos::MACHINE_CONSTANTS, types::BesselResult};
+use crate::{BesselError, types::BesselFloat};
 
-pub(crate) struct Tolerances {
-    pub max_relative: f64,
-    pub magnitude_diff: f64,
-    pub correction: f64,
-    pub tol_re: f64,
-    pub tol_im: f64,
+pub(crate) struct Tolerances<T: BesselFloat> {
+    pub max_relative: T,
+    pub magnitude_diff: T,
+    pub correction: T,
+    pub tol_re: T,
+    pub tol_im: T,
     pub used_ref_re: bool,
     pub used_ref_im: bool,
-    pub margin: f64,
+    pub margin: T,
 }
 
-impl Tolerances {
+impl<T: BesselFloat> Tolerances<T> {
     pub(crate) fn new(
-        actual: &Complex<f64>,
-        expected: &Complex<f64>,
-        reference: Option<&Complex<f64>>,
-        margin: f64,
+        actual: &Complex<T>,
+        expected: &Complex<T>,
+        reference: Option<&Complex<T>>,
+        margin: T,
     ) -> Self {
-        let max_relative = MACHINE_CONSTANTS.abs_error_tolerance;
+        let max_relative = T::MACHINE_CONSTANTS.abs_error_tolerance;
 
         let max_im = actual.im.abs().max(expected.im.abs());
         let max_re = actual.re.abs().max(expected.re.abs());
         let magnitude_diff = (max_re.log10() - max_im.log10()).abs();
-        let limit = 1.0 / max_relative;
-        let correction = 10.0.pow(magnitude_diff).min(limit);
+        let limit = T::one() / max_relative;
+        let correction = T::from_f64(10.0).powf(magnitude_diff).min(limit);
 
         let (mut tol_re, mut tol_im) = if max_re > max_im {
             (max_relative, max_relative * correction)
@@ -65,12 +65,12 @@ impl Tolerances {
     }
 }
 
-pub(crate) fn complex_relative_eq(
-    a: &Complex<f64>,
-    b: &Complex<f64>,
-    tolerances: &Tolerances,
+pub(crate) fn complex_relative_eq<T: BesselFloat + RelativeEq + AbsDiffEq<Epsilon = T>>(
+    a: &Complex<T>,
+    b: &Complex<T>,
+    tolerances: &Tolerances<T>,
 ) -> bool {
-    let abs_floor = MACHINE_CONSTANTS.abs_error_tolerance * 1e2;
+    let abs_floor = T::MACHINE_CONSTANTS.abs_error_tolerance * T::from_f64(1e2);
 
     if relative_eq!(
         a,
@@ -101,30 +101,38 @@ pub(crate) fn complex_relative_eq(
     re_matches && im_matches
 }
 
-fn abs_rel_errors(a: f64, b: f64) -> (f64, f64) {
+fn abs_rel_errors<T: BesselFloat>(a: T, b: T) -> (T, T) {
     let abs_e = (a - b).abs();
     let rel_e = abs_e / a.abs().max(b.abs());
     (abs_e, rel_e)
 }
 
-pub(crate) fn abs_rel_errors_cmplx(
-    a: &Complex<f64>,
-    b: &Complex<f64>,
-) -> (Complex<f64>, Complex<f64>) {
+pub(crate) fn abs_rel_errors_cmplx<T: BesselFloat>(
+    a: &Complex<T>,
+    b: &Complex<T>,
+) -> (Complex<T>, Complex<T>) {
     let (abs_e_r, rel_e_r) = abs_rel_errors(a.re, b.re);
     let (abs_e_i, rel_e_i) = abs_rel_errors(a.im, b.im);
     (
-        Complex::<f64>::new(abs_e_r, abs_e_i),
-        Complex::<f64>::new(rel_e_r, rel_e_i),
+        Complex::<T>::new(abs_e_r, abs_e_i),
+        Complex::<T>::new(rel_e_r, rel_e_i),
     )
 }
 
-pub fn assert_results_are_equal<T: IntoComplexVec + Debug>(
-    actual: &BesselResult<T>,
-    expected: &Result<T, i32>,
-    reference: &impl IntoComplexVec,
-    margin: f64,
-) {
+pub fn assert_results_are_equal<
+    T: BesselFloat //+ IntoComplexVec<T>
+        + RelativeEq
+        + AbsDiffEq<Epsilon = T>
+        + Display
+        + LowerExp,
+>(
+    actual: &Result<Complex<T>, BesselError<T>>,
+    expected: &Result<Complex<T>, i32>,
+    reference: &impl IntoComplexVec<T>,
+    margin: T,
+) where
+    Complex<T>: IntoComplexVec<T>,
+{
     if let Ok(actual) = actual {
         // The single-output function unwrap PartialLossOfSignificance errors, and return Ok(),
         // This corresponds to the ref function returning ierr=3, we need to allow expected
@@ -144,26 +152,29 @@ pub fn assert_results_are_equal<T: IntoComplexVec + Debug>(
     }
 }
 
-pub trait IntoComplexVec: Clone {
-    fn into_vec(self) -> Vec<Complex<f64>>;
+pub trait IntoComplexVec<T>: Clone {
+    fn into_vec(self) -> Vec<Complex<T>>;
 }
-impl IntoComplexVec for Complex<f64> {
-    fn into_vec(self) -> Vec<Complex<f64>> {
+
+impl<T: BesselFloat> IntoComplexVec<T> for Complex<T> {
+    fn into_vec(self) -> Vec<Complex<T>> {
         vec![self]
     }
 }
 
-impl IntoComplexVec for Vec<Complex<f64>> {
-    fn into_vec(self) -> Vec<Complex<f64>> {
+impl<T: BesselFloat> IntoComplexVec<T> for Vec<Complex<T>> {
+    fn into_vec(self) -> Vec<Complex<T>> {
         self
     }
 }
 
-pub fn assert_complex_arrays_equal(
-    actual: &impl IntoComplexVec,
-    expected: &impl IntoComplexVec,
-    reference: &impl IntoComplexVec,
-    margin: f64,
+pub fn assert_complex_arrays_equal<
+    T: BesselFloat + RelativeEq + AbsDiffEq<Epsilon = T> + LowerExp + Display,
+>(
+    actual: &impl IntoComplexVec<T>,
+    expected: &impl IntoComplexVec<T>,
+    reference: &impl IntoComplexVec<T>,
+    margin: T,
 ) {
     if let Some(reason) = check_complex_arrays_equal(actual, expected, reference, margin) {
         panic!("{}", reason);
@@ -171,11 +182,13 @@ pub fn assert_complex_arrays_equal(
 }
 
 #[must_use]
-pub fn check_complex_arrays_equal(
-    actual: &impl IntoComplexVec,
-    expected: &impl IntoComplexVec,
-    reference: &impl IntoComplexVec,
-    margin: f64,
+pub fn check_complex_arrays_equal<
+    T: BesselFloat + RelativeEq + AbsDiffEq<Epsilon = T> + LowerExp + Display,
+>(
+    actual: &impl IntoComplexVec<T>,
+    expected: &impl IntoComplexVec<T>,
+    reference: &impl IntoComplexVec<T>,
+    margin: T,
 ) -> Option<String> {
     let actual = actual.clone().into_vec();
     let expected = expected.clone().into_vec();
@@ -220,11 +233,11 @@ pub fn check_complex_arrays_equal(
     None
 }
 
-pub fn print_complex_arrays(
-    c1: &[Complex<f64>],
-    c2: &[Complex<f64>],
-    c3: &[Complex<f64>],
-    c4: &[Complex<f64>],
+pub fn print_complex_arrays<T: BesselFloat + LowerExp>(
+    c1: &[Complex<T>],
+    c2: &[Complex<T>],
+    c3: &[Complex<T>],
+    c4: &[Complex<T>],
 ) {
     println!("i\tFortran\t\t\t\tTranslator\t\t\t\tFortran looped\t\t\t\tRust looped");
     c1.iter().enumerate().for_each(|(i, fort)| {
@@ -272,6 +285,6 @@ pub fn print_complex_arrays(
     });
 }
 
-fn to_str(c: &Complex<f64>) -> String {
+fn to_str<T: Float + LowerExp>(c: &Complex<T>) -> String {
     format!("{:>+1.5e} {:>+1.5e}i", c.re, c.im)
 }

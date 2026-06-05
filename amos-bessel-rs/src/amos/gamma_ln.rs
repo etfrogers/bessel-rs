@@ -92,7 +92,7 @@ pub(crate) fn gamma_ln<T: BesselFloat>(z: T) -> Result<T, GammaError> {
     if z_increment != 0 {
         let mut zp = T::one();
         for i in 0..z_increment {
-            zp *= z + T::from_f64(i as f64);
+            zp *= z + T::from_usize(i);
         }
         return_value -= zp.ln();
     }

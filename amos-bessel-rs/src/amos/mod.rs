@@ -1,16 +1,13 @@
 use num::{
-    Complex, Float, One, Zero,
+    Complex, Float,
     complex::{Complex64, ComplexFloat},
-    traits::Pow,
 };
 use std::{f64::consts::PI, ops::Neg};
 
 pub use entry_points::*;
 pub(crate) use gamma_ln::gamma_ln;
 pub(crate) use i_power_series::i_power_series;
-pub(crate) use machine::{
-    MACHINE_CONSTANTS, MACHINE_CONSTANTS_32, MACHINE_CONSTANTS_64, MachineConsts,
-};
+pub(crate) use machine::{MACHINE_CONSTANTS_32, MACHINE_CONSTANTS_64, MachineConsts};
 
 #[cfg(test)]
 pub(crate) use gamma_ln::GammaError;
@@ -71,18 +68,18 @@ pub enum Scaling {
 }
 
 impl Scaling {
-    pub(crate) fn scale_zetas(
+    pub(crate) fn scale_zetas<T: BesselFloat>(
         &self,
-        z: Complex64,
-        modified_order: f64,
-        zeta1: Complex64,
-        zeta2: Complex64,
-    ) -> Complex64 {
+        z: Complex<T>,
+        modified_order: T,
+        zeta1: Complex<T>,
+        zeta2: Complex<T>,
+    ) -> Complex<T> {
         match self {
             Scaling::Unscaled => -zeta1 + zeta2,
             Scaling::Scaled => {
                 let mut st = z + zeta2;
-                st = st.conj() * (modified_order / st.abs()).pow(2);
+                st = st.conj() * (modified_order / st.abs()).powi(2);
                 -zeta1 + st
             }
         }
@@ -103,12 +100,6 @@ impl RotationDirection {
     }
 }
 
-impl From<RotationDirection> for f64 {
-    fn from(value: RotationDirection) -> Self {
-        value as i32 as f64
-    }
-}
-
 impl Neg for RotationDirection {
     type Output = Self;
 
@@ -119,20 +110,6 @@ impl Neg for RotationDirection {
             RotationDirection::Right => RotationDirection::Left,
         }
     }
-}
-
-pub(crate) fn c_one() -> Complex64 {
-    Complex64::one()
-}
-
-#[inline]
-pub(crate) fn c_zero() -> Complex64 {
-    Complex64::zero()
-}
-
-#[inline]
-pub(crate) fn c_zeros(n: usize) -> Vec<Complex64> {
-    vec![Complex64::zero(); n]
 }
 
 pub(crate) fn max_abs_component<T: Float>(c: Complex<T>) -> T {

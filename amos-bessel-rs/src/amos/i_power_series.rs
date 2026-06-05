@@ -1,6 +1,6 @@
 use num::complex::{Complex, ComplexFloat};
 
-use crate::types::{BesselResult, BesselValues};
+use crate::types::BesselResult;
 use crate::{amos::utils::calc_rz, types::BesselFloat};
 
 use super::{Scaling, gamma_ln, utils::will_underflow};
@@ -19,7 +19,7 @@ pub fn i_power_series<T: BesselFloat>(
     order: T,
     kode: Scaling,
     n: usize,
-) -> BesselResult<BesselValues<T, isize>> {
+) -> BesselResult<T, isize> {
     let mut nz = 0;
     let abs_z = z.abs();
     let mut y = T::c_zeros(n);
@@ -58,7 +58,7 @@ pub fn i_power_series<T: BesselFloat>(
     let [mut y_k_plus_2, mut y_k_plus_1] = [T::C_ZERO; 2];
     for k in (0..n).rev() {
         if first_entries_scaled.len() < 2 {
-            let modified_order = order + T::from_f64(k as f64);
+            let modified_order = order + T::from_usize(k);
 
             // UNDERFLOW TEST
             // Recur down (setting y to zero) from N until underflow no longer found,
@@ -116,7 +116,7 @@ pub fn i_power_series<T: BesselFloat>(
                 first_entries_scaled.push(T::C_ZERO);
             }
 
-            let modified_order = T::from_f64((k + 1) as f64) + order;
+            let modified_order = T::from_usize(k + 1) + order;
             if near_underflow {
                 // ... using scaled values
                 (y_k_plus_2, y_k_plus_1) =

@@ -5,10 +5,9 @@ use std::ops::Index;
 use num::Complex;
 use num::complex::ComplexFloat;
 
+use crate::BesselError;
 use crate::amos::utils::{AIC, imaginary_dominant};
-use crate::types::{
-    BesselError::*, BesselFloat, BesselResult, UniformAssymptoticParameters, cache_key,
-};
+use crate::types::{BesselError::*, BesselFloat, UniformAssymptoticParameters, cache_key};
 
 use super::{IKType, PositiveArg, Scaling, utils::will_underflow};
 
@@ -69,8 +68,8 @@ impl Overflow {
     }
 }
 
-impl Index<Overflow> for [f64] {
-    type Output = f64;
+impl<T: BesselFloat> Index<Overflow> for [T] {
+    type Output = T;
 
     fn index(&self, index: Overflow) -> &Self::Output {
         match index {
@@ -122,7 +121,7 @@ pub fn check_underflow_uniform_asymp_params<T: BesselFloat>(
     ik_type: IKType,
     n_to_test: usize,
     y: &mut [Complex<T>],
-) -> BesselResult<usize> {
+) -> Result<usize, BesselError<T>> {
     let mut n_underflow = 0;
     let zr = if z.re < T::zero() { -z } else { z };
     let zn = if z.im <= T::zero() {
@@ -162,7 +161,7 @@ pub fn check_underflow_uniform_asymp_params<T: BesselFloat>(
     // First checks the last element
     let modified_order = match ik_type {
         IKType::K => {
-            let float_n = T::from_f64(n_to_test as f64);
+            let float_n = T::from_usize(n_to_test);
             let modified_order = order + float_n - T::one();
             modified_order.max(float_n)
         }
@@ -210,7 +209,7 @@ pub fn check_underflow_uniform_asymp_params<T: BesselFloat>(
     //-----------------------------------------------------------------------
     // Note n_to_test is NOT y.len() in this case.
     for (i, yi) in y.iter_mut().enumerate().take(n_to_test).rev() {
-        let modified_order = order + T::from_f64(i as f64);
+        let modified_order = order + T::from_usize(i);
         let (mut cz, phi, _arg, extra_refinement) = get_parameters(modified_order);
         // Match below says that first time we get here and no underflow is found, we immediately return
         match Overflow::find_overflow(cz.re, phi, extra_refinement) {
