@@ -17,6 +17,7 @@ use num::complex::Complex64;
 
 #[apply(bessel_cases)]
 #[trace]
+#[rstest]
 fn test_bessel_large_n_real(
     #[case] order: f64,
     #[case] zr: f64,
@@ -41,6 +42,7 @@ fn test_bessel_large_n_real(
 
 #[apply(bessel_cases)]
 #[trace]
+#[rstest]
 fn test_bessel_large_n_complex(
     #[case] order: f64,
     #[case] zr: f64,
