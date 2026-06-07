@@ -64,7 +64,7 @@ pub fn complex_bessel_h<T: BesselFloat>(
     let modified_order = order + T::from_usize(n - 1);
 
     let rotation = hankel_kind.get_rotation();
-    let rotation_float = T::from_rotation_dir(rotation);
+    let rotation_float: T = rotation.to_float();
     let mut zn = -T::I * rotation_float * z;
     //-----------------------------------------------------------------------
     //     TEST FOR PROPER RANGE

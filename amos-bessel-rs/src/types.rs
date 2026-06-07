@@ -13,7 +13,7 @@ use num::{
 };
 use thiserror::Error;
 
-pub(crate) trait BesselFloat:
+pub trait BesselFloat:
     Float
     + CachableUAP<Self>
     + Debug
@@ -47,7 +47,6 @@ pub(crate) trait BesselFloat:
     fn from_f64(value: f64) -> Self;
     fn from_usize(value: usize) -> Self;
     fn from_cpx64(value: Complex<f64>) -> Complex<Self>;
-    fn from_rotation_dir(value: RotationDirection) -> Self;
     fn half() -> Self;
     fn two() -> Self;
     fn to_bits(self) -> u64;
@@ -101,11 +100,6 @@ impl BesselFloat for f64 {
     fn from_usize(value: usize) -> Self {
         value as f64
     }
-
-    #[inline]
-    fn from_rotation_dir(value: RotationDirection) -> Self {
-        value as i32 as f64
-    }
 }
 
 impl BesselFloat for f32 {
@@ -149,14 +143,9 @@ impl BesselFloat for f32 {
     fn from_usize(value: usize) -> Self {
         value as f32
     }
-
-    #[inline]
-    fn from_rotation_dir(value: RotationDirection) -> Self {
-        value as i32 as f32
-    }
 }
 
-pub(crate) trait CachableUAP<T: BesselFloat>: 'static {
+pub trait CachableUAP<T: BesselFloat>: 'static {
     const UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE: &'static LazyLock<
         Mutex<HashMap<CacheKey, UniformAssymptoticParameters<T>>>,
     >;
@@ -174,7 +163,7 @@ impl CachableUAP<f32> for f32 {
     > = &UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE_32;
 }
 
-pub(crate) struct UniformAssymptoticParameters<T: BesselFloat> {
+pub struct UniformAssymptoticParameters<T: BesselFloat> {
     pub(crate) phi_i: Complex<T>,
     pub(crate) phi_k: Complex<T>,
     pub(crate) zeta1: Complex<T>,

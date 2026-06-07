@@ -18,7 +18,7 @@ use crate::types::BesselFloat;
 /// # See also
 /// tests in `test_machine_consts.rs`
 #[derive(Debug, Clone)]
-pub(crate) struct MachineConsts<T: BesselFloat> {
+pub struct MachineConsts<T: BesselFloat> {
     /// Originally ARM
     pub underflow_limit: T,
     /// Originally ASCLE

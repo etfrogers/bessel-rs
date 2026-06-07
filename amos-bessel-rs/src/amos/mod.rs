@@ -86,6 +86,7 @@ impl Scaling {
     }
 }
 
+#[doc(hidden)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(i32)]
 pub(crate) enum RotationDirection {
@@ -97,6 +98,11 @@ pub(crate) enum RotationDirection {
 impl RotationDirection {
     pub fn signum(&self) -> f64 {
         (*self as i32 as f64).signum()
+    }
+
+    #[inline]
+    pub fn to_float<T: BesselFloat>(self) -> T {
+        T::from_f64(self as i32 as f64)
     }
 }
 
