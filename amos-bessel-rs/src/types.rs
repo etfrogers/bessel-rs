@@ -5,7 +5,7 @@ use std::{
     sync::{LazyLock, Mutex},
 };
 
-use crate::amos::{MACHINE_CONSTANTS_32, MACHINE_CONSTANTS_64, MachineConsts, RotationDirection};
+use crate::amos::{MACHINE_CONSTANTS_32, MACHINE_CONSTANTS_64, MachineConsts};
 use num::{
     Complex, Float,
     complex::ComplexFloat,
@@ -189,6 +189,7 @@ pub(crate) fn cache_key<T: BesselFloat>(z: Complex<T>, order: T) -> CacheKey {
 
 #[allow(type_alias_bounds)]
 pub(crate) type BesselValues<FT: BesselFloat = f64, NT = usize> = (Vec<Complex<FT>>, NT);
+#[allow(type_alias_bounds)]
 pub(crate) type BesselResult<FT: BesselFloat = f64, NT = usize> =
     Result<BesselValues<FT, NT>, BesselError<FT>>;
 

@@ -479,6 +479,7 @@ pub fn zunik<T: BesselFloat>(
     (phi, zeta1, zeta2, Some(sum))
 }
 
+#[allow(clippy::type_complexity)]
 pub fn zunhj<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -556,7 +557,7 @@ pub fn zunhj<T: BesselFloat>(
         //-----------------------------------------------------------------------
         let mut k = 0;
         let mut p = T::c_zeros(30);
-        let mut ap = vec![T::zero(); 30];
+        let mut ap = [T::zero(); 30];
         p[0] = T::C_ONE;
         let mut suma = Complex::<T>::new(T::from_f64(GAMA[0]), T::zero());
         ap[0] = T::one();

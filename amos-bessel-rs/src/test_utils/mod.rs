@@ -138,7 +138,7 @@ fn rust_bess_loop(
         y[i] = yi[0];
         nz += nzi;
     }
-    return Ok((y, nz));
+    Ok((y, nz))
 }
 
 pub fn fortran_bess_loop(
