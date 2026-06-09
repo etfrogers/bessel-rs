@@ -15,7 +15,8 @@ mod equality;
 pub mod parametrisation;
 pub use bessel_h_wrappers::*;
 pub use equality::{
-    assert_complex_arrays_equal, assert_results_are_equal, check_complex_arrays_equal,
+    ToC32, assert_complex_arrays_equal, assert_results_are_equal, assert_results_are_equal_floats,
+    check_complex_arrays_equal,
 };
 
 use equality::print_complex_arrays;

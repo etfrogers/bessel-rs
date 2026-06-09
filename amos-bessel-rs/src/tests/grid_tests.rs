@@ -1,7 +1,7 @@
 use crate::test_utils::{
-    BesselFortranSig, BesselSig, check_against_fortran, check_complex_arrays_equal, sig_airy,
-    sig_airy_fortran, sig_airyp, sig_airyp_fortran, sig_biry, sig_biry_fortran, sig_biryp,
-    sig_biryp_fortran, zbesh_fortran_first, zbesh_fortran_second,
+    BesselFortranSig, BesselSig, ToC32, assert_results_are_equal_floats, check_against_fortran,
+    check_complex_arrays_equal, sig_airy, sig_airy_fortran, sig_airyp, sig_airyp_fortran, sig_biry,
+    sig_biry_fortran, sig_biryp, sig_biryp_fortran, zbesh_fortran_first, zbesh_fortran_second,
 };
 
 use crate::tests::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
@@ -178,6 +178,38 @@ fn test_airy_grid_fortran(
         for im in Z_PARTS {
             let z = Complex::new(re, im);
             check_against_fortran(dummy_order, z, scaling, n, rust_fn, fortran_fn, 1e6);
+        }
+    }
+}
+
+#[rstest]
+fn test_f32_vs_f64(
+    #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
+    // #[values(
+    // bessel_j
+    // complex_bessel_j as BesselSig<T>,
+    // complex_bessel_i as BesselSig,
+    // complex_hankel1 as BesselSig,
+    // complex_hankel2 as BesselSig,
+    // complex_bessel_k as BesselSig,
+    // complex_bessel_y as BesselSig,
+    // )]
+    // rust_fn: BesselSig<T>,
+) {
+    let n = 1;
+    for order in ORDERS {
+        for re in Z_PARTS {
+            for im in Z_PARTS {
+                let z64 = Complex::new(re, im);
+                let z32 = z64.to_c32();
+                let f64_vals = complex_bessel_j(z64, order, scaling, n);
+                let f32_vals = complex_bessel_j(z32, order as f32, scaling, n);
+
+                let actual = f32_vals.map(|x| x.0[0]);
+                let expected = f64_vals.map(|x| x.0[0]);
+
+                assert_results_are_equal_floats(&actual, &expected, 1e4);
+            }
         }
     }
 }

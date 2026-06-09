@@ -340,6 +340,31 @@ impl<T: BesselFloat> BesselError<T> {
             BesselError::ComplexOutputForRealInput { .. } => 6,
         }
     }
+
+    #[doc(hidden)]
+    pub fn to_f32(&self) -> BesselError<f32> {
+        match self {
+            BesselError::InvalidInput { details } => BesselError::InvalidInput {
+                details: details.clone(),
+            },
+            BesselError::Overflow => BesselError::Overflow,
+            BesselError::PartialLossOfSignificance { y, nz } => {
+                BesselError::PartialLossOfSignificance {
+                    y: y.iter()
+                        .map(|c| Complex::new(c.re.to_f32().unwrap(), c.im.to_f32().unwrap()))
+                        .collect(),
+                    nz: *nz,
+                }
+            }
+            BesselError::LossOfSignificance => BesselError::LossOfSignificance,
+            BesselError::DidNotConverge => BesselError::DidNotConverge,
+            BesselError::ComplexOutputForRealInput { output } => {
+                BesselError::ComplexOutputForRealInput {
+                    output: Complex::new(output.re.to_f32().unwrap(), output.im.to_f32().unwrap()),
+                }
+            }
+        }
+    }
 }
 
 macro_rules! simple_bessel_wrapper {

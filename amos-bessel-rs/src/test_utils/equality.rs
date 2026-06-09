@@ -119,6 +119,39 @@ pub(crate) fn abs_rel_errors_cmplx<T: BesselFloat>(
     )
 }
 
+pub trait ToC32 {
+    fn to_c32(&self) -> Complex<f32>;
+}
+
+impl<T: BesselFloat> ToC32 for Complex<T> {
+    fn to_c32(&self) -> Complex<f32> {
+        Complex::new(self.re.to_f32().unwrap(), self.im.to_f32().unwrap())
+    }
+}
+
+pub fn assert_results_are_equal_floats<
+    T1: BesselFloat + Display + LowerExp + RelativeEq + AbsDiffEq<Epsilon = T1>,
+    T2: BesselFloat + Display + LowerExp + RelativeEq + AbsDiffEq<Epsilon = T2>,
+>(
+    actual: &Result<Complex<T1>, BesselError<T1>>,
+    expected: &Result<Complex<T2>, BesselError<T2>>,
+    margin: f64,
+) {
+    if let Ok(actual) = actual {
+        assert_complex_arrays_equal(
+            &actual.to_c32(),
+            &expected.as_ref().unwrap().to_c32(),
+            &vec![],
+            margin as f32,
+        );
+    } else {
+        assert_eq!(
+            actual.as_ref().unwrap_err().to_f32(),
+            expected.as_ref().unwrap_err().to_f32()
+        )
+    }
+}
+
 pub fn assert_results_are_equal<
     T: BesselFloat //+ IntoComplexVec<T>
         + RelativeEq
