@@ -1,7 +1,4 @@
-use num::{
-    Complex,
-    complex::{Complex64, ComplexFloat},
-};
+use num::{Complex, complex::ComplexFloat};
 
 use crate::{
     BesselError, Scaling,
@@ -183,7 +180,12 @@ pub fn complex_bessel_h<T: BesselFloat>(
 ///
 /// An alternative interface to [`complex_bessel_h`]
 #[inline]
-pub fn complex_hankel1(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
+pub fn complex_hankel1<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
+    scaling: Scaling,
+    n: usize,
+) -> BesselResult<T> {
     complex_bessel_h(z, order, scaling, HankelKind::First, n)
 }
 
@@ -191,7 +193,12 @@ pub fn complex_hankel1(z: Complex64, order: f64, scaling: Scaling, n: usize) -> 
 ///
 /// An alternative interface to [`complex_bessel_h`]
 #[inline]
-pub fn complex_hankel2(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
+pub fn complex_hankel2<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
+    scaling: Scaling,
+    n: usize,
+) -> BesselResult<T> {
     complex_bessel_h(z, order, scaling, HankelKind::Second, n)
 }
 

@@ -1,9 +1,10 @@
 use std::f64;
 
 use fortran_amos_testing::{zairy_fortran, zbesh_fortran, zbiry_fortran};
+use num::Complex;
 use num::{Zero, complex::Complex64};
 
-use crate::types::{BesselError, BesselResult};
+use crate::types::{BesselError, BesselFloat, BesselResult, BesselValues};
 
 use crate::{
     HankelKind, Scaling,
@@ -162,7 +163,9 @@ pub fn fortran_bess_loop(
     (y, nz, 0)
 }
 
-pub type BesselSig = fn(Complex64, f64, Scaling, usize) -> BesselResult;
+#[allow(type_alias_bounds)]
+pub type BesselSig<T: BesselFloat = f64> =
+    fn(Complex<T>, T, Scaling, usize) -> Result<BesselValues<T>, BesselError<T>>;
 pub type BesselFortranSig = fn(f64, Complex64, i32, usize) -> (Vec<Complex64>, usize, i32);
 
 // This function needed as complex-bessel-rs (which is used for the other *_ref functions) does not

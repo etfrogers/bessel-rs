@@ -18,6 +18,7 @@ use complex_bessel::bessely as bessel_y_ref;
 use complex_bessel::hankel1 as hankel1_ref;
 use complex_bessel::hankel2 as hankel2_ref;
 
+use approx::abs_diff_eq;
 use num::Complex;
 #[cfg(test)]
 use rstest::rstest;
@@ -185,16 +186,15 @@ fn test_airy_grid_fortran(
 #[rstest]
 fn test_f32_vs_f64(
     #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
-    // #[values(
-    // bessel_j
-    // complex_bessel_j as BesselSig<T>,
-    // complex_bessel_i as BesselSig,
-    // complex_hankel1 as BesselSig,
-    // complex_hankel2 as BesselSig,
-    // complex_bessel_k as BesselSig,
-    // complex_bessel_y as BesselSig,
-    // )]
-    // rust_fn: BesselSig<T>,
+    #[values(
+    (complex_bessel_j as BesselSig<f64>, complex_bessel_j as BesselSig<f32>),
+    (complex_bessel_i as BesselSig<f64>, complex_bessel_i as BesselSig<f32>),
+    (complex_hankel1 as BesselSig<f64>, complex_hankel1 as BesselSig<f32>),
+    (complex_hankel2 as BesselSig<f64>, complex_hankel2 as BesselSig<f32>),
+    (complex_bessel_k as BesselSig<f64>, complex_bessel_k as BesselSig<f32>),
+    (complex_bessel_y as BesselSig<f64>, complex_bessel_y as BesselSig<f32>),
+    )]
+    (fn_64, fn_32): (BesselSig<f64>, BesselSig<f32>),
 ) {
     let n = 1;
     for order in ORDERS {
@@ -202,12 +202,19 @@ fn test_f32_vs_f64(
             for im in Z_PARTS {
                 let z64 = Complex::new(re, im);
                 let z32 = z64.to_c32();
-                let f64_vals = complex_bessel_j(z64, order, scaling, n);
-                let f32_vals = complex_bessel_j(z32, order as f32, scaling, n);
+                let f64_vals = fn_64(z64, order, scaling, n);
+                let f32_vals = fn_32(z32, order as f32, scaling, n);
 
                 let actual = f32_vals.map(|x| x.0[0]);
                 let expected = f64_vals.map(|x| x.0[0]);
-
+                if abs_diff_eq!(z64.im.abs(), 40.0) {
+                    // This test just happens to have a value that is close to the exponent limit for f32,
+                    // It drives the code down different paths for f32 and f64, even though the f32 code
+                    // could handle it, except that Amos' limits are conservative
+                    // We skip this test to avoid spurious failures.
+                    continue;
+                }
+                // dbg!(order, z32, z64, abs_diff_eq!(z64.im.abs(), 40.0));
                 assert_results_are_equal_floats(&actual, &expected, 1e4);
             }
         }

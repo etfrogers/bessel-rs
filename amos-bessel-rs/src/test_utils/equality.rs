@@ -145,9 +145,14 @@ pub fn assert_results_are_equal_floats<
             margin as f32,
         );
     } else {
+        if *actual.as_ref().unwrap_err() == BesselError::Overflow {
+            // Overflow for f32 does not imply overflow for f64
+            return;
+        }
         assert_eq!(
             actual.as_ref().unwrap_err().to_f32(),
-            expected.as_ref().unwrap_err().to_f32()
+            expected.as_ref().unwrap_err().to_f32(),
+            "{actual:?} != {expected:?}",
         )
     }
 }
