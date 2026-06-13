@@ -78,6 +78,11 @@ pub fn check_against_fortran(
 
     match &actual {
         Ok(actual) => {
+            if ierr != 0 {
+                fail(&format!(
+                    "Rust returned no error, but Fortran returned an error code: {ierr}"
+                ))
+            };
             if let Some(reason) = check_complex_arrays_equal(&actual.0, &cy, &cy_loop_fort, margin)
             {
                 fail(&reason)
