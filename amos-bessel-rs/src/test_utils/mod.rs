@@ -1,8 +1,9 @@
 use std::f64;
+use std::fmt::{Display, LowerExp};
 
+use approx::{AbsDiffEq, RelativeEq};
 use fortran_amos_testing::{zairy_fortran, zbesh_fortran, zbiry_fortran};
-use num::Complex;
-use num::{Zero, complex::Complex64};
+use num::{Complex, Zero, complex::Complex64};
 
 use crate::types::{BesselError, BesselFloat, BesselResult, BesselValues};
 
@@ -16,25 +17,39 @@ mod equality;
 pub mod parametrisation;
 pub use bessel_h_wrappers::*;
 pub use equality::{
-    ToC32, assert_complex_arrays_equal, assert_results_are_equal, assert_results_are_equal_floats,
-    check_complex_arrays_equal,
+    ComplexConversions, assert_complex_arrays_equal, assert_results_are_equal,
+    assert_results_are_equal_floats, check_complex_arrays_equal,
 };
 
 use equality::print_complex_arrays;
 
-pub fn check_against_fortran(
-    order: f64,
-    z: Complex64,
+pub trait DiagnosticBesselFloat:
+    BesselFloat + Display + LowerExp + RelativeEq + AbsDiffEq<Epsilon = Self>
+{
+}
+
+impl DiagnosticBesselFloat for f64 {}
+impl DiagnosticBesselFloat for f32 {}
+
+pub fn check_against_fortran<T: DiagnosticBesselFloat>(
+    order: T,
+    z: Complex<T>,
     scaling: Scaling,
     n: usize,
-    rust_func: BesselSig,
+    rust_func: BesselSig<T>,
     fortran_func: BesselFortranSig,
     margin: f64,
 ) {
     let actual = rust_func(z, order, scaling, n);
 
-    let (cy, nz, ierr) = fortran_func(order, z, scaling as i32, n);
-    let (cy_loop_fort, _, _) = fortran_bess_loop(order, z, scaling, n, fortran_func);
+    let (cy, nz, ierr) = fortran_func(order.to_f64().unwrap(), z.to_c64(), scaling as i32, n);
+    let (cy_loop_fort, _, _) = fortran_bess_loop(
+        order.to_f64().unwrap(),
+        z.to_c64(),
+        scaling,
+        n,
+        fortran_func,
+    );
     // DEBUG PRINT
     // println!(
     //     "DEBUG values: order={:?}, z={:?}, scaling={:?}\nActual: {:?}\nExpected: {:?}\n",
@@ -44,9 +59,12 @@ pub fn check_against_fortran(
         let cy_loop_rust = match rust_bess_loop(order, z, scaling, n, rust_func) {
             Ok((data, _)) => data,
             Err(err) => {
-                panic!(
-                    "Error generated in looped rust that was not present in unlooped case: {err:?}"
-                );
+                if actual.is_ok() || err != *actual.as_ref().unwrap_err() {
+                    panic!(
+                        "Error generated in looped rust that was not present in unlooped case: {err:?}"
+                    );
+                }
+                vec![]
             }
         };
         println!("Order: {order:e}\nz: {z:e}\nscaling: {scaling:?}\nn: {n}");
@@ -127,17 +145,17 @@ pub fn check_against_fortran(
     }
 }
 
-fn rust_bess_loop(
-    order: f64,
-    z: Complex64,
+fn rust_bess_loop<T: BesselFloat>(
+    order: T,
+    z: Complex<T>,
     scaling: Scaling,
     n: usize,
-    func: BesselSig,
-) -> BesselResult {
-    let mut y = vec![Complex64::zero(); n];
+    func: BesselSig<T>,
+) -> BesselResult<T> {
+    let mut y = vec![Complex::<T>::zero(); n];
     let mut nz = 0;
     for i in 0..n {
-        let (yi, nzi) = match func(z, order + i as f64, scaling, 1) {
+        let (yi, nzi) = match func(z, order + T::from_f64(i as f64), scaling, 1) {
             Ok((y_, nz_)) => (y_, nz_),
             Err(BesselError::PartialLossOfSignificance { y, nz }) => (y, nz),
             Err(err) => return Err(err),
@@ -190,7 +208,12 @@ pub fn biry_ref(z: Complex64, is_derivative: bool) -> Result<Complex64, i32> {
     if ierr != 0 { Err(ierr) } else { Ok(y) }
 }
 
-pub fn sig_airy(z: Complex64, _order: f64, scaling: Scaling, _n: usize) -> BesselResult {
+pub fn sig_airy<T: BesselFloat>(
+    z: Complex<T>,
+    _order: T,
+    scaling: Scaling,
+    _n: usize,
+) -> Result<BesselValues<T>, BesselError<T>> {
     complex_airy(z, false, scaling).map(|(y, nz)| (vec![y], nz))
 }
 
@@ -204,7 +227,12 @@ pub fn sig_airy_fortran(
     (vec![res.0], res.1, res.2)
 }
 
-pub fn sig_airyp(z: Complex64, _order: f64, scaling: Scaling, _n: usize) -> BesselResult {
+pub fn sig_airyp<T: BesselFloat>(
+    z: Complex<T>,
+    _order: T,
+    scaling: Scaling,
+    _n: usize,
+) -> Result<BesselValues<T>, BesselError<T>> {
     complex_airy(z, true, scaling).map(|(y, nz)| (vec![y], nz))
 }
 
@@ -218,7 +246,12 @@ pub fn sig_airyp_fortran(
     (vec![res.0], res.1, res.2)
 }
 
-pub fn sig_biry(z: Complex64, _order: f64, scaling: Scaling, _n: usize) -> BesselResult {
+pub fn sig_biry<T: BesselFloat>(
+    z: Complex<T>,
+    _order: T,
+    scaling: Scaling,
+    _n: usize,
+) -> Result<BesselValues<T>, BesselError<T>> {
     complex_airy_b(z, false, scaling).map(|y| (vec![y], 0))
 }
 
@@ -232,7 +265,12 @@ pub fn sig_biry_fortran(
     (vec![res.0], res.1, res.2)
 }
 
-pub fn sig_biryp(z: Complex64, _order: f64, scaling: Scaling, _n: usize) -> BesselResult {
+pub fn sig_biryp<T: BesselFloat>(
+    z: Complex<T>,
+    _order: T,
+    scaling: Scaling,
+    _n: usize,
+) -> Result<BesselValues<T>, BesselError<T>> {
     complex_airy_b(z, true, scaling).map(|y| (vec![y], 0))
 }
 
@@ -244,4 +282,17 @@ pub fn sig_biryp_fortran(
 ) -> (Vec<Complex64>, usize, i32) {
     let res = zbiry_fortran(z, true, scaling);
     (vec![res.0], res.1, res.2)
+}
+
+pub fn zeros_are_not_equivalent(z64: Complex<f64>, z32: Complex<f32>, order: f64) -> bool {
+    if z64.re != 0.0 && z32.re == 0.0 {
+        return true;
+    }
+    if z64.im != 0.0 && z32.im == 0.0 {
+        return true;
+    }
+    if order != 0.0 && (order as f32) == 0.0 {
+        return true;
+    }
+    false
 }
