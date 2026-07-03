@@ -26,7 +26,7 @@ pub fn i_power_series<T: BesselFloat>(
 
     if abs_z < T::MACHINE_CONSTANTS.underflow_limit {
         // If z is zero or very small, can return straight away.
-        // If its zero, then nz = 0 (as y==0), but if its very small but nonzero, then
+        // If it's zero, then nz = 0 (as y==0), but if its very small but nonzero, then
         // we underflowed, so set nz = n. This is then adjusted for order = 0,
         // as we can set y[0] to one, and return one less nz.
         if order == T::zero() {
