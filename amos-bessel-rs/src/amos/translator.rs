@@ -1,62 +1,64 @@
 #![allow(non_snake_case, clippy::excessive_precision)]
 use super::{
-    IKType, Scaling, c_one, c_zero, c_zeros, gamma_ln, i_power_series,
+    IKType, Scaling, gamma_ln, i_power_series,
     overflow_checks::{check_underflow_uniform_asymp_params, underflow_add_i_k, zunik},
-    utils::{AIC, TWO_THIRDS, will_underflow},
+    utils::{AIC, will_underflow},
 };
-use crate::types::{BesselError, BesselError::*, BesselResult};
+use crate::types::{
+    BesselError::{self, *},
+    BesselFloat, BesselResult, BesselValues,
+};
 
 use crate::amos::{
-    CIP, MACHINE_CONSTANTS, RotationDirection,
+    CIP, RotationDirection,
     asymptotic_i::asymptotic_i,
     complex_airy, max_abs_component,
     overflow_checks::{Overflow, zunhj},
     utils::{calc_rz, imaginary_dominant},
 };
 use itertools::Either;
-use num::{
-    Integer, Zero,
-    complex::{Complex64, ComplexFloat},
-    pow::Pow,
-};
-use std::{
-    cmp::min,
-    f64::consts::{FRAC_PI_2, PI},
-};
+use num::{Complex, Integer, Zero, complex::ComplexFloat};
+use std::cmp::min;
 
-pub fn airy_power_series(z: Complex64, return_derivative: bool, coeffs: (f64, f64)) -> Complex64 {
-    let float_is_derivative = if return_derivative { 1.0 } else { 0.0 };
+pub fn airy_power_series<T: BesselFloat>(
+    z: Complex<T>,
+    return_derivative: bool,
+    coeffs: (f64, f64),
+) -> Complex<T> {
+    let c1 = T::from_f64(coeffs.0);
+    let c2 = T::from_f64(coeffs.1);
+    let float_is_derivative = if return_derivative { T::ONE } else { T::ZERO };
 
     let abs_z = z.abs();
-    let z_floor = if abs_z < MACHINE_CONSTANTS.underflow_limit {
-        c_zero()
+    let z_floor = if abs_z < T::MACHINE_CONSTANTS.underflow_limit {
+        T::C_ZERO
     } else {
         z
     };
-    let (s1, s2) = if abs_z < MACHINE_CONSTANTS.abs_error_tolerance {
-        (c_one(), c_one())
+    let (s1, s2) = if abs_z < T::MACHINE_CONSTANTS.abs_error_tolerance {
+        (T::C_ONE, T::C_ONE)
     } else {
         let abs_z_sq = abs_z * abs_z;
-        let mut s1 = c_one();
-        let mut s2 = c_one();
+        let mut s1 = T::C_ONE;
+        let mut s2 = T::C_ONE;
 
-        if abs_z_sq >= MACHINE_CONSTANTS.abs_error_tolerance / abs_z {
-            let mut term1 = c_one();
-            let mut term2 = c_one();
-            let mut a_term = 1.0;
-            let z3 = z.pow(3.0);
+        if abs_z_sq >= T::MACHINE_CONSTANTS.abs_error_tolerance / abs_z {
+            let mut term1 = T::C_ONE;
+            let mut term2 = T::C_ONE;
+            let mut a_term = T::ONE;
+            let z3 = z.powf(T::from_f64(3.0));
             let AZ3 = abs_z * abs_z_sq;
             let (AK, BK, CK, DK) = (
-                2.0 + float_is_derivative,
-                3.0 - 2.0 * float_is_derivative,
-                4.0 - float_is_derivative,
-                3.0 + 2.0 * float_is_derivative,
+                T::from_f64(2.0) + float_is_derivative,
+                T::from_f64(3.0) - T::two() * float_is_derivative,
+                T::from_f64(4.0) - float_is_derivative,
+                T::from_f64(3.0) + T::two() * float_is_derivative,
             );
-            let mut D1: f64 = AK * DK;
+            let mut D1: T = AK * DK;
             let mut D2 = BK * CK;
             let mut AD = D1.min(D2);
-            let mut AK = 24.0 + 9.0 * float_is_derivative;
-            let mut BK = 30.0 - 9.0 * float_is_derivative;
+            let mut AK = T::from_f64(24.0) + T::from_f64(9.0) * float_is_derivative;
+            let mut BK = T::from_f64(30.0) - T::from_f64(9.0) * float_is_derivative;
             for _ in 0..25 {
                 term1 = term1 * z3 / D1;
                 s1 += term1;
@@ -66,24 +68,24 @@ pub fn airy_power_series(z: Complex64, return_derivative: bool, coeffs: (f64, f6
                 D1 += AK;
                 D2 += BK;
                 AD = D1.min(D2);
-                if a_term < MACHINE_CONSTANTS.abs_error_tolerance * AD {
+                if a_term < T::MACHINE_CONSTANTS.abs_error_tolerance * AD {
                     break;
                 }
-                AK += 18.0;
-                BK += 18.0;
+                AK += T::from_f64(18.0);
+                BK += T::from_f64(18.0);
             }
         }
         (s1, s2)
     };
-    let (c1, c2) = coeffs;
+
     if return_derivative {
-        (c1 / 2.0) * z_floor.pow(2.0) * s1 - s2 * c2
+        z_floor.powf(T::two()) * s1 * (c1 / T::two()) - s2 * c2
     } else {
         s1 * c1 - c2 * z_floor * s2
     }
 }
 
-pub fn airy_pair(z: Complex64) -> (Complex64, Complex64) {
+pub fn airy_pair<T: BesselFloat>(z: Complex<T>) -> (Complex<T>, Complex<T>) {
     //note that ZAIRY calls in fortran code ignore IERR (using IDUM)
     let airy = match complex_airy(z, false, Scaling::Scaled) {
         Ok((y, _)) => y,
@@ -91,7 +93,7 @@ pub fn airy_pair(z: Complex64) -> (Complex64, Complex64) {
         // If loss of significance, Fortran code would continue with un-initialised y,
         // which is usually ~=0. Also long as it is << d_airy, the logic below means
         // it will not matter what the precise value is
-        Err(LossOfSignificance) => c_zero(),
+        Err(LossOfSignificance) => T::C_ZERO,
         Err(err) => {
             panic!(
                 "An error {:?} was generated, which is not handled by the Amos code",
@@ -105,7 +107,7 @@ pub fn airy_pair(z: Complex64) -> (Complex64, Complex64) {
         // If loss of significance, Fortran code would continue with un-initialised y,
         // which is usually ~=0. Also long as it is << a_airy, the logic below means
         // it will not matter what the precise value is
-        Err(LossOfSignificance) => c_zero(),
+        Err(LossOfSignificance) => T::C_ZERO,
         Err(err) => {
             panic!(
                 "An error {:?} was generated, which is not handled by the Amos code",
@@ -118,20 +120,25 @@ pub fn airy_pair(z: Complex64) -> (Complex64, Complex64) {
 
 /// zbknu computes the k bessel function in the right half z plane.
 /// Originally ZBKNU
-pub fn k_right_half_plane(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
+pub fn k_right_half_plane<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
+    scaling: Scaling,
+    n: usize,
+) -> Result<BesselValues<T, usize>, BesselError<T>> {
     const KMAX: usize = 30;
-    const RTFRAC_PI_2: f64 = 1.25331413731550025;
-    const SPI: f64 = 1.90985931710274403;
-    const FPI: f64 = 1.89769999331517738;
-    const CC: [f64; 8] = [
-        5.77215664901532861e-01,
-        -4.20026350340952355e-02,
-        -4.21977345555443367e-02,
-        7.21894324666309954e-03,
-        -2.15241674114950973e-04,
-        -2.01348547807882387e-05,
-        1.13302723198169588e-06,
-        6.11609510448141582e-09,
+    let RTFRAC_PI_2: T = T::from_f64(1.25331413731550025);
+    let SPI: T = T::from_f64(1.90985931710274403);
+    let FPI: T = T::from_f64(1.89769999331517738);
+    let CC: [T; 8] = [
+        T::from_f64(5.77215664901532861e-01),
+        T::from_f64(-4.20026350340952355e-02),
+        T::from_f64(-4.21977345555443367e-02),
+        T::from_f64(7.21894324666309954e-03),
+        T::from_f64(-2.15241674114950973e-04),
+        T::from_f64(-2.01348547807882387e-05),
+        T::from_f64(1.13302723198169588e-06),
+        T::from_f64(6.11609510448141582e-09),
     ];
 
     let abs_z = z.abs();
@@ -139,58 +146,59 @@ pub fn k_right_half_plane(z: Complex64, order: f64, scaling: Scaling, n: usize) 
     let mut underflow_occurred = false;
     let mut overflow_state;
     let rz = calc_rz(z);
-    let mut integer_order = (order + 0.5) as isize; // round to nearest int
+    let mut integer_order = (order.round()).to_isize().unwrap(); // round to nearest int
     let simple_case = integer_order == 0 && n == 1;
 
-    let signed_fractional_order = order - (integer_order as f64); // signed fractional part (-0.5 < DNU < 0.5 )
-    let frac_order_sqr = if signed_fractional_order.abs() > MACHINE_CONSTANTS.abs_error_tolerance {
+    let signed_fractional_order = order - T::from_f64(integer_order as f64); // signed fractional part (-0.5 < DNU < 0.5 )
+    let frac_order_sqr = if signed_fractional_order.abs() > T::MACHINE_CONSTANTS.abs_error_tolerance
+    {
         signed_fractional_order * signed_fractional_order
     } else {
-        0.0
+        T::ZERO
     };
 
-    let (mut s1, mut s2) = if (signed_fractional_order.abs() != 0.5) && (abs_z <= 2.0) {
+    let (mut s1, mut s2) = if (signed_fractional_order.abs() != T::half()) && (abs_z <= T::two()) {
         // series for (z.abs() <= 2.0) and not half integer order
-        let mut fc = 1.0;
+        let mut fc = T::one();
         let mut smu = rz.ln();
         let fmu = smu * signed_fractional_order;
         let csh = fmu.sinh();
         let cch = fmu.cosh();
-        if signed_fractional_order != 0.0 {
-            fc = signed_fractional_order * PI;
+        if signed_fractional_order != T::ZERO {
+            fc = signed_fractional_order * T::PI();
             fc /= fc.sin();
             smu = csh / signed_fractional_order;
         }
         //-----------------------------------------------------------------------;
         //     GAM(1-Z)*GAM(1+Z)=PI*Z/SIN(PI*Z), T1=1/GAM(1-DNU), T2=1/GAM(1+DNU);
         //-----------------------------------------------------------------------;
-        let t2 = (-gamma_ln(1.0 + signed_fractional_order).unwrap()).exp();
-        let t1 = 1.0 / (t2 * fc);
+        let t2 = (-gamma_ln(T::one() + signed_fractional_order).unwrap()).exp();
+        let t1 = T::one() / (t2 * fc);
 
-        let g1 = if signed_fractional_order.abs() <= 0.1 {
+        let g1 = if signed_fractional_order.abs() <= T::from_f64(0.1) {
             //-----------------------------------------------------------------------;
             //     SERIES FOR F0 TO RESOLVE INDETERMINACY FOR SMALL ABS(DNU);
             //-----------------------------------------------------------------------;
-            let mut ak = 1.0;
+            let mut ak = T::one();
             let mut sum = CC[0];
             for cc in CC[1..].iter() {
                 ak *= frac_order_sqr;
-                let tm = cc * ak;
+                let tm = *cc * ak;
                 sum += tm;
-                if tm.abs() < MACHINE_CONSTANTS.abs_error_tolerance {
+                if tm.abs() < T::MACHINE_CONSTANTS.abs_error_tolerance {
                     break;
                 }
             }
             -sum
         } else {
-            (t1 - t2) / (2.0 * signed_fractional_order)
+            (t1 - t2) / (T::two() * signed_fractional_order)
         };
-        let g2 = (t1 + t2) * 0.5;
+        let g2 = (t1 + t2) * T::half();
         let f = fc * (g1 * cch + g2 * smu);
-        let p = 0.5 * fmu.exp() / t2;
-        let q = (0.5 / fmu.exp()) / t1;
+        let p = T::half() * fmu.exp() / t2;
+        let q = (T::half() / fmu.exp()) / t1;
 
-        let ck = c_one();
+        let ck = T::C_ONE;
         if simple_case {
             //-----------------------------------------------------------------------;
             //     SPECIAL CASE
@@ -212,13 +220,14 @@ pub fn k_right_half_plane(z: Complex64, order: f64, scaling: Scaling, n: usize) 
         let (mut s1, mut s2) =
             k_right_half_plane_helper(z, frac_order_sqr, signed_fractional_order, f, p, q, ck);
 
-        overflow_state = if (order + 1.0) * smu.re.abs() > MACHINE_CONSTANTS.approximation_limit {
-            Overflow::NearOver
-        } else {
-            Overflow::None
-        };
-        s2 *= MACHINE_CONSTANTS.scaling_factors[overflow_state] * rz;
-        s1 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
+        overflow_state =
+            if (order + T::one()) * smu.re.abs() > T::MACHINE_CONSTANTS.approximation_limit {
+                Overflow::NearOver
+            } else {
+                Overflow::None
+            };
+        s2 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state] * rz;
+        s1 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
         if scaling == Scaling::Scaled {
             let z_exp = z.exp();
             s1 *= z_exp;
@@ -233,20 +242,20 @@ pub fn k_right_half_plane(z: Complex64, order: f64, scaling: Scaling, n: usize) 
         //     KODED=2 AND A TEST FOR ON SCALE VALUES IS MADE DURING FORWARD;
         //     RECURSION;
         //-----------------------------------------------------------------------;
-        let mut coeff = Complex64::new(RTFRAC_PI_2, 0.0) / z.sqrt();
+        let mut coeff = Complex::<T>::new(RTFRAC_PI_2, T::ZERO) / z.sqrt();
         overflow_state = Overflow::None;
         if scaling == Scaling::Unscaled {
-            if z.re > MACHINE_CONSTANTS.approximation_limit {
+            if z.re > T::MACHINE_CONSTANTS.approximation_limit {
                 underflow_occurred = true;
                 overflow_state = Overflow::NearUnder;
             } else {
-                coeff *= MACHINE_CONSTANTS.scaling_factors[overflow_state] * (-z).exp();
+                coeff *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state] * (-z).exp();
             }
         }
-        let mut AK = (signed_fractional_order * PI).cos().abs();
-        let mut FHS = (0.25 - frac_order_sqr).abs();
+        let mut AK = (signed_fractional_order * T::PI()).cos().abs();
+        let mut FHS = (T::from_f64(0.25) - frac_order_sqr).abs();
 
-        if signed_fractional_order.abs() == 0.5 || AK == 0.0 || FHS == 0.0 {
+        if signed_fractional_order.abs() == T::half() || AK == T::ZERO || FHS == T::ZERO {
             (coeff, coeff)
         } else {
             //-----------------------------------------------------------------------
@@ -258,34 +267,36 @@ pub fn k_right_half_plane(z: Complex64, order: f64, scaling: Scaling, n: usize) 
             //     12 <= E <= 60. E IS COMPUTED FROM 2**(-E)=B**(1-i1mach(14))=
             //     TOL WHERE B IS THE BASE OF THE ARITHMETIC.
             //-----------------------------------------------------------------------
-            let f64_significant_digits =
-                (f64::MANTISSA_DIGITS - 1) as f64 * (f64::RADIX as f64).log10();
-            let determiner = (f64_significant_digits * std::f64::consts::LOG2_10).clamp(12.0, 60.0);
-            let recurrence_threshold = TWO_THIRDS * determiner - 6.0;
+            // let f64_significant_digits =
+            // (f64::MANTISSA_DIGITS - 1) as f64 * (f64::RADIX as f64).log10();
+            let bits = T::from_f64((T::MANTISSA_DIGITS - 1) as f64);
+            let determiner = bits.clamp(T::from_f64(12.0), T::from_f64(60.0));
+            let recurrence_threshold = T::TWO_THIRDS * determiner - T::from_f64(6.0);
             let arg_z = z.arg();
 
             let (FK, FHS) = if abs_z > recurrence_threshold {
                 //-----------------------------------------------------------------------;
                 //     FORWARD RECURRENCE LOOP WHEN CABS(Z) >= R2;
                 //-----------------------------------------------------------------------;
-                let convergence_test = AK / (PI * abs_z * MACHINE_CONSTANTS.abs_error_tolerance);
-                let mut FK = 1.0;
-                if convergence_test >= 1.0 {
-                    let mut FKS = 2.0;
-                    let mut CKR = abs_z + abs_z + 2.0;
-                    let mut p1 = 0.0;
-                    let mut p2 = 1.0;
+                let convergence_test =
+                    AK / (T::PI() * abs_z * T::MACHINE_CONSTANTS.abs_error_tolerance);
+                let mut FK = T::one();
+                if convergence_test >= T::one() {
+                    let mut FKS = T::two();
+                    let mut CKR = abs_z + abs_z + T::two();
+                    let mut p1 = T::ZERO;
+                    let mut p2 = T::one();
                     let mut converged = false;
                     for _ in 0..KMAX {
                         let AK = FHS / FKS;
-                        let CBR = CKR / (FK + 1.0);
+                        let CBR = CKR / (FK + T::one());
                         let pt = p2;
                         p2 = CBR * p2 - AK * p1;
                         p1 = pt;
-                        CKR += 2.0;
-                        FKS += FK + FK + 2.0;
+                        CKR += T::two();
+                        FKS += FK + FK + T::two();
                         FHS += FK + FK;
-                        FK += 1.0;
+                        FK += T::one();
                         if convergence_test < p2.abs() * FK {
                             converged = true;
                             break;
@@ -295,44 +306,45 @@ pub fn k_right_half_plane(z: Complex64, order: f64, scaling: Scaling, n: usize) 
                         return Err(DidNotConverge);
                     }
                     FK += SPI * arg_z * (recurrence_threshold / abs_z).sqrt();
-                    FHS = (0.25 - frac_order_sqr).abs();
+                    FHS = (T::from_f64(0.25) - frac_order_sqr).abs();
                 }
                 (FK, FHS)
             } else {
                 //-----------------------------------------------------------------------;
                 //     COMPUTE BACKWARD INDEX K FOR CABS(Z) < R2;
                 //-----------------------------------------------------------------------;
-                AK *= FPI / (MACHINE_CONSTANTS.abs_error_tolerance * abs_z.sqrt().sqrt());
-                let AA = 3.0 * arg_z / (1.0 + abs_z);
-                let BB = 14.7 * arg_z / (28.0 + abs_z);
-                AK = (AK.ln() + abs_z * AA.cos() / (1.0 + 0.008 * abs_z)) / BB.cos();
-                let FK = 0.12125 * AK * AK / abs_z + 1.5;
+                AK *= FPI / (T::MACHINE_CONSTANTS.abs_error_tolerance * abs_z.sqrt().sqrt());
+                let AA = T::from_f64(3.0) * arg_z / (T::one() + abs_z);
+                let BB = T::from_f64(14.7) * arg_z / (T::from_f64(28.0) + abs_z);
+                AK = (AK.ln() + abs_z * AA.cos() / (T::one() + T::from_f64(0.008) * abs_z))
+                    / BB.cos();
+                let FK = T::from_f64(0.12125) * AK * AK / abs_z + T::from_f64(1.5);
                 (FK, FHS)
             };
             //-----------------------------------------------------------------------;
             //     BACKWARD RECURRENCE LOOP FOR MILLER ALGORITHM;
             //-----------------------------------------------------------------------;
-            let K = FK as usize;
-            let mut k_squared = FK.floor().pow(2);
-            let mut p1 = Complex64::zero();
-            let mut p2 = Complex64::new(MACHINE_CONSTANTS.abs_error_tolerance, 0.0);
+            let K = FK.to_usize().unwrap();
+            let mut k_squared = FK.floor().powi(2);
+            let mut p1 = Complex::<T>::zero();
+            let mut p2 = Complex::<T>::new(T::MACHINE_CONSTANTS.abs_error_tolerance, T::ZERO);
             let mut cs = p2;
             for i in (0..K).rev() {
-                let k_f64 = (i + 1) as f64;
-                let cb = (z + k_f64) * 2.0 / (k_f64 + 1.0);
+                let k_float = T::from_usize(i + 1);
+                let cb = (z + k_float) * T::two() / (k_float + T::one());
                 (p1, p2) = (
                     p2,
-                    (p2 * cb - p1) * (k_squared + k_f64) / (k_squared - k_f64 + FHS),
+                    (p2 * cb - p1) * (k_squared + k_float) / (k_squared - k_float + FHS),
                 );
                 cs += p2;
-                k_squared -= (2.0 * k_f64) - 1.0;
+                k_squared -= (T::two() * k_float) - T::one();
             }
             //-----------------------------------------------------------------------;
             //     COMPUTE (P2/CS)=(P2/CABS(CS))*(CONJG(CS)/CABS(CS)) FOR BETTER;
             //     SCALING;
             //-----------------------------------------------------------------------;
             let mut s1 = p2 / cs.abs();
-            let mut s2 = Complex64::zero();
+            let mut s2 = Complex::<T>::zero();
             cs = cs.conj() / cs.abs();
             s1 *= coeff * cs;
             if !simple_case {
@@ -341,7 +353,7 @@ pub fn k_right_half_plane(z: Complex64, order: f64, scaling: Scaling, n: usize) 
                 //-----------------------------------------------------------------------;
                 p1 /= p2.abs();
                 p2 = p2.conj() / p2.abs();
-                s2 = (((signed_fractional_order + 0.5 - (p1 * p2)) / z) + 1.0) * s1;
+                s2 = (((-(p1 * p2) + signed_fractional_order + T::half()) / z) + T::one()) * s1;
             }
             (s1, s2)
         }
@@ -353,7 +365,7 @@ pub fn k_right_half_plane(z: Complex64, order: f64, scaling: Scaling, n: usize) 
     //     FORWARD RECURSION ON THE THREE TERM RECURSION WITH RELATION WITH
     //     SCALING NEAR EXPONENT EXTREMES ON KFLAG=1 OR KFLAG=3
     //-----------------------------------------------------------------------
-    let mut ck = (signed_fractional_order + 1.0) * rz;
+    let mut ck = (signed_fractional_order + T::one()) * rz;
     if n == 1 {
         integer_order -= 1
     };
@@ -366,11 +378,11 @@ pub fn k_right_half_plane(z: Complex64, order: f64, scaling: Scaling, n: usize) 
                 //-----------------------------------------------------------------------;
                 //     underflow_occured=1 CASES, FORWARD RECURRENCE ON SCALED VALUES ON UNDERFLOW;
                 //-----------------------------------------------------------------------;
-                let mut cy = [c_zero(); 2];
-                let half_exponent_limit = 0.5 * MACHINE_CONSTANTS.exponent_limit;
+                let mut cy = [T::C_ZERO; 2];
+                let half_exponent_limit = T::half() * T::MACHINE_CONSTANTS.exponent_limit;
 
-                let abs_limit = (-MACHINE_CONSTANTS.exponent_limit).exp();
-                let ASCLE = MACHINE_CONSTANTS.overflow_boundary[0];
+                let abs_limit = (-T::MACHINE_CONSTANTS.exponent_limit).exp();
+                let ASCLE = T::MACHINE_CONSTANTS.overflow_boundary[0];
                 let mut zd = z;
                 let mut IC: isize = -1;
                 let mut J = 1;
@@ -381,9 +393,9 @@ pub fn k_right_half_plane(z: Complex64, order: f64, scaling: Scaling, n: usize) 
                     (s1, s2) = (s2, s2 * ck + s1);
                     ck += rz;
                     let abs_ln_s2 = s2.abs().ln();
-                    if -zd.re + abs_ln_s2 >= -MACHINE_CONSTANTS.exponent_limit {
-                        let p1 = (-zd + s2.ln()).exp() / MACHINE_CONSTANTS.abs_error_tolerance;
-                        if !will_underflow(p1, ASCLE, MACHINE_CONSTANTS.abs_error_tolerance) {
+                    if -zd.re + abs_ln_s2 >= -T::MACHINE_CONSTANTS.exponent_limit {
+                        let p1 = (-zd + s2.ln()).exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
+                        if !will_underflow(p1, ASCLE, T::MACHINE_CONSTANTS.abs_error_tolerance) {
                             J = 1 - J;
                             cy[J] = p1;
                             // below implies we got here twice in a row
@@ -398,7 +410,7 @@ pub fn k_right_half_plane(z: Complex64, order: f64, scaling: Scaling, n: usize) 
                         if abs_ln_s2 < half_exponent_limit {
                             continue;
                         }
-                        zd.re -= MACHINE_CONSTANTS.exponent_limit;
+                        zd.re -= T::MACHINE_CONSTANTS.exponent_limit;
                         s1 *= abs_limit;
                         s2 *= abs_limit;
                     }
@@ -410,8 +422,8 @@ pub fn k_right_half_plane(z: Complex64, order: f64, scaling: Scaling, n: usize) 
                 s1 = cy[J];
             }
 
-            let mut P1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
-            let mut ASCLE = MACHINE_CONSTANTS.overflow_boundary[overflow_state];
+            let mut P1R = T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+            let mut ASCLE = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state];
             for _ in n_tested..=integer_order {
                 // TODO same loop as below?
                 // TODO and same recurrence logic used in ZUNKX, ZUNIX?
@@ -425,12 +437,12 @@ pub fn k_right_half_plane(z: Complex64, order: f64, scaling: Scaling, n: usize) 
                     continue;
                 }
                 overflow_state.increment();
-                ASCLE = MACHINE_CONSTANTS.overflow_boundary[overflow_state];
+                ASCLE = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state];
                 s1 *= P1R;
                 s2 = p2;
-                s1 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
-                s2 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
-                P1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+                s1 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
+                s2 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
+                P1R = T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
             }
         }
         if n == 1 {
@@ -438,12 +450,12 @@ pub fn k_right_half_plane(z: Complex64, order: f64, scaling: Scaling, n: usize) 
         }
     }
 
-    let mut y = c_zeros(n);
+    let mut y = T::c_zeros(n);
     let n_completed = if !underflow_occurred {
         // ********* basic setup
-        y[0] = s1 * MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+        y[0] = s1 * T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
         if n > 1 {
-            y[1] = s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+            y[1] = s2 * T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
             2
         } else {
             1
@@ -464,7 +476,7 @@ pub fn k_right_half_plane(z: Complex64, order: f64, scaling: Scaling, n: usize) 
             &mut y,
             &mut nz,
             rz,
-            MACHINE_CONSTANTS.absolute_approximation_limit,
+            T::MACHINE_CONSTANTS.absolute_approximation_limit,
         );
         let n_non_zero = (n - nz) as isize;
         if n_non_zero <= 0 {
@@ -472,17 +484,17 @@ pub fn k_right_half_plane(z: Complex64, order: f64, scaling: Scaling, n: usize) 
         }
         let mut working_index = nz;
         s1 = y[working_index];
-        y[working_index] *= MACHINE_CONSTANTS.reciprocal_scaling_factors[0];
+        y[working_index] *= T::MACHINE_CONSTANTS.reciprocal_scaling_factors[0];
         if n_non_zero > 1 {
             // if n_non_zero == 1 {
             //     return Ok((y, nz));
             // }
             working_index += 1;
             s2 = y[working_index];
-            y[working_index] *= MACHINE_CONSTANTS.reciprocal_scaling_factors[0];
+            y[working_index] *= T::MACHINE_CONSTANTS.reciprocal_scaling_factors[0];
         }
         if n_non_zero > 2 {
-            ck = (order + (working_index as f64)) * rz;
+            ck = (order + T::from_usize(working_index)) * rz;
             overflow_state = Overflow::NearUnder;
         }
         working_index + 1
@@ -491,8 +503,8 @@ pub fn k_right_half_plane(z: Complex64, order: f64, scaling: Scaling, n: usize) 
     if n_completed >= n {
         return Ok((y, nz));
     }
-    let mut P1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
-    let mut ASCLE = MACHINE_CONSTANTS.overflow_boundary[overflow_state];
+    let mut P1R = T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+    let mut ASCLE = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state];
     for y_elem in y.iter_mut().skip(n_completed) {
         // TODO same loops as above
         (s1, s2) = (s2, ck * s2 + s1);
@@ -505,36 +517,36 @@ pub fn k_right_half_plane(z: Complex64, order: f64, scaling: Scaling, n: usize) 
             continue;
         }
         overflow_state.increment();
-        ASCLE = MACHINE_CONSTANTS.overflow_boundary[overflow_state];
+        ASCLE = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state];
         s1 *= P1R;
         s2 = *y_elem;
-        s1 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
-        s2 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
-        P1R = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+        s1 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
+        s2 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
+        P1R = T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
     }
     Ok((y, nz))
 }
 
-fn k_right_half_plane_helper(
-    z: Complex64,
-    frac_order_sqr: f64,
-    signed_fractional_order: f64,
-    mut f: Complex64,
-    mut p: Complex64,
-    mut q: Complex64,
-    mut ck: Complex64,
-) -> (Complex64, Complex64) {
-    let mut a1 = 1.0;
-    let cz_sqr_over_4 = 0.25 * z.powu(2);
+fn k_right_half_plane_helper<T: BesselFloat>(
+    z: Complex<T>,
+    frac_order_sqr: T,
+    signed_fractional_order: T,
+    mut f: Complex<T>,
+    mut p: Complex<T>,
+    mut q: Complex<T>,
+    mut ck: Complex<T>,
+) -> (Complex<T>, Complex<T>) {
+    let mut a1 = T::one();
+    let cz_sqr_over_4 = T::from_f64(0.25) * z.powu(2);
     let abs_z = z.abs();
-    let abs_z_sqr_over_4 = 0.25 * abs_z * abs_z;
-    let mut ak = 1.0;
-    let mut bk = 1.0 - frac_order_sqr;
+    let abs_z_sqr_over_4 = T::from_f64(0.25) * abs_z * abs_z;
+    let mut ak = T::one();
+    let mut bk = T::one() - frac_order_sqr;
 
     let mut s1 = f;
     let mut s2 = p;
-    if abs_z >= MACHINE_CONSTANTS.abs_error_tolerance {
-        while a1 > MACHINE_CONSTANTS.abs_error_tolerance {
+    if abs_z >= T::MACHINE_CONSTANTS.abs_error_tolerance {
+        while a1 > T::MACHINE_CONSTANTS.abs_error_tolerance {
             f = (f * ak + p + q) / bk;
             p /= ak - signed_fractional_order;
             q /= ak + signed_fractional_order;
@@ -542,8 +554,8 @@ fn k_right_half_plane_helper(
             s1 += ck * f;
             s2 += ck * (p - ak * f);
             a1 *= abs_z_sqr_over_4 / ak;
-            bk += (2.0 * ak) + 1.0;
-            ak += 1.0;
+            bk += (T::two() * ak) + T::one();
+            ak += T::one();
         }
     }
     (s1, s2)
@@ -554,31 +566,35 @@ fn k_right_half_plane_helper(
 /// return with min(nz+2,n) values scaled by 1/tol.
 ///
 /// Originally ZKSCL
-fn ZKSCL(
-    zr: Complex64,
-    order: f64,
+fn ZKSCL<T: BesselFloat>(
+    zr: Complex<T>,
+    order: T,
     n: usize,
-    y: &mut [Complex64],
+    y: &mut [Complex<T>],
     nz: &mut usize,
-    rz: Complex64,
-    ASCLE: f64,
+    rz: Complex<T>,
+    absolute_approximation_limit: T,
 ) {
     *nz = 0;
     // let NN = min(2, n);
-    let mut cy = [c_zero(); 2];
+    let mut cy = [T::C_ZERO; 2];
     let mut i_completed = 0;
     // repeats twice, unless n < 2
     for i in 0..min(2, n) {
         let s1 = y[i];
         cy[i] = s1;
         *nz += 1;
-        y[i] = c_zero();
-        if -zr.re + s1.abs().ln() < -MACHINE_CONSTANTS.exponent_limit {
+        y[i] = T::C_ZERO;
+        if -zr.re + s1.abs().ln() < -T::MACHINE_CONSTANTS.exponent_limit {
             continue;
         }
 
-        let cs = (s1.ln() - zr).exp() / MACHINE_CONSTANTS.abs_error_tolerance;
-        if will_underflow(cs, ASCLE, MACHINE_CONSTANTS.abs_error_tolerance) {
+        let cs = (s1.ln() - zr).exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
+        if will_underflow(
+            cs,
+            absolute_approximation_limit,
+            T::MACHINE_CONSTANTS.abs_error_tolerance,
+        ) {
             continue;
         }
         y[i] = cs;
@@ -589,7 +605,7 @@ fn ZKSCL(
         return;
     }
     // if i_completed < 1 {
-    //     y[0] = c_zero();
+    //     y[0] = T::C_ZERO;
     //     *nz = 2;
     // }
     // if n == 2 {
@@ -598,12 +614,12 @@ fn ZKSCL(
     // if *nz == 0 {
     //     return;
     // }
-    let FN = order + 1.0;
+    let FN = order + T::one();
     let mut ck = FN * rz;
     let mut s1 = cy[0];
     let mut s2 = cy[1];
-    let half_elim = 0.5 * MACHINE_CONSTANTS.exponent_limit;
-    let ELM = (-MACHINE_CONSTANTS.exponent_limit).exp();
+    let half_elim = T::half() * T::MACHINE_CONSTANTS.exponent_limit;
+    let ELM = (-T::MACHINE_CONSTANTS.exponent_limit).exp();
     let CELMR = ELM;
     let mut zd = zr;
     //     FIND TWO CONSECUTIVE Y VALUES ON SCALE. SCALE RECURRENCE if
@@ -618,11 +634,15 @@ fn ZKSCL(
         ck += rz;
         let ALAS = s2.abs().ln();
         *nz += 1;
-        *yi = Complex64::zero();
-        if -zd.re + s2.abs().ln() >= -MACHINE_CONSTANTS.exponent_limit {
+        *yi = Complex::<T>::zero();
+        if -zd.re + s2.abs().ln() >= -T::MACHINE_CONSTANTS.exponent_limit {
             cs = s2.ln() - zd;
-            cs = cs.exp() / MACHINE_CONSTANTS.abs_error_tolerance;
-            if !will_underflow(cs, ASCLE, MACHINE_CONSTANTS.abs_error_tolerance) {
+            cs = cs.exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
+            if !will_underflow(
+                cs,
+                absolute_approximation_limit,
+                T::MACHINE_CONSTANTS.abs_error_tolerance,
+            ) {
                 *yi = cs;
                 *nz -= 1;
                 if i_completed == i - 1 {
@@ -637,7 +657,7 @@ fn ZKSCL(
         if ALAS < half_elim {
             continue;
         }
-        zd -= MACHINE_CONSTANTS.exponent_limit;
+        zd -= T::MACHINE_CONSTANTS.exponent_limit;
         s1 *= CELMR;
         s2 *= CELMR;
     }
@@ -650,7 +670,7 @@ fn ZKSCL(
         *nz = I - 2;
     }
     for element in y.iter_mut().take(*nz) {
-        *element = c_zero();
+        *element = T::C_ZERO;
     }
 }
 
@@ -662,12 +682,12 @@ fn ZKSCL(
 /// by D. J. Sookne.
 ///
 /// Originally ZRATI
-fn ratios_i(z: Complex64, order: f64, n: usize) -> Vec<Complex64> {
+fn ratios_i<T: BesselFloat>(z: Complex<T>, order: T, n: usize) -> Vec<Complex<T>> {
     let abs_z = z.abs();
-    let integer_order = order as usize;
+    let integer_order = order.to_usize().unwrap();
     let modified_int_order = integer_order + n - 1;
-    let int_abs_z = abs_z as isize;
-    let FNUP = (int_abs_z + 1).max(modified_int_order as isize) as f64;
+    let int_abs_z = abs_z.to_isize().unwrap();
+    let FNUP = T::from_f64((int_abs_z + 1).max(modified_int_order as isize) as f64);
     let ID_ = modified_int_order as isize - int_abs_z - 1;
     let ID = if ID_ > 0 { 0 } else { ID_ };
 
@@ -677,7 +697,7 @@ fn ratios_i(z: Complex64, order: f64, n: usize) -> Vec<Complex64> {
     {
         let mut t1 = rz * FNUP;
         let mut p2 = -t1;
-        let mut p1 = c_one();
+        let mut p1 = T::C_ONE;
         t1 += rz;
 
         abs_p2 = p2.abs();
@@ -688,7 +708,7 @@ fn ratios_i(z: Complex64, order: f64, n: usize) -> Vec<Complex64> {
         //     P2 VALUES BY AP1 TO ENSURE THAT AN OVERFLOW DOES NOT OCCUR
         //     PREMATURELY.
         //-----------------------------------------------------------------------
-        let ARG = (abs_p2 + abs_p2) / (abs_p1 * MACHINE_CONSTANTS.abs_error_tolerance);
+        let ARG = (abs_p2 + abs_p2) / (abs_p1 * T::MACHINE_CONSTANTS.abs_error_tolerance);
         let TEST1 = ARG.sqrt();
         let mut TEST = TEST1;
         p1 /= abs_p1;
@@ -708,50 +728,50 @@ fn ratios_i(z: Complex64, order: f64, n: usize) -> Vec<Complex64> {
                 break 'l10;
             }
             {
-                let ak = t1.abs() / 2.0;
-                let flam = ak + (ak.powi(2) - 1.0).sqrt();
+                let ak = t1.abs() / T::two();
+                let flam = ak + (ak.powi(2) - T::one()).sqrt();
                 let rho = abs_p2 / abs_p1.min(flam);
-                TEST = TEST1 * (rho / (rho.powi(2) - 1.0)).sqrt();
+                TEST = TEST1 * (rho / (rho.powi(2) - T::one())).sqrt();
             }
             first_pass = false;
         }
     }
 
-    let mut p1 = Complex64::new(1.0 / abs_p2, 0.0);
-    let mut p2 = c_zero();
+    let mut p1 = Complex::<T>::new(T::one() / abs_p2, T::ZERO);
+    let mut p2 = T::C_ZERO;
 
     {
         let kk: usize = (K as isize + 1 - ID).try_into().unwrap();
-        let mut t1 = Complex64::new(kk as f64, 0.0);
-        let modified_order = order + ((n - 1) as f64);
+        let mut t1 = Complex::<T>::from(T::from_usize(kk));
+        let modified_order = order + T::from_usize(n - 1);
         for _ in 0..kk {
             (p1, p2) = (p1 * (rz * (modified_order + t1.re)) + p2, p1);
-            t1.re -= 1.0;
+            t1.re -= T::one();
         }
-        if p1.re == 0.0 && p1.im == 0.0 {
-            p1 = Complex64::new(
-                MACHINE_CONSTANTS.abs_error_tolerance,
-                MACHINE_CONSTANTS.abs_error_tolerance,
+        if p1.re == T::ZERO && p1.im == T::ZERO {
+            p1 = Complex::<T>::new(
+                T::MACHINE_CONSTANTS.abs_error_tolerance,
+                T::MACHINE_CONSTANTS.abs_error_tolerance,
             );
         }
     }
-    let mut cy = c_zeros(n);
+    let mut cy = T::c_zeros(n);
     cy[n - 1] = p2 / p1;
     if n > 1 {
-        let mut t1 = Complex64::new((n - 1) as f64, 0.0);
+        let mut t1 = Complex::<T>::from(T::from_usize(n - 1));
         let cdfnu = order * rz;
         for k in (1..n).rev() {
             let mut pt = cdfnu + t1 * rz + cy[k];
             let mut abs_pt = pt.abs();
-            if abs_pt == 0.0 {
-                pt = Complex64::new(
-                    MACHINE_CONSTANTS.abs_error_tolerance,
-                    MACHINE_CONSTANTS.abs_error_tolerance,
+            if abs_pt == T::ZERO {
+                pt = Complex::<T>::new(
+                    T::MACHINE_CONSTANTS.abs_error_tolerance,
+                    T::MACHINE_CONSTANTS.abs_error_tolerance,
                 );
                 abs_pt = pt.abs();
             }
             cy[k - 1] = pt.conj() / abs_pt.powi(2);
-            t1 -= 1.0;
+            t1 -= T::one();
         }
     }
     cy
@@ -760,50 +780,55 @@ fn ratios_i(z: Complex64, order: f64, n: usize) -> Vec<Complex64> {
 /// zbunk computes the K Bessel function for order > asymptotic_order_limit.
 /// according to the uniform asymptotic expansion for K(order, z)
 /// in zunk1 and the expansion for H(2, order, z) in zunk2
-pub fn ZBUNK(
-    z: Complex64,
-    order: f64,
+pub fn ZBUNK<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
     scaling: Scaling,
     rotation: RotationDirection,
-    N: usize,
-) -> BesselResult {
+    n: usize,
+) -> BesselResult<T> {
     if imaginary_dominant(z) {
         //-----------------------------------------------------------------------
         //     ASYMPTOTIC EXPANSION FOR H(2,FNU,Z*EXP(M*FRAC_PI_2)) FOR LARGE FNU
         //     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I
         //     AND FRAC_PI_2=PI/2
         //-----------------------------------------------------------------------
-        ZUNK2(z, order, scaling, rotation, N)
+        ZUNK2(z, order, scaling, rotation, n)
     } else {
         //-----------------------------------------------------------------------
         //     ASYMPTOTIC EXPANSION FOR K(FNU,Z) FOR LARGE FNU APPLIED IN
         //     -PI/3 <= ARG(Z) <= PI/3
         //-----------------------------------------------------------------------
-        ZUNK1(z, order, scaling, rotation, N)
+        ZUNK1(z, order, scaling, rotation, n)
     }
 }
 
 /// i_miller computes the i bessel function for re(z) >= 0.0 by the
 /// Miller algorithm normalized by a Neumann series.
 /// Originally ZMLRI
-fn i_miller(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
-    let SCLE: f64 = 2.0 * f64::MIN_POSITIVE / MACHINE_CONSTANTS.abs_error_tolerance;
-    let NZ = 0;
-    let AZ = z.abs();
-    let IAZ = AZ as usize;
-    let IFNU = order as usize;
-    let INU = IFNU + N - 1;
-    let AT = (IAZ as f64) + 1.0;
-    let RAZ = 1.0 / AZ;
+fn i_miller<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
+    scaling: Scaling,
+    n: usize,
+) -> BesselResult<T, usize> {
+    let scale: T = T::two() * T::MIN_POSITIVE / T::MACHINE_CONSTANTS.abs_error_tolerance;
+    let nz = 0;
+    let abs_z = z.abs();
+    let int_abs_z = abs_z.to_usize().unwrap();
+    let int_order = order.to_usize().unwrap();
+    let INU = int_order + n - 1;
+    let AT = T::from_f64(int_abs_z as f64) + T::one();
+    let RAZ = T::one() / abs_z;
     let mut ck = z.conj() * RAZ * RAZ * AT;
     let rz = calc_rz(z);
-    let mut p1 = c_zero();
-    let mut p2 = c_one();
-    let mut ACK = (AT + 1.0) * RAZ;
-    let RHO = ACK + (ACK * ACK - 1.0).sqrt();
+    let mut p1 = T::C_ZERO;
+    let mut p2 = T::C_ONE;
+    let mut ACK = (AT + T::one()) * RAZ;
+    let RHO = ACK + (ACK * ACK - T::one()).sqrt();
     let RHO2 = RHO * RHO;
-    let mut TST = (RHO2 + RHO2) / ((RHO2 - 1.0) * (RHO - 1.0));
-    TST /= MACHINE_CONSTANTS.abs_error_tolerance;
+    let mut TST = (RHO2 + RHO2) / ((RHO2 - T::one()) * (RHO - T::one()));
+    TST /= T::MACHINE_CONSTANTS.abs_error_tolerance;
     //-----------------------------------------------------------------------
     //     COMPUTE RELATIVE TRUNCATION ERROR INDEX FOR SERIES
     //-----------------------------------------------------------------------
@@ -820,23 +845,23 @@ fn i_miller(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
             converged = true;
             break;
         }
-        AK += 1.0;
+        AK += T::one();
     }
     if !converged {
         return Err(DidNotConverge);
     }
     I += 1;
     let mut K = 0;
-    if INU >= IAZ {
+    if INU >= int_abs_z {
         //-----------------------------------------------------------------------
         //     COMPUTE RELATIVE TRUNCATION ERROR FOR RATIOS
         //-----------------------------------------------------------------------
-        p1 = c_zero();
-        p2 = c_one();
-        let AT = (INU as f64) + 1.0;
+        p1 = T::C_ZERO;
+        p2 = T::C_ONE;
+        let AT = T::from_f64(INU as f64) + T::one();
         ck = z.conj() * RAZ * RAZ * AT;
         ACK = AT * RAZ;
-        TST = (ACK / MACHINE_CONSTANTS.abs_error_tolerance).sqrt();
+        TST = (ACK / T::MACHINE_CONSTANTS.abs_error_tolerance).sqrt();
         let mut hit_loop_end = false;
         converged = false;
         for k in 0..80 {
@@ -854,10 +879,10 @@ fn i_miller(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
                 break;
             }
             ACK = ck.abs();
-            let FLAM = ACK + (ACK * ACK - 1.0).sqrt();
+            let FLAM = ACK + (ACK * ACK - T::one()).sqrt();
             let FKAP = AP / p1.abs();
             let RHO = FLAM.min(FKAP);
-            TST *= (RHO / (RHO * RHO - 1.0)).sqrt();
+            TST *= (RHO / (RHO * RHO - T::one())).sqrt();
             hit_loop_end = true;
         }
         if !converged {
@@ -868,64 +893,64 @@ fn i_miller(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
     //     BACKWARD RECURRENCE AND SUM NORMALIZING RELATION
     //-----------------------------------------------------------------------
     K += 1;
-    let KK = (I + IAZ).max(K + INU);
-    let mut FKK = KK as f64;
-    let mut p1 = c_zero();
+    let KK = (I + int_abs_z).max(K + INU);
+    let mut kk_float = T::from_f64(KK as f64);
+    let mut p1 = T::C_ZERO;
     //-----------------------------------------------------------------------
     //     SCALE P2 AND SUM BY SCLE
     //-----------------------------------------------------------------------
-    let mut p2 = Complex64::new(SCLE, 0.0);
-    let FNF = order - (IFNU as f64);
-    let TFNF = FNF + FNF;
-    let mut BK = (gamma_ln(FKK + TFNF + 1.0).unwrap()
-        - gamma_ln(FKK + 1.0).unwrap()
-        - gamma_ln(TFNF + 1.0).unwrap())
+    let mut p2 = Complex::<T>::new(scale, T::ZERO);
+    let fractional_order = order.fract();
+    let twice_fractional_order = fractional_order + fractional_order;
+    let mut BK = (gamma_ln(kk_float + twice_fractional_order + T::one()).unwrap()
+        - gamma_ln(kk_float + T::one()).unwrap()
+        - gamma_ln(twice_fractional_order + T::one()).unwrap())
     .exp();
-    let mut sumr = c_zero();
+    let mut sumr = T::C_ZERO;
     for _ in 0..(KK - INU) {
         let pt = p2;
-        p2 = p1 + (FKK + FNF) * (rz * p2);
+        p2 = p1 + (kk_float + fractional_order) * (rz * p2);
         p1 = pt;
-        AK = 1.0 - TFNF / (FKK + TFNF);
+        AK = T::one() - twice_fractional_order / (kk_float + twice_fractional_order);
         ACK = BK * AK;
         sumr += (ACK + BK) * p1;
         BK = ACK;
-        FKK -= 1.0;
+        kk_float -= T::one();
     }
-    let mut y = c_zeros(N);
-    y[N - 1] = p2;
-    if N != 1 {
-        for i in 1..N {
+    let mut y = T::c_zeros(n);
+    y[n - 1] = p2;
+    if n != 1 {
+        for i in 1..n {
             let pt = p2;
-            p2 = p1 + (FKK + FNF) * (rz * pt);
+            p2 = p1 + (kk_float + fractional_order) * (rz * pt);
             p1 = pt;
-            AK = 1.0 - TFNF / (FKK + TFNF);
+            AK = T::one() - twice_fractional_order / (kk_float + twice_fractional_order);
             ACK = BK * AK;
             sumr += (ACK + BK) * p1;
             BK = ACK;
-            FKK -= 1.0;
-            y[N - (i + 1)] = p2;
+            kk_float -= T::one();
+            y[n - (i + 1)] = p2;
         }
     }
-    if IFNU > 0 {
-        for _i in 0..IFNU {
+    if int_order > 0 {
+        for _i in 0..int_order {
             let pt = p2;
-            p2 = p1 + (FKK + FNF) * (rz * pt);
+            p2 = p1 + (kk_float + fractional_order) * (rz * pt);
             p1 = pt;
-            AK = 1.0 - TFNF / (FKK + TFNF);
+            AK = T::one() - twice_fractional_order / (kk_float + twice_fractional_order);
             ACK = BK * AK;
             sumr += (ACK + BK) * p1;
             BK = ACK;
-            FKK -= 1.0;
+            kk_float -= T::one();
         }
     }
 
     let mut pt = z;
-    if KODE == Scaling::Scaled {
-        pt.re = 0.0;
+    if scaling == Scaling::Scaled {
+        pt.re = T::ZERO;
     }
-    p1 = -FNF * rz.ln() + pt;
-    let AP = gamma_ln(1.0 + FNF).unwrap();
+    p1 = -fractional_order * rz.ln() + pt;
+    let AP = gamma_ln(T::one() + fractional_order).unwrap();
     p1 -= AP;
     //-----------------------------------------------------------------------
     //     THE DIVISION CEXP(PT)/(SUM+P2) IS ALTERED TO AVOID OVERFLOW
@@ -938,34 +963,34 @@ fn i_miller(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
     for element in y.iter_mut() {
         *element *= cnorm;
     }
-    Ok((y, NZ))
+    Ok((y, nz))
 }
 
 // i_wronksian computes the i bessel function for re(z) >= 0.0 by
 // normalizing the i function ratios from zrati by the Wronskian
 // Originally ZWRSK
-fn i_wronksian(
-    zr: Complex64,
-    order: f64,
-    KODE: Scaling,
-    N: usize,
-    y: &mut [Complex64],
-) -> BesselResult<usize> {
+fn i_wronksian<T: BesselFloat>(
+    zr: Complex<T>,
+    order: T,
+    scaling: Scaling,
+    n: usize,
+    y: &mut [Complex<T>],
+) -> Result<usize, BesselError<T>> {
     //-----------------------------------------------------------------------
     //     I(FNU+I-1,Z) BY BACKWARD RECURRENCE FOR RATIOS
     //     Y(I)=I(FNU+I,Z)/I(FNU+I-1,Z) FROM CRATI NORMALIZED BY THE
     //     WRONSKIAN WITH K(FNU,Z) AND K(FNU+1,Z) FROM CBKNU.
     //-----------------------------------------------------------------------
-    let NZ = 0;
-    let (cw, _) = k_right_half_plane(zr, order, KODE, 2)?;
-    let y_ratios = ratios_i(zr, order, N);
+    let nz = 0;
+    let (cw, _) = k_right_half_plane(zr, order, scaling, 2)?;
+    let y_ratios = ratios_i(zr, order, n);
     //-----------------------------------------------------------------------
     //     RECUR FORWARD ON I(FNU+1,Z) = R(FNU,Z)*I(FNU,Z),
     //     R(FNU+J-1,Z)=Y(J),  J=1,...,N
     //-----------------------------------------------------------------------
-    let mut cinu = c_one();
-    if KODE == Scaling::Scaled {
-        cinu = Complex64::cis(zr.im);
+    let mut cinu = T::C_ONE;
+    if scaling == Scaling::Scaled {
+        cinu = Complex::<T>::cis(zr.im);
     }
     //-----------------------------------------------------------------------
     //     ON LOW EXPONENT MACHINES THE K FUNCTIONS CAN BE CLOSE TO BOTH
@@ -974,12 +999,12 @@ fn i_wronksian(
     //     THE RESULT IS ON SCALE.
     //-----------------------------------------------------------------------
     let acw = cw[1].abs();
-    let CSCLR = if acw <= MACHINE_CONSTANTS.absolute_approximation_limit {
-        1.0 / MACHINE_CONSTANTS.abs_error_tolerance
-    } else if acw >= 1.0 / MACHINE_CONSTANTS.absolute_approximation_limit {
-        MACHINE_CONSTANTS.abs_error_tolerance
+    let CSCLR = if acw <= T::MACHINE_CONSTANTS.absolute_approximation_limit {
+        T::one() / T::MACHINE_CONSTANTS.abs_error_tolerance
+    } else if acw >= T::one() / T::MACHINE_CONSTANTS.absolute_approximation_limit {
+        T::MACHINE_CONSTANTS.abs_error_tolerance
     } else {
-        1.0
+        T::one()
     };
     let c1 = cw[0] * CSCLR;
     let c2 = cw[1] * CSCLR;
@@ -992,11 +1017,11 @@ fn i_wronksian(
     ct = ct.conj() / ct_abs;
     cinu = (cinu / ct_abs) * ct;
     y[0] = cinu * CSCLR;
-    for i in 1..N {
+    for i in 1..n {
         cinu *= y_ratios[i - 1];
         y[i] = cinu * CSCLR;
     }
-    Ok(NZ)
+    Ok(nz)
 }
 
 /// Applies the analytic continuation formula
@@ -1006,13 +1031,13 @@ fn i_wronksian(
 /// to continue the k function from the right half to the left
 /// half z plane
 /// Originally ZACON
-pub fn analytic_continuation(
-    z: Complex64,
-    order: f64,
+pub fn analytic_continuation<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
     scaling: Scaling,
     rotation: RotationDirection,
     n: usize,
-) -> BesselResult {
+) -> Result<BesselValues<T>, BesselError<T>> {
     let mut nz = 0;
     let zn = -z;
     let (mut y, _) = i_right_half_plane(zn, order, scaling, n)?;
@@ -1026,17 +1051,17 @@ pub fn analytic_continuation(
         // but the amos code defaults to an overflow, if NW != 0
     }
     let mut s1 = cy[0];
-    let SGN = -PI * rotation.signum();
-    let mut csgn = Complex64::new(0.0, SGN);
+    let SGN = -T::PI() * T::from_f64(rotation.signum());
+    let mut csgn = Complex::<T>::new(T::ZERO, SGN);
     if scaling == Scaling::Scaled {
-        csgn *= Complex64::cis(-zn.im);
+        csgn *= Complex::<T>::cis(-zn.im);
     }
     //-----------------------------------------------------------------------
     //     CALCULATE CSPN=EXP(FNU*PI*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
     //     WHEN FNU IS LARGE
     //-----------------------------------------------------------------------
-    let mut cspn = Complex64::cis(order.fract() * SGN);
-    if order as i64 % 2 != 0 {
+    let mut cspn = Complex::<T>::cis(order.fract() * SGN);
+    if order.to_i64().unwrap() % 2 != 0 {
         cspn = -cspn;
     }
     let mut n_good = 0;
@@ -1055,7 +1080,7 @@ pub fn analytic_continuation(
     c1 = s2;
     c2 = y[1];
     // this value never used, as initialised and used if scaling is needed
-    let mut scaled_c2 = c_zero() * f64::NAN;
+    let mut scaled_c2 = T::C_ZERO * T::NAN;
     if scaling == Scaling::Scaled {
         nz += underflow_add_i_k(zn, &mut c1, &mut c2, &mut n_good);
         scaled_c2 = c1;
@@ -1067,23 +1092,23 @@ pub fn analytic_continuation(
 
     cspn = -cspn;
     let rz = calc_rz(zn);
-    let FN = order + 1.0;
+    let FN = order + T::one();
     let mut ck = FN * rz;
     //-----------------------------------------------------------------------
     //     SCALE NEAR EXPONENT EXTREMES DURING RECURRENCE ON K FUNCTIONS
     //-----------------------------------------------------------------------
     let abs_s2 = s2.abs();
-    let mut overflow_state = if abs_s2 <= MACHINE_CONSTANTS.overflow_boundary[0] {
+    let mut overflow_state = if abs_s2 <= T::MACHINE_CONSTANTS.overflow_boundary[0] {
         Overflow::NearUnder
-    } else if abs_s2 > MACHINE_CONSTANTS.overflow_boundary[1] {
+    } else if abs_s2 > T::MACHINE_CONSTANTS.overflow_boundary[1] {
         Overflow::NearOver
     } else {
         Overflow::None
     };
-    let mut boundary = MACHINE_CONSTANTS.overflow_boundary[overflow_state];
-    s1 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
-    s2 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
-    let mut recip_scaling_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+    let mut boundary = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state];
+    s1 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
+    s2 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
+    let mut recip_scaling_factor = T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
     for yi in y.iter_mut().skip(2) {
         //TODO common pattern below
         (s1, s2) = (s2, ck * s2 + s1);
@@ -1096,8 +1121,8 @@ pub fn analytic_continuation(
             scaled_c2 = c1;
             if n_good == 3 {
                 n_good = -4;
-                s1 = saved_c2 * MACHINE_CONSTANTS.scaling_factors[overflow_state];
-                s2 = scaled_c2 * MACHINE_CONSTANTS.scaling_factors[overflow_state];
+                s1 = saved_c2 * T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
+                s2 = scaled_c2 * T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
                 st = scaled_c2;
             }
         }
@@ -1106,12 +1131,12 @@ pub fn analytic_continuation(
         cspn = -cspn;
         if overflow_state != Overflow::NearOver && max_abs_component(c1) < boundary {
             overflow_state.increment();
-            boundary = MACHINE_CONSTANTS.overflow_boundary[overflow_state];
+            boundary = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state];
             s1 *= recip_scaling_factor;
             s2 = st;
-            s1 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
-            s2 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
-            recip_scaling_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+            s1 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
+            s2 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
+            recip_scaling_factor = T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
         }
     }
     Ok((y, nz))
@@ -1119,13 +1144,18 @@ pub fn analytic_continuation(
 
 /// i_right_half_plane computes the i function in the right half z plane
 /// Originally ZBINU
-pub fn i_right_half_plane(z: Complex64, order: f64, KODE: Scaling, N: usize) -> BesselResult {
+pub fn i_right_half_plane<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
+    KODE: Scaling,
+    N: usize,
+) -> BesselResult<T, usize> {
     let mut NZ = 0;
     let AZ = z.abs();
     let mut NN: usize = N;
-    let mut DFNU = order + ((N - 1) as f64);
-    let mut cy = c_zeros(N);
-    if AZ <= 2.0 || AZ * AZ * 0.25 <= DFNU + 1.0 {
+    let mut DFNU = order + T::from_usize(N - 1);
+    let mut cy = T::c_zeros(N);
+    if AZ <= T::two() || AZ * AZ * T::from_f64(0.25) <= DFNU + T::one() {
         //-----------------------------------------------------------------------
         //     POWER SERIES
         //-----------------------------------------------------------------------
@@ -1138,10 +1168,12 @@ pub fn i_right_half_plane(z: Complex64, order: f64, KODE: Scaling, N: usize) -> 
             return Ok((cy, NZ));
         }
 
-        DFNU = order + ((NN as f64) - 1.0);
+        DFNU = order + (T::from_usize(NN) - T::one());
     }
 
-    if (AZ >= MACHINE_CONSTANTS.asymptotic_z_limit) && ((DFNU <= 1.0) || (AZ + AZ >= DFNU * DFNU)) {
+    if (AZ >= T::MACHINE_CONSTANTS.asymptotic_z_limit)
+        && ((DFNU <= T::one()) || (AZ + AZ >= DFNU * DFNU))
+    {
         //-----------------------------------------------------------------------
         //     ASYMPTOTIC EXPANSION FOR LARGE Z
         //-----------------------------------------------------------------------
@@ -1150,7 +1182,7 @@ pub fn i_right_half_plane(z: Complex64, order: f64, KODE: Scaling, N: usize) -> 
         return Ok((cy, NZ));
     }
     let mut skip_az_rl_check = true;
-    if DFNU > 1.0 {
+    if DFNU > T::one() {
         skip_az_rl_check = false;
         //-----------------------------------------------------------------------
         //     OVERFLOW AND UNDERFLOW TEST ON I SEQUENCE FOR MILLER ALGORITHM
@@ -1161,16 +1193,19 @@ pub fn i_right_half_plane(z: Complex64, order: f64, KODE: Scaling, N: usize) -> 
         if NN == 0 {
             return Ok((cy, NZ));
         }
-        DFNU = order + ((NN - 1) as f64);
+        DFNU = order + T::from_usize(NN - 1);
     }
-    if (DFNU > MACHINE_CONSTANTS.asymptotic_order_limit)
-        || (AZ > MACHINE_CONSTANTS.asymptotic_order_limit)
+    if (DFNU > T::MACHINE_CONSTANTS.asymptotic_order_limit)
+        || (AZ > T::MACHINE_CONSTANTS.asymptotic_order_limit)
     {
         //-----------------------------------------------------------------------
         //     INCREMENT FNU+NN-1 UP TO FNUL, COMPUTE AND RECUR BACKWARD
         //-----------------------------------------------------------------------
-        let NUI_isize = (MACHINE_CONSTANTS.asymptotic_order_limit - DFNU) as isize + 1;
-        let NUI = NUI_isize.max(0) as usize;
+        let NUI = ((T::MACHINE_CONSTANTS.asymptotic_order_limit - DFNU).trunc() + T::one())
+            .max(T::zero())
+            .to_usize()
+            .unwrap();
+
         let (NW, NLAST) = ZBUNI(z, order, KODE, NN, NUI, &mut cy)?;
         NZ += NW;
         if NLAST == 0 {
@@ -1178,7 +1213,7 @@ pub fn i_right_half_plane(z: Complex64, order: f64, KODE: Scaling, N: usize) -> 
         }
         NN = NLAST;
     }
-    if !skip_az_rl_check && AZ <= MACHINE_CONSTANTS.asymptotic_z_limit {
+    if !skip_az_rl_check && AZ <= T::MACHINE_CONSTANTS.asymptotic_z_limit {
         //-----------------------------------------------------------------------
         //     MILLER ALGORITHM NORMALIZED BY THE SERIES
         //-----------------------------------------------------------------------
@@ -1192,7 +1227,7 @@ pub fn i_right_half_plane(z: Complex64, order: f64, KODE: Scaling, N: usize) -> 
     //     OVERFLOW TEST ON K FUNCTIONS USED IN WRONSKIAN
     //-----------------------------------------------------------------------
     if let Ok(NW) =
-        check_underflow_uniform_asymp_params(z, order, KODE, IKType::K, 2, &mut [c_one(); 2])
+        check_underflow_uniform_asymp_params(z, order, KODE, IKType::K, 2, &mut [T::C_ONE; 2])
     {
         if NW > 0 {
             Err(Overflow)
@@ -1201,7 +1236,7 @@ pub fn i_right_half_plane(z: Complex64, order: f64, KODE: Scaling, N: usize) -> 
             Ok((cy, nz))
         }
     } else {
-        Ok((vec![c_one(); NN], NN))
+        Ok((vec![T::C_ONE; NN], NN))
     }
 }
 
@@ -1217,26 +1252,26 @@ pub fn i_right_half_plane(z: Complex64, order: f64, KODE: Scaling, N: usize) -> 
 /// is called from complex_airy.
 ///
 /// Originally ZACAI
-pub fn ZACAI(
-    z: Complex64,
-    order: f64,
+pub fn ZACAI<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
     KODE: Scaling,
     rotation: RotationDirection,
     N: usize,
-) -> BesselResult {
+) -> BesselResult<T> {
     let mut NZ = 0;
     let zn = -z;
     let AZ = z.abs();
     let NN = N;
-    let DFNU = order + ((N - 1) as f64);
-    let (mut y, _) = if (AZ * AZ * 0.25 <= DFNU + 1.0) || (AZ <= 2.0) {
+    let DFNU = order + T::from_usize(N - 1);
+    let (mut y, _) = if (AZ * AZ * T::from_f64(0.25) <= DFNU + T::one()) || (AZ <= T::two()) {
         //-----------------------------------------------------------------------
         //     POWER SERIES FOR THE I FUNCTION
         //-----------------------------------------------------------------------
         let (y, NW_signed) = i_power_series(zn, order, KODE, NN)?;
         debug_assert!(NW_signed >= 0);
         (y, NW_signed.unsigned_abs())
-    } else if AZ >= MACHINE_CONSTANTS.asymptotic_z_limit {
+    } else if AZ >= T::MACHINE_CONSTANTS.asymptotic_z_limit {
         //-----------------------------------------------------------------------
         //     ASYMPTOTIC EXPANSION FOR LARGE Z FOR THE I FUNCTION
         //-----------------------------------------------------------------------
@@ -1254,17 +1289,17 @@ pub fn ZACAI(
     if nz != 0 {
         return Err(Overflow);
     }
-    let SGN = -PI * rotation.signum();
-    let mut csgn = Complex64::new(0.0, SGN);
+    let SGN = -T::PI() * T::from_f64(rotation.signum());
+    let mut csgn = Complex::<T>::new(T::ZERO, SGN);
     if KODE == Scaling::Scaled {
-        csgn = Complex64::I * csgn.im * Complex64::cis(-zn.im);
+        csgn = T::I * csgn.im * Complex::<T>::cis(-zn.im);
     }
     //-----------------------------------------------------------------------
     //     CALCULATE CSPN=EXP(FNU*PI*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
     //     WHEN FNU IS LARGE
     //-----------------------------------------------------------------------
-    let INU = order as usize;
-    let mut cspn = Complex64::cis(order.fract() * SGN);
+    let INU = order.to_usize().unwrap();
+    let mut cspn = Complex::<T>::cis(order.fract() * SGN);
     if !INU.is_multiple_of(2) {
         cspn = -cspn;
     }
@@ -1285,27 +1320,27 @@ pub fn ZACAI(
 /// `rotation` indicates the direction of rotation for analytic continuation.
 ///
 /// Originally ZUNK1
-fn ZUNK1(
-    z: Complex64,
-    order: f64,
+fn ZUNK1<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
     scaling: Scaling,
     rotation: RotationDirection,
     n: usize,
-) -> BesselResult {
+) -> BesselResult<T> {
     let mut found_one_good_entry = false;
     let mut nz = 0;
     //-----------------------------------------------------------------------
     //     EXP(-ALIM)=EXP(-ELIM)/TOL=APPROX. ONE PRECISION GREATER THAN
     //     THE UNDERFLOW LIMIT
     //-----------------------------------------------------------------------
-    let zr = if z.re < 0.0 { -z } else { z };
-    let mut phi = [c_zero(); 2];
-    let mut zeta1 = [c_zero(); 2];
-    let mut zeta2 = [c_zero(); 2];
-    let mut sum = [c_zero(); 2];
-    let mut cy = [c_zero(); 2];
+    let zr = if z.re < T::ZERO { -z } else { z };
+    let mut phi = [T::C_ZERO; 2];
+    let mut zeta1 = [T::C_ZERO; 2];
+    let mut zeta2 = [T::C_ZERO; 2];
+    let mut sum = [T::C_ZERO; 2];
+    let mut cy = [T::C_ZERO; 2];
     let mut n_elements_set = 0;
-    let mut y = c_zeros(n);
+    let mut y = T::c_zeros(n);
     let mut k_overflow_state = Overflow::NearUnder;
 
     let mut j = 1;
@@ -1313,24 +1348,24 @@ fn ZUNK1(
         n_elements_set = i + 1;
         // j flip-flops between 0 and 1 using j = 1-j
         j = 1 - j;
-        let modified_order = order + (i as f64);
+        let modified_order = order + T::from_usize(i);
 
         let sum_opt;
         (phi[j], zeta1[j], zeta2[j], sum_opt) = zunik(zr, modified_order, IKType::K, false);
         sum[j] = sum_opt.unwrap();
         let mut s1 = -scaling.scale_zetas(zr, modified_order, zeta1[j], zeta2[j]);
-        let of = Overflow::find_overflow(s1.re, phi[j], 0.0);
+        let of = Overflow::find_overflow(s1.re, phi[j], T::ZERO);
         if !found_one_good_entry {
             k_overflow_state = of;
         }
         match of {
             Overflow::Over(_) => return Err(Overflow),
             Overflow::Under(_) => {
-                if z.re < 0.0 {
+                if z.re < T::ZERO {
                     return Err(Overflow);
                 }
                 found_one_good_entry = false;
-                y[i] = c_zero();
+                y[i] = T::C_ZERO;
                 nz += 1;
             }
             Overflow::None | Overflow::NearOver | Overflow::NearUnder => {
@@ -1339,28 +1374,28 @@ fn ZUNK1(
                 //     EXPONENT EXTREMES
                 //-----------------------------------------------------------------------
                 let mut s2 = phi[j] * sum[j];
-                s1 = MACHINE_CONSTANTS.scaling_factors[k_overflow_state] * s1.exp();
+                s1 = T::MACHINE_CONSTANTS.scaling_factors[k_overflow_state] * s1.exp();
                 s2 *= s1;
                 let will_underflow = will_underflow(
                     s2,
-                    MACHINE_CONSTANTS.overflow_boundary[0],
-                    MACHINE_CONSTANTS.abs_error_tolerance,
+                    T::MACHINE_CONSTANTS.overflow_boundary[0],
+                    T::MACHINE_CONSTANTS.abs_error_tolerance,
                 );
                 if k_overflow_state != Overflow::NearUnder || !will_underflow {
                     cy[found_one_good_entry as usize] = s2;
-                    y[i] = s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[k_overflow_state];
+                    y[i] = s2 * T::MACHINE_CONSTANTS.reciprocal_scaling_factors[k_overflow_state];
                     if found_one_good_entry {
                         break;
                     }
                     found_one_good_entry = true;
                 } else if will_underflow {
-                    if z.re < 0.0 {
+                    if z.re < T::ZERO {
                         return Err(Overflow);
                     }
-                    y[i] = c_zero();
+                    y[i] = T::C_ZERO;
                     nz += 1;
-                    if i > 0 && y[i - 1] != c_zero() {
-                        y[i - 1] = c_zero();
+                    if i > 0 && y[i - 1] != T::C_ZERO {
+                        y[i - 1] = T::C_ZERO;
                         nz += 1
                     }
                 }
@@ -1374,7 +1409,7 @@ fn ZUNK1(
         //     TEST LAST MEMBER FOR UNDERFLOW AND OVERFLOW. SET SEQUENCE TO ZERO
         //     ON UNDERFLOW.
         //-----------------------------------------------------------------------
-        let modified_order = order + ((n - 1) as f64);
+        let modified_order = order + T::from_usize(n - 1);
         let (phi, zet1d, zet2d, _sumd) = zunik(
             zr,
             modified_order,
@@ -1383,13 +1418,13 @@ fn ZUNK1(
         );
         let overflow_test = -scaling.scale_zetas(zr, modified_order, zet1d, zet2d);
 
-        match Overflow::find_overflow(overflow_test.re.abs(), phi, 0.0) {
+        match Overflow::find_overflow(overflow_test.re.abs(), phi, T::ZERO) {
             Overflow::Over(_) => return Err(Overflow),
             Overflow::Under(_) => {
-                return if z.re < 0.0 {
+                return if z.re < T::ZERO {
                     Err(Overflow)
                 } else {
-                    Ok((vec![c_zero(); n], n))
+                    Ok((vec![T::C_ZERO; n], n))
                 };
             }
             _ => (),
@@ -1416,15 +1451,15 @@ fn ZUNK1(
     //     ANALYTIC CONTINUATION FOR RE(Z) < 0.0
     //-----------------------------------------------------------------------
     nz = 0;
-    let rotation_angle = -PI * rotation.signum();
+    let rotation_angle = -T::PI() * T::from_f64(rotation.signum());
     //-----------------------------------------------------------------------
     //     CSPN AND CSGN ARE COEFF OF K AND I FUNCTIONS RESP.
     //-----------------------------------------------------------------------
 
-    let integer_order = order as i64;
+    let integer_order = order.to_i64().unwrap();
     let order_frac = order.fract();
     let modified_int_order = integer_order + (n as i64) - 1;
-    let mut cspn = Complex64::cis(order_frac * rotation_angle);
+    let mut cspn = Complex::<T>::cis(order_frac * rotation_angle);
     if (modified_int_order % 2) != 0 {
         cspn = -cspn;
     }
@@ -1434,7 +1469,7 @@ fn ZUNK1(
     let mut remaining_n = n;
     for (i, yi) in y.iter_mut().enumerate().rev() {
         remaining_n = i;
-        let modified_order = order + (i as f64);
+        let modified_order = order + T::from_usize(i);
         //-----------------------------------------------------------------------
         //     LOGIC TO SORT OUT CASES WHOSE PARAMETERS WERE SET FOR THE K
         //     FUNCTION ABOVE
@@ -1446,7 +1481,7 @@ fn ZUNK1(
         //-----------------------------------------------------------------------
         //     TEST FOR UNDERFLOW AND OVERFLOW
         //-----------------------------------------------------------------------
-        let of = Overflow::find_overflow(s1.re, phid, 0.0);
+        let of = Overflow::find_overflow(s1.re, phid, T::ZERO);
         if !found_one_good_entry && !matches!(of, Overflow::Under(_)) {
             i_overflow_state = of;
         }
@@ -1454,27 +1489,27 @@ fn ZUNK1(
             Overflow::Over(_) => {
                 return Err(Overflow);
             }
-            Overflow::Under(_) => c_zero(),
+            Overflow::Under(_) => T::C_ZERO,
             Overflow::NearOver | Overflow::NearUnder | Overflow::None => {
                 let st = phid * sumd;
-                let mut s2 = Complex64::I * st * rotation_angle;
-                s1 = s1.exp() * MACHINE_CONSTANTS.scaling_factors[i_overflow_state];
+                let mut s2 = T::I * st * rotation_angle;
+                s1 = s1.exp() * T::MACHINE_CONSTANTS.scaling_factors[i_overflow_state];
                 s2 *= s1;
                 if i_overflow_state == Overflow::NearUnder
                     && will_underflow(
                         s2,
-                        MACHINE_CONSTANTS.overflow_boundary[0],
-                        MACHINE_CONSTANTS.abs_error_tolerance,
+                        T::MACHINE_CONSTANTS.overflow_boundary[0],
+                        T::MACHINE_CONSTANTS.abs_error_tolerance,
                     )
                 {
-                    s2 = c_zero();
+                    s2 = T::C_ZERO;
                 }
                 s2
             }
         };
         cy[found_one_good_entry as usize] = s2;
         let c2 = s2;
-        s2 *= MACHINE_CONSTANTS.reciprocal_scaling_factors[i_overflow_state];
+        s2 *= T::MACHINE_CONSTANTS.reciprocal_scaling_factors[i_overflow_state];
         //-----------------------------------------------------------------------
         //     ADD I AND K FUNCTIONS, K SEQUENCE IN Y(I), I=1,N
         //-----------------------------------------------------------------------
@@ -1484,7 +1519,7 @@ fn ZUNK1(
         }
         *yi = s1 * cspn + s2;
         cspn = -cspn;
-        if c2 == c_zero() {
+        if c2 == T::C_ZERO {
             found_one_good_entry = false;
         } else {
             if found_one_good_entry {
@@ -1501,10 +1536,11 @@ fn ZUNK1(
         //-----------------------------------------------------------------------
         let [mut s1, mut s2] = cy;
         let mut reciprocal_scale_factor =
-            MACHINE_CONSTANTS.reciprocal_scaling_factors[i_overflow_state];
-        let mut ASCLE = MACHINE_CONSTANTS.overflow_boundary[i_overflow_state];
+            T::MACHINE_CONSTANTS.reciprocal_scaling_factors[i_overflow_state];
+        let mut absolute_approximation_limit =
+            T::MACHINE_CONSTANTS.overflow_boundary[i_overflow_state];
         for (i, yi) in y.iter_mut().enumerate().take(remaining_n).rev() {
-            let modified_order = order + (i + 1) as f64;
+            let modified_order = order + T::from_usize(i + 1);
             (s1, s2) = (s2, s1 + modified_order * (rz * s2));
             let mut unscaled_s2 = s2 * reciprocal_scale_factor;
             let ck = unscaled_s2;
@@ -1518,17 +1554,17 @@ fn ZUNK1(
             if i_overflow_state == Overflow::NearOver {
                 continue;
             }
-            if max_abs_component(unscaled_s2) <= ASCLE {
+            if max_abs_component(unscaled_s2) <= absolute_approximation_limit {
                 continue;
             }
             i_overflow_state.increment();
-            ASCLE = MACHINE_CONSTANTS.overflow_boundary[i_overflow_state];
+            absolute_approximation_limit = T::MACHINE_CONSTANTS.overflow_boundary[i_overflow_state];
             s1 *= reciprocal_scale_factor;
             s2 = ck; // ck is previously calculated s2 * reciprocal_scale_factor
-            s1 *= MACHINE_CONSTANTS.scaling_factors[i_overflow_state];
-            s2 *= MACHINE_CONSTANTS.scaling_factors[i_overflow_state];
+            s1 *= T::MACHINE_CONSTANTS.scaling_factors[i_overflow_state];
+            s2 *= T::MACHINE_CONSTANTS.scaling_factors[i_overflow_state];
             reciprocal_scale_factor =
-                MACHINE_CONSTANTS.reciprocal_scaling_factors[i_overflow_state];
+                T::MACHINE_CONSTANTS.reciprocal_scaling_factors[i_overflow_state];
         }
     }
     Ok((y, nz))
@@ -1544,28 +1580,28 @@ fn ZUNK1(
 /// `rotation` indicates the direction of rotation for analytic continuation.
 ///
 /// Originally ZUNK2
-fn ZUNK2(
-    z: Complex64,
-    order: f64,
+fn ZUNK2<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
     scaling: Scaling,
     rotation: RotationDirection,
     n: usize,
-) -> BesselResult {
-    const CR1: Complex64 = Complex64::new(1.0, 1.73205080756887729);
-    const CR2: Complex64 = Complex64::new(-0.5, -8.66025403784438647e-01);
+) -> BesselResult<T> {
+    let CR1: Complex<T> = Complex::<T>::new(T::one(), T::from_f64(1.73205080756887729));
+    let CR2: Complex<T> = Complex::<T>::new(-T::half(), -T::from_f64(8.66025403784438647e-01));
 
     let mut found_one_good_entry = false;
     let mut nz = 0;
-    let mut y = c_zeros(n);
-    let zr = if z.re < 0.0 { -z } else { z };
-    let mut zn = -Complex64::I * zr;
+    let mut y = T::c_zeros(n);
+    let zr = if z.re < T::ZERO { -z } else { z };
+    let mut zn = -T::I * zr;
     let mut zb = zr;
-    let integer_order = order as usize;
+    let integer_order = order.to_usize().unwrap();
     let order_fract = order.fract();
-    let ANG = -FRAC_PI_2 * order_fract;
-    let c2 = -Complex64::I * Complex64::from_polar(FRAC_PI_2, ANG);
-    let mut cs = CR1 * c2 * CIP[integer_order % 4].conj();
-    if zr.im <= 0.0 {
+    let ANG = -T::FRAC_PI_2() * order_fract;
+    let c2 = -T::I * Complex::<T>::from_polar(T::FRAC_PI_2(), ANG);
+    let mut cs = CR1 * c2 * T::from_cpx64(CIP[integer_order % 4].conj());
+    if zr.im <= T::ZERO {
         zn.re = -zn.re;
         zb.im = -zb.im;
     }
@@ -1575,13 +1611,13 @@ fn ZUNK2(
     //     CONJUGATION SINCE THE K FUNCTION IS REAL ON THE POSITIVE REAL AXIS
     //-----------------------------------------------------------------------
 
-    let mut phi = [c_zero(); 2];
-    let mut arg = [c_zero(); 2];
-    let mut zeta1 = [c_zero(); 2];
-    let mut zeta2 = [c_zero(); 2];
+    let mut phi = [T::C_ZERO; 2];
+    let mut arg = [T::C_ZERO; 2];
+    let mut zeta1 = [T::C_ZERO; 2];
+    let mut zeta2 = [T::C_ZERO; 2];
     let mut asum = [None; 2];
     let mut bsum = [None; 2];
-    let mut cy = [c_zero(); 2];
+    let mut cy = [T::C_ZERO; 2];
     let mut j = 1;
     let mut overflow_state_k = Overflow::None;
     let mut n_elements_set = 0;
@@ -1590,24 +1626,28 @@ fn ZUNK2(
         n_elements_set = i + 1;
         // j flip-flops between 0 and 1 using  = 1-j
         j = 1 - j;
-        let modified_order = order + (i as f64);
+        let modified_order = order + T::from_usize(i);
         (phi[j], arg[j], zeta1[j], zeta2[j], asum[j], bsum[j]) = zunhj(zn, modified_order, false);
         let s1 = -scaling.scale_zetas(zb, modified_order, zeta1[j], zeta2[j]);
-        let of = Overflow::find_overflow(s1.re, phi[j], -0.25 * arg[j].abs().ln() - AIC);
+        let of = Overflow::find_overflow(
+            s1.re,
+            phi[j],
+            T::from_f64(-0.25) * arg[j].abs().ln() - T::from_f64(AIC),
+        );
 
-        let mut handle_underflow = |of_already: &mut bool, cs_: &mut Complex64| {
+        let mut handle_underflow = |of_already: &mut bool, cs_: &mut Complex<T>| {
             //-----------------------------------------------------------------------
             //     FOR ZR < 0.0, THE I FUNCTION TO BE ADDED WILL OVERFLOW
             //-----------------------------------------------------------------------
-            if z.re < 0.0 {
+            if z.re < T::ZERO {
                 return Err(Overflow);
             }
             *of_already = false;
-            y[i] = c_zero();
+            y[i] = T::C_ZERO;
             nz += 1;
-            *cs_ *= -Complex64::I;
-            if i != 0 && y[i - 1] != c_zero() {
-                y[i - 1] = c_zero();
+            *cs_ *= -T::I;
+            if i != 0 && y[i - 1] != T::C_ZERO {
+                y[i - 1] = T::C_ZERO;
                 nz += 1;
             }
             Ok(())
@@ -1631,23 +1671,23 @@ fn ZUNK2(
                 let (airy, d_airy) = airy_pair(c2);
                 let pt = ((d_airy * bsum[j].unwrap()) * CR2 + (airy * asum[j].unwrap())) * phi[j];
                 let mut s2 = pt * cs;
-                let s1 = s1.exp() * MACHINE_CONSTANTS.scaling_factors[overflow_state_k];
+                let s1 = s1.exp() * T::MACHINE_CONSTANTS.scaling_factors[overflow_state_k];
                 s2 *= s1;
                 if overflow_state_k == Overflow::NearUnder
                     && will_underflow(
                         s2,
-                        MACHINE_CONSTANTS.overflow_boundary[0],
-                        MACHINE_CONSTANTS.abs_error_tolerance,
+                        T::MACHINE_CONSTANTS.overflow_boundary[0],
+                        T::MACHINE_CONSTANTS.abs_error_tolerance,
                     )
                 {
                     handle_underflow(&mut found_one_good_entry, &mut cs)?
                 }
-                if zr.im <= 0.0 {
+                if zr.im <= T::ZERO {
                     s2 = s2.conj();
                 }
                 cy[found_one_good_entry as usize] = s2;
-                y[i] = s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_k];
-                cs = -Complex64::I * cs;
+                y[i] = s2 * T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_k];
+                cs = -T::I * cs;
                 if found_one_good_entry {
                     break;
                 }
@@ -1657,10 +1697,10 @@ fn ZUNK2(
     }
 
     let rz = calc_rz(zr);
-    let mut phid = c_zero();
-    let mut argd = c_zero();
-    let mut zeta1d = c_zero();
-    let mut zeta2d = c_zero();
+    let mut phid = T::C_ZERO;
+    let mut argd = T::C_ZERO;
+    let mut zeta1d = T::C_ZERO;
+    let mut zeta2d = T::C_ZERO;
     let mut asumd = None;
     let mut bsumd = None;
     let do_overflow_check = n_elements_set < n;
@@ -1669,18 +1709,18 @@ fn ZUNK2(
         //     TEST LAST MEMBER FOR UNDERFLOW AND OVERFLOW. SET SEQUENCE TO ZERO;
         //     ON UNDERFLOW.;
         //-----------------------------------------------------------------------;
-        let modified_order = order + ((n - 1) as f64);
+        let modified_order = order + T::from_usize(n - 1);
         (phid, argd, zeta1d, zeta2d, asumd, bsumd) =
             zunhj(zn, modified_order, rotation == RotationDirection::None);
         let s1 = -scaling.scale_zetas(zb, modified_order, zeta1d, zeta2d);
-        match Overflow::find_overflow(s1.re, phid, 0.0) {
+        match Overflow::find_overflow(s1.re, phid, T::ZERO) {
             Overflow::Over(_) => return Err(Overflow),
 
             Overflow::Under(_) => {
-                if z.re < 0.0 {
+                if z.re < T::ZERO {
                     return Err(Overflow);
                 }
-                return Ok((c_zeros(n), nz));
+                return Ok((T::c_zeros(n), nz));
             }
             Overflow::NearOver | Overflow::None | Overflow::NearUnder => (),
         }
@@ -1703,13 +1743,13 @@ fn ZUNK2(
     //     ANALYTIC CONTINUATION FOR RE(Z) < 0.0
     //-----------------------------------------------------------------------
     nz = 0;
-    let sgn = -PI * rotation.signum();
+    let sgn = -T::PI() * T::from_f64(rotation.signum());
     //-----------------------------------------------------------------------
     //     CSPN AND CSGN ARE COEFF OF K AND I FUNCIONS RESP.
     //-----------------------------------------------------------------------
-    let csgn = if zr.im <= 0.0 { -sgn } else { sgn };
+    let csgn = if zr.im <= T::ZERO { -sgn } else { sgn };
     let modified_integer_order = integer_order + n - 1;
-    let mut cspn = Complex64::cis(order_fract * sgn);
+    let mut cspn = Complex::<T>::cis(order_fract * sgn);
     if modified_integer_order.is_odd() {
         cspn = -cspn;
     }
@@ -1720,10 +1760,10 @@ fn ZUNK2(
     //     CONJUGATION SINCE THE I FUNCTION IS REAL ON THE POSITIVE REAL AXIS
     //-----------------------------------------------------------------------;
     // TODO what's the actual maths below?
-    let cos_sin = Complex64::cis(ANG);
-    // let mut cs = Complex64::I * Complex64::from_polar(CSGNI, ANG);
-    let mut cs = csgn * Complex64::new(cos_sin.im, cos_sin.re);
-    cs *= CIP[modified_integer_order % 4];
+    let cos_sin = Complex::<T>::cis(ANG);
+    // let mut cs = Complex::<T>::I * Complex::<T>::from_polar(CSGNI, ANG);
+    let mut cs = csgn * Complex::<T>::new(cos_sin.im, cos_sin.re);
+    cs *= T::from_cpx64(CIP[modified_integer_order % 4]);
     let mut IUF = 0;
 
     found_one_good_entry = false;
@@ -1731,7 +1771,7 @@ fn ZUNK2(
     let mut remaining_n = n;
     for (i, yi) in y.iter_mut().enumerate().rev() {
         remaining_n = i;
-        let modified_order = order + (i as f64);
+        let modified_order = order + T::from_usize(i);
         //-----------------------------------------------------------------------
         //     LOGIC TO SORT OUT CASES WHOSE PARAMETERS WERE SET FOR THE K
         //     FUNCTION ABOVE
@@ -1757,7 +1797,11 @@ fn ZUNK2(
         }
         let mut s1 = scaling.scale_zetas(zb, modified_order, zeta1d, zeta2d);
 
-        let of = Overflow::find_overflow(s1.re, phid, -0.25 * argd.abs().ln() - AIC);
+        let of = Overflow::find_overflow(
+            s1.re,
+            phid,
+            T::from_f64(-0.25) * argd.abs().ln() - T::from_f64(AIC),
+        );
         if !found_one_good_entry {
             overflow_state_i = if matches!(of, Overflow::Under(_)) {
                 Overflow::None
@@ -1767,31 +1811,31 @@ fn ZUNK2(
         }
         let mut s2 = match of {
             Overflow::Over(_) => return Err(Overflow),
-            Overflow::Under(_) => c_zero(),
+            Overflow::Under(_) => T::C_ZERO,
             Overflow::NearOver | Overflow::None | Overflow::NearUnder => {
                 let (airy, d_airy) = airy_pair(argd);
                 let pt = ((d_airy * bsumd.unwrap()) + (airy * asumd.unwrap())) * phid;
                 let mut s2 = pt * cs;
-                s1 = s1.exp() * MACHINE_CONSTANTS.scaling_factors[overflow_state_i];
+                s1 = s1.exp() * T::MACHINE_CONSTANTS.scaling_factors[overflow_state_i];
                 s2 *= s1;
                 if overflow_state_i == Overflow::NearUnder
                     && will_underflow(
                         s2,
-                        MACHINE_CONSTANTS.overflow_boundary[0],
-                        MACHINE_CONSTANTS.abs_error_tolerance,
+                        T::MACHINE_CONSTANTS.overflow_boundary[0],
+                        T::MACHINE_CONSTANTS.abs_error_tolerance,
                     )
                 {
-                    s2 = c_zero();
+                    s2 = T::C_ZERO;
                 }
                 s2
             }
         };
-        if zr.im <= 0.0 {
+        if zr.im <= T::ZERO {
             s2 = s2.conj();
         }
         cy[found_one_good_entry as usize] = s2;
         let c2 = s2;
-        s2 *= MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_i];
+        s2 *= T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_i];
         //-----------------------------------------------------------------------;
         //     ADD I AND K FUNCTIONS, K SEQUENCE IN Y(I), I=1,N;
         //-----------------------------------------------------------------------;
@@ -1801,8 +1845,8 @@ fn ZUNK2(
         }
         *yi = s1 * cspn + s2;
         cspn = -cspn;
-        cs *= -Complex64::I;
-        if c2 == c_zero() {
+        cs *= -T::I;
+        if c2 == T::C_ZERO {
             found_one_good_entry = false;
         } else {
             if found_one_good_entry {
@@ -1820,11 +1864,12 @@ fn ZUNK2(
         //-----------------------------------------------------------------------
         let [mut s1, mut s2] = cy;
 
-        let mut recip_scale_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_i];
-        let mut ascle = MACHINE_CONSTANTS.overflow_boundary[overflow_state_i];
+        let mut recip_scale_factor =
+            T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_i];
+        let mut ascle = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state_i];
         // TODO recurr with assignment fn
         for (i, yi) in y.iter_mut().enumerate().take(remaining_n).rev() {
-            let modified_order = order + (i + 1) as f64;
+            let modified_order = order + T::from_usize(i + 1);
             (s1, s2) = (s2, s1 + modified_order * (rz * s2));
             let mut c2 = s2 * recip_scale_factor;
             let old_c2 = c2;
@@ -1836,12 +1881,13 @@ fn ZUNK2(
             cspn = -cspn;
             if overflow_state_i != Overflow::NearOver && max_abs_component(c2) > ascle {
                 overflow_state_i.increment();
-                ascle = MACHINE_CONSTANTS.overflow_boundary[overflow_state_i];
+                ascle = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state_i];
                 s1 *= recip_scale_factor;
                 s2 = old_c2;
-                s1 *= MACHINE_CONSTANTS.scaling_factors[overflow_state_i];
-                s2 *= MACHINE_CONSTANTS.scaling_factors[overflow_state_i];
-                recip_scale_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_i];
+                s1 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state_i];
+                s2 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state_i];
+                recip_scale_factor =
+                    T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state_i];
             }
         }
     }
@@ -1857,20 +1903,20 @@ fn ZUNK2(
 /// if z is _not_ imaginary_dominant.
 ///
 /// Originally ZBUNI
-fn ZBUNI(
-    z: Complex64,
-    order: f64,
+fn ZBUNI<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
     KODE: Scaling,
-    N: usize,
+    n: usize,
     NUI: usize,
-    y: &mut [Complex64],
-) -> Result<(usize, usize), BesselError> {
+    y: &mut [Complex<T>],
+) -> Result<(usize, usize), BesselError<T>> {
     let imaginary_dominant = imaginary_dominant(z);
     if NUI != 0 {
-        let mut FNUI = NUI as f64;
-        let DFNU = order + ((N - 1) as f64);
+        let mut FNUI = T::from_usize(NUI);
+        let DFNU = order + T::from_usize(n - 1);
         let GNU = DFNU + FNUI;
-        let mut cy = [c_zero(); 2];
+        let mut cy = [T::C_ZERO; 2];
         let (NW, NLAST) = if imaginary_dominant {
             //-----------------------------------------------------------------------
             //     ASYMPTOTIC EXPANSION FOR J(FNU,Z*EXP(M*FRAC_PI_2)) FOR LARGE FNU
@@ -1886,29 +1932,33 @@ fn ZBUNI(
             ZUNI1(z, GNU, KODE, 2, &mut cy)?
         };
         if NW != 0 {
-            return Ok((0, N));
+            return Ok((0, n));
         }
         //----------------------------------------------------------------------
         //     SCALE BACKWARD RECURRENCE, BRY(3) IS DEFINED BUT NEVER USED
         //----------------------------------------------------------------------
         let (mut overflow_state, mut ASCLE, mut CSCLR) =
-            if cy[0].abs() <= MACHINE_CONSTANTS.overflow_boundary[0] {
+            if cy[0].abs() <= T::MACHINE_CONSTANTS.overflow_boundary[0] {
                 (
                     Overflow::NearUnder,
-                    MACHINE_CONSTANTS.overflow_boundary[0],
-                    1.0 / MACHINE_CONSTANTS.abs_error_tolerance,
+                    T::MACHINE_CONSTANTS.overflow_boundary[0],
+                    T::one() / T::MACHINE_CONSTANTS.abs_error_tolerance,
                 )
-            } else if cy[0].abs() >= MACHINE_CONSTANTS.overflow_boundary[1] {
+            } else if cy[0].abs() >= T::MACHINE_CONSTANTS.overflow_boundary[1] {
                 (
                     Overflow::NearOver,
-                    MACHINE_CONSTANTS.overflow_boundary[2],
-                    MACHINE_CONSTANTS.abs_error_tolerance,
+                    T::MACHINE_CONSTANTS.overflow_boundary[2],
+                    T::MACHINE_CONSTANTS.abs_error_tolerance,
                 )
             } else {
-                (Overflow::None, MACHINE_CONSTANTS.overflow_boundary[1], 1.0)
+                (
+                    Overflow::None,
+                    T::MACHINE_CONSTANTS.overflow_boundary[1],
+                    T::one(),
+                )
             };
 
-        let mut CSCRR = 1.0 / CSCLR;
+        let mut CSCRR = T::one() / CSCLR;
         let mut s1 = cy[1] * CSCLR;
         let mut s2 = cy[0] * CSCLR;
         // working out rz in multiple steps seems to give different floating point answer.
@@ -1918,7 +1968,7 @@ fn ZBUNI(
             let st = s2;
             s2 = (DFNU + FNUI) * rz * s2 + s1;
             s1 = st;
-            FNUI -= 1.0;
+            FNUI -= T::one();
             if overflow_state == Overflow::NearOver {
                 continue;
             }
@@ -1927,27 +1977,27 @@ fn ZBUNI(
                 continue;
             }
             overflow_state.increment();
-            ASCLE = MACHINE_CONSTANTS.overflow_boundary[overflow_state];
+            ASCLE = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state];
             s1 *= CSCRR;
             s2 = st;
-            CSCLR *= MACHINE_CONSTANTS.abs_error_tolerance;
-            CSCRR = 1.0 / CSCLR;
+            CSCLR *= T::MACHINE_CONSTANTS.abs_error_tolerance;
+            CSCRR = T::one() / CSCLR;
             s1 *= CSCLR;
             s2 *= CSCLR;
         }
-        y[N - 1] = s2 * CSCRR;
-        if N == 1 {
+        y[n - 1] = s2 * CSCRR;
+        if n == 1 {
             return Ok((0, NLAST));
         }
-        let NL = N - 1;
-        FNUI = NL as f64;
+        let NL = n - 1;
+        FNUI = T::from_usize(NL);
         let mut K = NL;
         for _ in 0..NL {
             let st = s2;
             s2 = (order + FNUI) * (rz * s2) + s1;
             s1 = st;
             y[K - 1] = s2 * CSCRR;
-            FNUI -= 1.0;
+            FNUI -= T::one();
             K -= 1;
             if overflow_state == Overflow::NearOver {
                 continue;
@@ -1957,11 +2007,11 @@ fn ZBUNI(
                 continue;
             }
             overflow_state.increment();
-            ASCLE = MACHINE_CONSTANTS.overflow_boundary[overflow_state];
+            ASCLE = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state];
             s1 *= CSCRR;
             s2 = y[K - 1];
-            CSCLR *= MACHINE_CONSTANTS.abs_error_tolerance;
-            CSCRR = 1.0 / CSCLR;
+            CSCLR *= T::MACHINE_CONSTANTS.abs_error_tolerance;
+            CSCRR = T::one() / CSCLR;
             s1 *= CSCLR;
             s2 *= CSCLR;
         }
@@ -1973,13 +2023,13 @@ fn ZBUNI(
         //     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I
         //     AND FRAC_PI_2=PI/2
         //-----------------------------------------------------------------------
-        ZUNI2(z, order, KODE, N, y)?
+        ZUNI2(z, order, KODE, n, y)?
     } else {
         //-----------------------------------------------------------------------
         //     ASYMPTOTIC EXPANSION FOR I(FNU,Z) FOR LARGE FNU APPLIED IN
         //     -PI/3 <= ARG(Z) <= PI/3
         //-----------------------------------------------------------------------
-        ZUNI1(z, order, KODE, N, y)?
+        ZUNI1(z, order, KODE, n, y)?
     };
 
     Ok((NW, NLAST))
@@ -1996,37 +2046,37 @@ fn ZBUNI(
 /// y(i)=czero for i = nlast+1,n
 ///
 /// Originally ZUNI1
-fn ZUNI1(
-    z: Complex64,
-    order: f64,
+fn ZUNI1<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
     scaling: Scaling,
     n: usize,
-    y: &mut [Complex64],
-) -> BesselResult<(usize, usize)> {
+    y: &mut [Complex<T>],
+) -> Result<(usize, usize), BesselError<T>> {
     let mut nz = 0;
     let mut n_remaining = n;
     //-----------------------------------------------------------------------
     //     CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER
     //-----------------------------------------------------------------------
-    let mut modified_order = order.max(1.0);
+    let mut modified_order = order.max(T::one());
     let (_, zeta1, zeta2, _) = zunik(z, modified_order, IKType::I, true);
     let s1 = scaling.scale_zetas(z, modified_order, zeta1, zeta2);
     // phi is chosen here for refined tests to equal the original tests
     // which don't test refinement
-    match Overflow::find_overflow(s1.re, c_one(), 0.0) {
+    match Overflow::find_overflow(s1.re, T::C_ONE, T::ZERO) {
         Overflow::Over(_) => return Err(Overflow),
         Overflow::Under(_) => return Ok((n, 0)),
         _ => (),
     }
     let mut overflow_state = Overflow::None; // this value should never be used
-    let mut cy = [c_zero(); 2];
+    let mut cy = [T::C_ZERO; 2];
     let mut handle_underflow = |n_remaining: &mut usize,
-                                y: &mut [Complex64]|
-     -> BesselResult<bool> {
+                                y: &mut [Complex<T>]|
+     -> Result<bool, BesselError<T>> {
         //-----------------------------------------------------------------------
         //     SET UNDERFLOW AND UPDATE PARAMETERS
         //-----------------------------------------------------------------------
-        y[*n_remaining - 1] = c_zero();
+        y[*n_remaining - 1] = T::C_ZERO;
         nz += 1;
         *n_remaining -= 1;
         if *n_remaining == 0 {
@@ -2039,8 +2089,8 @@ fn ZUNI1(
         if *n_remaining == 0 {
             return Ok(true);
         }
-        let modified_order = order + ((*n_remaining - 1) as f64);
-        if modified_order < MACHINE_CONSTANTS.asymptotic_order_limit {
+        let modified_order = order + T::from_usize(*n_remaining - 1);
+        if modified_order < T::MACHINE_CONSTANTS.asymptotic_order_limit {
             return Ok(true);
         }
         Ok(false)
@@ -2048,15 +2098,15 @@ fn ZUNI1(
 
     'outer: loop {
         for i in 0..2.min(n_remaining) {
-            modified_order = order + ((n_remaining - (i + 1)) as f64);
+            modified_order = order + T::from_usize(n_remaining - (i + 1));
             let (phi, zeta1, zeta2, sum) = zunik(z, modified_order, IKType::I, false);
             let sum = sum.unwrap();
             let mut s1 = scaling.scale_zetas(z, modified_order, zeta1, zeta2);
             if scaling == Scaling::Scaled {
-                s1 += Complex64::new(0.0, z.im);
+                s1 += Complex::<T>::new(T::ZERO, z.im);
             }
 
-            let of = Overflow::find_overflow(s1.re, phi, 0.0);
+            let of = Overflow::find_overflow(s1.re, phi, T::ZERO);
             if i == 0 {
                 overflow_state = of;
             }
@@ -2074,13 +2124,13 @@ fn ZUNI1(
             //     SCALE S1 if CABS(S1) < ASCLE
             //-----------------------------------------------------------------------
             let mut s2 = phi * sum;
-            s1 = MACHINE_CONSTANTS.scaling_factors[overflow_state] * s1.exp();
+            s1 = T::MACHINE_CONSTANTS.scaling_factors[overflow_state] * s1.exp();
             s2 *= s1;
             if overflow_state == Overflow::NearUnder
                 && will_underflow(
                     s2,
-                    MACHINE_CONSTANTS.overflow_boundary[0],
-                    MACHINE_CONSTANTS.abs_error_tolerance,
+                    T::MACHINE_CONSTANTS.overflow_boundary[0],
+                    T::MACHINE_CONSTANTS.abs_error_tolerance,
                 )
             {
                 if handle_underflow(&mut n_remaining, y)? {
@@ -2090,7 +2140,7 @@ fn ZUNI1(
             }
             cy[i] = s2;
             y[n_remaining - i - 1] =
-                s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+                s2 * T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
         }
         break 'outer;
     }
@@ -2110,67 +2160,69 @@ fn ZUNI1(
 /// nlast != 0 is the number left to be computed by another
 /// formula for orders fnu to fnu+nlast-1 because fnu+nlast-1 < asymptotic_order_limit.
 /// y(i)=czero for i=nlast+1,n
-fn ZUNI2(
-    z: Complex64,
-    order: f64,
+fn ZUNI2<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
     scaling: Scaling,
     n: usize,
-    y: &mut [Complex64],
-) -> BesselResult<(usize, usize)> {
+    y: &mut [Complex<T>],
+) -> Result<(usize, usize), BesselError<T>> {
     let mut nz = 0;
     let mut n_remaining = n;
 
     //-----------------------------------------------------------------------
     //     ZN IS IN THE RIGHT HALF PLANE AFTER ROTATION BY CI OR -CI
     //-----------------------------------------------------------------------
-    let mut zn = Complex64::new(z.im, -z.re);
+    let mut zn = Complex::<T>::new(z.im, -z.re);
     let mut zb = z;
-    let integer_order = order as usize;
+    let integer_order = order.to_usize().unwrap();
 
     let build_c2 = |effective_n: usize| {
         let index = (integer_order + effective_n - 1) % 4;
-        let mut c2 = Complex64::cis(FRAC_PI_2 * order.fract()) * CIP[index];
-        if z.im <= 0.0 {
+        let mut c2 = Complex::<T>::cis(T::FRAC_PI_2() * order.fract()) * T::from_cpx64(CIP[index]);
+        if z.im <= T::zero() {
             c2 = c2.conj();
         }
         c2
     };
     let mut c2 = build_c2(n);
-    let sign_of_i = if z.im <= 0.0 {
+    let sign_of_i = if z.im <= T::zero() {
         zn.re = -zn.re;
         zb.im = -zb.im;
-        1.0
+        T::one()
     } else {
-        -1.0
+        -T::one()
     };
     //-----------------------------------------------------------------------
     //     CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER
     //-----------------------------------------------------------------------
-    let mut modified_order = order.max(1.0);
+    let mut modified_order = order.max(T::one());
     let (_, _, zeta1, zeta2, _, _) = zunhj(zn, modified_order, true);
 
     let s1 = scaling.scale_zetas(zb, modified_order, zeta1, zeta2);
 
     // phi is chosen here for refined tests to equal the original tests
     // which don't test refinement
-    match Overflow::find_overflow(s1.re, c_one(), 0.0) {
+    match Overflow::find_overflow(s1.re, T::C_ONE, T::zero()) {
         Overflow::Over(_) => return Err(Overflow),
         Overflow::Under(_) => return Ok((n, 0)),
         _ => (),
     }
 
-    debug_assert!(modified_order + (n - 1) as f64 > MACHINE_CONSTANTS.asymptotic_order_limit);
+    debug_assert!(
+        modified_order + T::from_usize(n - 1) > T::MACHINE_CONSTANTS.asymptotic_order_limit
+    );
 
     let mut overflow_state = Overflow::NearUnder;
-    let mut cy = [c_zero(); 2];
+    let mut cy = [T::C_ZERO; 2];
     let mut handle_underflow = |n_remaining: &mut usize,
-                                c2: &mut Complex64,
-                                y: &mut [Complex64]|
-     -> BesselResult<bool> {
+                                c2: &mut Complex<T>,
+                                y: &mut [Complex<T>]|
+     -> Result<bool, BesselError<T>> {
         //-----------------------------------------------------------------------
         //     SET UNDERFLOW AND UPDATE PARAMETERS
         //-----------------------------------------------------------------------
-        y[*n_remaining - 1] = c_zero();
+        y[*n_remaining - 1] = T::C_ZERO;
         nz += 1;
         *n_remaining -= 1;
         if *n_remaining == 0 {
@@ -2183,8 +2235,8 @@ fn ZUNI2(
         if *n_remaining == 0 {
             return Ok(true);
         }
-        let modified_order = order + ((*n_remaining - 1) as f64);
-        if modified_order < MACHINE_CONSTANTS.asymptotic_order_limit {
+        let modified_order = order + T::from_usize(*n_remaining - 1);
+        if modified_order < T::MACHINE_CONSTANTS.asymptotic_order_limit {
             return Ok(true);
         }
         *c2 = build_c2(*n_remaining);
@@ -2192,19 +2244,23 @@ fn ZUNI2(
     };
     'outer: loop {
         for i in 0..2.min(n_remaining) {
-            modified_order = order + ((n_remaining - (i + 1)) as f64);
+            modified_order = order + T::from_usize(n_remaining - (i + 1));
             let (phi, arg, zeta1, zeta2, asum, bsum) = zunhj(zn, modified_order, false);
             let asum = asum.unwrap();
             let bsum = bsum.unwrap();
             let mut s1 = scaling.scale_zetas(zb, modified_order, zeta1, zeta2);
             if scaling == Scaling::Scaled {
-                s1 += Complex64::I * z.im.abs();
+                s1 += T::I * z.im.abs();
             }
 
             //-----------------------------------------------------------------------
             //     TEST FOR UNDERFLOW AND OVERFLOW
             //-----------------------------------------------------------------------
-            let of = Overflow::find_overflow(s1.re, phi, -0.25 * arg.abs().ln() - AIC);
+            let of = Overflow::find_overflow(
+                s1.re,
+                phi,
+                T::from_f64(-0.25) * arg.abs().ln() - T::from_f64(AIC),
+            );
             if i == 0 {
                 overflow_state = of;
             }
@@ -2225,13 +2281,13 @@ fn ZUNI2(
             let (a_airy, d_airy) = airy_pair(arg);
 
             let mut s2 = phi * (d_airy * bsum + a_airy * asum);
-            let s1 = MACHINE_CONSTANTS.scaling_factors[overflow_state] * s1.exp();
+            let s1 = T::MACHINE_CONSTANTS.scaling_factors[overflow_state] * s1.exp();
             s2 *= s1;
             if overflow_state == Overflow::NearUnder
                 && will_underflow(
                     s2,
-                    MACHINE_CONSTANTS.overflow_boundary[0],
-                    MACHINE_CONSTANTS.abs_error_tolerance,
+                    T::MACHINE_CONSTANTS.overflow_boundary[0],
+                    T::MACHINE_CONSTANTS.abs_error_tolerance,
                 )
             {
                 if handle_underflow(&mut n_remaining, &mut c2, y)? {
@@ -2239,14 +2295,14 @@ fn ZUNI2(
                 }
                 continue 'outer;
             }
-            if z.im <= 0.0 {
+            if z.im <= T::ZERO {
                 s2 = s2.conj();
             }
             s2 *= c2;
             cy[i] = s2;
             y[n_remaining - i - 1] =
-                s2 * MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
-            c2 *= sign_of_i * Complex64::I;
+                s2 * T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+            c2 *= sign_of_i * T::I;
         }
         break 'outer;
     }
@@ -2258,14 +2314,14 @@ fn ZUNI2(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn recurr(
+fn recurr<T: BesselFloat>(
     forward: bool,
-    order: f64,
-    z: Complex64,
-    y: &mut [Complex64],
+    order: T,
+    z: Complex<T>,
+    y: &mut [Complex<T>],
     n_offset: usize,
-    mut s1: Complex64,
-    mut s2: Complex64,
+    mut s1: Complex<T>,
+    mut s2: Complex<T>,
     mut overflow_state: Overflow,
 ) {
     let rz = calc_rz(z);
@@ -2276,23 +2332,23 @@ fn recurr(
     } else {
         Either::Left(base_iterator.take(n_offset).rev())
     };
-    let index_adjustment = if forward { -1.0 } else { 1.0 };
+    let index_adjustment = if forward { -T::one() } else { T::one() };
 
-    let mut recip_scale_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
-    let mut boundary = MACHINE_CONSTANTS.overflow_boundary[overflow_state];
+    let mut recip_scale_factor = T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+    let mut boundary = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state];
 
     for (i, yi) in iterator {
-        let modified_order = order + (i as f64) + index_adjustment;
+        let modified_order = order + T::from_usize(i) + index_adjustment;
         (s1, s2) = (s2, s1 + modified_order * rz * s2);
         *yi = s2 * recip_scale_factor;
         if overflow_state != Overflow::NearOver && max_abs_component(*yi) > boundary {
             overflow_state.increment();
-            boundary = MACHINE_CONSTANTS.overflow_boundary[overflow_state];
+            boundary = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state];
             s1 *= recip_scale_factor;
             s2 = *yi;
-            s1 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
-            s2 *= MACHINE_CONSTANTS.scaling_factors[overflow_state];
-            recip_scale_factor = MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+            s1 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
+            s2 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
+            recip_scale_factor = T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
         }
     }
 }

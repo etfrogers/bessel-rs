@@ -1,10 +1,10 @@
 use approx::assert_relative_eq;
 
-use crate::amos::MACHINE_CONSTANTS;
+use crate::types::BesselFloat;
 
 #[test]
 fn test_machine_consts() {
-    let mc = &MACHINE_CONSTANTS;
+    let mc = &f64::MACHINE_CONSTANTS;
     dbg!((-mc.exponent_limit).exp(), 2.0 * f64::MIN_POSITIVE * 1000.0,);
     assert_relative_eq!((-mc.exponent_limit).exp(), 2.0 * f64::MIN_POSITIVE * 1000.0,);
     dbg!(mc._significant_digits, -mc.abs_error_tolerance.log10());

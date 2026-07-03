@@ -1,17 +1,18 @@
 use num::{
-    Complex, One, Zero,
+    Complex, Float,
     complex::{Complex64, ComplexFloat},
-    traits::Pow,
 };
 use std::{f64::consts::PI, ops::Neg};
 
 pub use entry_points::*;
 pub(crate) use gamma_ln::gamma_ln;
 pub(crate) use i_power_series::i_power_series;
-pub(crate) use machine::MACHINE_CONSTANTS;
+pub(crate) use machine::{MACHINE_CONSTANTS_32, MACHINE_CONSTANTS_64, MachineConsts};
 
 #[cfg(test)]
 pub(crate) use gamma_ln::GammaError;
+
+use crate::types::BesselFloat;
 
 mod asymptotic_i;
 mod entry_points;
@@ -67,24 +68,25 @@ pub enum Scaling {
 }
 
 impl Scaling {
-    pub(crate) fn scale_zetas(
+    pub(crate) fn scale_zetas<T: BesselFloat>(
         &self,
-        z: Complex64,
-        modified_order: f64,
-        zeta1: Complex64,
-        zeta2: Complex64,
-    ) -> Complex64 {
+        z: Complex<T>,
+        modified_order: T,
+        zeta1: Complex<T>,
+        zeta2: Complex<T>,
+    ) -> Complex<T> {
         match self {
             Scaling::Unscaled => -zeta1 + zeta2,
             Scaling::Scaled => {
                 let mut st = z + zeta2;
-                st = st.conj() * (modified_order / st.abs()).pow(2);
+                st = st.conj() * (modified_order / st.abs()).powi(2);
                 -zeta1 + st
             }
         }
     }
 }
 
+#[doc(hidden)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(i32)]
 pub(crate) enum RotationDirection {
@@ -97,11 +99,10 @@ impl RotationDirection {
     pub fn signum(&self) -> f64 {
         (*self as i32 as f64).signum()
     }
-}
 
-impl From<RotationDirection> for f64 {
-    fn from(value: RotationDirection) -> Self {
-        value as i32 as f64
+    #[inline]
+    pub fn to_float<T: BesselFloat>(self) -> T {
+        T::from_f64(self as i32 as f64)
     }
 }
 
@@ -117,33 +118,19 @@ impl Neg for RotationDirection {
     }
 }
 
-pub(crate) fn c_one() -> Complex64 {
-    Complex64::one()
-}
-
-#[inline]
-pub(crate) fn c_zero() -> Complex64 {
-    Complex64::zero()
-}
-
-#[inline]
-pub(crate) fn c_zeros(n: usize) -> Vec<Complex64> {
-    vec![Complex64::zero(); n]
-}
-
-pub(crate) fn max_abs_component(c: Complex64) -> f64 {
+pub(crate) fn max_abs_component<T: Float>(c: Complex<T>) -> T {
     c.re.abs().max(c.im.abs())
 }
 
-pub(crate) trait PositiveArg {
-    fn parg(&self) -> f64;
+pub(crate) trait PositiveArg<T> {
+    fn parg(&self) -> T;
 }
 
-impl PositiveArg for Complex<f64> {
-    fn parg(&self) -> f64 {
+impl<T: BesselFloat> PositiveArg<T> for Complex<T> {
+    fn parg(&self) -> T {
         let mut ang = self.arg();
-        if ang < 0.0 {
-            ang += PI * 2.0;
+        if ang < T::zero() {
+            ang += T::from_f64(PI * 2.0);
         }
         ang
     }

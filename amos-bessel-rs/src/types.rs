@@ -1,43 +1,228 @@
-use crate::amos::MACHINE_CONSTANTS;
+use std::{
+    collections::HashMap,
+    fmt::Debug,
+    ops::{AddAssign, Div, DivAssign, Mul, MulAssign, RemAssign, SubAssign},
+    sync::{LazyLock, Mutex},
+};
+
+use crate::amos::{MACHINE_CONSTANTS_32, MACHINE_CONSTANTS_64, MachineConsts};
 use num::{
-    Complex,
-    complex::{Complex64, ComplexFloat},
+    Complex, Float,
+    complex::ComplexFloat,
+    traits::{ConstOne, ConstZero, FloatConst},
 };
 use thiserror::Error;
 
-pub(crate) type BesselValues<T = usize> = (Vec<Complex64>, T);
-pub(crate) type BesselResult<T = BesselValues> = Result<T, BesselError>;
+pub trait BesselFloat:
+    Float
+    + CachableUAP<Self>
+    + Debug
+    + FloatConst
+    + ConstZero
+    + ConstOne
+    + MulAssign
+    + AddAssign
+    + SubAssign
+    + DivAssign
+    + RemAssign
+    + Mul<Complex<Self>, Output = Complex<Self>>
+    + Div<Complex<Self>, Output = Complex<Self>>
+    + PartialOrd
+    + 'static
+// where Complex<Self>: MulAssign<Complex<Self>>
+// where Complex<Self>: Pow<Self, Output = Complex<Self>>
+{
+    const RADIX: u32;
+    const MANTISSA_DIGITS: u32;
+    const MIN_EXP: i32;
+    const MAX_EXP: i32;
+    const EPSILON: Self;
+    const MIN_POSITIVE: Self;
+    const NAN: Self;
+    const TWO_THIRDS: Self;
+    const C_ONE: Complex<Self> = Complex::<Self>::ONE;
+    const C_ZERO: Complex<Self> = Complex::<Self>::ZERO;
+    const I: Complex<Self> = Complex::<Self>::I;
+
+    fn from_f64(value: f64) -> Self;
+    fn from_usize(value: usize) -> Self;
+    fn from_cpx64(value: Complex<f64>) -> Complex<Self>;
+    fn half() -> Self;
+    fn two() -> Self;
+    fn to_bits(self) -> u64;
+
+    #[inline]
+    fn c_zeros(n: usize) -> Vec<Complex<Self>> {
+        vec![Complex::<Self>::ZERO; n]
+    }
+
+    const MACHINE_CONSTANTS: &'static LazyLock<MachineConsts<Self>>;
+}
+
+impl BesselFloat for f64 {
+    const RADIX: u32 = f64::RADIX;
+    const MANTISSA_DIGITS: u32 = f64::MANTISSA_DIGITS;
+    const MIN_EXP: i32 = f64::MIN_EXP;
+    const MAX_EXP: i32 = f64::MAX_EXP;
+    const EPSILON: Self = f64::EPSILON;
+    const MIN_POSITIVE: Self = f64::MIN_POSITIVE;
+    const NAN: Self = f64::NAN;
+    const TWO_THIRDS: Self = 2.0 / 3.0;
+
+    const MACHINE_CONSTANTS: &'static LazyLock<MachineConsts<Self>> = &MACHINE_CONSTANTS_64;
+
+    #[inline]
+    fn from_f64(value: f64) -> Self {
+        value
+    }
+
+    #[inline]
+    fn half() -> Self {
+        0.5
+    }
+
+    #[inline]
+    fn two() -> Self {
+        2.0
+    }
+
+    #[inline]
+    fn to_bits(self) -> u64 {
+        f64::to_bits(self)
+    }
+
+    #[inline]
+    fn from_cpx64(value: Complex<f64>) -> Complex<Self> {
+        value
+    }
+
+    #[inline]
+    fn from_usize(value: usize) -> Self {
+        value as f64
+    }
+}
+
+impl BesselFloat for f32 {
+    const RADIX: u32 = f32::RADIX;
+    const MANTISSA_DIGITS: u32 = f32::MANTISSA_DIGITS;
+    const MIN_EXP: i32 = f32::MIN_EXP;
+    const MAX_EXP: i32 = f32::MAX_EXP;
+    const EPSILON: Self = f32::EPSILON;
+    const MIN_POSITIVE: Self = f32::MIN_POSITIVE;
+    const NAN: Self = f32::NAN;
+    const TWO_THIRDS: Self = 2.0 / 3.0;
+
+    const MACHINE_CONSTANTS: &'static LazyLock<MachineConsts<Self>> = &MACHINE_CONSTANTS_32;
+
+    #[inline]
+    fn from_f64(value: f64) -> Self {
+        value as f32
+    }
+
+    #[inline]
+    fn half() -> Self {
+        0.5
+    }
+
+    #[inline]
+    fn two() -> Self {
+        2.0
+    }
+
+    #[inline]
+    fn to_bits(self) -> u64 {
+        f32::to_bits(self) as u64
+    }
+
+    #[inline]
+    fn from_cpx64(value: Complex<f64>) -> Complex<Self> {
+        Complex::new(value.re as f32, value.im as f32)
+    }
+
+    #[inline]
+    fn from_usize(value: usize) -> Self {
+        value as f32
+    }
+}
+
+pub trait CachableUAP<T: BesselFloat>: 'static {
+    const UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE: &'static LazyLock<
+        Mutex<HashMap<CacheKey, UniformAssymptoticParameters<T>>>,
+    >;
+}
+
+impl CachableUAP<f64> for f64 {
+    const UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE: &'static LazyLock<
+        Mutex<HashMap<CacheKey, UniformAssymptoticParameters<Self>>>,
+    > = &UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE_64;
+}
+
+impl CachableUAP<f32> for f32 {
+    const UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE: &'static LazyLock<
+        Mutex<HashMap<CacheKey, UniformAssymptoticParameters<Self>>>,
+    > = &UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE_32;
+}
+
+pub struct UniformAssymptoticParameters<T: BesselFloat> {
+    pub(crate) phi_i: Complex<T>,
+    pub(crate) phi_k: Complex<T>,
+    pub(crate) zeta1: Complex<T>,
+    pub(crate) zeta2: Complex<T>,
+    pub(crate) sum_i: Option<Complex<T>>,
+    pub(crate) sum_k: Option<Complex<T>>,
+    pub(crate) working: Option<Vec<Complex<T>>>,
+}
+
+pub(crate) type CacheKey = (u64, u64, u64);
+
+static UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE_64: LazyLock<
+    Mutex<HashMap<CacheKey, UniformAssymptoticParameters<f64>>>,
+> = LazyLock::new(|| Mutex::new(HashMap::new()));
+
+static UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE_32: LazyLock<
+    Mutex<HashMap<CacheKey, UniformAssymptoticParameters<f32>>>,
+> = LazyLock::new(|| Mutex::new(HashMap::new()));
+
+pub(crate) fn cache_key<T: BesselFloat>(z: Complex<T>, order: T) -> CacheKey {
+    (z.re.to_bits(), z.im.to_bits(), order.to_bits())
+}
+
+#[allow(type_alias_bounds)]
+pub(crate) type BesselValues<FT: BesselFloat = f64, NT = usize> = (Vec<Complex<FT>>, NT);
+#[allow(type_alias_bounds)]
+pub(crate) type BesselResult<FT: BesselFloat = f64, NT = usize> =
+    Result<BesselValues<FT, NT>, BesselError<FT>>;
 
 /// A trait for converting back from a type `T` into a `BesselResult<Self>`.
 /// Used for allowing both real and complex inputs to the Bessel functions,
 /// with real output for real input (provided the answer is real)
 /// Implemented for `f64` and `Complex<f64>`
-pub trait BackFrom<T>: Sized {
+pub trait BackFrom<T, FT: BesselFloat>: Sized {
     /// Converts a value (number or `Result<number, BesselError>` wrapping that number)
     /// into the number itself (wrapped in a `Result<number, BesselError>`, due to the
     /// possibility of complex output for real input)
-    fn back_from(val: &T) -> BesselResult<Self>;
+    fn back_from(val: &T) -> Result<Self, BesselError<FT>>;
 }
 
-impl BackFrom<Complex64> for Complex64 {
+impl BackFrom<Complex<f64>, f64> for Complex<f64> {
     #[inline]
-    fn back_from(val: &Complex64) -> BesselResult<Self> {
+    fn back_from(val: &Complex<f64>) -> Result<Complex<f64>, BesselError<f64>> {
         Ok(*val)
     }
 }
 
-impl BackFrom<f64> for f64 {
+impl BackFrom<f64, f64> for f64 {
     #[inline]
-    fn back_from(val: &f64) -> BesselResult<Self> {
+    fn back_from(val: &f64) -> Result<f64, BesselError<f64>> {
         Ok(*val)
     }
 }
 
-impl BackFrom<Complex64> for f64 {
+impl BackFrom<Complex<f64>, f64> for f64 {
     #[inline]
-    fn back_from(val: &Complex64) -> BesselResult<Self> {
+    fn back_from(val: &Complex<f64>) -> Result<f64, BesselError<f64>> {
         const MARGIN: f64 = 1000.0;
-        let tol = MARGIN * MACHINE_CONSTANTS.abs_error_tolerance;
+        let tol = MARGIN * f64::MACHINE_CONSTANTS.abs_error_tolerance;
         // if the imainary part is small, pass the value on
         // if the imaginary part is small compared to the real part, pass the value on
         // if the real part is small, the imaginary part is likely inaccurate, so pass the value on
@@ -49,9 +234,11 @@ impl BackFrom<Complex64> for f64 {
     }
 }
 
-impl BackFrom<BesselResult<Complex64>> for f64 {
+impl BackFrom<Result<Complex<f64>, BesselError<f64>>, f64> for f64 {
     #[inline]
-    fn back_from(val: &BesselResult<Complex<f64>>) -> BesselResult<Self> {
+    fn back_from(
+        val: &Result<Complex<Self>, BesselError<Self>>,
+    ) -> Result<Self, BesselError<Self>> {
         match val {
             Ok(cpx) => f64::back_from(cpx),
             // below we can assume that y has one element, as the input type is BesselResult<Complex<f64>> not
@@ -62,9 +249,9 @@ impl BackFrom<BesselResult<Complex64>> for f64 {
     }
 }
 
-impl BackFrom<BesselResult<Complex64>> for Complex<f64> {
+impl BackFrom<Result<Self, BesselError<f64>>, f64> for Complex<f64> {
     #[inline]
-    fn back_from(val: &BesselResult<Complex<f64>>) -> BesselResult<Self> {
+    fn back_from(val: &Result<Self, BesselError<f64>>) -> Result<Self, BesselError<f64>> {
         match val {
             Ok(cpx) => Ok(*cpx),
             // below we can assume that y has one element, as the input type is BesselResult<Complex<f64>> not
@@ -94,7 +281,7 @@ impl BackFrom<BesselResult<Complex64>> for Complex<f64> {
 /// nature of the error
 #[derive(Error, Debug, PartialEq, Clone)]
 #[repr(i32)]
-pub enum BesselError {
+pub enum BesselError<T: BesselFloat = f64> {
     /// Indicates that the input is invalid (usually out of bounds) in some way.
     /// Documentation for each function lists valid and invalid inputs
     #[error("Invalid input: {details}")]
@@ -118,7 +305,7 @@ pub enum BesselError {
     #[error("Partial loss of significance in output. Losssy values returned.")]
     PartialLossOfSignificance {
         /// Value(s) of Bessel function (reduced accuracy)
-        y: Vec<Complex64>,
+        y: Vec<Complex<T>>,
         /// Number of entries in `y` explicitly set to zero (as per the `complex_bessel_...` docs`)
         nz: usize,
     } = 3,
@@ -136,11 +323,11 @@ pub enum BesselError {
     #[error("Real input returned complex output. Output value {output}")]
     ComplexOutputForRealInput {
         /// Complex result of the Bessel function calculation.
-        output: Complex<f64>,
+        output: Complex<T>,
     } = 6,
 }
 
-impl BesselError {
+impl<T: BesselFloat> BesselError<T> {
     /// A numeric form of the error equivalent to the error codes returned by the Amos
     /// Fortran code (where equivalence exists)
     pub fn error_code(&self) -> i32 {
@@ -151,6 +338,31 @@ impl BesselError {
             BesselError::LossOfSignificance => 4,
             BesselError::DidNotConverge => 5,
             BesselError::ComplexOutputForRealInput { .. } => 6,
+        }
+    }
+
+    #[doc(hidden)]
+    pub fn to_f32(&self) -> BesselError<f32> {
+        match self {
+            BesselError::InvalidInput { details } => BesselError::InvalidInput {
+                details: details.clone(),
+            },
+            BesselError::Overflow => BesselError::Overflow,
+            BesselError::PartialLossOfSignificance { y, nz } => {
+                BesselError::PartialLossOfSignificance {
+                    y: y.iter()
+                        .map(|c| Complex::new(c.re.to_f32().unwrap(), c.im.to_f32().unwrap()))
+                        .collect(),
+                    nz: *nz,
+                }
+            }
+            BesselError::LossOfSignificance => BesselError::LossOfSignificance,
+            BesselError::DidNotConverge => BesselError::DidNotConverge,
+            BesselError::ComplexOutputForRealInput { output } => {
+                BesselError::ComplexOutputForRealInput {
+                    output: Complex::new(output.re.to_f32().unwrap(), output.im.to_f32().unwrap()),
+                }
+            }
         }
     }
 }
@@ -165,7 +377,7 @@ macro_rules! simple_bessel_wrapper {
             $(#[$meta])*
             // [<simple_ $base_func>] concatenates into simple_bessel_j
             #[inline]
-            fn [<$base_func _single>](order: f64, z: Complex64) -> Result<Complex64, BesselError> {
+            fn [<$base_func _single>](order: f64, z: Complex<f64>) -> Result<Complex<f64>, BesselError> {
                 let (result_vec, _nz) = [<complex_$base_func>](z, order, Scaling::Unscaled, 1)?;
                 Ok(result_vec[0])
             }

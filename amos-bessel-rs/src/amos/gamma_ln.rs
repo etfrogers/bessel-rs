@@ -2,6 +2,8 @@ use std::f64;
 
 use thiserror::Error;
 
+use crate::types::BesselFloat;
+
 #[derive(Error, Debug, PartialEq, Eq)]
 pub(crate) enum GammaError {
     #[error("Gamma ln can only be calculated for input z > 0.0")]
@@ -9,7 +11,7 @@ pub(crate) enum GammaError {
 }
 
 // DOUBLE PRECISION FUNCTION DGAMLN(Z,IERR)
-pub(crate) fn gamma_ln(z: f64) -> Result<f64, GammaError> {
+pub(crate) fn gamma_ln<T: BesselFloat>(z: T) -> Result<T, GammaError> {
     // ***BEGIN PROLOGUE  DGAMLN
     // ***DATE WRITTEN   830501   (YYMMDD)
     // ***REVISION DATE  830501   (YYMMDD)
@@ -46,36 +48,36 @@ pub(crate) fn gamma_ln(z: f64) -> Result<f64, GammaError> {
     // ***REFERENCES  COMPUTATION OF BESSEL FUNCTIONS OF COMPLEX ARGUMENT
     //                 BY D. E. AMOS, SAND83-0083, MAY, 1983.
     // ***END PROLOGUE  DGAMLN
-    if z <= 0.0 {
+    if z <= T::zero() {
         return Err(GammaError::ZLessThanZero);
     }
 
-    if z <= 100.1 && z.fract() == 0.0 {
-        return Ok(INT_GAMMA_LOG_DATA[z as usize]);
+    if z <= T::from_f64(100.1) && z.fract() == T::zero() {
+        return Ok(T::from_f64(INT_GAMMA_LOG_DATA[z.to_usize().unwrap()]));
     }
 
-    let working_tolerance = f64::EPSILON.max(0.5e-18);
-    let digits_per_bit = (f64::RADIX as f64).log10();
-    let mantissa_base10_digits = f64::MANTISSA_DIGITS as f64 * digits_per_bit;
-    let fln = mantissa_base10_digits.clamp(3.0, 20.0) - 3.0;
-    let z_min = (1.8000 + 0.3875 * fln).round() + 1.0;
+    let working_tolerance = T::EPSILON.max(T::from_f64(0.5e-18));
+    let digits_per_bit = (T::from_f64(T::RADIX as f64)).log10();
+    let mantissa_base10_digits = T::from_f64(T::MANTISSA_DIGITS as f64) * digits_per_bit;
+    let fln = mantissa_base10_digits.clamp(T::from_f64(3.0), T::from_f64(20.0)) - T::from_f64(3.0);
+    let z_min = (T::from_f64(1.8000) + T::from_f64(0.3875) * fln).round() + T::one();
 
     let (z_increment, z_modified) = if z < z_min {
         let zinc = z_min - z.round();
-        (zinc as usize, z + zinc)
+        (zinc.to_usize().unwrap(), z + zinc)
     } else {
         (0, z)
     };
 
-    let mut zp = 1.0 / z_modified;
-    let term1 = COEFFS[0] * zp;
+    let mut zp = T::one() / z_modified;
+    let term1 = T::from_f64(COEFFS[0]) * zp;
     let mut s = term1;
     if zp >= working_tolerance {
         let zsq = zp * zp;
         let test = term1 * working_tolerance;
         for coeff in COEFFS.iter().skip(1) {
             zp *= zsq;
-            let term = coeff * zp;
+            let term = T::from_f64(*coeff) * zp;
             if term.abs() < test {
                 break;
             }
@@ -84,12 +86,13 @@ pub(crate) fn gamma_ln(z: f64) -> Result<f64, GammaError> {
     }
 
     let tlg = z_modified.ln();
-    let mut return_value = z_modified * (tlg - 1.0) + 0.5 * (LN_2_PI - tlg) + s;
+    let mut return_value =
+        z_modified * (tlg - T::one()) + T::half() * (T::from_f64(LN_2_PI) - tlg) + s;
 
     if z_increment != 0 {
-        let mut zp = 1.0;
+        let mut zp = T::one();
         for i in 0..z_increment {
-            zp *= z + (i as f64);
+            zp *= z + T::from_usize(i);
         }
         return_value -= zp.ln();
     }

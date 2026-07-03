@@ -1,6 +1,5 @@
 extern crate fortran_amos_testing;
 
-mod common;
 use amos_bessel_rs::{
     BesselError, HankelKind, Scaling,
     amos::{

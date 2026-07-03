@@ -1,20 +1,17 @@
-use std::f64::consts::{FRAC_2_PI, FRAC_PI_2, PI};
-
-use num::complex::{Complex64, ComplexFloat};
+use num::{Complex, complex::ComplexFloat};
 
 use crate::{
-    Scaling,
+    BesselError, Scaling,
     amos::{
-        CIP, HankelKind, IKType, MACHINE_CONSTANTS, RotationDirection, c_one, c_zero, c_zeros,
-        max_abs_component,
+        CIP, HankelKind, IKType, RotationDirection, max_abs_component,
         overflow_checks::check_underflow_uniform_asymp_params,
         translator::{
             ZACAI, ZBUNK, airy_power_series, analytic_continuation, i_right_half_plane,
             k_right_half_plane,
         },
-        utils::{TWO_THIRDS, is_significance_lost, sanitise_inputs},
+        utils::{is_significance_lost, sanitise_inputs},
     },
-    types::{BesselError::*, BesselResult},
+    types::{BesselError::*, BesselFloat, BesselResult},
 };
 
 /// Computes the H-Bessel functions (Hankel functions) of a complex argument.
@@ -51,21 +48,21 @@ use crate::{
 /// * `cy`: A vector of complex numbers containing the values of the Hankel
 ///   functions for orders `[order, order + 1, ..., order + n - 1]`.
 /// * `nz`: The number of components in `cy` set to zero due to underflow.
-pub fn complex_bessel_h(
-    z: Complex64,
-    order: f64,
+pub fn complex_bessel_h<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
     scaling: Scaling,
     hankel_kind: HankelKind,
     n: usize,
-) -> BesselResult {
+) -> BesselResult<T> {
     sanitise_inputs(z, order, n, true)?;
     let mut nz = 0;
 
-    let modified_order = order + ((n - 1) as f64);
+    let modified_order = order + T::from_usize(n - 1);
 
     let rotation = hankel_kind.get_rotation();
-    let rotation_f64: f64 = rotation.into();
-    let mut zn = -Complex64::I * rotation_f64 * z;
+    let rotation_float: T = rotation.to_float();
+    let mut zn = -T::I * rotation_float * z;
     //-----------------------------------------------------------------------
     //     TEST FOR PROPER RANGE
     //-----------------------------------------------------------------------
@@ -74,13 +71,13 @@ pub fn complex_bessel_h(
     //-----------------------------------------------------------------------
     //     OVERFLOW TEST ON THE LAST MEMBER OF THE SEQUENCE
     //-----------------------------------------------------------------------
-    if abs_z < MACHINE_CONSTANTS.underflow_limit {
+    if abs_z < T::MACHINE_CONSTANTS.underflow_limit {
         return Err(Overflow);
     }
-    let (mut cy, nz) = if order < MACHINE_CONSTANTS.asymptotic_order_limit {
-        if modified_order > 1.0 {
-            if modified_order > 2.0 {
-                let mut cy = c_zeros(n);
+    let (mut cy, nz) = if order < T::MACHINE_CONSTANTS.asymptotic_order_limit {
+        if modified_order > T::one() {
+            if modified_order > T::two() {
+                let mut cy = T::c_zeros(n);
                 let n_underflow = check_underflow_uniform_asymp_params(
                     zn,
                     order,
@@ -97,7 +94,7 @@ pub fn complex_bessel_h(
                 //
                 // if nuf=nn, then cy[i]=c_zero() for all i
                 if n == n_underflow {
-                    return if zn.re < 0.0 {
+                    return if zn.re < T::zero() {
                         Err(Overflow)
                     } else if partial_loss_of_significance {
                         Err(PartialLossOfSignificance { y: cy, nz })
@@ -106,13 +103,15 @@ pub fn complex_bessel_h(
                     };
                 }
             }
-            if abs_z <= MACHINE_CONSTANTS.abs_error_tolerance
-                && -modified_order * (0.5 * abs_z).ln() > MACHINE_CONSTANTS.exponent_limit
+            if abs_z <= T::MACHINE_CONSTANTS.abs_error_tolerance
+                && -modified_order * (T::half() * abs_z).ln() > T::MACHINE_CONSTANTS.exponent_limit
             {
                 return Err(Overflow);
             }
         }
-        if !((zn.re < 0.0) || (zn.re == 0.0 && zn.im < 0.0 && hankel_kind == HankelKind::Second)) {
+        if !((zn.re < T::zero())
+            || (zn.re == T::zero() && zn.im < T::zero() && hankel_kind == HankelKind::Second))
+        {
             //-----------------------------------------------------------------------
             //     RIGHT HALF PLANE COMPUTATION, XN >= 0. && (XN != 0. ||
             //     YN >= 0. || M=1)
@@ -129,10 +128,11 @@ pub fn complex_bessel_h(
         //     UNIFORM ASYMPTOTIC EXPANSIONS FOR order > asymptotic_order_limit
         //-----------------------------------------------------------------------
         let mut asymptotic_rotation = RotationDirection::None;
-        if !((zn.re >= 0.0) && (zn.re != 0.0 || zn.im >= 0.0 || hankel_kind != HankelKind::Second))
+        if !((zn.re >= T::zero())
+            && (zn.re != T::zero() || zn.im >= T::zero() || hankel_kind != HankelKind::Second))
         {
             asymptotic_rotation = -rotation;
-            if !(zn.re != 0.0 || zn.im >= 0.0) {
+            if !(zn.re != T::zero() || zn.im >= T::zero()) {
                 zn = -zn;
             }
         }
@@ -145,29 +145,29 @@ pub fn complex_bessel_h(
     //
     //     ZT=(-FMM*FRAC_PI_2*I).exp() = CMPLX(0.0,-FMM), FMM=3-2*M, M=1,2
     //-----------------------------------------------------------------------
-    let sign = -FRAC_PI_2 * rotation.signum();
+    let sign = -T::FRAC_PI_2() * T::from_f64(rotation.signum());
     //-----------------------------------------------------------------------
     //     CALCULATE (order*FRAC_PI_2*I).exp() TO MINIMIZE LOSSES OF SIGNIFICANCE
     //     WHEN order IS LARGE
     //-----------------------------------------------------------------------
-    let int_order = order as i64;
+    let int_order = order.to_i64().unwrap();
     let half_int_order = int_order / 2;
     let int_remain = int_order - 2 * half_int_order;
-    let arg = (order - ((int_order - int_remain) as f64)) * sign;
-    let mut csgn = (1.0 / sign) * Complex64::I * Complex64::cis(arg);
+    let arg = (order - T::from_f64((int_order - int_remain) as f64)) * sign;
+    let mut csgn = (T::one() / sign) * T::I * Complex::<T>::cis(arg);
     if half_int_order % 2 != 0 {
         csgn = -csgn;
     }
     for element in cy.iter_mut() {
         let scaling =
-            if max_abs_component(*element) < MACHINE_CONSTANTS.absolute_approximation_limit {
-                *element *= MACHINE_CONSTANTS.rtol;
-                MACHINE_CONSTANTS.abs_error_tolerance
+            if max_abs_component(*element) < T::MACHINE_CONSTANTS.absolute_approximation_limit {
+                *element *= T::MACHINE_CONSTANTS.rtol;
+                T::MACHINE_CONSTANTS.abs_error_tolerance
             } else {
-                1.0
+                T::one()
             };
         *element *= csgn * scaling;
-        csgn *= Complex64::I * -rotation_f64;
+        csgn *= T::I * -rotation_float;
     }
     if partial_loss_of_significance {
         Err(PartialLossOfSignificance { y: cy, nz })
@@ -180,7 +180,12 @@ pub fn complex_bessel_h(
 ///
 /// An alternative interface to [`complex_bessel_h`]
 #[inline]
-pub fn complex_hankel1(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
+pub fn complex_hankel1<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
+    scaling: Scaling,
+    n: usize,
+) -> BesselResult<T> {
     complex_bessel_h(z, order, scaling, HankelKind::First, n)
 }
 
@@ -188,7 +193,12 @@ pub fn complex_hankel1(z: Complex64, order: f64, scaling: Scaling, n: usize) -> 
 ///
 /// An alternative interface to [`complex_bessel_h`]
 #[inline]
-pub fn complex_hankel2(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
+pub fn complex_hankel2<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
+    scaling: Scaling,
+    n: usize,
+) -> BesselResult<T> {
     complex_bessel_h(z, order, scaling, HankelKind::Second, n)
 }
 
@@ -231,23 +241,34 @@ pub fn complex_hankel2(z: Complex64, order: f64, scaling: Scaling, n: usize) -> 
 /// * `cy`: A vector of complex numbers containing the values of the Bessel
 ///   functions for orders `[order, order + 1, ..., order + n - 1]`.
 /// * `nz`: The number of components in `cy` set to zero due to underflow.
-pub fn complex_bessel_i(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
+pub fn complex_bessel_i<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
+    scaling: Scaling,
+    n: usize,
+) -> BesselResult<T, usize> {
     sanitise_inputs(z, order, n, false)?;
 
     let abs_z = z.abs();
-    let modified_order = order + ((n - 1) as f64);
+    let modified_order = order + T::from_usize(n - 1);
     let partial_significance_loss = is_significance_lost(abs_z, modified_order, false)?;
 
-    let (zn, mut csgn) = if z.re >= 0.0 {
-        (z, c_one())
+    let (zn, mut csgn) = if z.re >= T::zero() {
+        (z, T::C_ONE)
     } else {
         //-----------------------------------------------------------------------
         //     CALCULATE CSGN=(order*PI*I).exp() TO MINIMIZE LOSSES OF SIGNIFICANCE
         //     WHEN order IS LARGE
         //-----------------------------------------------------------------------
-        let integer_order = order as usize;
-        let arg = order.fract() * PI * if z.im < 0.0 { -1.0 } else { 1.0 };
-        let mut csgn = Complex64::cis(arg);
+        let integer_order = order.to_usize().unwrap();
+        let arg = order.fract()
+            * T::PI()
+            * if z.im < T::zero() {
+                -T::one()
+            } else {
+                T::one()
+            };
+        let mut csgn = Complex::<T>::cis(arg);
         if !integer_order.is_multiple_of(2) {
             csgn = -csgn;
         }
@@ -255,17 +276,17 @@ pub fn complex_bessel_i(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
     };
     let (mut y, nz) = i_right_half_plane(zn, order, scaling, n)?;
     let remaining_n = n - nz;
-    if z.re < 0.0 && remaining_n > 0 {
+    if z.re < T::zero() && remaining_n > 0 {
         //-----------------------------------------------------------------------
         //     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE
         //-----------------------------------------------------------------------
         for yi in y.iter_mut().take(remaining_n) {
             let correction =
-                if max_abs_component(*yi) <= MACHINE_CONSTANTS.absolute_approximation_limit {
-                    *yi *= MACHINE_CONSTANTS.rtol;
-                    MACHINE_CONSTANTS.abs_error_tolerance
+                if max_abs_component(*yi) <= T::MACHINE_CONSTANTS.absolute_approximation_limit {
+                    *yi *= T::MACHINE_CONSTANTS.rtol;
+                    T::MACHINE_CONSTANTS.abs_error_tolerance
                 } else {
-                    1.0
+                    T::one()
                 };
             *yi *= csgn;
             *yi *= correction;
@@ -313,42 +334,48 @@ pub fn complex_bessel_i(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
 /// * `cy`: A vector of complex numbers containing the values of the Bessel
 ///   functions for orders `[order, order + 1, ..., order + n - 1]`.
 /// * `nz`: The number of components in `cy` set to zero due to underflow.
-pub fn complex_bessel_j(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
+pub fn complex_bessel_j<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
+    scaling: Scaling,
+    n: usize,
+) -> BesselResult<T> {
     sanitise_inputs(z, order, n, false)?;
 
-    let partial_significance_loss = is_significance_lost(z.abs(), order + ((n - 1) as f64), false)?;
+    let partial_significance_loss =
+        is_significance_lost(z.abs(), order + T::from_usize(n - 1), false)?;
     //-----------------------------------------------------------------------
     //     CALCULATE CSGN=EXP(order*FRAC_PI_2*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
     //     WHEN order IS LARGE
     //-----------------------------------------------------------------------
-    let order_int = order as i64;
+    let order_int = order.to_i64().unwrap();
     let half_order_int = order_int / 2;
     let order_rounded_down_to_even = 2 * half_order_int;
-    let arg = (order - (order_rounded_down_to_even as f64)) * FRAC_PI_2;
-    let mut csgn = Complex64::cis(arg);
+    let arg = (order - T::from_f64(order_rounded_down_to_even as f64)) * T::FRAC_PI_2();
+    let mut csgn = Complex::<T>::cis(arg);
     if (half_order_int % 2) != 0 {
         csgn = -csgn;
     }
     //-----------------------------------------------------------------------
     //     ZN IS IN THE RIGHT HALF PLANE
     //-----------------------------------------------------------------------
-    let mut sign_selector = 1.0;
-    let mut zn = -Complex64::I * z;
-    if z.im < 0.0 {
+    let mut sign_selector = T::one();
+    let mut zn = -T::I * z;
+    if z.im < T::zero() {
         zn = -zn;
         csgn.im = -csgn.im;
         sign_selector = -sign_selector;
     }
     let (mut cy, nz) = i_right_half_plane(zn, order, scaling, n)?;
     for cyi in cy.iter_mut().take(n - nz) {
-        let mut scaling = 1.0;
+        let mut scaling = T::one();
         // TODO is the below a pattern?
-        if (max_abs_component(*cyi)) <= MACHINE_CONSTANTS.absolute_approximation_limit {
-            *cyi *= MACHINE_CONSTANTS.rtol;
-            scaling = MACHINE_CONSTANTS.abs_error_tolerance;
+        if (max_abs_component(*cyi)) <= T::MACHINE_CONSTANTS.absolute_approximation_limit {
+            *cyi *= T::MACHINE_CONSTANTS.rtol;
+            scaling = T::MACHINE_CONSTANTS.abs_error_tolerance;
         }
         *cyi *= csgn * scaling;
-        csgn *= sign_selector * Complex64::I;
+        csgn *= sign_selector * T::I;
     }
     if partial_significance_loss {
         Err(PartialLossOfSignificance { y: cy, nz })
@@ -396,30 +423,35 @@ pub fn complex_bessel_j(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
 /// * `cy`: A vector of complex numbers containing the values of the Bessel
 ///   functions for orders `[order, order + 1, ..., order + n - 1]`.
 /// * `nz`: The number of components in `cy` set to zero due to underflow.
-pub fn complex_bessel_k(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
+pub fn complex_bessel_k<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
+    scaling: Scaling,
+    n: usize,
+) -> BesselResult<T> {
     sanitise_inputs(z, order, n, true)?;
     //-----------------------------------------------------------------------------;
     //     TEST FOR PROPER RANGE;
     //-----------------------------------------------------------------------;
     let abs_z = z.abs();
-    let modified_order = order + ((n - 1) as f64);
+    let modified_order = order + T::from_usize(n - 1);
     let partial_significance_loss = is_significance_lost(abs_z, modified_order, false)?;
 
     //-----------------------------------------------------------------------;
     //     OVERFLOW TEST ON THE LAST MEMBER OF THE SEQUENCE;
     //-----------------------------------------------------------------------;
-    if abs_z < MACHINE_CONSTANTS.underflow_limit {
+    if abs_z < T::MACHINE_CONSTANTS.underflow_limit {
         return Err(Overflow);
     }
 
     let mut nz = 0;
-    if order > MACHINE_CONSTANTS.asymptotic_order_limit {
+    if order > T::MACHINE_CONSTANTS.asymptotic_order_limit {
         //-----------------------------------------------------------------------
         //     UNIFORM ASYMPTOTIC EXPANSIONS FOR order > asymptotic_order_limit
         //-----------------------------------------------------------------------
-        let rotation = if z.re >= 0.0 {
+        let rotation = if z.re >= T::zero() {
             RotationDirection::None
-        } else if z.im < 0.0 {
+        } else if z.im < T::zero() {
             RotationDirection::Left
         } else {
             RotationDirection::Right
@@ -433,8 +465,8 @@ pub fn complex_bessel_k(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
         };
     }
 
-    if modified_order > 2.0 {
-        let mut y = c_zeros(n);
+    if modified_order > T::two() {
+        let mut y = T::c_zeros(n);
         let n_underflow =
             check_underflow_uniform_asymp_params(z, order, scaling, IKType::K, n, &mut y)?;
         nz += n_underflow;
@@ -444,7 +476,7 @@ pub fn complex_bessel_k(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
         //     if NUF=NN, THEN cy(I)=CZERO FOR ALL I;
         //-----------------------------------------------------------------------;
         if n_underflow == n {
-            return if z.re < 0.0 {
+            return if z.re < T::zero() {
                 Err(Overflow)
             } else if partial_significance_loss {
                 Err(PartialLossOfSignificance { y, nz })
@@ -453,13 +485,13 @@ pub fn complex_bessel_k(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
             };
         }
     }
-    if (modified_order > 1.0) && abs_z <= MACHINE_CONSTANTS.abs_error_tolerance {
-        let half_abs_z = 0.5 * abs_z;
-        if -modified_order * half_abs_z.ln() > MACHINE_CONSTANTS.exponent_limit {
+    if (modified_order > T::one()) && abs_z <= T::MACHINE_CONSTANTS.abs_error_tolerance {
+        let half_abs_z = T::half() * abs_z;
+        if -modified_order * half_abs_z.ln() > T::MACHINE_CONSTANTS.exponent_limit {
             return Err(Overflow);
         }
     }
-    let (y, nz) = if z.re >= 0.0 {
+    let (y, nz) = if z.re >= T::zero() {
         //-----------------------------------------------------------------------;
         //     RIGHT HALF PLANE COMPUTATION, REAL(z) >= 0.;
         //-----------------------------------------------------------------------;
@@ -472,7 +504,7 @@ pub fn complex_bessel_k(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
         if nz != 0 {
             return Err(Overflow);
         }
-        let rotation = if z.im < 0.0 {
+        let rotation = if z.im < T::zero() {
             RotationDirection::Left
         } else {
             RotationDirection::Right
@@ -522,13 +554,18 @@ pub fn complex_bessel_k(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
 /// * `cy`: A vector of complex numbers containing the values of the Bessel
 ///   functions for orders `[order, order + 1, ..., order + n - 1]`.
 /// * `nz`: The number of components in `cy` set to zero due to underflow.
-pub fn complex_bessel_y(z: Complex64, order: f64, scaling: Scaling, n: usize) -> BesselResult {
+pub fn complex_bessel_y<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
+    scaling: Scaling,
+    n: usize,
+) -> BesselResult<T> {
     sanitise_inputs(z, order, n, true)?;
-    let zz = if z.im < 0.0 { z.conj() } else { z };
-    let zn = -Complex64::I * zz;
+    let zz = if z.im < T::zero() { z.conj() } else { z };
+    let zn = -T::I * zz;
     let mut partial_loss_of_significance = false;
 
-    let mut unwrap_psl = |result: BesselResult| match result {
+    let mut unwrap_psl = |result: BesselResult<T>| match result {
         Ok((y_, nz_)) => Ok((y_, nz_)),
         Err(PartialLossOfSignificance { y: y_, nz: nz_ }) => {
             partial_loss_of_significance = true;
@@ -542,26 +579,26 @@ pub fn complex_bessel_y(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
 
     let mut nz = nz_i.min(nz_k);
     let frac_order = order.fract();
-    let integer_order = order as usize;
-    let mut csgn = Complex64::cis(FRAC_PI_2 * frac_order);
+    let integer_order = order.to_usize().unwrap();
+    let mut csgn = Complex::<T>::cis(T::FRAC_PI_2() * frac_order);
     let index = integer_order % 4;
-    csgn *= CIP[index];
-    let mut cspn = csgn.conj() * FRAC_2_PI;
-    csgn *= Complex64::I;
+    csgn *= T::from_cpx64(CIP[index]);
+    let mut cspn = csgn.conj() * T::FRAC_2_PI();
+    csgn *= T::I;
 
-    let mut ey = 1.0;
+    let mut ey = T::one();
     if scaling == Scaling::Scaled {
-        let ex = Complex64::cis(z.re);
-        let two_abs_z = 2.0 * z.im.abs();
-        ey = if two_abs_z < MACHINE_CONSTANTS.exponent_limit {
+        let ex = Complex::<T>::cis(z.re);
+        let two_abs_z = T::two() * z.im.abs();
+        ey = if two_abs_z < T::MACHINE_CONSTANTS.exponent_limit {
             (-two_abs_z).exp()
         } else {
-            0.0
+            T::zero()
         };
         cspn *= ex * ey;
         nz = 0;
     }
-    let mut y: Vec<Complex64> = bess_i
+    let mut y: Vec<Complex<T>> = bess_i
         .iter()
         .zip(bess_k)
         .map(|(&z_i, z_k)| {
@@ -573,16 +610,16 @@ pub fn complex_bessel_y(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
             let z_k = scaled_multiply(z_k, cspn, scaling);
             let z_i = scaled_multiply(z_i, csgn, scaling);
             let val = z_i - z_k;
-            if scaling == Scaling::Scaled && val == c_zero() && ey == 0.0 {
+            if scaling == Scaling::Scaled && val == T::C_ZERO && ey == T::zero() {
                 nz += 1;
             }
-            csgn *= Complex64::I;
-            cspn *= -Complex64::I;
+            csgn *= T::I;
+            cspn *= -T::I;
             val
         })
         .collect();
 
-    if z.im < 0.0 {
+    if z.im < T::zero() {
         y.iter_mut().for_each(|v| *v = v.conj());
     }
     if partial_loss_of_significance {
@@ -592,15 +629,20 @@ pub fn complex_bessel_y(z: Complex64, order: f64, scaling: Scaling, n: usize) ->
     }
 }
 
-fn scaled_multiply(mut z: Complex64, coeff: Complex64, scaling: Scaling) -> Complex64 {
+fn scaled_multiply<T: BesselFloat>(
+    mut z: Complex<T>,
+    coeff: Complex<T>,
+    scaling: Scaling,
+) -> Complex<T> {
     match scaling {
         Scaling::Unscaled => z * coeff,
         Scaling::Scaled => {
-            let atol = if max_abs_component(z) <= MACHINE_CONSTANTS.absolute_approximation_limit {
-                z *= MACHINE_CONSTANTS.rtol;
-                MACHINE_CONSTANTS.abs_error_tolerance
+            let atol = if max_abs_component(z) <= T::MACHINE_CONSTANTS.absolute_approximation_limit
+            {
+                z *= T::MACHINE_CONSTANTS.rtol;
+                T::MACHINE_CONSTANTS.abs_error_tolerance
             } else {
-                1.0
+                T::one()
             };
             (z * coeff) * atol
         }
@@ -643,30 +685,34 @@ fn scaled_multiply(mut z: Complex64, coeff: Complex64, scaling: Scaling) -> Comp
 /// A tuple containing:
 /// * The complex result of the Airy function computation.
 /// * An underflow indicator (`0` for normal return, `1` for underflow).
-pub fn complex_airy(
-    z: Complex64,
+pub fn complex_airy<T: BesselFloat>(
+    z: Complex<T>,
     return_derivative: bool,
     scaling: Scaling,
-) -> BesselResult<(Complex64, usize)> {
+) -> Result<(Complex<T>, usize), BesselError<T>> {
     const POWER_SERIES_COEFFS: (f64, f64) = (3.550_280_538_878_172e-1, 2.588_194_037_928_068e-1);
     const COEFF: f64 = 1.837_762_984_739_306_8e-1;
 
     let abs_z = z.abs();
-    let float_is_derivative = if return_derivative { 1.0 } else { 0.0 };
+    let float_is_derivative = if return_derivative {
+        T::one()
+    } else {
+        T::zero()
+    };
     //--------------------------------------------------------------------------
     //     TEST FOR PROPER RANGE
     //-----------------------------------------------------------------------
     // significance loss only tested against z, not order, so 0.0 is used to never cause significance loss
-    let partial_loss_of_significance = is_significance_lost(abs_z, 0.0, true)?;
+    let partial_loss_of_significance = is_significance_lost(abs_z, T::zero(), true)?;
 
-    let retval = if abs_z <= 1.0 {
+    let retval = if abs_z <= T::one() {
         //-----------------------------------------------------------------------
         //     POWER SERIES FOR z.abs() <= 1.
         //-----------------------------------------------------------------------
         let ai = airy_power_series(z, return_derivative, POWER_SERIES_COEFFS);
         (
             match scaling {
-                Scaling::Scaled => ai * (TWO_THIRDS * z * z.sqrt()).exp(),
+                Scaling::Scaled => ai * (T::TWO_THIRDS * z * z.sqrt()).exp(),
                 Scaling::Unscaled => ai,
             },
             0,
@@ -675,36 +721,37 @@ pub fn complex_airy(
         //-----------------------------------------------------------------------
         //     CASE FOR CABS(z) > 1.0
         //-----------------------------------------------------------------------
-        let order = (1.0 + float_is_derivative) / 3.0;
+        let order = (T::one() + float_is_derivative) / T::from_f64(3.0);
         let ln_abs_z = abs_z.ln();
 
         let sqrt_z = z.sqrt();
-        let mut zeta = TWO_THIRDS * z * sqrt_z;
+        let mut zeta = T::TWO_THIRDS * z * sqrt_z;
         //-----------------------------------------------------------------------
         //     RE(zeta) <= 0 WHEN RE(z) < 0, ESPECIALLY WHEN IM(z) IS SMALL
         //-----------------------------------------------------------------------
-        let mut scale_factor = 1.0;
-        if z.re < 0.0 {
+        let mut scale_factor = T::one();
+        if z.re < T::zero() {
             zeta.re = -zeta.re.abs();
         }
-        if z.im == 0.0 && z.re <= 0.0 {
-            zeta.re = 0.0;
+        if z.im == T::zero() && z.re <= T::zero() {
+            zeta.re = T::zero();
         }
         let re_zeta = zeta.re;
-        let (cy, nz) = if re_zeta < 0.0 || z.re <= 0.0 {
+        let (cy, nz) = if re_zeta < T::zero() || z.re <= T::zero() {
             //-----------------------------------------------------------------------
             //     OVERFLOW TEST
             //-----------------------------------------------------------------------
-            if scaling == Scaling::Unscaled && re_zeta <= -MACHINE_CONSTANTS.approximation_limit {
-                scale_factor = MACHINE_CONSTANTS.abs_error_tolerance;
-                if (-re_zeta + 0.25 * ln_abs_z) > MACHINE_CONSTANTS.exponent_limit {
+            if scaling == Scaling::Unscaled && re_zeta <= -T::MACHINE_CONSTANTS.approximation_limit
+            {
+                scale_factor = T::MACHINE_CONSTANTS.abs_error_tolerance;
+                if (-re_zeta + T::from_f64(0.25) * ln_abs_z) > T::MACHINE_CONSTANTS.exponent_limit {
                     return Err(Overflow);
                 }
             }
             //-----------------------------------------------------------------------
             //     CBKNU AND CACON RETURN EXP(zeta)*K(order,zeta) ON KODE=2
             //-----------------------------------------------------------------------
-            let rotation = if z.im < 0.0 {
+            let rotation = if z.im < T::zero() {
                 RotationDirection::Left
             } else {
                 RotationDirection::Right
@@ -715,16 +762,17 @@ pub fn complex_airy(
             //     UNDERFLOW TEST
             //-----------------------------------------------------------------------
             let mut retval = None;
-            if scaling == Scaling::Unscaled && re_zeta > MACHINE_CONSTANTS.approximation_limit {
-                scale_factor = 1.0 / MACHINE_CONSTANTS.abs_error_tolerance;
-                if (-re_zeta - 0.25 * ln_abs_z) < -MACHINE_CONSTANTS.exponent_limit {
-                    retval = Some(Ok((c_zeros(1), 1)));
+            if scaling == Scaling::Unscaled && re_zeta > T::MACHINE_CONSTANTS.approximation_limit {
+                scale_factor = T::one() / T::MACHINE_CONSTANTS.abs_error_tolerance;
+                if (-re_zeta - T::from_f64(0.25) * ln_abs_z) < -T::MACHINE_CONSTANTS.exponent_limit
+                {
+                    retval = Some(Ok((T::c_zeros(1), 1)));
                 }
             }
             retval.unwrap_or_else(|| k_right_half_plane(zeta, order, scaling, 1))?
         };
 
-        let mut s1 = cy[0] * COEFF * scale_factor;
+        let mut s1 = cy[0] * T::from_f64(COEFF) * scale_factor;
         s1 *= if return_derivative { -z } else { sqrt_z };
         (s1 / scale_factor, nz)
     };
@@ -768,19 +816,23 @@ pub fn complex_airy(
 /// # Returns
 ///
 /// The complex result of the Airy function computation.
-pub fn complex_airy_b(
-    z: Complex64,
+pub fn complex_airy_b<T: BesselFloat>(
+    z: Complex<T>,
     return_derivative: bool,
     scaling: Scaling,
-) -> BesselResult<Complex64> {
+) -> Result<Complex<T>, BesselError<T>> {
     const POWER_SERIES_COEFFS: (f64, f64) = (6.149_266_274_460_007e-1, -4.482_883_573_538_264e-1);
     const COEF: f64 = 5.773_502_691_896_257e-1;
 
     let abs_z = z.abs();
-    let float_is_derivative = if return_derivative { 1.0 } else { 0.0 };
+    let float_is_derivative = if return_derivative {
+        T::one()
+    } else {
+        T::zero()
+    };
     let mut partial_loss_of_significance = false;
 
-    let bi = if abs_z <= 1.0 {
+    let bi = if abs_z <= T::one() {
         //-----------------------------------------------------------------------
         //     POWER SERIES FOR CABS(z) <= 1.
         //-----------------------------------------------------------------------
@@ -788,7 +840,7 @@ pub fn complex_airy_b(
         match scaling {
             Scaling::Scaled => {
                 //TODO zeta used many places with similar definition
-                let zeta = TWO_THIRDS * (z * z.sqrt());
+                let zeta = T::TWO_THIRDS * (z * z.sqrt());
                 bi * (-(zeta.re.abs())).exp()
             }
             Scaling::Unscaled => bi,
@@ -797,51 +849,51 @@ pub fn complex_airy_b(
         //-----------------------------------------------------------------------;
         //     CASE FOR CABS(z) > 1.0;
         //-----------------------------------------------------------------------;
-        let order = (1.0 + float_is_derivative) / 3.0;
+        let order = (T::one() + float_is_derivative) / T::from_f64(3.0);
         //-----------------------------------------------------------------------;
         //     TEST FOR RANGE;
         //-----------------------------------------------------------------------;
         // significance loss only tested against z, not order, so 0.0 is used to never cause significance loss
-        partial_loss_of_significance = is_significance_lost(abs_z, 0.0, true)?;
-        let mut scale_factor = 1.0;
-        let mut zeta = TWO_THIRDS * (z * z.sqrt());
+        partial_loss_of_significance = is_significance_lost(abs_z, T::zero(), true)?;
+        let mut scale_factor = T::one();
+        let mut zeta = T::TWO_THIRDS * (z * z.sqrt());
 
         //-----------------------------------------------------------------------;
         //     RE(zeta) <= 0 WHEN RE(z) < 0, ESPECIALLY WHEN IM(z) IS SMALL;
         //-----------------------------------------------------------------------;
-        if z.re < 0.0 {
+        if z.re < T::zero() {
             zeta.re = -zeta.re.abs();
         }
-        if z.im == 0.0 && z.re < 0.0 {
-            zeta.re = 0.0;
+        if z.im == T::zero() && z.re < T::zero() {
+            zeta.re = T::zero();
         }
         if scaling == Scaling::Unscaled {
             //-----------------------------------------------------------------------;
             //     OVERFLOW TEST;
             //-----------------------------------------------------------------------;
             let re_zeta = zeta.re.abs();
-            if re_zeta > MACHINE_CONSTANTS.approximation_limit {
-                scale_factor = MACHINE_CONSTANTS.abs_error_tolerance;
-                if re_zeta + 0.25 * abs_z.ln() > MACHINE_CONSTANTS.exponent_limit {
+            if re_zeta > T::MACHINE_CONSTANTS.approximation_limit {
+                scale_factor = T::MACHINE_CONSTANTS.abs_error_tolerance;
+                if re_zeta + T::from_f64(0.25) * abs_z.ln() > T::MACHINE_CONSTANTS.exponent_limit {
                     return Err(Overflow);
                 }
             }
         }
-        let mut rotation_angle = 0.0;
-        if zeta.re < 0.0 || z.re <= 0.0 {
-            rotation_angle = PI;
-            if z.im < 0.0 {
-                rotation_angle = -PI;
+        let mut rotation_angle = T::zero();
+        if zeta.re < T::zero() || z.re <= T::zero() {
+            rotation_angle = T::PI();
+            if z.im < T::zero() {
+                rotation_angle = -T::PI();
             }
-            zeta *= -1.0;
+            zeta *= -T::one();
         }
         //-----------------------------------------------------------------------;
         //     AA=FACTOR FOR ANALYTIC CONTINUATION OF I(order,zeta);
         //     KODE=2 RETURNS EXP(-ABS(Xzeta))*I(order,zeta) FROM ZBESI;
         //-----------------------------------------------------------------------;
         let (cy, _) = i_right_half_plane(zeta, order, scaling, 1)?;
-        let mut s1 = Complex64::cis(rotation_angle * order) * cy[0] * scale_factor;
-        let order = (2.0 - float_is_derivative) / 3.0;
+        let mut s1 = Complex::<T>::cis(rotation_angle * order) * cy[0] * scale_factor;
+        let order = (T::two() - float_is_derivative) / T::from_f64(3.0);
         let (mut cy, _) = i_right_half_plane(zeta, order, scaling, 2)?;
         cy[0] *= scale_factor;
         cy[1] *= scale_factor;
@@ -849,8 +901,8 @@ pub fn complex_airy_b(
         //-----------------------------------------------------------------------;
         //     BACKWARD RECUR ONE STEP FOR ORDERS -1/3 OR -2/3;
         //-----------------------------------------------------------------------;
-        let s2 = (2.0 * order) * (cy[0] / zeta) + cy[1];
-        s1 = COEF * (s1 + s2 * Complex64::cis(rotation_angle * (order - 1.0)));
+        let s2 = (T::two() * order) * (cy[0] / zeta) + cy[1];
+        s1 = T::from_f64(COEF) * (s1 + s2 * Complex::<T>::cis(rotation_angle * (order - T::one())));
         let z_factor = if return_derivative { z } else { z.sqrt() };
         s1 * z_factor / scale_factor
     };

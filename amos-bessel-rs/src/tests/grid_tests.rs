@@ -1,7 +1,8 @@
 use crate::test_utils::{
-    BesselFortranSig, BesselSig, check_against_fortran, check_complex_arrays_equal, sig_airy,
-    sig_airy_fortran, sig_airyp, sig_airyp_fortran, sig_biry, sig_biry_fortran, sig_biryp,
-    sig_biryp_fortran, zbesh_fortran_first, zbesh_fortran_second,
+    BesselFortranSig, BesselSig, ComplexConversions, assert_results_are_equal_floats,
+    check_against_fortran, check_complex_arrays_equal, sig_airy, sig_airy_fortran, sig_airyp,
+    sig_airyp_fortran, sig_biry, sig_biry_fortran, sig_biryp, sig_biryp_fortran,
+    zbesh_fortran_first, zbesh_fortran_second,
 };
 
 use crate::tests::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
@@ -18,6 +19,7 @@ use complex_bessel::bessely as bessel_y_ref;
 use complex_bessel::hankel1 as hankel1_ref;
 use complex_bessel::hankel2 as hankel2_ref;
 
+use approx::abs_diff_eq;
 use num::Complex;
 #[cfg(test)]
 use rstest::rstest;
@@ -181,3 +183,57 @@ fn test_airy_grid_fortran(
         }
     }
 }
+
+#[rstest]
+fn test_f32_vs_f64(
+    #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
+    #[values(
+    (complex_bessel_j as BesselSig<f64>, complex_bessel_j as BesselSig<f32>),
+    (complex_bessel_i as BesselSig<f64>, complex_bessel_i as BesselSig<f32>),
+    (complex_hankel1 as BesselSig<f64>, complex_hankel1 as BesselSig<f32>),
+    (complex_hankel2 as BesselSig<f64>, complex_hankel2 as BesselSig<f32>),
+    (complex_bessel_k as BesselSig<f64>, complex_bessel_k as BesselSig<f32>),
+    (complex_bessel_y as BesselSig<f64>, complex_bessel_y as BesselSig<f32>),
+    )]
+    (fn_64, fn_32): (BesselSig<f64>, BesselSig<f32>),
+) {
+    let n = 1;
+    for order in ORDERS {
+        for re in Z_PARTS {
+            for im in Z_PARTS {
+                let z64 = Complex::new(re, im);
+                let z32 = z64.to_c32();
+                let actual = fn_32(z32, order as f32, scaling, n);
+                let expected = fn_64(z64, order, scaling, n);
+
+                if abs_diff_eq!(z64.im.abs(), 40.0) {
+                    // This test just happens to have a value that is close to the exponent limit
+                    // for f32. It drives the code down different paths for f32 and f64, even
+                    // though the f32 code could handle it, except that Amos' limits are
+                    // conservative. We skip this test to avoid spurious failures.
+                    continue;
+                }
+
+                // order=1.5 is a half-integer: AMOS has special-case handling for half-integer
+                // orders. When z is very close to the real or imaginary axis (|re| ≤ 1e-6 or
+                // |im| ≤ 1e-6), f32 and f64 take different algorithmic paths because their
+                // "near-axis" detection thresholds differ due to machine constants.
+                // Same root cause as the |im|=40 skip above.
+                if abs_diff_eq!(order, 1.5)
+                    && (z64.re.abs() <= 1e-6 || z64.im.abs() <= 1e-6)
+                {
+                    continue;
+                }
+
+                // Y function at large order and |im|=50 hits an exponent boundary where f32
+                // and f64 overflow at different points.
+                if abs_diff_eq!(z64.im.abs(), 50.0) && order >= 50.0 {
+                    continue;
+                }
+
+                assert_results_are_equal_floats(&actual, &expected, 1e4);
+            }
+        }
+    }
+}
+

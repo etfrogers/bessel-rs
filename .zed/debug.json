@@ -1,0 +1,57 @@
+// Project-local debug tasks
+//
+// For more documentation on how to configure debug tasks,
+// see: https://zed.dev/docs/debugger
+[
+  // {
+  //   "label": "Debug mytest",
+  //   "adapter": "CodeLLDB",
+  //   "request": "launch",
+  //   "build": {
+  //     "command": "cargo",
+  //     "args": ["test", "--no-run", "--package", "amos-bessel-rs"],
+  //   },
+  //   "args": [
+  //     "tests::test_large_n::test_bessel_large_n_real::case_31::n_4_100::scaling_1_Scaling__Unscaled::__destruct_1_1__complex_bessel_jasBesselSig_zbesj_fortranasBesselFortranSig_",
+  //     "--exact",
+  //     "--nocapture",
+  //   ],
+  //   "sourceLanguages": ["rust"],
+  // },
+
+  {
+    "label": "Debug specific test",
+    "adapter": "CodeLLDB",
+    "request": "launch",
+    // "build": {
+    //   "command": "cargo",
+    //   "args": [
+    //     "rustc",
+    //     "-p",
+    //     "amos-bessel-rs",
+    //     "--profile",
+    //     "test",
+    //     "--lib",
+    //     // "--test",
+    //     // "test_large_n",
+    //     "--",
+    //     "-o",
+    //     "target/debug/deps/my_debug_test",
+    //   ],
+    // },
+    "build": {
+      "command": "sh",
+      "args": [
+        "-c",
+        "cargo test --no-run --lib -p amos-bessel-rs && cp $(ls -t target/debug/deps/amos_bessel_rs-* | grep -v '\\.' | head -n 1) target/debug/deps/my_debug_test",
+      ],
+    },
+    "program": "target/debug/deps/my_debug_test",
+    "args": [
+      "tests::test_large_n::test_bessel_large_n_complex::case_1::n_3_9::scaling_1_Scaling__Unscaled::__destruct_1_3__complex_hankel1asBesselSig_zbesh_fortran_firstasBesselFortranSi",
+      // "--exact",
+      "--nocapture",
+    ],
+    "sourceLanguages": ["rust"],
+  },
+]

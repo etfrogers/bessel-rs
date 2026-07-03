@@ -1,29 +1,23 @@
 #![allow(clippy::excessive_precision)]
-use num::{
-    complex::{Complex64, ComplexFloat},
-    pow::Pow,
-};
+use num::complex::{Complex, ComplexFloat};
 
-use crate::types::{BesselError, BesselResult};
-
-use super::MACHINE_CONSTANTS;
+use crate::types::{BesselError, BesselFloat};
 
 pub const RTPI: f64 = 0.159154943091895336;
-pub const TWO_THIRDS: f64 = 6.66666666666666666e-01;
 pub const RT_THREE: f64 = 1.73205080757;
 pub const AIC: f64 = 1.265512123484645396; // == gamma_ln(-0.5).re
 
 /// This slightly odd form of calculation avoids overflow/underflow
 /// when z is large/small respectively.
-pub(crate) fn calc_rz(z: Complex64) -> Complex64 {
+pub(crate) fn calc_rz<T: BesselFloat>(z: Complex<T>) -> Complex<T> {
     //2.0 * z.conj() / abs_z.powi(2)
-    let r_abs_z = 1.0 / z.abs();
+    let r_abs_z = T::one() / z.abs();
     let intermediate = z.conj() * r_abs_z;
     (intermediate + intermediate) * r_abs_z
 }
 
-pub(crate) fn imaginary_dominant(z: Complex64) -> bool {
-    z.im.abs() > z.re.abs() * RT_THREE
+pub(crate) fn imaginary_dominant<T: BesselFloat>(z: Complex<T>) -> bool {
+    z.im.abs() > z.re.abs() * T::from_f64(RT_THREE)
 }
 
 /// `y` enters as a scaled quantity whose magnitude is greater than
@@ -36,7 +30,7 @@ pub(crate) fn imaginary_dominant(z: Complex64) -> bool {
 /// if the underflow is at least one precision below the magnitude
 /// of the largest component; otherwise the phase angle does not have
 /// absolute accuracy and an underflow is assumed
-pub(crate) fn will_underflow(y: Complex64, ascle: f64, tol: f64) -> bool {
+pub(crate) fn will_underflow<T: BesselFloat>(y: Complex<T>, ascle: T, tol: T) -> bool {
     let re_abs = y.re.abs();
     let im_abs = y.im.abs();
     let min_abs_component = re_abs.min(im_abs);
@@ -48,17 +42,17 @@ pub(crate) fn will_underflow(y: Complex64, ascle: f64, tol: f64) -> bool {
     }
 }
 
-pub fn is_significance_lost(
-    z_abs: f64,
-    modified_order: f64,
+pub fn is_significance_lost<T: BesselFloat>(
+    z_abs: T,
+    modified_order: T,
     modify_threshold: bool,
-) -> BesselResult<bool> {
-    let f64_precision_limit = 0.5 / MACHINE_CONSTANTS.abs_error_tolerance;
+) -> Result<bool, BesselError<T>> {
+    let f64_precision_limit = T::half() / T::MACHINE_CONSTANTS.abs_error_tolerance;
     // TODO the below is limited to i32: could push to 64 later, but would change compare to fortran
-    let integer_size_limit = (i32::MAX as f64) * 0.5;
+    let integer_size_limit = T::from_f64((i32::MAX as f64) * 0.5);
     let mut upper_size_limit = f64_precision_limit.min(integer_size_limit);
     if modify_threshold {
-        upper_size_limit = upper_size_limit.pow(TWO_THIRDS);
+        upper_size_limit = upper_size_limit.powf(T::TWO_THIRDS);
     }
     if z_abs > upper_size_limit || modified_order > upper_size_limit {
         return Err(BesselError::LossOfSignificance);
@@ -67,17 +61,17 @@ pub fn is_significance_lost(
     Ok((z_abs > scaling_limit) || (modified_order > scaling_limit))
 }
 
-pub(crate) fn sanitise_inputs(
-    z: Complex64,
-    order: f64,
+pub(crate) fn sanitise_inputs<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
     n: usize,
     check_z_zero: bool,
-) -> Result<(), BesselError> {
+) -> Result<(), BesselError<T>> {
     let mut err = None;
-    if check_z_zero && z.re == 0.0 && z.im == 0.0 {
+    if check_z_zero && z.re == T::zero() && z.im == T::zero() {
         err = Some("z must not be zero");
     }
-    if order < 0.0_f64 {
+    if order < T::zero() {
         err = Some("order must be positive");
     };
     if n < 1 {
