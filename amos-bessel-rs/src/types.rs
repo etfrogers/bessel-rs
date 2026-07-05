@@ -204,25 +204,25 @@ pub trait BackFrom<T, FT: BesselFloat>: Sized {
     fn back_from(val: &T) -> Result<Self, BesselError<FT>>;
 }
 
-impl BackFrom<Complex<f64>, f64> for Complex<f64> {
+impl<T: BesselFloat> BackFrom<Complex<T>, T> for Complex<T> {
     #[inline]
-    fn back_from(val: &Complex<f64>) -> Result<Complex<f64>, BesselError<f64>> {
+    fn back_from(val: &Complex<T>) -> Result<Complex<T>, BesselError<T>> {
         Ok(*val)
     }
 }
 
-impl BackFrom<f64, f64> for f64 {
+impl<T: BesselFloat> BackFrom<T, T> for T {
     #[inline]
-    fn back_from(val: &f64) -> Result<f64, BesselError<f64>> {
+    fn back_from(val: &T) -> Result<T, BesselError<T>> {
         Ok(*val)
     }
 }
 
-impl BackFrom<Complex<f64>, f64> for f64 {
+impl<T: BesselFloat> BackFrom<Complex<T>, T> for T {
     #[inline]
-    fn back_from(val: &Complex<f64>) -> Result<f64, BesselError<f64>> {
-        const MARGIN: f64 = 1000.0;
-        let tol = MARGIN * f64::MACHINE_CONSTANTS.abs_error_tolerance;
+    fn back_from(val: &Complex<T>) -> Result<T, BesselError<T>> {
+        let margin = T::from_f64(1000.0);
+        let tol = margin * T::MACHINE_CONSTANTS.abs_error_tolerance;
         // if the imainary part is small, pass the value on
         // if the imaginary part is small compared to the real part, pass the value on
         // if the real part is small, the imaginary part is likely inaccurate, so pass the value on
@@ -234,28 +234,28 @@ impl BackFrom<Complex<f64>, f64> for f64 {
     }
 }
 
-impl BackFrom<Result<Complex<f64>, BesselError<f64>>, f64> for f64 {
+impl<T: BesselFloat> BackFrom<Result<Complex<T>, BesselError<T>>, T> for T {
     #[inline]
     fn back_from(
         val: &Result<Complex<Self>, BesselError<Self>>,
     ) -> Result<Self, BesselError<Self>> {
         match val {
-            Ok(cpx) => f64::back_from(cpx),
-            // below we can assume that y has one element, as the input type is BesselResult<Complex<f64>> not
-            // BesselResult<Vec<Complex<f64>>>
-            Err(BesselError::PartialLossOfSignificance { y, nz: _ }) => f64::back_from(&y[0]),
+            Ok(cpx) => T::back_from(cpx),
+            // below we can assume that y has one element, as the input type is BesselResult<Complex<T>> not
+            // BesselResult<Vec<Complex<T>>>
+            Err(BesselError::PartialLossOfSignificance { y, nz: _ }) => T::back_from(&y[0]),
             Err(err) => Err((*err).clone()),
         }
     }
 }
 
-impl BackFrom<Result<Self, BesselError<f64>>, f64> for Complex<f64> {
+impl<T: BesselFloat> BackFrom<Result<Self, BesselError<T>>, T> for Complex<T> {
     #[inline]
-    fn back_from(val: &Result<Self, BesselError<f64>>) -> Result<Self, BesselError<f64>> {
+    fn back_from(val: &Result<Self, BesselError<T>>) -> Result<Self, BesselError<T>> {
         match val {
             Ok(cpx) => Ok(*cpx),
-            // below we can assume that y has one element, as the input type is BesselResult<Complex<f64>> not
-            // BesselResult<Vec<Complex<f64>>>
+            // below we can assume that y has one element, as the input type is BesselResult<Complex<T>> not
+            // BesselResult<Vec<Complex<T>>>
             Err(BesselError::PartialLossOfSignificance { y, nz: _ }) => Ok(y[0]),
             Err(err) => Err((*err).clone()),
         }
@@ -342,6 +342,23 @@ impl<T: BesselFloat> BesselError<T> {
     }
 
     #[doc(hidden)]
+    pub fn from_i32(code: i32) -> Option<BesselError<T>> {
+        match code {
+            1 => Some(BesselError::InvalidInput {
+                details: "from i32".to_string(),
+            }),
+            2 => Some(BesselError::Overflow),
+            3 => Some(BesselError::PartialLossOfSignificance { y: vec![], nz: 0 }),
+            4 => Some(BesselError::LossOfSignificance),
+            5 => Some(BesselError::DidNotConverge),
+            6 => Some(BesselError::ComplexOutputForRealInput {
+                output: Complex::new(T::NAN, T::NAN),
+            }),
+            _ => None,
+        }
+    }
+
+    #[doc(hidden)]
     pub fn to_f32(&self) -> BesselError<f32> {
         match self {
             BesselError::InvalidInput { details } => BesselError::InvalidInput {
@@ -377,7 +394,7 @@ macro_rules! simple_bessel_wrapper {
             $(#[$meta])*
             // [<simple_ $base_func>] concatenates into simple_bessel_j
             #[inline]
-            fn [<$base_func _single>](order: f64, z: Complex<f64>) -> Result<Complex<f64>, BesselError> {
+            fn [<$base_func _single>]<T:BesselFloat>(order: T, z: Complex<T>) -> Result<Complex<T>, BesselError<T>> {
                 let (result_vec, _nz) = [<complex_$base_func>](z, order, Scaling::Unscaled, 1)?;
                 Ok(result_vec[0])
             }
