@@ -122,7 +122,7 @@ pub fn j1(x: f64) -> f64 {
         // j1(x) = 1/sqrt(pi) * (P(1,x)*cc - Q(1,x)*ss) / sqrt(x)
         // y1(x) = 1/sqrt(pi) * (P(1,x)*ss + Q(1,x)*cc) / sqrt(x)
 
-        let z = if x > *TWO_129 {
+        let z = if x > TWO_129 {
             (1.0 / PI.sqrt()) * cc / x.sqrt()
         } else {
             let u = p_one(x);
@@ -209,7 +209,7 @@ pub fn y1(x: f64) -> Result<f64, BesselError> {
         //     sin(x) +- cos(x) = -cos(2x)/(sin(x) -+ cos(x))
         // to compute the worse one.
 
-        let z = if x > *TWO_129 {
+        let z = if x > TWO_129 {
             (1.0 / PI.sqrt()) * ss / x.sqrt()
         } else {
             let u = p_one(x);

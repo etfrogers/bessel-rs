@@ -11,12 +11,9 @@ pub use j1::y1 as bessel_y1;
 pub use jn::jn as bessel_jn;
 pub use jn::yn as bessel_yn;
 
-use std::sync::LazyLock;
-
-const _HUGE: f64 = 1e300;
-const TWO_M13: f64 = 1.0 / (1 << 13) as f64; // 2**-13 0x3f20000000000000
-const TWO_M27: f64 = 1.0 / (1 << 27) as f64; // 2**-27 0x3e40000000000000
-const TWO_M29: f64 = 1.0 / (1 << 29) as f64; // 2**-29
-const TWO_M54: f64 = 1.0 / (1_u64 << 54) as f64; // 2**-54 0x3c90000000000000
-static TWO_129: LazyLock<f64> = LazyLock::new(|| 2.0_f64.powi(129)); // 2**129 0x4800000000000000
-static TWO_302: LazyLock<f64> = LazyLock::new(|| 2.0_f64.powi(302)); // 2**302
+pub(crate) const TWO_M13: f64 = 1.0 / (1 << 13) as f64; // 2**-13 0x3f20000000000000
+pub(crate) const TWO_M27: f64 = 1.0 / (1 << 27) as f64; // 2**-27 0x3e40000000000000
+pub(crate) const TWO_M29: f64 = 1.0 / (1 << 29) as f64; // 2**-29
+pub(crate) const TWO_M54: f64 = 1.0 / (1_u64 << 54) as f64; // 2**-54 0x3c90000000000000
+pub(crate) const TWO_129: f64 = 6.805_647_338_418_77e38; // 2**129 0x4800000000000000
+pub(crate) const TWO_302: f64 = 8.148_143_905_337_944e90; // 2**302 0x52D0000000000000

@@ -94,7 +94,7 @@ pub fn jn(n: i32, x: f64) -> f64 {
 
     let b = if n as f64 <= x {
         // Safe to use J(n+1,x)=2n/x *J(n,x)-J(n-1,x)
-        if x >= *TWO_302 {
+        if x >= TWO_302 {
             // x > 2**302
 
             // (x >> n**2)
@@ -269,7 +269,7 @@ pub fn yn(n: i32, x: f64) -> Result<f64, BesselError> {
     if n == 1 {
         return Ok(if sign { -y1(x)? } else { y1(x)? });
     }
-    let mut b = if x >= *TWO_302 {
+    let mut b = if x >= TWO_302 {
         // x > 2**302
         // (x >> n**2)
         //	    Jn(x) = cos(x-(2n+1)*pi/4)*sqrt(2/x*pi)

@@ -125,7 +125,7 @@ pub fn j0(x: f64) -> f64 {
         // j0(x) = 1/sqrt(pi) * (P(0,x)*cc - Q(0,x)*ss) / sqrt(x)
         // y0(x) = 1/sqrt(pi) * (P(0,x)*ss + Q(0,x)*cc) / sqrt(x)
 
-        let z = if x > *TWO_129 {
+        let z = if x > TWO_129 {
             // |x| > ~6.8056e+38
             (1.0 / PI.sqrt()) * cc / x.sqrt()
         } else {
@@ -225,7 +225,7 @@ pub fn y0(x: f64) -> Result<f64, BesselError> {
                 ss = z / cc;
             }
         }
-        let z = if x > *TWO_129 {
+        let z = if x > TWO_129 {
             // |x| > ~6.8056e+38
             (1.0 / PI.sqrt()) * ss / x.sqrt()
         } else {
