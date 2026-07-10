@@ -109,12 +109,12 @@ pub fn jn(n: i32, x: f64) -> f64 {
             //                 3     s+c             c-s
 
             let (s, c) = x.sin_cos();
-            let temp = match n % 3 {
+            let temp = match n % 4 {
                 0 => c + s,
                 1 => -c + s,
                 2 => -c - s,
                 3 => c - s,
-                _ => panic!("Not reachable"),
+                _ => unreachable!("Not reachable"),
             };
             (1.0 / PI.sqrt()) * temp / x.sqrt()
         } else {
@@ -279,12 +279,12 @@ pub fn yn(n: i32, x: f64) -> Result<f64, String> {
         //		   2	-s+c		-c-s
         //		   3	 s+c		 c-s
         let (s, c) = x.sin_cos();
-        let temp = match n % 3 {
+        let temp = match n % 4 {
             0 => s - c,
             1 => -s - c,
             2 => -s + c,
             3 => s + c,
-            _ => panic!("Not reachable"),
+            _ => unreachable!("Not reachable"),
         };
         (1.0 / PI.sqrt()) * temp / x.sqrt()
     } else {

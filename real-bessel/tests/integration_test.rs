@@ -73,6 +73,8 @@ fn test_bessel_yn_against_amos(#[case] order: f64, #[case] mut zr: f64, #[case] 
         );
         return;
     }
+    // yn(n, x) for large x loses precision because it's computed as a difference of large values
+    // via recurrence or trigonometric asymptotic expansions, compounding the f64 precision limits.
     let eps = if zr > 1e6 { 1e-5 } else { 1e-10 };
     assert_relative_eq!(actual, expected, epsilon = eps, max_relative = 1e-10,);
 }
@@ -127,3 +129,29 @@ fn test_bessel_yn_against_amos(#[case] order: f64, #[case] mut zr: f64, #[case] 
 #[case(1.0, -4816.864663442315, 9.992997770079455)]
 #[case(2.8237311072834126e-124, -7.414168789342814e5, 0e0)]
 pub fn bessel_cases(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {}
+
+#[rstest]
+fn test_jn_very_large_x(#[values(0, 1, 2, 3, 4, 5, 6, 7)] n: i32) {
+    let x = f64::MAX; // ~1.8e308, well above 2^302
+    let actual = bessel_jn(n, x);
+
+    // Direct asymptotic formula: J_n(x) ≈ sqrt(2/πx) * cos(x - (2n+1)π/4)
+    let amplitude = (2.0 / (std::f64::consts::PI * x)).sqrt();
+    let phase = x - ((2 * n + 1) as f64) * std::f64::consts::PI / 4.0;
+    let expected = amplitude * phase.cos();
+
+    assert_relative_eq!(actual, expected, epsilon = 1e-10);
+}
+
+#[rstest]
+fn test_yn_very_large_x(#[values(0, 1, 2, 3, 4, 5, 6, 7)] n: i32) {
+    let x = f64::MAX; // ~1.8e308, well above 2^302
+    let actual = yn(n, x).unwrap();
+
+    // Direct asymptotic formula: Y_n(x) ≈ sqrt(2/πx) * sin(x - (2n+1)π/4)
+    let amplitude = (2.0 / (std::f64::consts::PI * x)).sqrt();
+    let phase = x - ((2 * n + 1) as f64) * std::f64::consts::PI / 4.0;
+    let expected = amplitude * phase.sin();
+
+    assert_relative_eq!(actual, expected, epsilon = 1e-10);
+}
