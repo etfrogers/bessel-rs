@@ -1,6 +1,9 @@
 use approx::relative_eq;
 use num::{Complex, Float};
-use std::fmt::{Debug, LowerExp};
+use std::{
+    fmt::{Debug, LowerExp},
+    vec,
+};
 
 use super::DiagnosticBesselFloat;
 use crate::{
@@ -172,7 +175,6 @@ pub fn assert_results_are_equal_floats<T: DiagnosticBesselFloat>(
 ) {
     match (actual, expected) {
         (Ok(actual_vals), Ok(expected_vals)) => {
-            // if let (Ok(actual_vals), Ok(expected_vals)) = (actual, expected) {
             if actual_vals.1 > 0 || expected_vals.1 > 0 {
                 // If either calculation experienced an underflow (nz > 0),
                 // f32 and f64 will completely diverge. Skip comparison.
@@ -232,8 +234,7 @@ pub fn assert_results_are_equal_floats<T: DiagnosticBesselFloat>(
         _ => {
             panic!(
                 "Mismatched result types: actual={:?}, expected={:?}",
-                actual,   //.as_ref()//.map(|_| "Ok"),
-                expected  //.as_ref()//.map(|_| "Ok")
+                actual, expected
             );
         }
     }

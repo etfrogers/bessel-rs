@@ -1,21 +1,19 @@
-use std::f64::consts::PI;
-
 use num::Complex;
 
-use crate::HankelKind;
+use crate::{HankelKind, types::BesselFloat};
 
 /// (-1)^n sign factor for integer order reflection.
 #[inline]
-pub fn integer_sign(n: i64) -> f64 {
-    if n % 2 == 0 { 1.0 } else { -1.0 }
+pub fn integer_sign<T: BesselFloat>(n: i64) -> T {
+    if n % 2 == 0 { T::one() } else { -T::one() }
 }
 
 /// Check if `nu` is a non-negative integer. Returns `Some(n)` if so.
 #[inline]
-pub fn as_integer(nu: f64) -> Option<i64> {
+pub fn as_integer<T: BesselFloat>(nu: T) -> Option<i64> {
     if nu == nu.floor() {
         // Safe conversion: orders beyond i64 range are not practical
-        Some(nu as i64)
+        Some(nu.to_i64().unwrap())
     } else {
         None
     }
@@ -30,33 +28,37 @@ pub fn as_integer(nu: f64) -> Option<i64> {
 ///
 /// Algorithm follows scipy/xsf: reduce to [0, 0.5], use symmetry.
 #[inline]
-pub(crate) fn sinpi(x: f64) -> f64 {
+pub(crate) fn sinpi<T: BesselFloat>(x: T) -> T {
     // sinpi is odd: sinpi(-x) = -sinpi(x)
-    let (ax, sign) = if x < 0.0 { (-x, -1.0) } else { (x, 1.0) };
+    let (ax, sign) = if x < T::zero() {
+        (-x, -T::one())
+    } else {
+        (x, T::one())
+    };
 
     // Reduce to [0, 2): r = ax mod 2
-    let r = ax % 2.0;
+    let r = ax % T::two();
 
     // Exact special values
-    if r == 0.0 || r == 1.0 {
-        return 0.0;
+    if r == T::zero() || r == T::one() {
+        return T::zero();
     }
-    if r == 0.5 {
+    if r == T::half() {
         return sign;
     }
-    if r == 1.5 {
+    if r == T::from_f64(1.5) {
         return -sign;
     }
 
     // Use symmetry to reduce to [0, 0.5]
-    let s = if r < 0.5 {
-        (r * PI).sin()
-    } else if r < 1.0 {
-        ((1.0 - r) * PI).sin()
-    } else if r < 1.5 {
-        -((r - 1.0) * PI).sin()
+    let s = if r < T::half() {
+        (r * T::PI()).sin()
+    } else if r < T::one() {
+        ((T::one() - r) * T::PI()).sin()
+    } else if r < T::from_f64(1.5) {
+        -((r - T::one()) * T::PI()).sin()
     } else {
-        -((2.0 - r) * PI).sin()
+        -((T::two() - r) * T::PI()).sin()
     };
 
     sign * s
@@ -71,45 +73,45 @@ pub(crate) fn sinpi(x: f64) -> f64 {
 ///
 /// Algorithm follows scipy/xsf: reduce to [0, 0.5], use symmetry.
 #[inline]
-pub(crate) fn cospi(x: f64) -> f64 {
+pub(crate) fn cospi<T: BesselFloat>(x: T) -> T {
     // cospi is even: cospi(-x) = cospi(x)
     let ax = x.abs();
 
     // Reduce to [0, 2): r = ax mod 2
-    let r = ax % 2.0;
+    let r = ax % T::two();
 
     // Exact special values
-    if r == 0.0 {
-        return 1.0;
+    if r == T::zero() {
+        return T::one();
     }
-    if r == 0.5 || r == 1.5 {
-        return 0.0;
+    if r == T::half() || r == T::from_f64(1.5) {
+        return T::zero();
     }
-    if r == 1.0 {
-        return -1.0;
+    if r == T::one() {
+        return -T::one();
     }
 
     // Use symmetry to reduce to [0, 0.5]
-    if r < 0.5 {
-        (r * PI).cos()
-    } else if r < 1.0 {
-        -((1.0 - r) * PI).cos()
-    } else if r < 1.5 {
-        -((r - 1.0) * PI).cos()
+    if r < T::half() {
+        (r * T::PI()).cos()
+    } else if r < T::one() {
+        -((T::one() - r) * T::PI()).cos()
+    } else if r < T::from_f64(1.5) {
+        -((r - T::one()) * T::PI()).cos()
     } else {
-        ((2.0 - r) * PI).cos()
+        ((T::two() - r) * T::PI()).cos()
     }
 }
 
 /// J_{-ν}(z) = cos(νπ)·J_ν(z) − sin(νπ)·Y_ν(z)  (DLMF 10.2.3)
 #[inline]
-pub fn reflect_j_element(order: f64, j: Complex<f64>, y: Complex<f64>) -> Complex<f64> {
+pub fn reflect_j_element<T: BesselFloat>(order: T, j: Complex<T>, y: Complex<T>) -> Complex<T> {
     j * cospi(order) - y * sinpi(order)
 }
 
 /// H^(m)_{-ν}(z) = exp(±νπi)·H^(m)_ν(z)  (DLMF 10.4.6/7)
 #[inline]
-pub fn reflect_h_element(order: f64, kind: HankelKind, h: Complex<f64>) -> Complex<f64> {
+pub fn reflect_h_element<T: BesselFloat>(order: T, kind: HankelKind, h: Complex<T>) -> Complex<T> {
     let cos_nu_pi = cospi(order);
     let sin_nu_pi = sinpi(order);
     let rotation = match kind {
@@ -121,12 +123,12 @@ pub fn reflect_h_element(order: f64, kind: HankelKind, h: Complex<f64>) -> Compl
 
 /// Y_{-ν}(z) = sin(νπ)·J_ν(z) + cos(νπ)·Y_ν(z)  (DLMF 10.2.3)
 #[inline]
-pub fn reflect_y_element(order: f64, j: Complex<f64>, y: Complex<f64>) -> Complex<f64> {
+pub fn reflect_y_element<T: BesselFloat>(order: T, j: Complex<T>, y: Complex<T>) -> Complex<T> {
     j * sinpi(order) + y * cospi(order)
 }
 
 /// I_{-ν}(z) = I_ν(z) + (2/π)·sin(νπ)·K_ν(z)  (DLMF 10.27.2)
 #[inline]
-pub fn reflect_i_element(order: f64, i: Complex<f64>, k: Complex<f64>) -> Complex<f64> {
-    k * (2.0 / PI * sinpi(order)) + i
+pub fn reflect_i_element<T: BesselFloat>(order: T, i: Complex<T>, k: Complex<T>) -> Complex<T> {
+    k * (T::two() / T::PI() * sinpi(order)) + i
 }

@@ -1,7 +1,7 @@
 #[macro_export]
 macro_rules! unwrap_real_bessel {
     ($fun: ident, $order:expr, $zr: expr) => {
-        match $fun::<f64, f64>($order, $zr) {
+        match $fun::<f64, f64, f64>($order, $zr) {
             Ok(v) => v,
             Err(::amos_bessel_rs::BesselError::Overflow) => f64::NAN,
             Err(e) => panic!("Unexpected error from {}: {:?}", stringify!($fun), e),

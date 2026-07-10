@@ -142,6 +142,7 @@ use crate::{
         as_integer, integer_sign, reflect_h_element, reflect_i_element, reflect_j_element,
         reflect_y_element,
     },
+    types::BesselFloat,
 };
 pub use amos::{HankelKind, Scaling};
 
@@ -158,31 +159,36 @@ pub use types::{BackFrom, BesselError};
 ///
 /// This trait is implemented for `f64` and `Complex<f64>`, allowing the Bessel functions
 /// to accept both real and complex arguments.
-pub trait BesselInput:
-    Into<Complex<f64>>
-    + BackFrom<Complex<f64>, f64>
-    + Mul<f64, Output = Self>
-    + BackFrom<Result<Complex<f64>, BesselError<f64>>, f64>
+pub trait BesselInput<T: BesselFloat = f64>:
+    Into<Complex<T>>
+    + BackFrom<Complex<T>, T>
+    + Mul<T, Output = Self>
+    + BackFrom<Result<Complex<T>, BesselError<T>>, T>
 {
 }
 
-impl BesselInput for f64 {}
-impl BesselInput for Complex<f64> {}
+impl BesselInput<f64> for f64 {}
+impl BesselInput<f64> for Complex<f64> {}
+impl BesselInput<f32> for f32 {}
+impl BesselInput<f32> for Complex<f32> {}
 
 /// Computes the Bessel function of the first kind Jv(z).
 ///
 /// # Arguments
 /// * `order` - The order of the Bessel function (can be non-integer).
 /// * `z` - The complex or real argument.
-pub fn bessel_j<ZT: BesselInput, OT: Into<f64>>(order: OT, z: ZT) -> Result<ZT, BesselError> {
-    let order: f64 = order.into();
-    let z: Complex<f64> = z.into();
-    if order >= 0.0 {
+pub fn bessel_j<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
+    order: OT,
+    z: ZT,
+) -> Result<ZT, BesselError<FT>> {
+    let order: FT = order.into();
+    let z: Complex<FT> = z.into();
+    if order >= FT::zero() {
         return ZT::back_from(&bessel_j_single(order, z));
     }
 
     // Special case for negative integer order: J(-n, z) = (-1)^n J(n, z)
-    let abs_order: f64 = order.abs();
+    let abs_order: FT = order.abs();
     if let Some(n) = as_integer(abs_order) {
         return ZT::back_from(&bessel_j_single(abs_order, z)).map(|x| x * integer_sign(n));
     }
@@ -199,10 +205,13 @@ pub fn bessel_j<ZT: BesselInput, OT: Into<f64>>(order: OT, z: ZT) -> Result<ZT, 
 /// # Arguments
 /// * `order` - The order of the Bessel function.
 /// * `z` - The complex or real argument.
-pub fn bessel_i<ZT: BesselInput, OT: Into<f64>>(order: OT, z: ZT) -> Result<ZT, BesselError> {
+pub fn bessel_i<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
+    order: OT,
+    z: ZT,
+) -> Result<ZT, BesselError<FT>> {
     let order = order.into();
     let z = z.into();
-    if order >= 0.0 {
+    if order >= FT::zero() {
         return ZT::back_from(&bessel_i_single(order, z));
     }
 
@@ -225,7 +234,10 @@ pub fn bessel_i<ZT: BesselInput, OT: Into<f64>>(order: OT, z: ZT) -> Result<ZT, 
 /// # Arguments
 /// * `order` - The order of the Bessel function.
 /// * `z` - The complex or real argument.
-pub fn bessel_k<ZT: BesselInput, OT: Into<f64>>(order: OT, z: ZT) -> Result<ZT, BesselError> {
+pub fn bessel_k<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
+    order: OT,
+    z: ZT,
+) -> Result<ZT, BesselError<FT>> {
     // K_{-ν}(z) = K_ν(z) (DLMF 10.27.3)
     let abs_order = order.into().abs();
     ZT::back_from(&bessel_k_single(abs_order, z.into()))
@@ -236,10 +248,13 @@ pub fn bessel_k<ZT: BesselInput, OT: Into<f64>>(order: OT, z: ZT) -> Result<ZT, 
 /// # Arguments
 /// * `order` - The order of the Bessel function.
 /// * `z` - The complex or real argument.
-pub fn bessel_y<ZT: BesselInput, OT: Into<f64>>(order: OT, z: ZT) -> Result<ZT, BesselError> {
+pub fn bessel_y<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
+    order: OT,
+    z: ZT,
+) -> Result<ZT, BesselError<FT>> {
     let order = order.into();
     let z = z.into();
-    if order >= 0.0 {
+    if order >= FT::zero() {
         return ZT::back_from(&bessel_y_single(order, z));
     }
 
@@ -248,7 +263,7 @@ pub fn bessel_y<ZT: BesselInput, OT: Into<f64>>(order: OT, z: ZT) -> Result<ZT, 
     // Integer shortcut: Y_{-n}(z) = (-1)^n * Y_n(z)
     if let Some(n) = as_integer(abs_order) {
         let y = bessel_y_single(abs_order, z)?;
-        return ZT::back_from(&(y * integer_sign(n)));
+        return ZT::back_from(&(y * integer_sign::<FT>(n)));
     }
 
     // General case: need both J and Y at positive |ν|
@@ -264,11 +279,11 @@ pub fn bessel_y<ZT: BesselInput, OT: Into<f64>>(order: OT, z: ZT) -> Result<ZT, 
 /// * `order` - The order of the Hankel function.
 /// * `z` - The complex or real argument.
 /// * `kind` - The kind of Hankel function (First or Second).
-pub fn hankel<ZT: BesselInput, OT: Into<f64>>(
+pub fn hankel<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
     kind: HankelKind,
-) -> Result<ZT, BesselError> {
+) -> Result<ZT, BesselError<FT>> {
     let order = order.into();
     let abs_order = order.abs();
     let mut h = match kind {
@@ -276,7 +291,7 @@ pub fn hankel<ZT: BesselInput, OT: Into<f64>>(
         HankelKind::Second => hankel2_single(abs_order, z.into())?,
     };
 
-    if order < 0.0 {
+    if order < FT::zero() {
         // Need to reflect the Hankel function for negative orders, but this is just a rotation, so no loss of significance.
         h = reflect_h_element(abs_order, kind, h);
     }
@@ -284,22 +299,22 @@ pub fn hankel<ZT: BesselInput, OT: Into<f64>>(
 }
 
 /// Computes the Airy function Ai(z).
-pub fn airy<ZT: BesselInput>(z: ZT) -> Result<ZT, BesselError> {
+pub fn airy<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
     ZT::back_from(&complex_airy(z.into(), false, Scaling::Unscaled).map(|x| x.0))
 }
 
 /// Computes the derivative of the Airy function Ai'(z).
-pub fn airyp<ZT: BesselInput>(z: ZT) -> Result<ZT, BesselError> {
+pub fn airyp<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
     ZT::back_from(&complex_airy(z.into(), true, Scaling::Unscaled).map(|x| x.0))
 }
 
 /// Computes the Airy function of the second kind Bi(z).
-pub fn airy_b<ZT: BesselInput>(z: ZT) -> Result<ZT, BesselError> {
+pub fn airy_b<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
     ZT::back_from(&complex_airy_b(z.into(), false, Scaling::Unscaled))
 }
 
 /// Computes the derivative of the Airy function of the second kind Bi'(z).
-pub fn airy_bp<ZT: BesselInput>(z: ZT) -> Result<ZT, BesselError> {
+pub fn airy_bp<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
     ZT::back_from(&complex_airy_b(z.into(), true, Scaling::Unscaled))
 }
 
