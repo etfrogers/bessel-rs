@@ -123,8 +123,8 @@ pub fn j1(x: f64) -> f64 {
         let z = if x > *TWO_129 {
             (1.0 / PI.sqrt()) * cc / x.sqrt()
         } else {
-            let u = pone(x);
-            let v = qone(x);
+            let u = p_one(x);
+            let v = q_one(x);
             (1.0 / PI.sqrt()) * (u * cc - v * ss) / x.sqrt()
         };
         return if sign { -z } else { z };
@@ -207,8 +207,8 @@ pub fn y1(x: f64) -> Result<f64, String> {
         let z = if x > *TWO_129 {
             (1.0 / PI.sqrt()) * ss / x.sqrt()
         } else {
-            let u = pone(x);
-            let v = qone(x);
+            let u = p_one(x);
+            let v = q_one(x);
             (1.0 / PI.sqrt()) * (u * ss + v * cc) / x.sqrt()
         };
         return Ok(z);
@@ -224,14 +224,14 @@ pub fn y1(x: f64) -> Result<f64, String> {
     }
 }
 
-// For x >= 8, the asymptotic expansions of pone is
+// For x >= 8, the asymptotic expansions of p_one is
 //      1 + 15/128 s**2 - 4725/2**15 s**4 - ..., where s = 1/x.
-// We approximate pone by
-//      pone(x) = 1 + (R/S)
+// We approximate p_one by
+//      p_one(x) = 1 + (R/S)
 // where R = pr0 + pr1*s**2 + pr2*s**4 + ... + pr5*s**10
 //       S = 1 + ps0*s**2 + ... + ps4*s**10
 // and
-//      | pone(x)-1-R/S | <= 2**(-60.06)
+//      | p_one(x)-1-R/S | <= 2**(-60.06)
 
 // for x in [inf, 8]=1/[0,0.125]
 const P1_R8: [f64; 6] = [
@@ -301,9 +301,8 @@ const P1_S2: [f64; 5] = [
     8.36463893371618283368e+00, // 0x4020BAB1F44E5192
 ];
 
-fn pone(x: f64) -> f64 {
-    // var p *[6]f64
-    // var q *[5]f64
+fn p_one(x: f64) -> f64 {
+    debug_assert!(x >= 2.0, "q_one requires x >= 2.0, got {x}");
     let (p, q) = if x >= 8.0 {
         (&P1_R8, &P1_S8)
     } else if x >= 4.5454 {
@@ -313,7 +312,7 @@ fn pone(x: f64) -> f64 {
     } else if x >= 2.0 {
         (&P1_R2, &P1_S2)
     } else {
-        panic!("pone called with x < 2")
+        unreachable!("p_one: caller invariant violated — x must be >= 2.0, got {x}")
     };
 
     let z = 1.0 / (x * x);
@@ -322,14 +321,14 @@ fn pone(x: f64) -> f64 {
     1.0 + r / s
 }
 
-// For x >= 8, the asymptotic expansions of qone is
+// For x >= 8, the asymptotic expansions of q_one is
 //      3/8 s - 105/1024 s**3 - ..., where s = 1/x.
-// We approximate qone by
-//      qone(x) = s*(0.375 + (R/S))
+// We approximate q_one by
+//      q_one(x) = s*(0.375 + (R/S))
 // where R = qr1*s**2 + qr2*s**4 + ... + qr5*s**10
 //       S = 1 + qs1*s**2 + ... + qs6*s**12
 // and
-//      | qone(x)/s -0.375-R/S | <= 2**(-61.13)
+//      | q_one(x)/s -0.375-R/S | <= 2**(-61.13)
 
 // for x in [inf, 8] = 1/[0,0.125]
 const Q1_R8: [f64; 6] = [
@@ -403,8 +402,8 @@ const Q1_S2: [f64; 6] = [
     -4.95949898822628210127e+00, // 0xC013D686E71BE86B
 ];
 
-fn qone(x: f64) -> f64 {
-    // var p, q *[6]f64
+fn q_one(x: f64) -> f64 {
+    debug_assert!(x >= 2.0, "q_one requires x >= 2.0, got {x}");
     let (p, q) = if x >= 8.0 {
         (&Q1_R8, &Q1_S8)
     } else if x >= 4.5454 {
@@ -414,7 +413,7 @@ fn qone(x: f64) -> f64 {
     } else if x >= 2.0 {
         (&Q1_R2, &Q1_S2)
     } else {
-        panic!("qone called with x < 2")
+        unreachable!("q_one: caller invariant violated — x must be >= 2.0, got {x}");
     };
     let z = 1.0 / (x * x);
     let r = p[0] + z * (p[1] + z * (p[2] + z * (p[3] + z * (p[4] + z * p[5]))));
