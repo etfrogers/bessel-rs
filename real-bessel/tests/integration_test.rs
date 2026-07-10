@@ -2,7 +2,7 @@ use rstest_reuse::template;
 
 use amos_bessel_rs::{bessel_j, bessel_y};
 use approx::assert_relative_eq;
-use real_bessel::{bessel_j0, bessel_j1, bessel_jn, bessel_y0, bessel_y1, bessel_yn};
+use real_bessel::{BesselError, bessel_j0, bessel_j1, bessel_jn, bessel_y0, bessel_y1, bessel_yn};
 use rstest::rstest;
 use rstest_reuse::apply;
 

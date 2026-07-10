@@ -70,6 +70,8 @@
 //
 #![allow(clippy::excessive_precision)]
 
+use crate::BesselError;
+
 use super::{TWO_129, TWO_M13, TWO_M27};
 use std::f64;
 use std::f64::consts::PI;
@@ -161,7 +163,7 @@ pub fn j0(x: f64) -> f64 {
 //	Y0(0) = -Inf
 //	Y0(x < 0) = NaN
 //	Y0(NaN) = NaN
-pub fn y0(x: f64) -> Result<f64, String> {
+pub fn y0(x: f64) -> Result<f64, BesselError> {
     // const TwoM27:f64 = 1.0 / (1 << 27)        ;     // 2**-27 0x3e40000000000000
     // const Two129:f64  = 1 << 129                    // 2**129 0x4800000000000000
     const U00: f64 = -7.38042951086872317523e-02; // 0xBFB2E4D699CBD01F
@@ -178,7 +180,10 @@ pub fn y0(x: f64) -> Result<f64, String> {
 
     // special cases
     if x < 0.0 {
-        return Err("y0 is complex for z < 0, and this function is soley real".to_string());
+        return Err(BesselError::NegativeInputForYFunction {
+            function: "y0".to_string(),
+            input: x,
+        });
     }
     if x.is_nan() {
         return Ok(f64::NAN);

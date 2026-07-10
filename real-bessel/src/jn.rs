@@ -50,6 +50,8 @@
 #![allow(clippy::excessive_precision)]
 use num::Integer;
 
+use crate::BesselError;
+
 use super::{
     TWO_302, TWO_M29,
     j0::{j0, y0},
@@ -234,10 +236,13 @@ pub fn jn(n: i32, x: f64) -> f64 {
 //	Yn(n < 0, 0) = +Inf if n is odd, -Inf if n is even
 //	Yn(n, x < 0) = NaN
 //	Yn(n, NaN) = NaN
-pub fn yn(n: i32, x: f64) -> Result<f64, String> {
+pub fn yn(n: i32, x: f64) -> Result<f64, BesselError> {
     // special cases
     if x < 0.0 {
-        return Err("yn is complex for z < 0, and this function is soley real".to_string());
+        return Err(BesselError::NegativeInputForYFunction {
+            function: "yn".to_string(),
+            input: x,
+        });
     }
     if x.is_nan() {
         return Ok(f64::NAN);

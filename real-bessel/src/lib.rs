@@ -1,5 +1,5 @@
-// mod types;
-// pub use types::BesselError;
+mod types;
+pub use types::BesselError;
 
 mod j0;
 mod j1;

@@ -1,6 +1,6 @@
 use amos_bessel_rs::{bessel_j, bessel_y};
 use approx::assert_relative_eq;
-use real_bessel::{bessel_jn, bessel_yn};
+use real_bessel::{BesselError, bessel_jn, bessel_yn};
 use rstest::rstest;
 
 #[macro_use]

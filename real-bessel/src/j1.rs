@@ -69,6 +69,8 @@
 #![allow(clippy::excessive_precision)]
 use std::f64::{self, consts::PI};
 
+use crate::BesselError;
+
 use super::{TWO_129, TWO_M27, TWO_M54};
 
 // J1 returns the order-one Bessel function of the first kind.
@@ -150,7 +152,7 @@ pub fn j1(x: f64) -> f64 {
 //	Y1(0) = -Inf
 //	Y1(x < 0) = NaN
 //	Y1(NaN) = NaN
-pub fn y1(x: f64) -> Result<f64, String> {
+pub fn y1(x: f64) -> Result<f64, BesselError> {
     // const TwoM54:f64  = 1.0 / (1 << 54)             // 2**-54 0x3c90000000000000
     // const Two129:f64  = 1 << 129                    // 2**129 0x4800000000000000
     const U00: f64 = -1.96057090646238940668e-01; // 0xBFC91866143CBC8A
@@ -167,7 +169,10 @@ pub fn y1(x: f64) -> Result<f64, String> {
     // special cases
 
     if x < 0.0 {
-        return Err("j1 is complex for z < 0, and this function is soley real".to_string());
+        return Err(BesselError::NegativeInputForYFunction {
+            function: "y1".to_string(),
+            input: x,
+        });
     }
     if x.is_nan() {
         return Ok(f64::NAN);
