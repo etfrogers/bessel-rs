@@ -8,7 +8,7 @@ repository = "https://github.com/etfrogers/bessel-rs"
 keywords = ["bessel-functions"]
 
 [dependencies]
-amos-bessel-rs = { path = "../amos-bessel-rs", version = "0.3.0" }
+amos-bessel-rs = { path = "../amos-bessel-rs", version = ">=0.3.0" }
 conv = "0.3.3"
 num = "0.4.3"
 
