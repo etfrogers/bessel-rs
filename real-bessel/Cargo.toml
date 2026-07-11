@@ -2,6 +2,11 @@
 name = "real-bessel"
 version = "0.1.0"
 edition = "2024"
+description = "A pure Rust implementation of real-valued Bessel functions of the first and second kinds, for integer orders and real arguments."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/etfrogers/bessel-rs"
+keywords = ["bessel", "mathematics", "special-functions"]
+categories = ["science", "mathematics"]
 
 [dependencies]
 thiserror = "2.0.17"
