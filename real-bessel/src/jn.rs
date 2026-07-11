@@ -56,11 +56,34 @@ use super::{
 };
 use std::f64::{self, consts::PI};
 
-/// Jn returns the order-n Bessel function of the first kind.
+/// Returns the order-`n` Bessel function of the first kind, Jₙ(x).
+///
+/// For `n = 0` and `n = 1` this delegates to the optimised [`j0`] and [`j1`]
+/// implementations. For `|n| > 1`, forward or backward recurrence is used.
 ///
 /// # Special cases
-/// - `Jn(n, ±Inf) = 0`
-/// - `Jn(n, NaN) = NaN`
+/// - `jn(n, ±∞) = 0`
+/// - `jn(n, NaN) = NaN`
+/// - `jn(0, x) = j0(x)`
+/// - `jn(1, x) = j1(x)`
+///
+/// # Examples
+/// ```
+/// use real_bessel::{j0, j1, jn};
+///
+/// // jn delegates to j0 and j1 for the first two orders
+/// assert_eq!(jn(0, 1.0), j0(1.0));
+/// assert_eq!(jn(1, 1.0), j1(1.0));
+///
+/// // Higher-order example
+/// assert!((jn(2, 1.0) - 0.11490348493190048).abs() < 1e-10);
+///
+/// // Negative-order symmetry: Jₙ(−n, x) = Jₙ(n, −x), so for even n: jn(-n, x) = jn(n, x)
+/// assert_eq!(jn(-2, 1.0), jn(2, 1.0));
+///
+/// // For odd n the sign flips: jn(-3, x) = -jn(3, x)
+/// assert_eq!(jn(-3, 1.0), -jn(3, 1.0));
+/// ```
 pub fn jn(n: i32, x: f64) -> f64 {
     // special cases
     if x.is_nan() {
@@ -223,16 +246,38 @@ pub fn jn(n: i32, x: f64) -> f64 {
     if sign { -b } else { b }
 }
 
-/// Yn returns the order-n Bessel function of the second kind for positive real x.
+/// Returns the order-`n` Bessel function of the second kind, Yₙ(x).
 ///
-/// For negative x, the result would be complex and Yn returns an error.
+/// For `n = 0` and `n = 1` this delegates to the optimised [`y0`] and [`y1`]
+/// implementations. For `|n| > 1`, forward recurrence from Y₀ and Y₁ is used.
+///
+/// Yn is only real-valued for positive x. For x ≤ 0, the function returns an
+/// `Err(`[`BesselError::NegativeInputForYFunction`]`)` rather than a complex result.
 ///
 /// # Special cases
-/// - `yn(n, +Inf) = 0`
-/// - `yn(n ≥ 0, 0) = -Inf`
-/// - `yn(n < 0, 0) = +Inf if n is odd, -Inf if n is even`
-/// - `yn(n, x < 0) = BesselError::NegativeInputForYFunction`
+/// - `yn(n, +∞) = 0`
+/// - `yn(n ≥ 0, 0) = −∞`
+/// - `yn(n < 0, 0) = +∞` if `n` is odd, `−∞` if `n` is even
+/// - `yn(n, x < 0) →` [`BesselError::NegativeInputForYFunction`]
 /// - `yn(n, NaN) = NaN`
+///
+/// # Examples
+/// ```
+/// use real_bessel::{y0, y1, yn};
+///
+/// // yn delegates to y0 and y1 for the first two orders
+/// assert_eq!(yn(0, 1.0).unwrap(), y0(1.0).unwrap());
+/// assert_eq!(yn(1, 1.0).unwrap(), y1(1.0).unwrap());
+///
+/// // Higher-order example
+/// assert!((yn(2, 1.0).unwrap() - (-1.6506826068162547)).abs() < 1e-10);
+///
+/// // Diverges at zero
+/// assert_eq!(yn(0, 0.0).unwrap(), f64::NEG_INFINITY);
+///
+/// // Negative inputs are an error — Yn would be complex there
+/// assert!(yn(2, -1.0).is_err());
+/// ```
 pub fn yn(n: i32, x: f64) -> Result<f64, BesselError> {
     // special cases
     if x < 0.0 {

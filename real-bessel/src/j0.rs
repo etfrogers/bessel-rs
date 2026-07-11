@@ -74,12 +74,31 @@ use super::{TWO_129, TWO_M13, TWO_M27};
 use std::f64;
 use std::f64::consts::PI;
 
-/// j0 returns the order-zero Bessel function of the first kind for real x.
+/// Returns the order-zero Bessel function of the first kind, J₀(x).
+///
+/// J₀ is an even function — J₀(−x) = J₀(x) — so the input sign is ignored.
 ///
 /// # Special cases
-/// - `j0(±Inf) = 0`
+/// - `j0(±∞) = 0`
 /// - `j0(0) = 1`
 /// - `j0(NaN) = NaN`
+///
+/// # Examples
+/// ```
+/// use real_bessel::j0;
+///
+/// // Exact value at the origin
+/// assert_eq!(j0(0.0), 1.0);
+///
+/// // J₀ is even: j0(-x) == j0(x)
+/// assert_eq!(j0(-2.0), j0(2.0));
+///
+/// // Known value at x = 1
+/// assert!((j0(1.0) - 0.7651976865579666).abs() < 1e-10);
+///
+/// // Decays toward zero for large x
+/// assert!(j0(f64::INFINITY) == 0.0);
+/// ```
 pub fn j0(x: f64) -> f64 {
     // R0/S0 on [0, 2]
     const R02: f64 = 1.56249999999999947958e-02; // 0x3F8FFFFFFFFFFFFD
@@ -152,15 +171,33 @@ pub fn j0(x: f64) -> f64 {
     }
 }
 
-/// y0 returns the order-zero Bessel function of the second kind for positive real x.
+/// Returns the order-zero Bessel function of the second kind, Y₀(x).
 ///
-/// For negative x, the result would be complex and y0 returns an error.
+/// Y₀ is only real-valued for positive x. For x ≤ 0, the function returns an
+/// `Err(`[`BesselError::NegativeInputForYFunction`]`)` rather than a complex result.
 ///
 /// # Special cases
-/// - `y0(+Inf) = 0`
-/// - `y0(0) = -Inf`
-/// - `y0(x < 0) = BesselError::NegativeInputForYFunction`
+/// - `y0(+∞) = 0`
+/// - `y0(0) = −∞`
+/// - `y0(x < 0) →` [`BesselError::NegativeInputForYFunction`]
 /// - `y0(NaN) = NaN`
+///
+/// # Examples
+/// ```
+/// use real_bessel::y0;
+///
+/// // Known value at x = 1
+/// assert!((y0(1.0).unwrap() - 0.08825696421567695).abs() < 1e-10);
+///
+/// // Y₀ diverges to −∞ at zero
+/// assert_eq!(y0(0.0).unwrap(), f64::NEG_INFINITY);
+///
+/// // Decays toward zero for large x
+/// assert_eq!(y0(f64::INFINITY).unwrap(), 0.0);
+///
+/// // Negative inputs are an error — Y₀ would be complex there
+/// assert!(y0(-1.0).is_err());
+/// ```
 pub fn y0(x: f64) -> Result<f64, BesselError> {
     const U00: f64 = -7.38042951086872317523e-02; // 0xBFB2E4D699CBD01F
     const U01: f64 = 1.76666452509181115538e-01; // 0x3FC69D019DE9E3FC

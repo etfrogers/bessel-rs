@@ -72,11 +72,31 @@ use crate::BesselError;
 
 use super::{TWO_129, TWO_M27, TWO_M54};
 
-/// j1 returns the order-one Bessel function of the first kind for real x.
+/// Returns the order-one Bessel function of the first kind, J₁(x).
+///
+/// J₁ is an odd function — J₁(−x) = −J₁(x).
 ///
 /// # Special cases
-/// - `j1(±Inf) = 0`
+/// - `j1(±∞) = 0`
+/// - `j1(0) = 0`
 /// - `j1(NaN) = NaN`
+///
+/// # Examples
+/// ```
+/// use real_bessel::j1;
+///
+/// // Exact value at the origin
+/// assert_eq!(j1(0.0), 0.0);
+///
+/// // J₁ is odd: j1(-x) == -j1(x)
+/// assert_eq!(j1(-2.0), -j1(2.0));
+///
+/// // Known value at x = 1
+/// assert!((j1(1.0) - 0.4400505857449335).abs() < 1e-10);
+///
+/// // Decays toward zero for large x
+/// assert_eq!(j1(f64::INFINITY), 0.0);
+/// ```
 pub fn j1(x: f64) -> f64 {
     // const TwoM27:f64  = 1.0 / (1 << 27); // 2**-27 0x3e40000000000000
     // const Two129:f64  = 1 << 129        // 2**129 0x4800000000000000
@@ -142,15 +162,33 @@ pub fn j1(x: f64) -> f64 {
     if sign { -z } else { z }
 }
 
-/// y1 returns the order-one Bessel function of the second kind for positive real x.
+/// Returns the order-one Bessel function of the second kind, Y₁(x).
 ///
-/// For negative x, the result would be complex and y1 returns an error.
+/// Y₁ is only real-valued for positive x. For x ≤ 0, the function returns an
+/// `Err(`[`BesselError::NegativeInputForYFunction`]`)` rather than a complex result.
 ///
 /// # Special cases
-/// - `y1(+Inf) = 0`
-/// - `y1(0) = -Inf`
-/// - `y1(x < 0) = BesselError::NegativeInputForYFunction`
+/// - `y1(+∞) = 0`
+/// - `y1(0) = −∞`
+/// - `y1(x < 0) →` [`BesselError::NegativeInputForYFunction`]
 /// - `y1(NaN) = NaN`
+///
+/// # Examples
+/// ```
+/// use real_bessel::y1;
+///
+/// // Known value at x = 1
+/// assert!((y1(1.0).unwrap() - (-0.7812128213002887)).abs() < 1e-10);
+///
+/// // Y₁ diverges to −∞ at zero
+/// assert_eq!(y1(0.0).unwrap(), f64::NEG_INFINITY);
+///
+/// // Decays toward zero for large x
+/// assert_eq!(y1(f64::INFINITY).unwrap(), 0.0);
+///
+/// // Negative inputs are an error — Y₁ would be complex there
+/// assert!(y1(-1.0).is_err());
+/// ```
 pub fn y1(x: f64) -> Result<f64, BesselError> {
     const U00: f64 = -1.96057090646238940668e-01; // 0xBFC91866143CBC8A
     const U01: f64 = 5.04438716639811282616e-02; // 0x3FA9D3C776292CD1
