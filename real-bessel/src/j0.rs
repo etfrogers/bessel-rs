@@ -76,11 +76,10 @@ use std::f64::consts::PI;
 
 /// j0 returns the order-zero Bessel function of the first kind for real x.
 ///
-/// Special cases are:
-///
-/// j0(±Inf) = 0
-/// j0(0) = 1
-/// j0(NaN) = NaN
+/// # Special cases
+/// - `j0(±Inf) = 0`
+/// - `j0(0) = 1`
+/// - `j0(NaN) = NaN`
 pub fn j0(x: f64) -> f64 {
     // R0/S0 on [0, 2]
     const R02: f64 = 1.56249999999999947958e-02; // 0x3F8FFFFFFFFFFFFD
@@ -157,12 +156,11 @@ pub fn j0(x: f64) -> f64 {
 ///
 /// For negative x, the result would be complex and y0 returns an error.
 ///
-/// Special cases are:
-///
-/// y0(+Inf) = 0
-/// y0(0) = -Inf
-/// y0(x < 0) returns BesselError::NegativeInputForYFunction
-/// y0(NaN) = NaN
+/// # Special cases
+/// - `y0(+Inf) = 0`
+/// - `y0(0) = -Inf`
+/// - `y0(x < 0) = BesselError::NegativeInputForYFunction`
+/// - `y0(NaN) = NaN`
 pub fn y0(x: f64) -> Result<f64, BesselError> {
     const U00: f64 = -7.38042951086872317523e-02; // 0xBFB2E4D699CBD01F
     const U01: f64 = 1.76666452509181115538e-01; // 0x3FC69D019DE9E3FC

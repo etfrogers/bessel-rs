@@ -74,10 +74,9 @@ use super::{TWO_129, TWO_M27, TWO_M54};
 
 /// j1 returns the order-one Bessel function of the first kind for real x.
 ///
-/// Special cases are:
-///
-/// j1(±Inf) = 0
-/// j1(NaN) = NaN
+/// # Special cases
+/// - `j1(±Inf) = 0`
+/// - `j1(NaN) = NaN`
 pub fn j1(x: f64) -> f64 {
     // const TwoM27:f64  = 1.0 / (1 << 27); // 2**-27 0x3e40000000000000
     // const Two129:f64  = 1 << 129        // 2**129 0x4800000000000000
@@ -147,12 +146,11 @@ pub fn j1(x: f64) -> f64 {
 ///
 /// For negative x, the result would be complex and y1 returns an error.
 ///
-/// Special cases are:
-///
-/// y1(+Inf) = 0
-/// y1(0) = -Inf
-/// y1(x < 0) Returns BesselError::NegativeInputForYFunction
-/// y1(NaN) = NaN
+/// # Special cases
+/// - `y1(+Inf) = 0`
+/// - `y1(0) = -Inf`
+/// - `y1(x < 0) = BesselError::NegativeInputForYFunction`
+/// - `y1(NaN) = NaN`
 pub fn y1(x: f64) -> Result<f64, BesselError> {
     const U00: f64 = -1.96057090646238940668e-01; // 0xBFC91866143CBC8A
     const U01: f64 = 5.04438716639811282616e-02; // 0x3FA9D3C776292CD1

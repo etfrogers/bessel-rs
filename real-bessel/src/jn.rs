@@ -58,10 +58,9 @@ use std::f64::{self, consts::PI};
 
 /// Jn returns the order-n Bessel function of the first kind.
 ///
-/// Special cases are:
-///
-/// Jn(n, ±Inf) = 0
-/// Jn(n, NaN) = NaN
+/// # Special cases
+/// - `Jn(n, ±Inf) = 0`
+/// - `Jn(n, NaN) = NaN`
 pub fn jn(n: i32, x: f64) -> f64 {
     // special cases
     if x.is_nan() {
@@ -228,13 +227,12 @@ pub fn jn(n: i32, x: f64) -> f64 {
 ///
 /// For negative x, the result would be complex and Yn returns an error.
 ///
-/// Special cases are:
-///
-/// Yn(n, +Inf) = 0
-/// Yn(n ≥ 0, 0) = -Inf
-/// Yn(n < 0, 0) = +Inf if n is odd, -Inf if n is even
-/// Yn(n, x < 0) returns BesselError::NegativeInputForYFunction
-/// Yn(n, NaN) = NaN
+/// # Special cases
+/// - `yn(n, +Inf) = 0`
+/// - `yn(n ≥ 0, 0) = -Inf`
+/// - `yn(n < 0, 0) = +Inf if n is odd, -Inf if n is even`
+/// - `yn(n, x < 0) = BesselError::NegativeInputForYFunction`
+/// - `yn(n, NaN) = NaN`
 pub fn yn(n: i32, x: f64) -> Result<f64, BesselError> {
     // special cases
     if x < 0.0 {
