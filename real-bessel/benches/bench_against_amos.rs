@@ -1,7 +1,7 @@
 use amos_bessel_rs::bessel_j;
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use itertools::Itertools;
-use real_bessel::{bessel_j0, bessel_j1, bessel_jn};
+use real_bessel::{j0, j1, jn};
 
 const ORDERS: [i32; 15] = [0, 1, 2, 5, 10, 25, 50, 75, 85, 90, 100, 150, 200, 500, 1000];
 
@@ -19,7 +19,7 @@ fn bessel_j0_bench(c: &mut Criterion) {
         |b, z_parts| {
             b.iter(|| {
                 z_parts.iter().for_each(|z| {
-                    let _ = bessel_j0(*z);
+                    let _ = j0(*z);
                 })
             })
         },
@@ -43,7 +43,7 @@ fn bessel_j0_bench(c: &mut Criterion) {
         |b, z_parts| {
             b.iter(|| {
                 z_parts.iter().for_each(|z| {
-                    let _ = bessel_j1(*z);
+                    let _ = j1(*z);
                 })
             })
         },
@@ -69,7 +69,7 @@ fn bessel_j0_bench(c: &mut Criterion) {
         |b, cases| {
             b.iter(|| {
                 cases.iter().for_each(|(order, z)| {
-                    let _ = bessel_jn(*order, *z);
+                    let _ = jn(*order, *z);
                 })
             })
         },

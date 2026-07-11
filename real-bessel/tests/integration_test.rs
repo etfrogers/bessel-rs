@@ -2,7 +2,7 @@ use rstest_reuse::template;
 
 use amos_bessel_rs::{bessel_j, bessel_y};
 use approx::assert_relative_eq;
-use real_bessel::{BesselError, bessel_j0, bessel_j1, bessel_jn, bessel_y0, bessel_y1, bessel_yn};
+use real_bessel::{BesselError, j0, j1, jn, y0, y1, yn};
 use rstest::rstest;
 use rstest_reuse::apply;
 
@@ -16,36 +16,36 @@ mod common;
 #[case(3.0, -0.2600519549019335)]
 #[case(4.0, -0.39714980986384737)]
 #[case(5.0, -0.1775967713143383)]
-fn test_bessel_j0(#[case] input: f64, #[case] expected: f64) {
-    let result = bessel_j0(input);
+fn test_j0(#[case] input: f64, #[case] expected: f64) {
+    let result = j0(input);
     assert_relative_eq!(result, expected, epsilon = 1e-10,);
 }
 
 #[apply(bessel_cases)]
-fn test_bessel_j0_against_amos(#[case] _order: f64, #[case] zr: f64, #[case] _zi: f64) {
+fn test_j0_against_amos(#[case] _order: f64, #[case] zr: f64, #[case] _zi: f64) {
     let expected = unwrap_real_bessel!(bessel_j, 0.0, zr);
-    let actual = bessel_j0(zr);
+    let actual = j0(zr);
     assert_relative_eq!(actual, expected, epsilon = 1e-10,);
 }
 
 #[apply(bessel_cases)]
-fn test_bessel_y0_against_amos(#[case] _order: f64, #[case] mut zr: f64, #[case] _zi: f64) {
-    let actual = get_real_y_bessel!(bessel_y0, zr, return);
+fn test_y0_against_amos(#[case] _order: f64, #[case] mut zr: f64, #[case] _zi: f64) {
+    let actual = get_real_y_bessel!(y0, zr, return);
 
     let expected = unwrap_real_bessel!(bessel_y, 0.0, zr);
     assert_relative_eq!(actual, expected, epsilon = 1e-10,);
 }
 
 #[apply(bessel_cases)]
-fn test_bessel_j1_against_amos(#[case] _order: f64, #[case] zr: f64, #[case] _zi: f64) {
-    let actual = bessel_j1(zr);
+fn test_j1_against_amos(#[case] _order: f64, #[case] zr: f64, #[case] _zi: f64) {
+    let actual = j1(zr);
     let expected = unwrap_real_bessel!(bessel_j, 1.0, zr);
     assert_relative_eq!(actual, expected, epsilon = 1e-10,);
 }
 
 #[apply(bessel_cases)]
-fn test_bessel_y1_against_amos(#[case] _order: f64, #[case] mut zr: f64, #[case] _zi: f64) {
-    let actual = get_real_y_bessel!(bessel_y1, zr, return);
+fn test_y1_against_amos(#[case] _order: f64, #[case] mut zr: f64, #[case] _zi: f64) {
+    let actual = get_real_y_bessel!(y1, zr, return);
     let expected = unwrap_real_bessel!(bessel_y, 1.0, zr);
 
     assert_relative_eq!(actual, expected, epsilon = 1e-10,);
@@ -53,18 +53,18 @@ fn test_bessel_y1_against_amos(#[case] _order: f64, #[case] mut zr: f64, #[case]
 
 #[apply(bessel_cases)]
 #[trace]
-fn test_bessel_jn_against_amos(#[case] order: f64, #[case] zr: f64, #[case] _zi: f64) {
+fn test_jn_against_amos(#[case] order: f64, #[case] zr: f64, #[case] _zi: f64) {
     let integer_order = order as i32;
     let expected = unwrap_real_bessel!(bessel_j, integer_order as f64, zr);
-    let actual = bessel_jn(integer_order, zr);
+    let actual = jn(integer_order, zr);
     assert_relative_eq!(actual, expected, epsilon = 1e-10,);
 }
 
 #[apply(bessel_cases)]
-fn test_bessel_yn_against_amos(#[case] order: f64, #[case] mut zr: f64, #[case] _zi: f64) {
+fn test_yn_against_amos(#[case] order: f64, #[case] mut zr: f64, #[case] _zi: f64) {
     let integer_order = order as i32;
-    let yn_local = |zr| bessel_yn(integer_order, zr);
-    let actual = get_real_y_bessel!(yn_local, zr, return);
+    let yn = |zr| yn(integer_order, zr);
+    let actual = get_real_y_bessel!(yn, zr, return);
     let expected = unwrap_real_bessel!(bessel_y, integer_order as f64, zr);
     if expected.is_nan() {
         assert!(
@@ -133,7 +133,7 @@ pub fn bessel_cases(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {}
 #[rstest]
 fn test_jn_very_large_x(#[values(0, 1, 2, 3, 4, 5, 6, 7)] n: i32) {
     let x = f64::MAX; // ~1.8e308, well above 2^302
-    let actual = bessel_jn(n, x);
+    let actual = jn(n, x);
 
     // Direct asymptotic formula: J_n(x) ≈ sqrt(2/πx) * cos(x - (2n+1)π/4)
     let amplitude = (2.0 / (std::f64::consts::PI * x)).sqrt();

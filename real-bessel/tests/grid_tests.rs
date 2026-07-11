@@ -1,6 +1,6 @@
 use amos_bessel_rs::{bessel_j, bessel_y};
 use approx::assert_relative_eq;
-use real_bessel::{BesselError, bessel_jn, bessel_yn};
+use real_bessel::{BesselError, jn, yn};
 use rstest::rstest;
 
 #[macro_use]
@@ -16,7 +16,7 @@ const Z_PARTS: [f64; 37] = [
 fn test_jn_grid(#[values(0, 1, 2, 5, 10, 25, 50, 100, 200, 500, 1000, -2)] order: i32) {
     for &zr in &Z_PARTS {
         let expected = unwrap_real_bessel!(bessel_j, order as f64, zr);
-        let actual = bessel_jn(order, zr);
+        let actual = jn(order, zr);
         if expected.is_nan() {
             assert!(actual.is_nan() || actual.is_infinite());
         } else {
@@ -29,8 +29,8 @@ fn test_jn_grid(#[values(0, 1, 2, 5, 10, 25, 50, 100, 200, 500, 1000, -2)] order
 fn test_yn_grid(#[values(0, 1, 2, 5, 10, 25, 50, 100, 200, 500, 1000, -2)] order: i32) {
     for &zr in &Z_PARTS {
         let mut zr_test = zr;
-        let yn_local = |z| bessel_yn(order, z);
-        let actual = get_real_y_bessel!(yn_local, zr_test, continue);
+        let yn = |z| yn(order, z);
+        let actual = get_real_y_bessel!(yn, zr_test, continue);
         let expected = unwrap_real_bessel!(bessel_y, order as f64, zr_test);
         if expected.is_nan() {
             assert!(actual.is_nan() || actual.is_infinite());
