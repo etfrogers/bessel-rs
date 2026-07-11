@@ -7,6 +7,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/etfrogers/bessel-rs"
 keywords = ["bessel", "mathematics", "special-functions"]
 categories = ["science", "mathematics"]
+readme = "README.md"
 
 [dependencies]
 thiserror = "2.0.17"
