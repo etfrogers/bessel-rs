@@ -1,14 +1,12 @@
-// Translation of Go's math.Jn, Yn function
+#![allow(clippy::excessive_precision)]
+//! Bessel function of the first and second kinds of order n.
+// Translation of Go's math.Jn, math.Yn functions
 // from
-// https://cs.opensource.google/go/go/+/master:src/math/j1.go
+// https://cs.opensource.google/go/go/+/master:src/math/jn.go
 // That code has this notice:
 // Copyright 2010 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
-
-/*
-    Bessel function of the first and second kinds of order n.
-*/
 
 // The original C code and the long comment below are
 // from FreeBSD's /usr/src/lib/msun/src/e_jn.c and
@@ -47,7 +45,6 @@
 //      yn(n,x) is similar in all respects, except
 //      that forward recursion is used for all
 //      values of n>1.
-#![allow(clippy::excessive_precision)]
 use num::Integer;
 
 use crate::BesselError;
@@ -59,12 +56,12 @@ use super::{
 };
 use std::f64::{self, consts::PI};
 
-// Jn returns the order-n Bessel function of the first kind.
-//
-// Special cases are:
-//
-//	Jn(n, ±Inf) = 0
-//	Jn(n, NaN) = NaN
+/// Jn returns the order-n Bessel function of the first kind.
+///
+/// Special cases are:
+///
+/// Jn(n, ±Inf) = 0
+/// Jn(n, NaN) = NaN
 pub fn jn(n: i32, x: f64) -> f64 {
     // special cases
     if x.is_nan() {
@@ -227,15 +224,17 @@ pub fn jn(n: i32, x: f64) -> f64 {
     if sign { -b } else { b }
 }
 
-// Yn returns the order-n Bessel function of the second kind.
-//
-// Special cases are:
-//
-//	Yn(n, +Inf) = 0
-//	Yn(n ≥ 0, 0) = -Inf
-//	Yn(n < 0, 0) = +Inf if n is odd, -Inf if n is even
-//	Yn(n, x < 0) = NaN
-//	Yn(n, NaN) = NaN
+/// Yn returns the order-n Bessel function of the second kind for positive real x.
+///
+/// For negative x, the result would be complex and Yn returns an error.
+///
+/// Special cases are:
+///
+/// Yn(n, +Inf) = 0
+/// Yn(n ≥ 0, 0) = -Inf
+/// Yn(n < 0, 0) = +Inf if n is odd, -Inf if n is even
+/// Yn(n, x < 0) returns BesselError::NegativeInputForYFunction
+/// Yn(n, NaN) = NaN
 pub fn yn(n: i32, x: f64) -> Result<f64, BesselError> {
     // special cases
     if x < 0.0 {

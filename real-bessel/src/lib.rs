@@ -1,3 +1,22 @@
+#![warn(missing_docs)]
+//! Real-valued Bessel functions
+//!
+//! This crate provides calculations of real-valued Bessel functions of the first and second kind,
+//! for integer orders and real arguments.
+//!
+//! If you need complex-valued Bessel functions, or other Bessel functions,
+//! see the [`amos-bessel-rs`](https://crates.io/crates/amos-bessel-rs) crate.
+//!
+//! It provides `j0`, `j1`, `jn`, `y0`, `y1` and `yn` functions.
+//!
+//! # Examples
+//!
+//! ```
+//! use real_bessel::j0;
+//!
+//! let result = j0(1.0);
+//! assert!((result - 0.7651976865579612).abs() < 1e-10);
+//! ```
 mod types;
 pub use types::BesselError;
 

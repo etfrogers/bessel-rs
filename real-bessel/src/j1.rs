@@ -1,13 +1,13 @@
-// Translation of Go's math.J0 function
+#![allow(clippy::excessive_precision)]
+
+//! Bessel function of the first and second kinds of order one.
+
+// Translation of Go's math.J1, math.Y1 functions
 // from
 // https://cs.opensource.google/go/go/+/master:src/math/j1.go
 // That code// Copyright 2010 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
-
-/*
-    Bessel function of the first and second kinds of order one.
-*/
 
 // The original C code and the long comment below are
 // from FreeBSD's /usr/src/lib/msun/src/e_j1.c and
@@ -66,19 +66,18 @@
 //               y1(x) = sqrt(2/(pi*x))*(p1(x)*sin(x1)+q1(x)*cos(x1))
 //         where x1 = x-3*pi/4. It is better to compute sin(x1),cos(x1)
 //         by method mentioned above.
-#![allow(clippy::excessive_precision)]
 use std::f64::{self, consts::PI};
 
 use crate::BesselError;
 
 use super::{TWO_129, TWO_M27, TWO_M54};
 
-// J1 returns the order-one Bessel function of the first kind.
-//
-// Special cases are:
-//
-//	J1(±Inf) = 0
-//	J1(NaN) = NaN
+/// j1 returns the order-one Bessel function of the first kind for real x.
+///
+/// Special cases are:
+///
+/// j1(±Inf) = 0
+/// j1(NaN) = NaN
 pub fn j1(x: f64) -> f64 {
     // const TwoM27:f64  = 1.0 / (1 << 27); // 2**-27 0x3e40000000000000
     // const Two129:f64  = 1 << 129        // 2**129 0x4800000000000000
@@ -144,17 +143,17 @@ pub fn j1(x: f64) -> f64 {
     if sign { -z } else { z }
 }
 
-// Y1 returns the order-one Bessel function of the second kind.
-//
-// Special cases are:
-//
-//	Y1(+Inf) = 0
-//	Y1(0) = -Inf
-//	Y1(x < 0) = NaN
-//	Y1(NaN) = NaN
+/// y1 returns the order-one Bessel function of the second kind for positive real x.
+///
+/// For negative x, the result would be complex and y1 returns an error.
+///
+/// Special cases are:
+///
+/// y1(+Inf) = 0
+/// y1(0) = -Inf
+/// y1(x < 0) Returns BesselError::NegativeInputForYFunction
+/// y1(NaN) = NaN
 pub fn y1(x: f64) -> Result<f64, BesselError> {
-    // const TwoM54:f64  = 1.0 / (1 << 54)             // 2**-54 0x3c90000000000000
-    // const Two129:f64  = 1 << 129                    // 2**129 0x4800000000000000
     const U00: f64 = -1.96057090646238940668e-01; // 0xBFC91866143CBC8A
     const U01: f64 = 5.04438716639811282616e-02; // 0x3FA9D3C776292CD1
     const U02: f64 = -1.91256895875763547298e-03; // 0xBF5F55E54844F50F
