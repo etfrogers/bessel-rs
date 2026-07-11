@@ -1,18 +1,25 @@
-use amos_bessel_rs::bessel_j;
+use amos_bessel_rs::{bessel_j, bessel_y};
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use itertools::Itertools;
-use real_bessel::{j0, j1, jn};
+use real_bessel::{j0, j1, jn, y0, y1, yn};
 
 const ORDERS: [i32; 15] = [0, 1, 2, 5, 10, 25, 50, 75, 85, 90, 100, 150, 200, 500, 1000];
 
-const Z_PARTS: [f64; 37] = [
-    -50.0, -40.0, -30.0, -25.0, -20.0, -15.0, -12.0, -10.0, -8.0, -6.0, -4.0, -3.0, -2.0, -1.0,
-    -0.5, -0.1, -0.001, -1e-6, 0.0, 1e-6, 0.001, 0.1, 0.5, 1.0, 2.0, 3.0, 4.0, 6.0, 8.0, 10.0,
-    12.0, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0,
+// Full range including negatives — valid for J functions.
+const Z_PARTS: [f64; 39] = [
+    -100.0, -50.0, -40.0, -30.0, -25.0, -20.0, -15.0, -12.0, -10.0, -8.0, -6.0, -4.0, -3.0, -2.0,
+    -1.0, -0.5, -0.1, -0.001, -1e-6, 0.0, 1e-6, 0.001, 0.1, 0.5, 1.0, 2.0, 3.0, 4.0, 6.0, 8.0,
+    10.0, 12.0, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0, 100.0,
 ];
 
-fn bessel_j0_bench(c: &mut Criterion) {
-    let mut group = c.benchmark_group("Bessel functions");
+// Positive only — Y functions are real-valued only for x > 0.
+const Z_PARTS_POS: [f64; 19] = [
+    1e-6, 0.001, 0.1, 0.5, 1.0, 2.0, 3.0, 4.0, 6.0, 8.0, 10.0, 12.0, 15.0, 20.0, 25.0, 30.0, 40.0,
+    50.0, 100.0,
+];
+
+fn bessel_j_bench(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Bessel J functions");
     group.bench_with_input(
         BenchmarkId::new("Bessel J0 real", "Fixed cases"),
         &Z_PARTS,
@@ -88,5 +95,82 @@ fn bessel_j0_bench(c: &mut Criterion) {
     );
 }
 
-criterion_group!(benches, bessel_j0_bench);
+fn bessel_y_bench(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Bessel Y functions");
+    group.bench_with_input(
+        BenchmarkId::new("Bessel Y0 real", "Fixed cases"),
+        &Z_PARTS_POS,
+        |b, z_parts| {
+            b.iter(|| {
+                z_parts.iter().for_each(|z| {
+                    let _ = y0(*z);
+                })
+            })
+        },
+    );
+
+    group.bench_with_input(
+        BenchmarkId::new("Bessel Y0 complex", "Fixed cases"),
+        &Z_PARTS_POS,
+        |b, z_parts| {
+            b.iter(|| {
+                z_parts.iter().for_each(|z| {
+                    let _ = bessel_y(0.0, *z);
+                })
+            })
+        },
+    );
+
+    group.bench_with_input(
+        BenchmarkId::new("Bessel Y1 real", "Fixed cases"),
+        &Z_PARTS_POS,
+        |b, z_parts| {
+            b.iter(|| {
+                z_parts.iter().for_each(|z| {
+                    let _ = y1(*z);
+                })
+            })
+        },
+    );
+
+    group.bench_with_input(
+        BenchmarkId::new("Bessel Y1 complex", "Fixed cases"),
+        &Z_PARTS_POS,
+        |b, z_parts| {
+            b.iter(|| {
+                z_parts.iter().for_each(|z| {
+                    let _ = bessel_y(1.0, *z);
+                })
+            })
+        },
+    );
+
+    let cases: Vec<_> = ORDERS.into_iter().cartesian_product(Z_PARTS_POS).collect();
+
+    group.bench_with_input(
+        BenchmarkId::new("Bessel Yn real", "Fixed cases"),
+        &cases,
+        |b, cases| {
+            b.iter(|| {
+                cases.iter().for_each(|(order, z)| {
+                    let _ = yn(*order, *z);
+                })
+            })
+        },
+    );
+
+    group.bench_with_input(
+        BenchmarkId::new("Bessel Yn complex", "Fixed cases"),
+        &cases,
+        |b, cases| {
+            b.iter(|| {
+                cases.iter().for_each(|(order, z)| {
+                    let _ = bessel_y(*order, *z);
+                })
+            })
+        },
+    );
+}
+
+criterion_group!(benches, bessel_j_bench, bessel_y_bench);
 criterion_main!(benches);
