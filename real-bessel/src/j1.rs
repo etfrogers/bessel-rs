@@ -1,13 +1,13 @@
-// Translation of Go's math.J0 function
+#![allow(clippy::excessive_precision)]
+
+//! Bessel function of the first and second kinds of order one.
+
+// Translation of Go's math.J1, math.Y1 functions
 // from
 // https://cs.opensource.google/go/go/+/master:src/math/j1.go
 // That code// Copyright 2010 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
-
-/*
-    Bessel function of the first and second kinds of order one.
-*/
 
 // The original C code and the long comment below are
 // from FreeBSD's /usr/src/lib/msun/src/e_j1.c and
@@ -66,17 +66,37 @@
 //               y1(x) = sqrt(2/(pi*x))*(p1(x)*sin(x1)+q1(x)*cos(x1))
 //         where x1 = x-3*pi/4. It is better to compute sin(x1),cos(x1)
 //         by method mentioned above.
-#![allow(clippy::excessive_precision)]
 use std::f64::{self, consts::PI};
+
+use crate::BesselError;
 
 use super::{TWO_129, TWO_M27, TWO_M54};
 
-// J1 returns the order-one Bessel function of the first kind.
-//
-// Special cases are:
-//
-//	J1(±Inf) = 0
-//	J1(NaN) = NaN
+/// Returns the order-one Bessel function of the first kind, J₁(x).
+///
+/// J₁ is an odd function — J₁(−x) = −J₁(x).
+///
+/// # Special cases
+/// - `j1(±∞) = 0`
+/// - `j1(0) = 0`
+/// - `j1(NaN) = NaN`
+///
+/// # Examples
+/// ```
+/// use real_bessel::j1;
+///
+/// // Exact value at the origin
+/// assert_eq!(j1(0.0), 0.0);
+///
+/// // J₁ is odd: j1(-x) == -j1(x)
+/// assert_eq!(j1(-2.0), -j1(2.0));
+///
+/// // Known value at x = 1
+/// assert!((j1(1.0) - 0.4400505857449335).abs() < 1e-10);
+///
+/// // Decays toward zero for large x
+/// assert_eq!(j1(f64::INFINITY), 0.0);
+/// ```
 pub fn j1(x: f64) -> f64 {
     // const TwoM27:f64  = 1.0 / (1 << 27); // 2**-27 0x3e40000000000000
     // const Two129:f64  = 1 << 129        // 2**129 0x4800000000000000
@@ -120,11 +140,11 @@ pub fn j1(x: f64) -> f64 {
         // j1(x) = 1/sqrt(pi) * (P(1,x)*cc - Q(1,x)*ss) / sqrt(x)
         // y1(x) = 1/sqrt(pi) * (P(1,x)*ss + Q(1,x)*cc) / sqrt(x)
 
-        let z = if x > *TWO_129 {
+        let z = if x > TWO_129 {
             (1.0 / PI.sqrt()) * cc / x.sqrt()
         } else {
-            let u = pone(x);
-            let v = qone(x);
+            let u = p_one(x);
+            let v = q_one(x);
             (1.0 / PI.sqrt()) * (u * cc - v * ss) / x.sqrt()
         };
         return if sign { -z } else { z };
@@ -142,17 +162,34 @@ pub fn j1(x: f64) -> f64 {
     if sign { -z } else { z }
 }
 
-// Y1 returns the order-one Bessel function of the second kind.
-//
-// Special cases are:
-//
-//	Y1(+Inf) = 0
-//	Y1(0) = -Inf
-//	Y1(x < 0) = NaN
-//	Y1(NaN) = NaN
-pub fn y1(x: f64) -> Result<f64, String> {
-    // const TwoM54:f64  = 1.0 / (1 << 54)             // 2**-54 0x3c90000000000000
-    // const Two129:f64  = 1 << 129                    // 2**129 0x4800000000000000
+/// Returns the order-one Bessel function of the second kind, Y₁(x).
+///
+/// Y₁ is only real-valued for positive x. For x ≤ 0, the function returns an
+/// `Err(`[`BesselError::NegativeInputForYFunction`]`)` rather than a complex result.
+///
+/// # Special cases
+/// - `y1(+∞) = 0`
+/// - `y1(0) = −∞`
+/// - `y1(x < 0) →` [`BesselError::NegativeInputForYFunction`]
+/// - `y1(NaN) = NaN`
+///
+/// # Examples
+/// ```
+/// use real_bessel::y1;
+///
+/// // Known value at x = 1
+/// assert!((y1(1.0).unwrap() - (-0.7812128213002887)).abs() < 1e-10);
+///
+/// // Y₁ diverges to −∞ at zero
+/// assert_eq!(y1(0.0).unwrap(), f64::NEG_INFINITY);
+///
+/// // Decays toward zero for large x
+/// assert_eq!(y1(f64::INFINITY).unwrap(), 0.0);
+///
+/// // Negative inputs are an error — Y₁ would be complex there
+/// assert!(y1(-1.0).is_err());
+/// ```
+pub fn y1(x: f64) -> Result<f64, BesselError> {
     const U00: f64 = -1.96057090646238940668e-01; // 0xBFC91866143CBC8A
     const U01: f64 = 5.04438716639811282616e-02; // 0x3FA9D3C776292CD1
     const U02: f64 = -1.91256895875763547298e-03; // 0xBF5F55E54844F50F
@@ -167,7 +204,10 @@ pub fn y1(x: f64) -> Result<f64, String> {
     // special cases
 
     if x < 0.0 {
-        return Err("j1 is complex for z < 0, and this function is soley real".to_string());
+        return Err(BesselError::NegativeInputForYFunction {
+            function: "y1".to_string(),
+            input: x,
+        });
     }
     if x.is_nan() {
         return Ok(f64::NAN);
@@ -204,11 +244,11 @@ pub fn y1(x: f64) -> Result<f64, String> {
         //     sin(x) +- cos(x) = -cos(2x)/(sin(x) -+ cos(x))
         // to compute the worse one.
 
-        let z = if x > *TWO_129 {
+        let z = if x > TWO_129 {
             (1.0 / PI.sqrt()) * ss / x.sqrt()
         } else {
-            let u = pone(x);
-            let v = qone(x);
+            let u = p_one(x);
+            let v = q_one(x);
             (1.0 / PI.sqrt()) * (u * ss + v * cc) / x.sqrt()
         };
         return Ok(z);
@@ -224,14 +264,14 @@ pub fn y1(x: f64) -> Result<f64, String> {
     }
 }
 
-// For x >= 8, the asymptotic expansions of pone is
+// For x >= 8, the asymptotic expansions of p_one is
 //      1 + 15/128 s**2 - 4725/2**15 s**4 - ..., where s = 1/x.
-// We approximate pone by
-//      pone(x) = 1 + (R/S)
+// We approximate p_one by
+//      p_one(x) = 1 + (R/S)
 // where R = pr0 + pr1*s**2 + pr2*s**4 + ... + pr5*s**10
 //       S = 1 + ps0*s**2 + ... + ps4*s**10
 // and
-//      | pone(x)-1-R/S | <= 2**(-60.06)
+//      | p_one(x)-1-R/S | <= 2**(-60.06)
 
 // for x in [inf, 8]=1/[0,0.125]
 const P1_R8: [f64; 6] = [
@@ -301,9 +341,8 @@ const P1_S2: [f64; 5] = [
     8.36463893371618283368e+00, // 0x4020BAB1F44E5192
 ];
 
-fn pone(x: f64) -> f64 {
-    // var p *[6]f64
-    // var q *[5]f64
+fn p_one(x: f64) -> f64 {
+    debug_assert!(x >= 2.0, "q_one requires x >= 2.0, got {x}");
     let (p, q) = if x >= 8.0 {
         (&P1_R8, &P1_S8)
     } else if x >= 4.5454 {
@@ -313,7 +352,7 @@ fn pone(x: f64) -> f64 {
     } else if x >= 2.0 {
         (&P1_R2, &P1_S2)
     } else {
-        panic!("pone called with x < 2")
+        unreachable!("p_one: caller invariant violated — x must be >= 2.0, got {x}")
     };
 
     let z = 1.0 / (x * x);
@@ -322,14 +361,14 @@ fn pone(x: f64) -> f64 {
     1.0 + r / s
 }
 
-// For x >= 8, the asymptotic expansions of qone is
+// For x >= 8, the asymptotic expansions of q_one is
 //      3/8 s - 105/1024 s**3 - ..., where s = 1/x.
-// We approximate qone by
-//      qone(x) = s*(0.375 + (R/S))
+// We approximate q_one by
+//      q_one(x) = s*(0.375 + (R/S))
 // where R = qr1*s**2 + qr2*s**4 + ... + qr5*s**10
 //       S = 1 + qs1*s**2 + ... + qs6*s**12
 // and
-//      | qone(x)/s -0.375-R/S | <= 2**(-61.13)
+//      | q_one(x)/s -0.375-R/S | <= 2**(-61.13)
 
 // for x in [inf, 8] = 1/[0,0.125]
 const Q1_R8: [f64; 6] = [
@@ -403,8 +442,8 @@ const Q1_S2: [f64; 6] = [
     -4.95949898822628210127e+00, // 0xC013D686E71BE86B
 ];
 
-fn qone(x: f64) -> f64 {
-    // var p, q *[6]f64
+fn q_one(x: f64) -> f64 {
+    debug_assert!(x >= 2.0, "q_one requires x >= 2.0, got {x}");
     let (p, q) = if x >= 8.0 {
         (&Q1_R8, &Q1_S8)
     } else if x >= 4.5454 {
@@ -414,7 +453,7 @@ fn qone(x: f64) -> f64 {
     } else if x >= 2.0 {
         (&Q1_R2, &Q1_S2)
     } else {
-        panic!("qone called with x < 2")
+        unreachable!("q_one: caller invariant violated — x must be >= 2.0, got {x}");
     };
     let z = 1.0 / (x * x);
     let r = p[0] + z * (p[1] + z * (p[2] + z * (p[3] + z * (p[4] + z * p[5]))));

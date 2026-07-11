@@ -21,12 +21,16 @@ macro_rules! get_real_y_bessel {
             // we could ignore this case, but it's better to test something.
             match $fun($zr) {
                 Ok(v) => v,
-                Err(details) => {
-                    if details.contains("z < 0") {
+                Err(BesselError::NegativeInputForYFunction { function, input }) => {
+                    if input < 0.0 && function == stringify!($fun) {
                         $zr = $zr.abs();
                         $fun($zr).unwrap()
                     } else {
-                        panic!("Unexpected error from {}: {:?}", stringify!($fun), details);
+                        panic!(
+                            "Unexpected error from {}: {:?}",
+                            stringify!($fun),
+                            BesselError::NegativeInputForYFunction { function, input }.to_string()
+                        );
                     }
                 }
             }

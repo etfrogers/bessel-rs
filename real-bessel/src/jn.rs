@@ -1,14 +1,12 @@
-// Translation of Go's math.Jn, Yn function
+#![allow(clippy::excessive_precision)]
+//! Bessel function of the first and second kinds of order n.
+// Translation of Go's math.Jn, math.Yn functions
 // from
-// https://cs.opensource.google/go/go/+/master:src/math/j1.go
+// https://cs.opensource.google/go/go/+/master:src/math/jn.go
 // That code has this notice:
 // Copyright 2010 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
-
-/*
-    Bessel function of the first and second kinds of order n.
-*/
 
 // The original C code and the long comment below are
 // from FreeBSD's /usr/src/lib/msun/src/e_jn.c and
@@ -47,8 +45,9 @@
 //      yn(n,x) is similar in all respects, except
 //      that forward recursion is used for all
 //      values of n>1.
-#![allow(clippy::excessive_precision)]
 use num::Integer;
+
+use crate::BesselError;
 
 use super::{
     TWO_302, TWO_M29,
@@ -57,12 +56,34 @@ use super::{
 };
 use std::f64::{self, consts::PI};
 
-// Jn returns the order-n Bessel function of the first kind.
-//
-// Special cases are:
-//
-//	Jn(n, ±Inf) = 0
-//	Jn(n, NaN) = NaN
+/// Returns the order-`n` Bessel function of the first kind, Jₙ(x).
+///
+/// For `n = 0` and `n = 1` this delegates to the optimised [`j0`] and [`j1`]
+/// implementations. For `|n| > 1`, forward or backward recurrence is used.
+///
+/// # Special cases
+/// - `jn(n, ±∞) = 0`
+/// - `jn(n, NaN) = NaN`
+/// - `jn(0, x) = j0(x)`
+/// - `jn(1, x) = j1(x)`
+///
+/// # Examples
+/// ```
+/// use real_bessel::{j0, j1, jn};
+///
+/// // jn delegates to j0 and j1 for the first two orders
+/// assert_eq!(jn(0, 1.0), j0(1.0));
+/// assert_eq!(jn(1, 1.0), j1(1.0));
+///
+/// // Higher-order example
+/// assert!((jn(2, 1.0) - 0.11490348493190048).abs() < 1e-10);
+///
+/// // Negative-order symmetry: Jₙ(−n, x) = Jₙ(n, −x), so for even n: jn(-n, x) = jn(n, x)
+/// assert_eq!(jn(-2, 1.0), jn(2, 1.0));
+///
+/// // For odd n the sign flips: jn(-3, x) = -jn(3, x)
+/// assert_eq!(jn(-3, 1.0), -jn(3, 1.0));
+/// ```
 pub fn jn(n: i32, x: f64) -> f64 {
     // special cases
     if x.is_nan() {
@@ -92,7 +113,7 @@ pub fn jn(n: i32, x: f64) -> f64 {
 
     let b = if n as f64 <= x {
         // Safe to use J(n+1,x)=2n/x *J(n,x)-J(n-1,x)
-        if x >= *TWO_302 {
+        if x >= TWO_302 {
             // x > 2**302
 
             // (x >> n**2)
@@ -109,12 +130,12 @@ pub fn jn(n: i32, x: f64) -> f64 {
             //                 3     s+c             c-s
 
             let (s, c) = x.sin_cos();
-            let temp = match n % 3 {
+            let temp = match n % 4 {
                 0 => c + s,
                 1 => -c + s,
                 2 => -c - s,
                 3 => c - s,
-                _ => panic!("Not reachable"),
+                _ => unreachable!("Not reachable"),
             };
             (1.0 / PI.sqrt()) * temp / x.sqrt()
         } else {
@@ -225,19 +246,45 @@ pub fn jn(n: i32, x: f64) -> f64 {
     if sign { -b } else { b }
 }
 
-// Yn returns the order-n Bessel function of the second kind.
-//
-// Special cases are:
-//
-//	Yn(n, +Inf) = 0
-//	Yn(n ≥ 0, 0) = -Inf
-//	Yn(n < 0, 0) = +Inf if n is odd, -Inf if n is even
-//	Yn(n, x < 0) = NaN
-//	Yn(n, NaN) = NaN
-pub fn yn(n: i32, x: f64) -> Result<f64, String> {
+/// Returns the order-`n` Bessel function of the second kind, Yₙ(x).
+///
+/// For `n = 0` and `n = 1` this delegates to the optimised [`y0`] and [`y1`]
+/// implementations. For `|n| > 1`, forward recurrence from Y₀ and Y₁ is used.
+///
+/// Yn is only real-valued for positive x. For x ≤ 0, the function returns an
+/// `Err(`[`BesselError::NegativeInputForYFunction`]`)` rather than a complex result.
+///
+/// # Special cases
+/// - `yn(n, +∞) = 0`
+/// - `yn(n ≥ 0, 0) = −∞`
+/// - `yn(n < 0, 0) = +∞` if `n` is odd, `−∞` if `n` is even
+/// - `yn(n, x < 0) →` [`BesselError::NegativeInputForYFunction`]
+/// - `yn(n, NaN) = NaN`
+///
+/// # Examples
+/// ```
+/// use real_bessel::{y0, y1, yn};
+///
+/// // yn delegates to y0 and y1 for the first two orders
+/// assert_eq!(yn(0, 1.0).unwrap(), y0(1.0).unwrap());
+/// assert_eq!(yn(1, 1.0).unwrap(), y1(1.0).unwrap());
+///
+/// // Higher-order example
+/// assert!((yn(2, 1.0).unwrap() - (-1.6506826068162547)).abs() < 1e-10);
+///
+/// // Diverges at zero
+/// assert_eq!(yn(0, 0.0).unwrap(), f64::NEG_INFINITY);
+///
+/// // Negative inputs are an error — Yn would be complex there
+/// assert!(yn(2, -1.0).is_err());
+/// ```
+pub fn yn(n: i32, x: f64) -> Result<f64, BesselError> {
     // special cases
     if x < 0.0 {
-        return Err("yn is complex for z < 0, and this function is soley real".to_string());
+        return Err(BesselError::NegativeInputForYFunction {
+            function: "yn".to_string(),
+            input: x,
+        });
     }
     if x.is_nan() {
         return Ok(f64::NAN);
@@ -264,7 +311,7 @@ pub fn yn(n: i32, x: f64) -> Result<f64, String> {
     if n == 1 {
         return Ok(if sign { -y1(x)? } else { y1(x)? });
     }
-    let mut b = if x >= *TWO_302 {
+    let mut b = if x >= TWO_302 {
         // x > 2**302
         // (x >> n**2)
         //	    Jn(x) = cos(x-(2n+1)*pi/4)*sqrt(2/x*pi)
@@ -279,12 +326,12 @@ pub fn yn(n: i32, x: f64) -> Result<f64, String> {
         //		   2	-s+c		-c-s
         //		   3	 s+c		 c-s
         let (s, c) = x.sin_cos();
-        let temp = match n % 3 {
+        let temp = match n % 4 {
             0 => s - c,
             1 => -s - c,
             2 => -s + c,
             3 => s + c,
-            _ => panic!("Not reachable"),
+            _ => unreachable!("Not reachable"),
         };
         (1.0 / PI.sqrt()) * temp / x.sqrt()
     } else {

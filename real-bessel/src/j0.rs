@@ -1,14 +1,14 @@
-// Translation of Go's math.J0 function
+#![allow(clippy::excessive_precision)]
+
+//! Bessel function of the first and second kinds of order zero.
+// This file is a translation of Go's math.J0, math.Y0 functions
 // from
 // https://cs.opensource.google/go/go/+/master:src/math/j0.go
+
 // That code
 // Copyright 2010 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
-
-/*
-    Bessel function of the first and second kinds of order zero.
-*/
 
 // The original C code and the long comment below are
 // from FreeBSD's /usr/src/lib/msun/src/e_j0.c and
@@ -68,19 +68,37 @@
 //         by the method mentioned above.
 //      3. Special cases: y0(0)=-inf, y0(x<0)=NaN, y0(inf)=0.
 //
-#![allow(clippy::excessive_precision)]
+use crate::BesselError;
 
 use super::{TWO_129, TWO_M13, TWO_M27};
 use std::f64;
 use std::f64::consts::PI;
 
-// J0 returns the order-zero Bessel function of the first kind.
-//
-// Special cases are:
-//
-//	J0(±Inf) = 0
-//	J0(0) = 1
-//	J0(NaN) = NaN
+/// Returns the order-zero Bessel function of the first kind, J₀(x).
+///
+/// J₀ is an even function — J₀(−x) = J₀(x) — so the input sign is ignored.
+///
+/// # Special cases
+/// - `j0(±∞) = 0`
+/// - `j0(0) = 1`
+/// - `j0(NaN) = NaN`
+///
+/// # Examples
+/// ```
+/// use real_bessel::j0;
+///
+/// // Exact value at the origin
+/// assert_eq!(j0(0.0), 1.0);
+///
+/// // J₀ is even: j0(-x) == j0(x)
+/// assert_eq!(j0(-2.0), j0(2.0));
+///
+/// // Known value at x = 1
+/// assert!((j0(1.0) - 0.7651976865579666).abs() < 1e-10);
+///
+/// // Decays toward zero for large x
+/// assert!(j0(f64::INFINITY) == 0.0);
+/// ```
 pub fn j0(x: f64) -> f64 {
     // R0/S0 on [0, 2]
     const R02: f64 = 1.56249999999999947958e-02; // 0x3F8FFFFFFFFFFFFD
@@ -123,12 +141,12 @@ pub fn j0(x: f64) -> f64 {
         // j0(x) = 1/sqrt(pi) * (P(0,x)*cc - Q(0,x)*ss) / sqrt(x)
         // y0(x) = 1/sqrt(pi) * (P(0,x)*ss + Q(0,x)*cc) / sqrt(x)
 
-        let z = if x > *TWO_129 {
+        let z = if x > TWO_129 {
             // |x| > ~6.8056e+38
             (1.0 / PI.sqrt()) * cc / x.sqrt()
         } else {
-            let u = pzero(x);
-            let v = qzero(x);
+            let u = p_zero(x);
+            let v = q_zero(x);
             (1.0 / PI.sqrt()) * (u * cc - v * ss) / x.sqrt()
         };
         return z; // |x| >= 2.0
@@ -153,17 +171,34 @@ pub fn j0(x: f64) -> f64 {
     }
 }
 
-// Y0 returns the order-zero Bessel function of the second kind.
-//
-// Special cases are:
-//
-//	Y0(+Inf) = 0
-//	Y0(0) = -Inf
-//	Y0(x < 0) = NaN
-//	Y0(NaN) = NaN
-pub fn y0(x: f64) -> Result<f64, String> {
-    // const TwoM27:f64 = 1.0 / (1 << 27)        ;     // 2**-27 0x3e40000000000000
-    // const Two129:f64  = 1 << 129                    // 2**129 0x4800000000000000
+/// Returns the order-zero Bessel function of the second kind, Y₀(x).
+///
+/// Y₀ is only real-valued for positive x. For x ≤ 0, the function returns an
+/// `Err(`[`BesselError::NegativeInputForYFunction`]`)` rather than a complex result.
+///
+/// # Special cases
+/// - `y0(+∞) = 0`
+/// - `y0(0) = −∞`
+/// - `y0(x < 0) →` [`BesselError::NegativeInputForYFunction`]
+/// - `y0(NaN) = NaN`
+///
+/// # Examples
+/// ```
+/// use real_bessel::y0;
+///
+/// // Known value at x = 1
+/// assert!((y0(1.0).unwrap() - 0.08825696421567695).abs() < 1e-10);
+///
+/// // Y₀ diverges to −∞ at zero
+/// assert_eq!(y0(0.0).unwrap(), f64::NEG_INFINITY);
+///
+/// // Decays toward zero for large x
+/// assert_eq!(y0(f64::INFINITY).unwrap(), 0.0);
+///
+/// // Negative inputs are an error — Y₀ would be complex there
+/// assert!(y0(-1.0).is_err());
+/// ```
+pub fn y0(x: f64) -> Result<f64, BesselError> {
     const U00: f64 = -7.38042951086872317523e-02; // 0xBFB2E4D699CBD01F
     const U01: f64 = 1.76666452509181115538e-01; // 0x3FC69D019DE9E3FC
     const U02: f64 = -1.38185671945596898896e-02; // 0xBF8C4CE8B16CFA97
@@ -178,7 +213,10 @@ pub fn y0(x: f64) -> Result<f64, String> {
 
     // special cases
     if x < 0.0 {
-        return Err("y0 is complex for z < 0, and this function is soley real".to_string());
+        return Err(BesselError::NegativeInputForYFunction {
+            function: "y0".to_string(),
+            input: x,
+        });
     }
     if x.is_nan() {
         return Ok(f64::NAN);
@@ -220,12 +258,12 @@ pub fn y0(x: f64) -> Result<f64, String> {
                 ss = z / cc;
             }
         }
-        let z = if x > *TWO_129 {
+        let z = if x > TWO_129 {
             // |x| > ~6.8056e+38
             (1.0 / PI.sqrt()) * ss / x.sqrt()
         } else {
-            let u = pzero(x);
-            let v = qzero(x);
+            let u = p_zero(x);
+            let v = q_zero(x);
             (1.0 / PI.sqrt()) * (u * ss + v * cc) / x.sqrt()
         };
         return Ok(z); // |x| >= 2.0
@@ -240,14 +278,14 @@ pub fn y0(x: f64) -> Result<f64, String> {
     }
 }
 
-// The asymptotic expansions of pzero is
+// The asymptotic expansions of p_zero is
 //      1 - 9/128 s**2 + 11025/98304 s**4 - ..., where s = 1/x.
-// For x >= 2, We approximate pzero by
+// For x >= 2, We approximate p_zero by
 // 	pzero(x) = 1 + (R/S)
 // where  R = pR0 + pR1*s**2 + pR2*s**4 + ... + pR5*s**10
 // 	  S = 1 + pS0*s**2 + ... + pS4*s**10
 // and
-//      | pzero(x)-1-R/S | <= 2  ** ( -60.26)
+//      | p_zero(x)-1-R/S | <= 2  ** ( -60.26)
 
 // for x in [inf, 8]=1/[0,0.125]
 const P0_R8: [f64; 6] = [
@@ -317,9 +355,8 @@ const P0_S2: [f64; 5] = [
     1.46576176948256193810e+01, // 0x402D50B344391809
 ];
 
-fn pzero(x: f64) -> f64 {
-    // var p *[6]f64
-    // var q *[5]f64
+fn p_zero(x: f64) -> f64 {
+    debug_assert!(x >= 2.0, "p_zero requires x >= 2.0, got {x}");
     let (p, q) = if x >= 8.0 {
         (&P0_R8, &P0_S8)
     } else if x >= 4.5454 {
@@ -329,7 +366,7 @@ fn pzero(x: f64) -> f64 {
     } else if x >= 2.0 {
         (&P0_R2, &P0_S2)
     } else {
-        todo!()
+        unreachable!("p_zero: caller invariant violated — x must be >= 2.0, got {x}");
     };
     let z = 1.0 / (x * x);
     let r = p[0] + z * (p[1] + z * (p[2] + z * (p[3] + z * (p[4] + z * p[5]))));
@@ -337,14 +374,14 @@ fn pzero(x: f64) -> f64 {
     1.0 + r / s
 }
 
-// For x >= 8, the asymptotic expansions of qzero is
+// For x >= 8, the asymptotic expansions of q_zero is
 //      -1/8 s + 75/1024 s**3 - ..., where s = 1/x.
-// We approximate pzero by
-//      qzero(x) = s*(-1.25 + (R/S))
+// We approximate p_zero by
+//      q_zero(x) = s*(-1.25 + (R/S))
 // where R = qR0 + qR1*s**2 + qR2*s**4 + ... + qR5*s**10
 //       S = 1 + qS0*s**2 + ... + qS5*s**12
 // and
-//      | qzero(x)/s +1.25-R/S | <= 2**(-61.22)
+//      | q_zero(x)/s +1.25-R/S | <= 2**(-61.22)
 
 // for x in [inf, 8]=1/[0,0.125]
 const Q0_R8: [f64; 6] = [
@@ -418,8 +455,8 @@ const Q0_S2: [f64; 6] = [
     -5.31095493882666946917e+00, // 0xC0153E6AF8B32931
 ];
 
-fn qzero(x: f64) -> f64 {
-    // var p, q *[6]f64
+fn q_zero(x: f64) -> f64 {
+    debug_assert!(x >= 2.0, "q_zero requires x >= 2.0, got {x}");
     let (p, q) = if x >= 8.0 {
         (&Q0_R8, &Q0_S8)
     } else if x >= 4.5454 {
@@ -429,7 +466,7 @@ fn qzero(x: f64) -> f64 {
     } else if x >= 2.0 {
         (&Q0_R2, &Q0_S2)
     } else {
-        todo!()
+        unreachable!("q_zero: caller invariant violated — x must be >= 2.0, got {x}")
     };
 
     let z = 1.0 / (x * x);
