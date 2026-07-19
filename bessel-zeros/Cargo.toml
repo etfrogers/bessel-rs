@@ -9,8 +9,7 @@ keywords = ["bessel-functions"]
 
 [dependencies]
 amos-bessel-rs = { path = "../amos-bessel-rs", version = ">=0.3.0" }
-conv = "0.3.3"
-num = "0.4.3"
+real-bessel = { path = "../real-bessel", version = ">=0.1.0" }
 
 [dev-dependencies]
 approx = { version = "0.5.1", features = ["num-complex"] }
@@ -20,4 +19,8 @@ criterion = "0.5.1"
 
 [[bench]]
 name = "zeros_bench"
+harness = false
+
+[[bench]]
+name = "backend_bench"
 harness = false
