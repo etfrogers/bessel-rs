@@ -16,14 +16,14 @@ use common::*;
 fn test_against_hard_coded_zeros(#[case] fun_type: BesselFunType, #[case] zeros: Vec<Vec<f64>>) {
     for (order, expected) in (0_i32..).zip(zeros) {
         // AMOS backend
-        let actual = bessel_zeros(&fun_type, order, expected.len(), 1e-6);
+        let actual = bessel_zeros(fun_type, order as f64, expected.len(), 1e-6);
         expected
             .iter()
             .zip(&actual)
             .for_each(|(ev, av)| assert_relative_eq!(ev, av, epsilon = 5e-4));
 
         // fast (real-bessel) backend
-        let actual_fast = fast::bessel_zeros(&fun_type, order, expected.len(), 1e-6);
+        let actual_fast = fast::bessel_zeros(fun_type, order, expected.len(), 1e-6);
         expected
             .into_iter()
             .zip(actual_fast)
@@ -67,7 +67,7 @@ fn test_evaluation_at_zero_y_integer() {
 fn test_evaluation_at_zero_j_float() {
     for order_int in 0..200 {
         let order = order_int as f64 / 50.0;
-        let zeros = bessel_zeros(&BesselFunType::J, order, 100, 0.1e-6);
+        let zeros = bessel_zeros(BesselFunType::J, order, 100, 0.1e-6);
         for v in zeros {
             assert_relative_eq!(0.0, bessel_j(order, v).unwrap(), epsilon = 1e-6)
         }

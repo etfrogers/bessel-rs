@@ -117,6 +117,9 @@ pub(crate) fn bessel_zeros_impl<B: BesselBackend>(
                 }
             }
 
+            // Newton refinement: Temme recommends capping at 5 iterations;
+            // the initial guess is close enough that convergence is typically
+            // reached in 1–2 steps.
             let mut j = 0;
             while (j == 0) || ((j < 5) && ((w / x).abs() > precision)) {
                 let xx = x.powf(2.0);
