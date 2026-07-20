@@ -45,7 +45,6 @@
 //      yn(n,x) is similar in all respects, except
 //      that forward recursion is used for all
 //      values of n>1.
-use num::Integer;
 
 use crate::BesselError;
 
@@ -106,7 +105,7 @@ pub fn jn(n: i32, x: f64) -> f64 {
         return j1(x);
     }
     let (x, sign) = if x < 0.0 {
-        (-x, n.is_odd()) // odd n and negative x
+        (-x, n & 1 != 0) // odd n and negative x → sign flip
     } else {
         (x, false)
     };
@@ -135,7 +134,7 @@ pub fn jn(n: i32, x: f64) -> f64 {
                 1 => -c + s,
                 2 => -c - s,
                 3 => c - s,
-                _ => unreachable!("Not reachable"),
+                _ => unreachable!("n % 4 is always in 0..=3"),
             };
             (1.0 / PI.sqrt()) * temp / x.sqrt()
         } else {
@@ -304,7 +303,7 @@ pub fn yn(n: i32, x: f64) -> Result<f64, BesselError> {
         });
     }
     let (n, sign) = if n < 0 {
-        (-n, n.is_odd()) // sign true if n < 0 && |n| odd
+        (-n, n & 1 != 0) // sign true if n < 0 && |n| odd → sign flip
     } else {
         (n, false)
     };
@@ -331,7 +330,7 @@ pub fn yn(n: i32, x: f64) -> Result<f64, BesselError> {
             1 => -s - c,
             2 => -s + c,
             3 => s + c,
-            _ => unreachable!("Not reachable"),
+            _ => unreachable!("n % 4 is always in 0..=3"),
         };
         (1.0 / PI.sqrt()) * temp / x.sqrt()
     } else {

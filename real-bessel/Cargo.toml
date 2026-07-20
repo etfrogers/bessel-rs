@@ -6,17 +6,15 @@ description = "A pure Rust implementation of real-valued Bessel functions of the
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/etfrogers/bessel-rs"
 keywords = ["bessel", "mathematics", "special-functions"]
-categories = ["science", "mathematics"]
+categories = ["science", "mathematics", "algorithms"]
 readme = "README.md"
 
 [dependencies]
 thiserror = "2.0.17"
-num = "0.4.3"
-
 
 [dev-dependencies]
-amos-bessel-rs = { path = "../amos-bessel-rs" }
-approx = { version = "0.5.1", features = ["num-complex"] }
+amos-bessel-rs = { path = "../amos-bessel-rs", version = ">=0.3.0" }
+approx = "0.5.1"
 rstest = "0.26.1"
 rstest_reuse = "0.7.0"
 criterion = "0.8.2"

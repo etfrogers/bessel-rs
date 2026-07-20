@@ -342,7 +342,7 @@ const P1_S2: [f64; 5] = [
 ];
 
 fn p_one(x: f64) -> f64 {
-    debug_assert!(x >= 2.0, "q_one requires x >= 2.0, got {x}");
+    debug_assert!(x >= 2.0, "p_one requires x >= 2.0, got {x}");
     let (p, q) = if x >= 8.0 {
         (&P1_R8, &P1_S8)
     } else if x >= 4.5454 {
