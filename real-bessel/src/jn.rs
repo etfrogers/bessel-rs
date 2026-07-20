@@ -135,7 +135,7 @@ pub fn jn(n: i32, x: f64) -> f64 {
                 1 => -c + s,
                 2 => -c - s,
                 3 => c - s,
-                _ => unreachable!("Not reachable"),
+                _ => unreachable!("n % 4 is always in 0..=3"),
             };
             (1.0 / PI.sqrt()) * temp / x.sqrt()
         } else {
@@ -331,7 +331,7 @@ pub fn yn(n: i32, x: f64) -> Result<f64, BesselError> {
             1 => -s - c,
             2 => -s + c,
             3 => s + c,
-            _ => unreachable!("Not reachable"),
+            _ => unreachable!("n % 4 is always in 0..=3"),
         };
         (1.0 / PI.sqrt()) * temp / x.sqrt()
     } else {
