@@ -11,8 +11,6 @@ readme = "README.md"
 
 [dependencies]
 thiserror = "2.0.17"
-num = "0.4.3"
-
 
 [dev-dependencies]
 amos-bessel-rs = { path = "../amos-bessel-rs" }
