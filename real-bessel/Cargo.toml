@@ -13,7 +13,7 @@ readme = "README.md"
 thiserror = "2.0.17"
 
 [dev-dependencies]
-amos-bessel-rs = { path = "../amos-bessel-rs" }
+amos-bessel-rs = { path = "../amos-bessel-rs", version = ">=0.3.0" }
 approx = "0.5.1"
 rstest = "0.26.1"
 rstest_reuse = "0.7.0"
