@@ -6,7 +6,7 @@ description = "A pure Rust implementation of real-valued Bessel functions of the
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/etfrogers/bessel-rs"
 keywords = ["bessel", "mathematics", "special-functions"]
-categories = ["science", "mathematics"]
+categories = ["science", "mathematics", "algorithms"]
 readme = "README.md"
 
 [dependencies]

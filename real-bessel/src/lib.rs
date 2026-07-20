@@ -1,15 +1,32 @@
 #![warn(missing_docs)]
-//! Real-valued Bessel functions
+//! Real-valued Bessel functions of the first and second kinds.
 //!
-//! This crate provides calculations of real-valued Bessel functions of the first and second kind,
-//! for integer orders and real arguments.
+//! This crate provides `j0`, `j1`, `jn`, `y0`, `y1` and `yn` for integer
+//! orders and real (`f64`) arguments.
 //!
-//! If you need complex-valued Bessel functions, or other Bessel functions,
-//! see the [`amos-bessel-rs`](https://crates.io/crates/amos-bessel-rs) crate.
+//! ## Return types
 //!
-//! It provides `j0`, `j1`, `jn`, `y0`, `y1` and `yn` functions.
+//! The **J functions** (`j0`, `j1`, `jn`) are real-valued for all real x and
+//! return `f64` directly.
 //!
-//! # Examples
+//! The **Y functions** (`y0`, `y1`, `yn`) are real-valued only for positive x.
+//! For `x ≤ 0` they return `Err(`[`BesselError::NegativeInputForYFunction`]`)`
+//! rather than a complex result.
+//!
+//! ## Special cases shared by all functions
+//!
+//! | Input | J functions | Y functions |
+//! |-------|------------|-------------|
+//! | `NaN` | `NaN` | `Ok(NaN)` |
+//! | `+∞`  | `0.0` | `Ok(0.0)` |
+//! | `x ≤ 0` | real result | `Err(…)` |
+//! | `x = 0` | `j0 → 1`, `j1/jn → 0` | `Ok(−∞)` |
+//!
+//! If you need complex arguments, non-integer orders, or other Bessel
+//! varieties (I, K, H), see the
+//! [`amos-bessel-rs`](https://crates.io/crates/amos-bessel-rs) crate.
+//!
+//! ## Example
 //!
 //! ```
 //! use real_bessel::j0;
