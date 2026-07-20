@@ -52,7 +52,6 @@ fn test_y1_against_amos(#[case] _order: f64, #[case] mut zr: f64, #[case] _zi: f
 }
 
 #[apply(bessel_cases)]
-#[trace]
 fn test_jn_against_amos(#[case] order: f64, #[case] zr: f64, #[case] _zi: f64) {
     let integer_order = order as i32;
     let expected = unwrap_real_bessel!(bessel_j, integer_order as f64, zr);
@@ -153,4 +152,114 @@ fn test_yn_very_large_x(#[values(0, 1, 2, 3, 4, 5, 6, 7)] n: i32) {
     let expected = amplitude * phase.sin();
 
     assert_relative_eq!(actual, expected, epsilon = 1e-10);
+}
+
+// ---- focused special-case tests --------------------------------------------
+
+#[rstest]
+#[case(f64::NAN)]
+#[case(f64::INFINITY)]
+#[case(f64::NEG_INFINITY)]
+#[case(0.0)]
+fn test_j0_special(#[case] x: f64) {
+    let result = j0(x);
+    if x.is_nan() {
+        assert!(result.is_nan(), "j0(NaN) should be NaN");
+    } else if x.is_infinite() {
+        assert_eq!(result, 0.0, "j0(±∞) should be 0");
+    } else {
+        assert_eq!(result, 1.0, "j0(0) should be 1");
+    }
+}
+
+#[rstest]
+#[case(f64::NAN)]
+#[case(f64::INFINITY)]
+#[case(f64::NEG_INFINITY)]
+#[case(0.0)]
+fn test_j1_special(#[case] x: f64) {
+    let result = j1(x);
+    if x.is_nan() {
+        assert!(result.is_nan(), "j1(NaN) should be NaN");
+    } else if x.is_infinite() {
+        assert_eq!(result, 0.0, "j1(±∞) should be 0");
+    } else {
+        assert_eq!(result, 0.0, "j1(0) should be 0");
+    }
+}
+
+#[rstest]
+#[case(f64::NAN)]
+#[case(f64::INFINITY)]
+#[case(f64::NEG_INFINITY)]
+#[case(0.0)]
+fn test_y0_special(#[case] x: f64) {
+    if x.is_nan() {
+        assert!(y0(x).unwrap().is_nan(), "y0(NaN) should be NaN");
+    } else if x == f64::INFINITY {
+        assert_eq!(y0(x).unwrap(), 0.0, "y0(+∞) should be 0");
+    } else if x <= 0.0 && !x.is_nan() {
+        // x = 0 → -∞; x < 0 → error
+        if x == 0.0 {
+            assert_eq!(y0(x).unwrap(), f64::NEG_INFINITY, "y0(0) should be -∞");
+        } else {
+            assert!(y0(x).is_err(), "y0({x}) should be Err");
+        }
+    }
+}
+
+#[rstest]
+#[case(f64::NAN)]
+#[case(f64::INFINITY)]
+#[case(f64::NEG_INFINITY)]
+#[case(0.0)]
+fn test_y1_special(#[case] x: f64) {
+    if x.is_nan() {
+        assert!(y1(x).unwrap().is_nan(), "y1(NaN) should be NaN");
+    } else if x == f64::INFINITY {
+        assert_eq!(y1(x).unwrap(), 0.0, "y1(+∞) should be 0");
+    } else if x == 0.0 {
+        assert_eq!(y1(x).unwrap(), f64::NEG_INFINITY, "y1(0) should be -∞");
+    } else {
+        // x < 0 (NEG_INFINITY)
+        assert!(y1(x).is_err(), "y1({x}) should be Err");
+    }
+}
+
+#[rstest]
+#[case(5, f64::NAN)]
+#[case(5, f64::INFINITY)]
+#[case(5, f64::NEG_INFINITY)]
+#[case(0, 0.0)]
+#[case(3, 0.0)]
+fn test_jn_special(#[case] n: i32, #[case] x: f64) {
+    let result = jn(n, x);
+    if x.is_nan() {
+        assert!(result.is_nan(), "jn({n}, NaN) should be NaN");
+    } else if x.is_infinite() {
+        assert_eq!(result, 0.0, "jn({n}, ±∞) should be 0");
+    } else {
+        // x == 0.0: jn(0,0) = j0(0) = 1; jn(n>0,0) = 0
+        let expected = if n == 0 { 1.0 } else { 0.0 };
+        assert_eq!(result, expected, "jn({n}, 0) should be {expected}");
+    }
+}
+
+#[rstest]
+#[case(5, f64::NAN)]
+#[case(5, f64::INFINITY)]
+#[case(5, -1.0)]
+#[case(0, 0.0)]
+#[case(3, 0.0)]
+fn test_yn_special(#[case] n: i32, #[case] x: f64) {
+    if x.is_nan() {
+        assert!(yn(n, x).unwrap().is_nan(), "yn({n}, NaN) should be NaN");
+    } else if x == f64::INFINITY {
+        assert_eq!(yn(n, x).unwrap(), 0.0, "yn({n}, +∞) should be 0");
+    } else if x < 0.0 {
+        assert!(yn(n, x).is_err(), "yn({n}, {x}) should be Err");
+    } else {
+        // x == 0.0
+        assert_eq!(yn(n, x).unwrap(), f64::NEG_INFINITY, "yn({n}, 0) should be -∞");
+    }
 }
