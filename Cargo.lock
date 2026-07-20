@@ -75,10 +75,9 @@ version = "0.1.2"
 dependencies = [
  "amos-bessel-rs",
  "approx",
- "conv",
  "criterion 0.5.1",
  "csv",
- "num",
+ "real-bessel",
  "rstest",
 ]
 

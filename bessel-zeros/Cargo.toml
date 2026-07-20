@@ -1,23 +1,27 @@
 [package]
 name = "bessel-zeros"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "A crate for calculating zeros of Bessel functions"
 repository = "https://github.com/etfrogers/bessel-rs"
 keywords = ["bessel-functions"]
+categories = ["science", "mathematics", "algorithms"]
 
 [dependencies]
 amos-bessel-rs = { path = "../amos-bessel-rs", version = ">=0.3.0" }
-conv = "0.3.3"
-num = "0.4.3"
+real-bessel = { path = "../real-bessel", version = ">=0.1.0" }
 
 [dev-dependencies]
-approx = { version = "0.5.1", features = ["num-complex"] }
+approx = "0.5.1"
 rstest = "0.26.1"
 csv = "1.4.0"
 criterion = "0.5.1"
 
 [[bench]]
 name = "zeros_bench"
+harness = false
+
+[[bench]]
+name = "backend_bench"
 harness = false

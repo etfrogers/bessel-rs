@@ -18,7 +18,7 @@ fn bench_zeros(c: &mut Criterion) {
 
     let order = 1.0;
 
-    for fun_type in &types {
+    for fun_type in types {
         let type_name = match fun_type {
             BesselFunType::J => "J",
             BesselFunType::Y => "Y",

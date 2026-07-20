@@ -12,63 +12,59 @@
 //! This crate is inspired by (via several intermediate steps)
 //! Adam Wyatt's Matlab version of this code.
 //!
-//! ## Primary API
+//! ## Backends
 //!
-//! The primary API for this crate consists of the specialized functions:
+//! Two backends are available:
+//!
+//! | Backend | Module / functions | Order type | Speed |
+//! |---|---|---|---|
+//! | AMOS (`amos-bessel-rs`) | crate root | any `f64`-compatible | slower |
+//! | real-bessel | [`fast`] sub-module | `i32` only | faster |
+//!
+//! ## Primary API (AMOS backend — any real order)
+//!
 //! - [`bessel_zeros_j`]
 //! - [`bessel_zeros_y`]
 //! - [`bessel_zeros_jp`]
 //! - [`bessel_zeros_yp`]
+//! - [`bessel_zeros`] — lower-level, accepts a [`BesselFunType`] and custom precision
 //!
-//! These functions provide a convenient way to find the first `n` zeros with a default precision of `1e-14`.
+//! ## Fast API (real-bessel backend — integer orders only)
 //!
-//! If you require more control over the precision of the results, use the [`bessel_zeros`] function
-//! which accepts a [`BesselFunType`] and a custom precision value.
+//! Use the [`fast`] sub-module for the same functions with integer orders:
 //!
-//! ## Example
+//! ```rust
+//! use bessel_zeros::fast;
+//!
+//! let zeros = fast::bessel_zeros_j(0, 5);
+//! assert_eq!(zeros.len(), 5);
+//! assert!((zeros[0] - 2.40482555769577).abs() < 1e-10);
+//! ```
+//!
+//! ## Example (AMOS backend, non-integer order)
 //!
 //! ```rust
 //! use bessel_zeros::bessel_zeros_j;
 //!
-//! let n = 5;
-//! let order = 0.0;
-//! let zeros = bessel_zeros_j(order, n);
-//!
+//! let zeros = bessel_zeros_j(0.5_f64, 5);
 //! assert_eq!(zeros.len(), 5);
-//! assert!((zeros[0] - 2.40482555769577).abs() < 1e-10);
 //! ```
 
 #![warn(missing_docs)]
-use std::f64::consts::{FRAC_PI_2, PI};
 
-use amos_bessel_rs::{bessel_j, bessel_y};
-use conv::ConvUtil;
+pub(crate) mod algorithm;
+pub(crate) mod backend;
 
-const DEFAULT_PRECISION: f64 = 1e-14;
+use algorithm::bessel_zeros_impl;
+use backend::amos::AmosBackend;
 
-/// Finds the first n zeros of the Bessel function of the first kind Jv(x).
-pub fn bessel_zeros_j<OT: Into<f64> + num::Num>(order: OT, n_zeros: usize) -> Vec<f64> {
-    bessel_zeros(&BesselFunType::J, order, n_zeros, DEFAULT_PRECISION)
-}
-
-/// Finds the first n zeros of the Bessel function of the second kind Yv(x).
-pub fn bessel_zeros_y<OT: Into<f64> + num::Num>(order: OT, n_zeros: usize) -> Vec<f64> {
-    bessel_zeros(&BesselFunType::Y, order, n_zeros, DEFAULT_PRECISION)
-}
-
-/// Finds the first n zeros of the derivative of the Bessel function of the first kind Jv'(x).
-pub fn bessel_zeros_jp<OT: Into<f64> + num::Num>(order: OT, n_zeros: usize) -> Vec<f64> {
-    bessel_zeros(&BesselFunType::JP, order, n_zeros, DEFAULT_PRECISION)
-}
-
-/// Finds the first n zeros of the derivative of the Bessel function of the second kind Yv'(x).
-pub fn bessel_zeros_yp<OT: Into<f64> + num::Num>(order: OT, n_zeros: usize) -> Vec<f64> {
-    bessel_zeros(&BesselFunType::YP, order, n_zeros, DEFAULT_PRECISION)
-}
+/// Default relative error tolerance used by the convenience functions
+/// ([`bessel_zeros_j`], [`bessel_zeros_y`], [`bessel_zeros_jp`], [`bessel_zeros_yp`]).
+/// Pass a custom value to [`bessel_zeros`] if you need different precision.
+pub const DEFAULT_PRECISION: f64 = 1e-14;
 
 /// The type of Bessel function of which to find the zeros.
-
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BesselFunType {
     /// Bessel function of the first kind, Jv(x)
     J,
@@ -81,198 +77,136 @@ pub enum BesselFunType {
 }
 
 impl BesselFunType {
-    fn is_non_derivative(&self) -> bool {
+    pub(crate) fn is_non_derivative(&self) -> bool {
         *self == BesselFunType::J || *self == BesselFunType::Y
     }
 }
 
-/// Finds the first n zeros of a Bessel function.
+/// Calculates the zeros of the Bessel function of the given kind and `order`.
+/// 
+/// Note: this general-purpose AMOS-backed function is only defined for non-negative
+/// `order` (`order >= 0.0`). If you need zeros for a negative integer order, use the 
+/// integer-only [`fast::bessel_zeros`] function instead, or pass the absolute value 
+/// of the order (since J₋ₙ and Y₋ₙ have identical zeros to their positive counterparts).
+///
+/// # Arguments the AMOS backend; `order` can be any type that converts to `f64`
+/// (e.g. `f64`, `f32`, `i32`, `u32`).
+pub fn bessel_zeros_j<OT: Into<f64>>(order: OT, n_zeros: usize) -> Vec<f64> {
+    bessel_zeros(BesselFunType::J, order, n_zeros, DEFAULT_PRECISION)
+}
+
+/// Finds the first `n_zeros` zeros of the Bessel function of the second kind Yv(x).
+///
+/// Uses the AMOS backend; `order` can be any type that converts to `f64`.
+pub fn bessel_zeros_y<OT: Into<f64>>(order: OT, n_zeros: usize) -> Vec<f64> {
+    bessel_zeros(BesselFunType::Y, order, n_zeros, DEFAULT_PRECISION)
+}
+
+/// Finds the first `n_zeros` zeros of the derivative of Jv(x).
+///
+/// Uses the AMOS backend; `order` can be any type that converts to `f64`.
+pub fn bessel_zeros_jp<OT: Into<f64>>(order: OT, n_zeros: usize) -> Vec<f64> {
+    bessel_zeros(BesselFunType::JP, order, n_zeros, DEFAULT_PRECISION)
+}
+
+/// Finds the first `n_zeros` zeros of the derivative of Yv(x).
+///
+/// Uses the AMOS backend; `order` can be any type that converts to `f64`.
+pub fn bessel_zeros_yp<OT: Into<f64>>(order: OT, n_zeros: usize) -> Vec<f64> {
+    bessel_zeros(BesselFunType::YP, order, n_zeros, DEFAULT_PRECISION)
+}
+
+/// Finds the first `n_zeros` zeros of the specified Bessel function.
+///
+/// Uses the AMOS backend, so `order` may be any real value (not just integer).
 ///
 /// # Arguments
 ///
-/// * `func_type` - The type of Bessel function to find the zeros of.
-/// * `order` - The order of the Bessel function (must be >= 0).
-/// * `n_zeros` - The number of zeros to find.
-/// * `precision` - The relative error in the root.
-///
-/// # Returns
-///
-/// A vector containing the first `n_zeros` of the specified Bessel function.
-///
-pub fn bessel_zeros<OT: Into<f64> + num::Num>(
-    func_type: &BesselFunType,
+/// * `func_type` - Which Bessel function (J, Y, J', Y').
+/// * `order`     - The order (must be ≥ 0); any type convertible to `f64`.
+/// * `n_zeros`   - Number of zeros to return.
+/// * `precision` - Relative error tolerance on each root.
+pub fn bessel_zeros<OT: Into<f64>>(
+    kind: BesselFunType,
     order: OT,
     n_zeros: usize,
     precision: f64,
 ) -> Vec<f64> {
-    let order: f64 = order.into();
-    let order_int = order as i64;
-    let mut z = vec![0.0; n_zeros];
-
-    let aa = order.powf(2.0);
-    let mu = 4.0 * aa;
-    let mu2 = mu.powf(2.0);
-    let mu3 = mu.powf(3.0);
-    let mu4 = mu.powf(4.0);
-
-    let mut p: f64;
-    let p0: f64;
-    let p1: f64;
-    let q1: f64;
-    if func_type.is_non_derivative() {
-        p = 7.0 * mu - 31.0;
-        p0 = mu - 1.0;
-
-        if (1.0 + p) == p {
-            p1 = 0.0;
-            q1 = 0.0;
-        } else {
-            p1 = 4.0 * (253.0 * mu2 - 3722.0 * mu + 17869.0) * p0 / (15.0 * p);
-            q1 = 1.6 * (83.0 * mu2 - 982.0 * mu + 3779.0) / p;
-        }
-    } else {
-        p = 7.0 * mu2 + 82.0 * mu - 9.0;
-        p0 = mu + 3.0;
-        if (p + 1.0) == 1.0 {
-            p1 = 0.0;
-            q1 = 0.0;
-        } else {
-            p1 = (4048.0 * mu4 + 131264.0 * mu3 - 221984.0 * mu2 - 417600.0 * mu + 1012176.0)
-                / (60.0 * p);
-            q1 = 1.6 * (83.0 * mu3 + 2075.0 * mu2 - 3039.0 * mu + 3537.0) / p;
-        }
-    }
-
-    let t = if (*func_type == BesselFunType::J) || (*func_type == BesselFunType::YP) {
-        0.25
-    } else {
-        0.75
-    };
-
-    let tt = 4.0 * t;
-
-    let (pp1, qq1) = if func_type.is_non_derivative() {
-        (5. / 48., -5. / 36.)
-    } else {
-        (-7. / 48., 35. / 288.)
-    };
-
-    let y = 0.375 * PI;
-    let bb = if order >= 3.0 {
-        order.powf(-2.0 / 3.0)
-    } else {
-        1.0
-    };
-
-    let a1 = 3 * order_int - 8;
-    // psi = (.5*a + .25)*PI;
-
-    for s in 1..=n_zeros {
-        let sf: f64 = s.value_as().unwrap();
-        let mut x: f64;
-        let mut w: f64 = 0.0;
-        if (order_int == 0) && (s == 1) && (*func_type == BesselFunType::JP) {
-            x = 0.0;
-        } else {
-            if TryInto::<i64>::try_into(s).unwrap() >= a1 {
-                let b = (sf + 0.5 * order - t) * PI;
-                let c = 0.015625 / (b.powf(2.0));
-                x = b - 0.125 * (p0 - p1 * c) / (b * (1.0 - q1 * c));
-            } else {
-                if s == 1 {
-                    x = match func_type {
-                        BesselFunType::J => -2.33811,
-                        BesselFunType::Y => -1.17371,
-                        BesselFunType::JP => -1.01879,
-                        BesselFunType::YP => -2.29444,
-                    };
-                } else {
-                    x = y * (4.0 * sf - tt);
-                    let v = x.powf(-2.0);
-                    x = -(x.powf(2.0 / 3.0)) * (1.0 + v * (pp1 + qq1 * v));
-                }
-                let u = x * bb;
-                let v = fi(2.0 / 3.0 * (-u).powf(1.5));
-                w = 1.0 / v.cos();
-                let xx = 1.0 - w.powf(2.0);
-                let c = (u / xx).sqrt();
-                x = if func_type.is_non_derivative() {
-                    w * (order + c * (-5.0 / u - c * (6.0 - 10.0 / xx)) / (48.0 * order * u))
-                } else {
-                    w * (order + c * (7.0 / u + c * (18.0 - 14.0 / xx)) / (48.0 * order * u))
-                }
-            }
-
-            let mut j = 0;
-            while (j == 0) || ((j < 5) && ((w / x).abs() > precision)) {
-                let xx = x.powf(2.0);
-                let x4 = x.powf(4.0);
-                let a2 = aa - xx;
-                let r0 = bessr(func_type, order, x);
-                j += 1;
-                let q: f64;
-                let u: f64;
-                if func_type.is_non_derivative() {
-                    u = r0;
-                    w = 6.0 * x * (2.0 * order + 1.0);
-                    p = (1.0 - 4.0 * a2) / w;
-                    q = (4.0 * (xx - mu) - 2.0 - 12.0 * order) / w;
-                } else {
-                    u = -xx * r0 / a2;
-                    let v = 2.0 * x * a2 / (3.0 * (aa + xx));
-                    w = 64.0 * a2.powf(3.0);
-                    q = 2.0 * v * (1.0 + mu2 + 32.0 * mu * xx + 48.0 * x4) / w;
-                    p = v * (1.0 + (40.0 * mu * xx + 48.0 * x4 - mu2) / w);
-                }
-                w = u * (1.0 + p * r0) / (1.0 + q * r0);
-                x += w;
-            }
-        }
-        z[s - 1] = x;
-    }
-    z
+    let order_f64 = order.into();
+    assert!(
+        order_f64 >= 0.0,
+        "AMOS-backed bessel_zeros requires order >= 0.0. For negative integer orders, use the `fast` module instead, or pass `order.abs()`."
+    );
+    bessel_zeros_impl::<AmosBackend>(&kind, order_f64, n_zeros, precision)
 }
 
-fn fi(y: f64) -> f64 {
-    let c1 = FRAC_PI_2;
-    if y == 0.0 {
-        0.0
-    } else if y > 1e5 {
-        c1
-    } else {
-        let mut p: f64;
-        if y < 1.0 {
-            p = (3.0 * y).powf(1.0 / 3.0);
-            let pp = p.powf(2.0);
-            p *= 1.0 + pp * (pp * (27.0 - 2.0 * pp) - 210.0) / 1575.0;
-        } else {
-            p = 1.0 / (y + c1);
-            let pp = p.powf(2.0);
-            p = c1
-                - p * (1.0
-                    + pp * (2310.0 + pp * (3003.0 + pp * (4818.0 + pp * (8591.0 + pp * 16328.0))))
-                        / 3465.0);
-        }
-        let pp = (y + p).powf(2.0);
-        let r = (p - (p + y).atan()) / pp;
-        p - (1.0 + pp) * r * (1.0 + r / (p + y))
-    }
-}
+/// Fast Bessel zero computation using the `real-bessel` backend.
+///
+/// This module mirrors the crate-root API ([`bessel_zeros_j`], [`bessel_zeros_y`],
+/// [`bessel_zeros_jp`], [`bessel_zeros_yp`], [`bessel_zeros`]) but uses the
+/// [`real_bessel`] crate internally. It is significantly faster than the AMOS
+/// backend but is restricted to **integer orders** (`i32`).
+///
+/// For non-integer orders use the crate-root functions directly.
+///
+/// # Example
+///
+/// ```rust
+/// use bessel_zeros::fast;
+///
+/// let zeros = fast::bessel_zeros_j(0, 5);
+/// assert!((zeros[0] - 2.40482555769577).abs() < 1e-10);
+/// ```
+pub mod fast {
+    use crate::backend::real::RealBackend;
+    use crate::{BesselFunType, DEFAULT_PRECISION, algorithm::bessel_zeros_impl};
 
-fn bessr(fun_type: &BesselFunType, order: f64, z: f64) -> f64 {
-    // TODO think about whether unwrapping is appropriate here
-    match fun_type {
-        BesselFunType::J => {
-            let a = bessel_j(order, z).unwrap();
-            let b = bessel_j(order + 1.0, z).unwrap();
-            a / b
-        }
-        BesselFunType::Y => bessel_y(order, z).unwrap() / bessel_y(order + 1.0, z).unwrap(),
-        BesselFunType::JP => {
-            order / z - bessel_j(order + 1.0, z).unwrap() / bessel_j(order, z).unwrap()
-        }
-        BesselFunType::YP => {
-            order / z - bessel_y(order + 1.0, z).unwrap() / bessel_y(order, z).unwrap()
-        }
+    /// Finds the first `n_zeros` zeros of Jn(x) using the fast real-bessel backend.
+    /// Order must be an integer (`i32`).
+    pub fn bessel_zeros_j(order: i32, n_zeros: usize) -> Vec<f64> {
+        bessel_zeros(BesselFunType::J, order, n_zeros, DEFAULT_PRECISION)
+    }
+
+    /// Finds the first `n_zeros` zeros of Yn(x) using the fast real-bessel backend.
+    /// Order must be an integer (`i32`).
+    pub fn bessel_zeros_y(order: i32, n_zeros: usize) -> Vec<f64> {
+        bessel_zeros(BesselFunType::Y, order, n_zeros, DEFAULT_PRECISION)
+    }
+
+    /// Finds the first `n_zeros` zeros of Jn'(x) using the fast real-bessel backend.
+    /// Order must be an integer (`i32`).
+    pub fn bessel_zeros_jp(order: i32, n_zeros: usize) -> Vec<f64> {
+        bessel_zeros(BesselFunType::JP, order, n_zeros, DEFAULT_PRECISION)
+    }
+
+    /// Finds the first `n_zeros` zeros of Yn'(x) using the fast real-bessel backend.
+    /// Order must be an integer (`i32`).
+    pub fn bessel_zeros_yp(order: i32, n_zeros: usize) -> Vec<f64> {
+        bessel_zeros(BesselFunType::YP, order, n_zeros, DEFAULT_PRECISION)
+    }
+
+    /// Calculates the zeros of the Bessel function for integer orders using `real-bessel`.
+    /// 
+    /// This fast integer-only algorithm fully supports negative integer orders. The zeros of
+    /// J₋ₙ and Y₋ₙ are mathematically identical to the zeros of Jₙ and Yₙ.
+    ///
+    /// # Arguments
+    ///
+    /// * `func_type` - Which Bessel function (J, Y, J', Y').
+    /// * `order`     - The order (must be a non-negative integer).
+    /// * `n_zeros`   - Number of zeros to return.
+    /// * `precision` - Relative error tolerance on each root.
+    pub fn bessel_zeros(
+        kind: super::BesselFunType,
+        order: i32,
+        n_zeros: usize,
+        precision: f64,
+    ) -> Vec<f64> {
+        bessel_zeros_impl::<RealBackend>(
+            &kind,
+            order.abs() as f64,
+            n_zeros,
+            precision,
+        )
     }
 }
