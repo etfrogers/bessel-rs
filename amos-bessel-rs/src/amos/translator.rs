@@ -1,10 +1,9 @@
 #![allow(non_snake_case, clippy::excessive_precision)]
 use super::{
-    IKType, Scaling, gamma_ln, i_power_series, limits::check_underflow_uniform_asymp_params,
-    utils::will_underflow,
+    IKType, Scaling, gamma_ln, limits::check_underflow_uniform_asymp_params, utils::will_underflow,
 };
 use crate::{
-    amos::asymptotics::i_asymp_large_order,
+    amos::{asymptotics::i_asymp_large_order, power_series::i_power_series},
     types::{
         BesselError::{self, *},
         BesselFloat, BesselResult, BesselValues,
@@ -18,7 +17,7 @@ use itertools::Either;
 use num::{Complex, Zero, complex::ComplexFloat};
 use std::cmp::min;
 
-/// zbknu computes the k bessel function in the right half z plane.
+/// k_right_half_plane computes the k bessel function in the right half z plane.
 /// Originally ZBKNU
 pub fn k_right_half_plane<T: BesselFloat>(
     z: Complex<T>,

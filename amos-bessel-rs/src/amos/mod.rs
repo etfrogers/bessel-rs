@@ -6,8 +6,8 @@ use std::{f64::consts::PI, ops::Neg};
 
 pub use entry_points::*;
 pub(crate) use gamma_ln::gamma_ln;
-pub(crate) use i_power_series::i_power_series;
 pub(crate) use machine::{MACHINE_CONSTANTS_32, MACHINE_CONSTANTS_64, MachineConsts};
+pub(crate) use power_series::i_power_series;
 
 #[cfg(test)]
 pub(crate) use gamma_ln::GammaError;
@@ -19,9 +19,9 @@ mod analytic_continuation;
 mod asymptotics;
 mod entry_points;
 mod gamma_ln;
-mod i_power_series;
 mod limits;
 mod machine;
+mod power_series;
 mod translator;
 mod utils;
 
