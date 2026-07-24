@@ -5,9 +5,10 @@ use crate::{
     amos::{
         CIP, HankelKind, IKType, RotationDirection,
         airy::airy_power_series,
+        analytic_continuation::{airy_analytic_continuation, analytic_continuation},
         max_abs_component,
         overflow_checks::check_underflow_uniform_asymp_params,
-        translator::{ZACAI, ZBUNK, analytic_continuation, i_right_half_plane, k_right_half_plane},
+        translator::{ZBUNK, i_right_half_plane, k_right_half_plane},
         utils::{is_significance_lost, sanitise_inputs},
     },
     types::{BesselError::*, BesselFloat, BesselResult},
@@ -755,7 +756,7 @@ pub fn complex_airy<T: BesselFloat>(
             } else {
                 RotationDirection::Right
             };
-            ZACAI(zeta, order, scaling, rotation, 1)?
+            airy_analytic_continuation(zeta, order, scaling, rotation, 1)?
         } else {
             //-----------------------------------------------------------------------
             //     UNDERFLOW TEST

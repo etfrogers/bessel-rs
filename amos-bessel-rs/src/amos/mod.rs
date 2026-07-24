@@ -15,6 +15,7 @@ pub(crate) use gamma_ln::GammaError;
 use crate::types::BesselFloat;
 
 mod airy;
+mod analytic_continuation;
 mod asymptotic_i;
 mod entry_points;
 mod gamma_ln;
