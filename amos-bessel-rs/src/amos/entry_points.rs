@@ -3,12 +3,11 @@ use num::{Complex, complex::ComplexFloat};
 use crate::{
     BesselError, Scaling,
     amos::{
-        CIP, HankelKind, IKType, RotationDirection, max_abs_component,
+        CIP, HankelKind, IKType, RotationDirection,
+        airy::airy_power_series,
+        max_abs_component,
         overflow_checks::check_underflow_uniform_asymp_params,
-        translator::{
-            ZACAI, ZBUNK, airy_power_series, analytic_continuation, i_right_half_plane,
-            k_right_half_plane,
-        },
+        translator::{ZACAI, ZBUNK, analytic_continuation, i_right_half_plane, k_right_half_plane},
         utils::{is_significance_lost, sanitise_inputs},
     },
     types::{BesselError::*, BesselFloat, BesselResult},
