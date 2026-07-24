@@ -5,7 +5,7 @@ use crate::{
     BesselError, Scaling,
     amos::{
         RotationDirection,
-        asymptotic_i::asymptotic_i,
+        asymptotics::asymptotic_i,
         i_power_series, max_abs_component,
         overflow_checks::{Overflow, underflow_add_i_k},
         translator::{i_miller, i_right_half_plane, k_right_half_plane},

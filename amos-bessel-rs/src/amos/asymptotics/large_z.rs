@@ -3,9 +3,12 @@ use num::{
     complex::{Complex, ComplexFloat},
 };
 
-use super::{Scaling, utils::RTPI};
 use crate::types::{BesselError::*, BesselResult};
-use crate::{amos::utils::calc_rz, types::BesselFloat};
+use crate::{
+    Scaling,
+    amos::utils::{RTPI, calc_rz},
+    types::BesselFloat,
+};
 
 /// asymptotic_i computes the I bessel function for real(z) >= 0.0 by
 /// means of the asymptotic expansion for large z.abs() in the

@@ -6,9 +6,10 @@ use crate::{
         CIP, HankelKind, IKType, RotationDirection,
         airy::airy_power_series,
         analytic_continuation::{airy_analytic_continuation, analytic_continuation},
+        asymptotics::k_asymp_large_order,
         max_abs_component,
         overflow_checks::check_underflow_uniform_asymp_params,
-        translator::{ZBUNK, i_right_half_plane, k_right_half_plane},
+        translator::{i_right_half_plane, k_right_half_plane},
         utils::{is_significance_lost, sanitise_inputs},
     },
     types::{BesselError::*, BesselFloat, BesselResult},
@@ -136,7 +137,7 @@ pub fn complex_bessel_h<T: BesselFloat>(
                 zn = -zn;
             }
         }
-        let (cy, nw) = ZBUNK(zn, order, scaling, asymptotic_rotation, n)?;
+        let (cy, nw) = k_asymp_large_order(zn, order, scaling, asymptotic_rotation, n)?;
         nz += nw;
         (cy, nz)
     };
@@ -457,7 +458,7 @@ pub fn complex_bessel_k<T: BesselFloat>(
             RotationDirection::Right
         };
 
-        let (y, nz) = ZBUNK(z, order, scaling, rotation, n)?;
+        let (y, nz) = k_asymp_large_order(z, order, scaling, rotation, n)?;
         return if partial_significance_loss {
             Err(PartialLossOfSignificance { y, nz })
         } else {

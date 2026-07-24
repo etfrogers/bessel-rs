@@ -16,7 +16,7 @@ use crate::types::BesselFloat;
 
 mod airy;
 mod analytic_continuation;
-mod asymptotic_i;
+mod asymptotics;
 mod entry_points;
 mod gamma_ln;
 mod i_power_series;
