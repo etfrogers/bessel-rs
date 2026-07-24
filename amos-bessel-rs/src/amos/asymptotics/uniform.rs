@@ -9,8 +9,8 @@ use crate::{
     amos::{
         CIP, IKType, PositiveArg, RotationDirection,
         airy::airy_pair,
+        limits::{Overflow, check_underflow_uniform_asymp_params, underflow_add_i_k},
         max_abs_component,
-        overflow_checks::{Overflow, check_underflow_uniform_asymp_params, underflow_add_i_k},
         translator::recurr,
         utils::{AIC, calc_rz, will_underflow},
     },

@@ -6,8 +6,9 @@ use crate::{
     amos::{
         RotationDirection,
         asymptotics::asymptotic_i,
-        i_power_series, max_abs_component,
-        overflow_checks::{Overflow, underflow_add_i_k},
+        i_power_series,
+        limits::{Overflow, underflow_add_i_k},
+        max_abs_component,
         translator::{i_miller, i_right_half_plane, k_right_half_plane},
         utils::calc_rz,
     },

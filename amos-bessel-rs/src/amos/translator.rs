@@ -1,7 +1,7 @@
 #![allow(non_snake_case, clippy::excessive_precision)]
 use super::{
-    IKType, Scaling, gamma_ln, i_power_series,
-    overflow_checks::check_underflow_uniform_asymp_params, utils::will_underflow,
+    IKType, Scaling, gamma_ln, i_power_series, limits::check_underflow_uniform_asymp_params,
+    utils::will_underflow,
 };
 use crate::{
     amos::asymptotics::i_asymp_large_order,
@@ -12,7 +12,7 @@ use crate::{
 };
 
 use crate::amos::{
-    asymptotic_i::asymptotic_i, max_abs_component, overflow_checks::Overflow, utils::calc_rz,
+    asymptotic_i::asymptotic_i, limits::Overflow, max_abs_component, utils::calc_rz,
 };
 use itertools::Either;
 use num::{Complex, Zero, complex::ComplexFloat};

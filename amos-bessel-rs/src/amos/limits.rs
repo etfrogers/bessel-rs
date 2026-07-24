@@ -82,7 +82,7 @@ impl<T: BesselFloat> Index<Overflow> for [T] {
     }
 }
 
-/// zuoik computes the leading terms of the uniform asymptotic
+/// check_underflow_uniform_asymp_params computes the leading terms of the uniform asymptotic
 /// expansions for the I and K functions and compares them
 /// (in logarithmic form) to [MachineConsts::approximation_limit]
 /// and [MachineConsts::exponent_limit] for over and underflow

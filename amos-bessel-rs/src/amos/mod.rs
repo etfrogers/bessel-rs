@@ -20,8 +20,8 @@ mod asymptotics;
 mod entry_points;
 mod gamma_ln;
 mod i_power_series;
+mod limits;
 mod machine;
-mod overflow_checks;
 mod translator;
 mod utils;
 

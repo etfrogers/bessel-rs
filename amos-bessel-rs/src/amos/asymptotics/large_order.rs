@@ -6,8 +6,8 @@ use crate::{
     amos::{
         RotationDirection,
         asymptotics::{i_uniform_asymp1, i_uniform_asymp2, k_uniform_asymp1, k_uniform_asymp2},
+        limits::Overflow,
         max_abs_component,
-        overflow_checks::Overflow,
         utils::{calc_rz, imaginary_dominant},
     },
     types::{BesselFloat, BesselResult},
