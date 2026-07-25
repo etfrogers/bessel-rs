@@ -10,7 +10,7 @@ use crate::{
         limits::{Overflow, underflow_add_i_k},
         max_abs_component,
         recurrence::i_miller,
-        translator::{i_right_half_plane, k_right_half_plane},
+        right_half_plane::{i_right_half_plane, k_right_half_plane},
         utils::calc_rz,
     },
     types::{BesselFloat, BesselResult, BesselValues},

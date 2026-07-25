@@ -9,7 +9,7 @@ use crate::{
         asymptotics::k_asymp_large_order,
         limits::check_underflow_uniform_asymp_params,
         max_abs_component,
-        translator::{i_right_half_plane, k_right_half_plane},
+        right_half_plane::{i_right_half_plane, k_right_half_plane},
         utils::{is_significance_lost, sanitise_inputs},
     },
     types::{BesselError::*, BesselFloat, BesselResult},
