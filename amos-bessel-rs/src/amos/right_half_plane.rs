@@ -8,14 +8,14 @@ use crate::{
     Scaling,
     amos::{
         IKType,
-        asymptotic_i::asymptotic_i,
+        asymptotics::asymptotic_i,
         asymptotics::i_asymp_large_order,
         gamma_ln, i_power_series,
         limits::{Overflow, check_underflow_uniform_asymp_params},
         max_abs_component,
         recurrence::{i_miller, scale_k_recurrence},
-        translator::i_wronksian,
         utils::{calc_rz, will_underflow},
+        wronksian::i_wronksian,
     },
     types::{BesselFloat, BesselResult, BesselValues},
 };

@@ -24,8 +24,8 @@ mod machine;
 mod power_series;
 mod recurrence;
 mod right_half_plane;
-mod translator;
 mod utils;
+mod wronksian;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(usize)]
