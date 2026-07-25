@@ -11,7 +11,7 @@ use crate::{
         airy::airy_pair,
         limits::{Overflow, check_underflow_uniform_asymp_params, underflow_add_i_k},
         max_abs_component,
-        translator::recurr,
+        recurrence::backward_recurrence,
         utils::{AIC, calc_rz, will_underflow},
     },
     types::{BesselFloat, BesselResult, UniformAssymptoticParameters, cache_key},
@@ -606,7 +606,7 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
     }
     if n_remaining > 2 {
         let [s1, s2] = cy;
-        recurr(false, order, z, y, n_remaining - 2, s1, s2, overflow_state);
+        backward_recurrence(false, order, z, y, n_remaining - 2, s1, s2, overflow_state);
     }
     Ok((nz, 0))
 }
@@ -771,7 +771,7 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
     }
     if n_remaining > 2 {
         let [s1, s2] = cy;
-        recurr(false, order, z, y, n_remaining - 2, s1, s2, overflow_state);
+        backward_recurrence(false, order, z, y, n_remaining - 2, s1, s2, overflow_state);
     }
     Ok((nz, 0))
 }
@@ -896,7 +896,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         //     FORWARD RECUR FOR REMAINDER OF THE SEQUENCE
         //----------------------------------------------------------------------------
         let [s1, s2] = cy;
-        recurr(
+        backward_recurrence(
             true,
             order,
             zr,
@@ -1190,7 +1190,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
             Overflow::NearOver | Overflow::None | Overflow::NearUnder => (),
         }
         let [s1, s2] = cy;
-        recurr(
+        backward_recurrence(
             true,
             order,
             zr,

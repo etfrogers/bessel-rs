@@ -22,6 +22,7 @@ mod gamma_ln;
 mod limits;
 mod machine;
 mod power_series;
+mod recurrence;
 mod translator;
 mod utils;
 

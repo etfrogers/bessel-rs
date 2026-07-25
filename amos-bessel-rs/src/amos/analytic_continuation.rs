@@ -6,9 +6,11 @@ use crate::{
     amos::{
         RotationDirection,
         asymptotics::asymptotic_i,
+        i_power_series,
         limits::{Overflow, underflow_add_i_k},
-        max_abs_component, power_series,
-        translator::{i_miller, i_right_half_plane, k_right_half_plane},
+        max_abs_component,
+        recurrence::i_miller,
+        translator::{i_right_half_plane, k_right_half_plane},
         utils::calc_rz,
     },
     types::{BesselFloat, BesselResult, BesselValues},
