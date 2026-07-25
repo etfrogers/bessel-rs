@@ -1,11 +1,10 @@
-#![allow(clippy::excessive_precision)]
 use num::complex::{Complex, ComplexFloat};
 
 use crate::types::{BesselError, BesselFloat};
 
-pub const RTPI: f64 = 0.159154943091895336;
+pub const RTPI: f64 = 0.159_154_943_091_895_35;
 pub const RT_THREE: f64 = 1.73205080757;
-pub const AIC: f64 = 1.265512123484645396; // == gamma_ln(-0.5).re
+pub const AIC: f64 = 1.265_512_123_484_645_4; // == gamma_ln(-0.5).re
 
 /// This slightly odd form of calculation avoids overflow/underflow
 /// when z is large/small respectively.

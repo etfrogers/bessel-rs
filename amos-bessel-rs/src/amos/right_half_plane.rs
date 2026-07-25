@@ -1,4 +1,3 @@
-#![allow(clippy::excessive_precision)]
 #![allow(non_snake_case)]
 
 use num::{Complex, Zero, complex::ComplexFloat};
@@ -127,18 +126,18 @@ pub fn k_right_half_plane<T: BesselFloat>(
     n: usize,
 ) -> Result<BesselValues<T, usize>, BesselError<T>> {
     const KMAX: usize = 30;
-    let RTFRAC_PI_2: T = T::from_f64(1.25331413731550025);
-    let SPI: T = T::from_f64(1.90985931710274403);
-    let FPI: T = T::from_f64(1.89769999331517738);
+    let RTFRAC_PI_2: T = T::from_f64(1.253_314_137_315_500_3);
+    let SPI: T = T::from_f64(1.909_859_317_102_744);
+    let FPI: T = T::from_f64(1.897_699_993_315_177_5);
     let CC: [T; 8] = [
-        T::from_f64(5.77215664901532861e-01),
-        T::from_f64(-4.20026350340952355e-02),
-        T::from_f64(-4.21977345555443367e-02),
-        T::from_f64(7.21894324666309954e-03),
-        T::from_f64(-2.15241674114950973e-04),
-        T::from_f64(-2.01348547807882387e-05),
-        T::from_f64(1.13302723198169588e-06),
-        T::from_f64(6.11609510448141582e-09),
+        T::from_f64(5.772_156_649_015_329e-1),
+        T::from_f64(-4.200_263_503_409_524e-2),
+        T::from_f64(-4.219_773_455_554_433e-2),
+        T::from_f64(7.218_943_246_663_1e-3),
+        T::from_f64(-2.152_416_741_149_509_8e-4),
+        T::from_f64(-2.013_485_478_078_824e-5),
+        T::from_f64(1.133_027_231_981_696e-6),
+        T::from_f64(6.116_095_104_481_416e-9),
     ];
 
     let abs_z = z.abs();

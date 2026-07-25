@@ -1,4 +1,4 @@
-#![allow(non_snake_case, clippy::excessive_precision)]
+#![allow(non_snake_case)]
 use super::Scaling;
 use crate::{
     amos::{recurrence::i_ratios, right_half_plane::k_right_half_plane},

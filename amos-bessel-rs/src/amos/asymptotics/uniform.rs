@@ -1,4 +1,3 @@
-#![allow(clippy::excessive_precision)]
 use std::f64::consts::FRAC_PI_2;
 
 use num::{Complex, Integer, complex::ComplexFloat};
@@ -253,9 +252,9 @@ pub(crate) fn hj_uniform_asymp_params<T: BesselFloat>(
     // ***ROUTINES CALLED  ZABS,ZDIV,ZLOG,ZSQRT,d1mach
     // ***END PROLOGUE  ZUNHJ
 
-    const EX1: f64 = 3.33333333333333333e-01;
-    const EX2: f64 = 6.66666666666666667e-01;
-    const THREE_PI_BY_2: f64 = 4.71238898038468986e+00;
+    const EX1: f64 = 3.333_333_333_333_333e-1;
+    const EX2: f64 = 6.666_666_666_666_666e-1;
+    const THREE_PI_BY_2: f64 = 4.712_388_980_384_69;
     let reciprocal_order = T::one() / order;
     //-----------------------------------------------------------------------
     //     OVERFLOW TEST (Z/FNU TOO SMALL)
@@ -1051,8 +1050,8 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
     rotation: RotationDirection,
     n: usize,
 ) -> BesselResult<T> {
-    let cr1: Complex<T> = Complex::<T>::new(T::one(), T::from_f64(1.73205080756887729));
-    let cr2: Complex<T> = Complex::<T>::new(-T::half(), -T::from_f64(8.66025403784438647e-01));
+    let cr1: Complex<T> = Complex::<T>::new(T::one(), T::from_f64(1.732_050_807_568_877_2));
+    let cr2: Complex<T> = Complex::<T>::new(-T::half(), -T::from_f64(8.660_254_037_844_386e-1));
 
     let mut found_one_good_entry = false;
     let mut nz = 0;
