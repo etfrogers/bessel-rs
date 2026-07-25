@@ -1,4 +1,3 @@
-#![allow(non_snake_case)]
 use num::{Complex, complex::ComplexFloat};
 
 use crate::{

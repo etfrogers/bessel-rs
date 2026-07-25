@@ -42,7 +42,7 @@ pub(crate) fn will_underflow<T: BesselFloat>(y: Complex<T>, ascle: T, tol: T) ->
 }
 
 pub fn is_significance_lost<T: BesselFloat>(
-    z_abs: T,
+    abs_z: T,
     modified_order: T,
     modify_threshold: bool,
 ) -> Result<bool, BesselError<T>> {
@@ -53,11 +53,11 @@ pub fn is_significance_lost<T: BesselFloat>(
     if modify_threshold {
         upper_size_limit = upper_size_limit.powf(T::TWO_THIRDS);
     }
-    if z_abs > upper_size_limit || modified_order > upper_size_limit {
+    if abs_z > upper_size_limit || modified_order > upper_size_limit {
         return Err(BesselError::LossOfSignificance);
     }
     let scaling_limit = upper_size_limit.sqrt();
-    Ok((z_abs > scaling_limit) || (modified_order > scaling_limit))
+    Ok((abs_z > scaling_limit) || (modified_order > scaling_limit))
 }
 
 pub(crate) fn sanitise_inputs<T: BesselFloat>(

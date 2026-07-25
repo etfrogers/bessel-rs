@@ -57,9 +57,9 @@ pub(crate) fn i_wronksian<T: BesselFloat>(
     //     UNDER- OR OVERFLOW PREMATURELY BY SQUARING CABS(CT)
     //-----------------------------------------------------------------------
     let mut ct = zr * (y_ratios[0] * c1 + c2);
-    let ct_abs = ct.abs();
-    ct = ct.conj() / ct_abs;
-    cinu = (cinu / ct_abs) * ct;
+    let abs_ct = ct.abs();
+    ct = ct.conj() / abs_ct;
+    cinu = (cinu / abs_ct) * ct;
     y[0] = cinu * CSCLR;
     for i in 1..n {
         cinu *= y_ratios[i - 1];
