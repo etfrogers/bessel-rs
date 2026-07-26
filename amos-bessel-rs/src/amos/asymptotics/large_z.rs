@@ -15,7 +15,7 @@ use crate::{
 /// region z.abs() > rl.max(order.pow(2.0)/2).
 ///
 /// Originally ZASYI
-pub fn asymptotic_i<T: BesselFloat>(
+pub fn i_asymptotic<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,

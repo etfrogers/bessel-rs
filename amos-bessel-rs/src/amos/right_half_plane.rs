@@ -7,8 +7,8 @@ use crate::{
     Scaling,
     amos::{
         IKType,
-        asymptotics::asymptotic_i,
         asymptotics::i_asymp_large_order,
+        asymptotics::i_asymptotic,
         gamma_ln, i_power_series,
         limits::{Overflow, check_underflow_uniform_asymp_params},
         max_abs_component,
@@ -54,7 +54,7 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
         //-----------------------------------------------------------------------
         //     ASYMPTOTIC EXPANSION FOR LARGE Z
         //-----------------------------------------------------------------------
-        let (cy, nw) = asymptotic_i(z, order, KODE, NN)?;
+        let (cy, nw) = i_asymptotic(z, order, KODE, NN)?;
         debug_assert!(nw == NZ);
         return Ok((cy, NZ));
     }

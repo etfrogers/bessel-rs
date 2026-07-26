@@ -1,11 +1,10 @@
-#![allow(non_snake_case)]
-use num::{Complex, complex::ComplexFloat};
+use num::{Complex, Integer, complex::ComplexFloat};
 
 use crate::{
     BesselError, Scaling,
     amos::{
         RotationDirection,
-        asymptotics::asymptotic_i,
+        asymptotics::i_asymptotic,
         i_power_series,
         limits::{Overflow, underflow_add_i_k},
         max_abs_component,
@@ -30,66 +29,69 @@ pub fn analytic_continuation<T: BesselFloat>(
     rotation: RotationDirection,
     n: usize,
 ) -> Result<BesselValues<T>, BesselError<T>> {
-    let mut nz = 0;
-    let zn = -z;
-    let (mut y, _) = i_right_half_plane(zn, order, scaling, n)?;
+    let mut n_zeros = 0;
+    let negative_z = -z;
+    let (i_values, _) = i_right_half_plane(negative_z, order, scaling, n)?;
     //-----------------------------------------------------------------------
     //     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE FOR THE K FUNCTION
     //-----------------------------------------------------------------------
-    let (cy, NW) = k_right_half_plane(zn, order, scaling, 2.min(n))?;
-    if NW > 0 {
+    let (k_values, n_zeros_inner) = k_right_half_plane(negative_z, order, scaling, 2.min(n))?;
+    if n_zeros_inner > 0 {
         return Err(BesselError::Overflow);
-        // the NW = -1 or -2 is handled by ZBNKU returning an error,
-        // but the amos code defaults to an overflow, if NW != 0
+        // Amos also handled  NW = -1 or -2  as error cases, but in rust these
+        // are handled by k_right_half_plane returning an error,
+        // The amos code defaults to an overflow, if NW != 0
     }
-    let mut s1 = cy[0];
-    let SGN = -T::PI() * T::from_f64(rotation.signum());
-    let mut csgn = Complex::<T>::new(T::ZERO, SGN);
+    let rotation_angle = -T::PI() * T::from_f64(rotation.signum());
+    let mut i_continuation_coeff = Complex::<T>::new(T::ZERO, rotation_angle);
     if scaling == Scaling::Scaled {
-        csgn *= Complex::<T>::cis(-zn.im);
+        i_continuation_coeff *= Complex::<T>::cis(-negative_z.im);
     }
     //-----------------------------------------------------------------------
     //     CALCULATE CSPN=EXP(FNU*PI*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
     //     WHEN FNU IS LARGE
     //-----------------------------------------------------------------------
-    let mut cspn = Complex::<T>::cis(order.fract() * SGN);
-    if order.to_i64().unwrap() % 2 != 0 {
-        cspn = -cspn;
+    let mut k_continuation_coeff = Complex::<T>::cis(order.fract() * rotation_angle);
+    if order.to_usize().unwrap().is_odd() {
+        k_continuation_coeff = -k_continuation_coeff;
     }
     let mut n_good = 0;
-    let mut c1 = s1;
-    let mut c2 = y[0];
+    let mut k_prev = k_values[0];
+    let mut k_component = k_prev;
+    let mut i_component = i_values[0];
     if scaling == Scaling::Scaled {
-        nz += underflow_add_i_k(zn, &mut c1, &mut c2, &mut n_good);
+        n_zeros += underflow_add_i_k(negative_z, &mut k_component, &mut i_component, &mut n_good);
     }
-    y[0] = cspn * c1 + csgn * c2;
+
+    let mut y = T::c_zeros(n);
+    y[0] = k_continuation_coeff * k_component + i_continuation_coeff * i_component;
     if n == 1 {
-        return Ok((y, nz));
+        return Ok((y, n_zeros));
     }
 
-    cspn = -cspn;
-    let mut s2 = cy[1];
-    c1 = s2;
-    c2 = y[1];
-    // this value never used, as initialised and used if scaling is needed
-    let mut scaled_c2 = T::C_ZERO * T::NAN;
-    if scaling == Scaling::Scaled {
-        nz += underflow_add_i_k(zn, &mut c1, &mut c2, &mut n_good);
-        scaled_c2 = c1;
-    }
-    y[1] = cspn * c1 + csgn * c2;
+    k_continuation_coeff = -k_continuation_coeff;
+    let mut k_curr = k_values[1];
+    k_component = k_curr;
+    i_component = i_values[1];
+    let mut scaled_k_component = if scaling == Scaling::Scaled {
+        n_zeros += underflow_add_i_k(negative_z, &mut k_component, &mut i_component, &mut n_good);
+        Some(k_component)
+    } else {
+        None
+    };
+
+    y[1] = k_continuation_coeff * k_component + i_continuation_coeff * i_component;
     if n == 2 {
-        return Ok((y, nz));
+        return Ok((y, n_zeros));
     }
 
-    cspn = -cspn;
-    let rz = calc_rz(zn);
-    let FN = order + T::one();
-    let mut ck = FN * rz;
+    k_continuation_coeff = -k_continuation_coeff;
+    let reciprocal_z = calc_rz(negative_z);
+    let mut recurrence_factor = (order + T::one()) * reciprocal_z;
     //-----------------------------------------------------------------------
     //     SCALE NEAR EXPONENT EXTREMES DURING RECURRENCE ON K FUNCTIONS
     //-----------------------------------------------------------------------
-    let abs_s2 = s2.abs();
+    let abs_s2 = k_curr.abs();
     let mut overflow_state = if abs_s2 <= T::MACHINE_CONSTANTS.overflow_boundary[0] {
         Overflow::NearUnder
     } else if abs_s2 > T::MACHINE_CONSTANTS.overflow_boundary[1] {
@@ -98,40 +100,41 @@ pub fn analytic_continuation<T: BesselFloat>(
         Overflow::None
     };
     let mut boundary = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state];
-    s1 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
-    s2 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
+    k_prev *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
+    k_curr *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
     let mut recip_scaling_factor = T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
-    for yi in y.iter_mut().skip(2) {
+    for (yi, ii) in y.iter_mut().zip(i_values).skip(2) {
         //TODO common pattern below
-        (s1, s2) = (s2, ck * s2 + s1);
-        c1 = s2 * recip_scaling_factor;
-        let mut st = c1;
-        c2 = *yi;
+        (k_prev, k_curr) = (k_curr, recurrence_factor * k_curr + k_prev);
+        k_component = k_curr * recip_scaling_factor;
+        let mut unscaled_k_curr = k_component;
+        i_component = ii;
         if scaling == Scaling::Scaled && n_good >= 0 {
-            nz += underflow_add_i_k(zn, &mut c1, &mut c2, &mut n_good);
-            let saved_c2 = scaled_c2;
-            scaled_c2 = c1;
+            n_zeros +=
+                underflow_add_i_k(negative_z, &mut k_component, &mut i_component, &mut n_good);
+            let saved_k_component = scaled_k_component.unwrap();
+            scaled_k_component = Some(k_component);
             if n_good == 3 {
                 n_good = -4;
-                s1 = saved_c2 * T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
-                s2 = scaled_c2 * T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
-                st = scaled_c2;
+                k_prev = saved_k_component * T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
+                k_curr = k_component * T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
+                unscaled_k_curr = k_component;
             }
         }
-        *yi = cspn * c1 + csgn * c2;
-        ck += rz;
-        cspn = -cspn;
-        if overflow_state != Overflow::NearOver && max_abs_component(c1) < boundary {
+        *yi = k_continuation_coeff * k_component + i_continuation_coeff * i_component;
+        recurrence_factor += reciprocal_z;
+        k_continuation_coeff = -k_continuation_coeff;
+        if overflow_state != Overflow::NearOver && max_abs_component(k_component) < boundary {
             overflow_state.increment();
             boundary = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state];
-            s1 *= recip_scaling_factor;
-            s2 = st;
-            s1 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
-            s2 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
+            k_prev *= recip_scaling_factor;
+            k_curr = unscaled_k_curr;
+            k_prev *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
+            k_curr *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
             recip_scaling_factor = T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
         }
     }
-    Ok((y, nz))
+    Ok((y, n_zeros))
 }
 
 /// Applies the analytic continuation formula
@@ -149,61 +152,63 @@ pub fn analytic_continuation<T: BesselFloat>(
 pub fn airy_analytic_continuation<T: BesselFloat>(
     z: Complex<T>,
     order: T,
-    KODE: Scaling,
+    scaling: Scaling,
     rotation: RotationDirection,
-    N: usize,
 ) -> BesselResult<T> {
-    let mut NZ = 0;
-    let zn = -z;
-    let AZ = z.abs();
-    let NN = N;
-    let DFNU = order + T::from_usize(N - 1);
-    let (mut y, _) = if (AZ * AZ * T::from_f64(0.25) <= DFNU + T::one()) || (AZ <= T::two()) {
+    let mut n_zeros = 0;
+    let negative_z = -z;
+    let abs_z = z.abs();
+
+    let (i_value, _) =
+        if (abs_z * abs_z * T::from_f64(0.25) <= order + T::one()) || (abs_z <= T::two()) {
+            //-----------------------------------------------------------------------
+            //     POWER SERIES FOR THE I FUNCTION
+            //-----------------------------------------------------------------------
+            let (y, n_zeros_inner_signed) = i_power_series(negative_z, order, scaling, 1)?;
+            // While some calls to i_power_series can return negative values,
+            // the call here should not
+            debug_assert!(n_zeros_inner_signed >= 0);
+            (y, n_zeros_inner_signed.unsigned_abs())
+        } else if abs_z >= T::MACHINE_CONSTANTS.asymptotic_z_limit {
+            //-----------------------------------------------------------------------
+            //     ASYMPTOTIC EXPANSION FOR LARGE Z FOR THE I FUNCTION
+            //-----------------------------------------------------------------------
+            i_asymptotic(negative_z, order, scaling, 1)?
         //-----------------------------------------------------------------------
-        //     POWER SERIES FOR THE I FUNCTION
+        //     MILLER ALGORITHM NORMALIZED BY THE SERIES FOR THE I FUNCTION
         //-----------------------------------------------------------------------
-        let (y, NW_signed) = i_power_series(zn, order, KODE, NN)?;
-        debug_assert!(NW_signed >= 0);
-        (y, NW_signed.unsigned_abs())
-    } else if AZ >= T::MACHINE_CONSTANTS.asymptotic_z_limit {
-        //-----------------------------------------------------------------------
-        //     ASYMPTOTIC EXPANSION FOR LARGE Z FOR THE I FUNCTION
-        //-----------------------------------------------------------------------
-        asymptotic_i(zn, order, KODE, NN)?
-    //-----------------------------------------------------------------------
-    //     MILLER ALGORITHM NORMALIZED BY THE SERIES FOR THE I FUNCTION
-    //-----------------------------------------------------------------------
-    } else {
-        i_miller(zn, order, KODE, NN)?
-    };
+        } else {
+            i_miller(negative_z, order, scaling, 1)?
+        };
     //-----------------------------------------------------------------------
     //     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE FOR THE K FUNCTION
     //-----------------------------------------------------------------------s
-    let (cy, nz) = k_right_half_plane(zn, order, KODE, 1)?;
+    let (k_value, nz) = k_right_half_plane(negative_z, order, scaling, 1)?;
     if nz != 0 {
         return Err(BesselError::Overflow);
     }
-    let SGN = -T::PI() * T::from_f64(rotation.signum());
-    let mut csgn = Complex::<T>::new(T::ZERO, SGN);
-    if KODE == Scaling::Scaled {
-        csgn = T::I * csgn.im * Complex::<T>::cis(-zn.im);
+    let rotation_angle = -T::PI() * T::from_f64(rotation.signum());
+    let mut i_coeff = Complex::<T>::new(T::ZERO, rotation_angle);
+    if scaling == Scaling::Scaled {
+        i_coeff *= Complex::<T>::cis(-negative_z.im);
     }
     //-----------------------------------------------------------------------
     //     CALCULATE CSPN=EXP(FNU*PI*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
     //     WHEN FNU IS LARGE
     //-----------------------------------------------------------------------
-    let INU = order.to_usize().unwrap();
-    let mut cspn = Complex::<T>::cis(order.fract() * SGN);
-    if !INU.is_multiple_of(2) {
-        cspn = -cspn;
+
+    let mut k_coeff = Complex::<T>::cis(order.fract() * rotation_angle);
+    if !order.to_usize().unwrap().is_even() {
+        k_coeff = -k_coeff;
     }
-    let mut c1 = cy[0];
-    let mut c2 = y[0];
-    if KODE == Scaling::Scaled {
-        let mut IUF = 0;
-        let NW = underflow_add_i_k(zn, &mut c1, &mut c2, &mut IUF);
-        NZ += NW;
+    let mut k_value = k_value[0];
+    let mut i_value = i_value[0];
+    if scaling == Scaling::Scaled {
+        let mut n_good_dummy = 0;
+        let n_zeros_inner =
+            underflow_add_i_k(negative_z, &mut k_value, &mut i_value, &mut n_good_dummy);
+        n_zeros += n_zeros_inner;
     }
-    y[0] = cspn * c1 + csgn * c2;
-    Ok((y, NZ))
+    let y = vec![k_coeff * k_value + i_coeff * i_value];
+    Ok((y, n_zeros))
 }

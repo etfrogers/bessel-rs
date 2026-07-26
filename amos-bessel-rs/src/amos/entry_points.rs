@@ -757,7 +757,7 @@ pub fn complex_airy<T: BesselFloat>(
             } else {
                 RotationDirection::Right
             };
-            airy_analytic_continuation(zeta, order, scaling, rotation, 1)?
+            airy_analytic_continuation(zeta, order, scaling, rotation)?
         } else {
             //-----------------------------------------------------------------------
             //     UNDERFLOW TEST
