@@ -79,50 +79,19 @@
 //!   in the Vec that have been set to zero due to underflow.
 //!
 //!
-//! ## Note on accuracy - edited from the original Amos documentation
+//! ## Note on accuracy
 //!
-//! In most complex variable computation, one must evaluate
-//! elementary functions. When the magnitude of z or (effective) order is
-//! large, losses of significance by argument reduction occur.
-//! consequently, if either one exceeds `u1=(0.5/eps).sqrt()`, then
-//! losses exceeding half of machine precision are likely and an error flag
-//! [BesselError::PartialLossOfSignificance] is triggered where
-//! `eps = f64::EPSILON` is double precision unit roundoff.
-//! If either z or order is larger than `u2=0.5/eps`, then all significance is
-//! lost and [BesselError::LossOfSignificance] is returned.
-//! In order to use the int function, arguments
-//! must be further restricted not to exceed the largest machine
-//! integer, `u3=(i32::MAX as f64) * 0.5`[^note1].
-//! Thus, the magnitude of z and (effective) order is
-//! restricted by `u2.min(u3)`. With the 64 bit versions given above, u1, u2, and u3
-//! are approximately  1.3e+8, 1.8e+16, 2.1e+9.[^note2]
+//! When the magnitude of `z` or (effective) `order` is extremely large, losses of significance
+//! by argument reduction occur in the underlying computations.
 //!
-//! [^note1]: This is used for the time being to match the Fortran
-//! code, but may be relaxed later.
+//! If either one exceeds `u1 = (0.5/eps).sqrt()` (approx `1.3e8` for `f64`), losses exceeding half 
+//! of machine precision are likely and [BesselError::PartialLossOfSignificance] is triggered.
+//! If either `z` or `order` is larger than `u2 = 0.5/eps` (approx `1.8e16` for `f64`), then all 
+//! significance is lost and [BesselError::LossOfSignificance] is returned.
 //!
-//! [^note2]: It is intended to extend the current `f64` implementation
-//! to allow different size floats in the future.
-//!
-//! The approximate relative error in the magnitude of a complex
-//! bessel function can be expressed by `eps * 10.0.pow(s)` where
-//! `eps = f64::EPSILON` is the nominal precision and `10.0.pow(s)`
-//! represents the increase in error due to argument reduction in the
-//! elementary functions. Here,
-//! `s = 1.0.max(z.abs().log10().abs().max(order.log10().abs())`
-//! approximately (i.e. s = max(1, abs(exponent of
-//! abs(z), abs(exponent of order))). However, the phase angle may
-//! have only absolute accuracy. This is most likely to occur when
-//! one component (in absolute value) is larger than the other by
-//! several orders of magnitude. if one component is `10.0.pow(k)` larger
-//! than the other, then one can expect only `p.log10().abs() - k).max(0)`,
-//! significant digits; or, stated another way, when k exceeds
-//! the exponent of p, no significant digits remain in the smaller
-//! component. However, the phase angle retains absolute accuracy
-//! because, in complex arithmetic with precision p, the smaller
-//! component will not (as a rule) decrease below p times the
-//! magnitude of the larger component. In these extreme cases,
-//! the principal phase angle is on the order of +p, -p, pi/2-p,
-//! or -pi/2+p.
+//! For a full mathematical breakdown of the relative error and phase angle accuracy 
+//! based on the original Amos documentation, please see the 
+//! [Performance & Accuracy Guide](https://etfrogers.github.io/bessel-rs/).
 
 /// Container for the complex_\[func\] version of the Bessel and Airy functions
 /// for finer control of the calculation and results

@@ -4,3 +4,5 @@
 *.vsix
 lcov.info
 profile.json
+/docs/book
+**/parse_benchmarks

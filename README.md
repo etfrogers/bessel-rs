@@ -4,6 +4,7 @@ Bessel Rust
 [![Crates.io](https://img.shields.io/crates/v/amos-bessel-rs.svg)](https://crates.io/crates/amos-bessel-rs)
 [![Build Status](https://github.com/etfrogers/bessel-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/etfrogers/bessel-rs/actions/workflows/rust.yml)
 [![codecov](https://codecov.io/gh/etfrogers/bessel-rs/branch/main/graph/badge.svg)](https://codecov.io/gh/etfrogers/bessel-rs)
+[![Performance & Accuracy Guide](https://img.shields.io/badge/docs-Performance_%26_Accuracy_Guide-blue)](https://etfrogers.github.io/bessel-rs/)
 
 A workspace for Bessel function implementations in Rust.
 
@@ -16,3 +17,5 @@ Crates
 - **[fortran-amos-testing](./fortran-amos-testing)**: Raw Fortran bindings for comparison and testing.
 
 See the [amos-bessel-rs README](./amos-bessel-rs/README.md) for more details on the main implementation.
+
+📖 **Documentation:** See the [Performance & Accuracy Guide](https://etfrogers.github.io/bessel-rs/) for detailed benchmarks comparing `f32` vs `f64` precision and Pure Rust vs Legacy Fortran performance.

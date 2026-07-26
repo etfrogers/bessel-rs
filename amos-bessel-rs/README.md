@@ -4,6 +4,7 @@ Amos Bessel functions in idomatic Rust
 [![Crates.io](https://img.shields.io/crates/v/amos-bessel-rs.svg)](https://crates.io/crates/amos-bessel-rs)
 [![Build Status](https://github.com/etfrogers/bessel-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/etfrogers/bessel-rs/actions/workflows/rust.yml)
 [![codecov](https://codecov.io/gh/etfrogers/bessel-rs/branch/main/graph/badge.svg)](https://codecov.io/gh/etfrogers/bessel-rs)
+[![Performance & Accuracy Guide](https://img.shields.io/badge/docs-Performance_%26_Accuracy_Guide-blue)](https://etfrogers.github.io/bessel-rs/)
 
 A crate implementing idiomatic, pure Rust translations of [Amos' complex
 Bessel function algorthims](https://www.netlib.org/amos/)
@@ -30,6 +31,8 @@ Since development of this crate started, [another translation](https://github.co
 The aim of this crate is to translate the Amos Fortran code
 into idomatic Rust, with a Rust-style API, while retaining full compatibility with Amos' code if required. Both simplified "just works" API and 
 full version, as per Amos, are available.
+
+**📖 Documentation:** Read the [Performance & Accuracy Guide](https://etfrogers.github.io/bessel-rs/) for deep dives into how `amos-bessel-rs` exceeds Fortran performance, mitigates floating-point overflow, and eliminates legacy `IERR` array vulnerabilities.
 
 Alternatives
 ------------

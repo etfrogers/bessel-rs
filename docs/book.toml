@@ -1,0 +1,6 @@
+[book]
+authors = ["Bessel-rs Contributors"]
+language = "en"
+multilingual = false
+src = "src"
+title = "Bessel-rs Performance & Accuracy"
