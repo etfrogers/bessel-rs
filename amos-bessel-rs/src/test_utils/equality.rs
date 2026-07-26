@@ -187,12 +187,10 @@ pub fn assert_results_are_equal_floats<T: DiagnosticBesselFloat>(
         }
         (Err(BesselError::Overflow), _) => {
             // Overflow for f32 does not imply overflow for f64
-            return;
         }
         (Err(BesselError::LossOfSignificance), Err(BesselError::Overflow)) => {
             // As the loss of significance check is early in the code path, it may prevent a later
             // Overflow form occurring.
-            return;
         }
 
         (
@@ -200,7 +198,6 @@ pub fn assert_results_are_equal_floats<T: DiagnosticBesselFloat>(
             Err(BesselError::PartialLossOfSignificance { y: _, nz: _ }),
         ) => {
             // Possible for f32 to lose all siginifcance, and f64 to retain some. That's OK.
-            return;
         }
         (
             Err(BesselError::PartialLossOfSignificance { y: actual_y, nz: _ }),

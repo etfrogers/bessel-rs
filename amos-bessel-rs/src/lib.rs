@@ -84,13 +84,13 @@
 //! When the magnitude of `z` or (effective) `order` is extremely large, losses of significance
 //! by argument reduction occur in the underlying computations.
 //!
-//! If either one exceeds `u1 = (0.5/eps).sqrt()` (approx `1.3e8` for `f64`), losses exceeding half 
+//! If either one exceeds `u1 = (0.5/eps).sqrt()` (approx `1.3e8` for `f64`), losses exceeding half
 //! of machine precision are likely and [BesselError::PartialLossOfSignificance] is triggered.
-//! If either `z` or `order` is larger than `u2 = 0.5/eps` (approx `1.8e16` for `f64`), then all 
+//! If either `z` or `order` is larger than `u2 = 0.5/eps` (approx `1.8e16` for `f64`), then all
 //! significance is lost and [BesselError::LossOfSignificance] is returned.
 //!
-//! For a full mathematical breakdown of the relative error and phase angle accuracy 
-//! based on the original Amos documentation, please see the 
+//! For a full mathematical breakdown of the relative error and phase angle accuracy
+//! based on the original Amos documentation, please see the
 //! [Performance & Accuracy Guide](https://etfrogers.github.io/bessel-rs/).
 
 /// Container for the complex_\[func\] version of the Bessel and Airy functions

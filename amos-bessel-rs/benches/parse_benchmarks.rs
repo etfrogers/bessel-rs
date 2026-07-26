@@ -6,7 +6,7 @@ fn parse_point_estimate(content: &str) -> Option<f64> {
     let key = "\"point_estimate\":";
     if let Some(idx) = content.find(key) {
         let remainder = &content[idx + key.len()..];
-        let end_idx = remainder.find(|c: char| c == ',' || c == '}').unwrap_or(remainder.len());
+        let end_idx = remainder.find([',', '}']).unwrap_or(remainder.len());
         let val_str = remainder[..end_idx].trim();
         val_str.parse::<f64>().ok()
     } else {
@@ -34,7 +34,10 @@ fn report_f32_vs_f64() {
 
     println!("Performance Comparison: f32 vs f64");
     println!("{:-<60}", "");
-    println!("{:<10} | {:<12} | {:<10} | {:<10} | {}", "Function", "Dataset", "f32 (ns)", "f64 (ns)", "Speedup");
+    println!(
+        "{:<10} | {:<12} | {:<10} | {:<10} | {}",
+        "Function", "Dataset", "f32 (ns)", "f64 (ns)", "Speedup"
+    );
     println!("{:-<60}", "");
 
     let mut total_speedup = 1.0;
@@ -44,12 +47,15 @@ fn report_f32_vs_f64() {
         for dataset in &datasets {
             if let (Some(t_f32), Some(t_f64)) = (
                 get_estimate(group, func, "f32", dataset),
-                get_estimate(group, func, "f64", dataset)
+                get_estimate(group, func, "f64", dataset),
             ) {
                 let speedup = t_f64 / t_f32;
                 total_speedup *= speedup;
                 count += 1;
-                println!("{:<10} | {:<12} | {:<10.2} | {:<10.2} | {:.2}x", func, dataset, t_f32, t_f64, speedup);
+                println!(
+                    "{:<10} | {:<12} | {:<10.2} | {:<10.2} | {:.2}x",
+                    func, dataset, t_f32, t_f64, speedup
+                );
             }
         }
     }
@@ -57,9 +63,14 @@ fn report_f32_vs_f64() {
     if count > 0 {
         println!("{:-<60}", "");
         let geom_mean = total_speedup.powf(1.0 / count as f64);
-        println!("Overall Geometric Mean Speedup (f32 over f64): {:.2}x\n", geom_mean);
+        println!(
+            "Overall Geometric Mean Speedup (f32 over f64): {:.2}x\n",
+            geom_mean
+        );
     } else {
-        println!("No benchmark data found. Please run `cargo bench --bench precision_bench` first.\n");
+        println!(
+            "No benchmark data found. Please run `cargo bench --bench precision_bench` first.\n"
+        );
     }
 }
 
@@ -70,7 +81,10 @@ fn report_rust_vs_fortran() {
 
     println!("Performance Comparison: Rust vs Fortran");
     println!("{:-<68}", "");
-    println!("{:<10} | {:<12} | {:<10} | {:<14} | {}", "Function", "Dataset", "Rust (ns)", "Fortran (ns)", "Speedup");
+    println!(
+        "{:<10} | {:<12} | {:<10} | {:<14} | {}",
+        "Function", "Dataset", "Rust (ns)", "Fortran (ns)", "Speedup"
+    );
     println!("{:-<68}", "");
 
     let mut total_speedup = 1.0;
@@ -80,12 +94,15 @@ fn report_rust_vs_fortran() {
         for dataset in &datasets {
             if let (Some(t_rust), Some(t_fortran)) = (
                 get_estimate(group, func, "Rust", dataset),
-                get_estimate(group, func, "Fortran", dataset)
+                get_estimate(group, func, "Fortran", dataset),
             ) {
                 let speedup = t_fortran / t_rust;
                 total_speedup *= speedup;
                 count += 1;
-                println!("{:<10} | {:<12} | {:<10.2} | {:<14.2} | {:.2}x", func, dataset, t_rust, t_fortran, speedup);
+                println!(
+                    "{:<10} | {:<12} | {:<10.2} | {:<14.2} | {:.2}x",
+                    func, dataset, t_rust, t_fortran, speedup
+                );
             }
         }
     }
@@ -93,7 +110,10 @@ fn report_rust_vs_fortran() {
     if count > 0 {
         println!("{:-<68}", "");
         let geom_mean = total_speedup.powf(1.0 / count as f64);
-        println!("Overall Geometric Mean Speedup (Rust over Fortran): {:.2}x\n", geom_mean);
+        println!(
+            "Overall Geometric Mean Speedup (Rust over Fortran): {:.2}x\n",
+            geom_mean
+        );
     } else {
         println!("No benchmark data found. Please run `cargo bench --bench bessel_bench` first.\n");
     }
@@ -123,7 +143,7 @@ fn main() {
     if run_rust_fortran {
         report_rust_vs_fortran();
     }
-    
+
     if run_f32_f64 {
         report_f32_vs_f64();
     }

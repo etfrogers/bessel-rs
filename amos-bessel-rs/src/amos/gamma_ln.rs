@@ -13,11 +13,11 @@ pub(crate) enum GammaError {
 /// Computes the natural log of the Gamma function for `z > 0`.
 ///
 /// # Description
-/// 
-/// The asymptotic expansion is used to generate values greater than `z_min`, 
-/// which are adjusted by the recursion `G(z+1) = z * G(z)` for `z <= z_min`. 
 ///
-/// Since integer arguments are common, a table lookup on 100 values is used 
+/// The asymptotic expansion is used to generate values greater than `z_min`,
+/// which are adjusted by the recursion `G(z+1) = z * G(z)` for `z <= z_min`.
+///
+/// Since integer arguments are common, a table lookup on 100 values is used
 /// for speed of execution.
 ///
 /// # Arguments

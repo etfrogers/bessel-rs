@@ -133,7 +133,7 @@ fn test_bessel_grid_complex_besssel(
                 let expected = ref_fn(order, z);
                 if let Err(BesselError::InvalidInput { details: _ }) = actual {
                     assert!(
-                        matches!(expected, Err(RefError::InvalidInput { .. })),
+                        matches!(expected, Err(RefError::InvalidInput)),
                         "Expected an InvalidInput error for order {order} and z {z}, but got {expected:?}"
                     );
                     return;
@@ -219,9 +219,7 @@ fn test_f32_vs_f64(
                 // |im| ≤ 1e-6), f32 and f64 take different algorithmic paths because their
                 // "near-axis" detection thresholds differ due to machine constants.
                 // Same root cause as the |im|=40 skip above.
-                if abs_diff_eq!(order, 1.5)
-                    && (z64.re.abs() <= 1e-6 || z64.im.abs() <= 1e-6)
-                {
+                if abs_diff_eq!(order, 1.5) && (z64.re.abs() <= 1e-6 || z64.im.abs() <= 1e-6) {
                     continue;
                 }
 
@@ -236,4 +234,3 @@ fn test_f32_vs_f64(
         }
     }
 }
-

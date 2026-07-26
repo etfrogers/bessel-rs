@@ -133,7 +133,7 @@ fn test_bessel_grid_complex_besssel(
                 let expected = ref_fn(order, z);
                 if let Err(BesselError::InvalidInput { details: _ }) = actual {
                     assert!(
-                        matches!(expected, Err(RefError::InvalidInput { .. })),
+                        matches!(expected, Err(RefError::InvalidInput)),
                         "Expected an InvalidInput error for order {order} and z {z}, but got {expected:?}"
                     );
                     return;

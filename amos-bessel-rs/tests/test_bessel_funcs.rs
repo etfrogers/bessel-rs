@@ -30,7 +30,7 @@ fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     let z = Complex64::new(zr, zi);
     let actual = bessel_j(order, z);
 
-    let expected = bessel_j_ref(order, z.into());
+    let expected = bessel_j_ref(order, z);
     assert_results_are_equal(&actual, &expected, &Vec::new(), 1e6);
 }
 
@@ -41,7 +41,7 @@ fn test_bessel_i(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     let actual = bessel_i(order, z);
     // dbg!(&actual);
 
-    let expected = bessel_i_ref(order, z.into());
+    let expected = bessel_i_ref(order, z);
     assert_results_are_equal(&actual, &expected, &Vec::new(), 1e6);
 }
 
@@ -51,7 +51,7 @@ fn test_bessel_k(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     let z = Complex64::new(zr, zi);
     let actual = bessel_k(order, z);
 
-    let expected = bessel_k_ref(order, z.into());
+    let expected = bessel_k_ref(order, z);
     assert_results_are_equal(&actual, &expected, &Vec::new(), 1e6);
 }
 
@@ -61,7 +61,7 @@ fn test_bessel_y(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     let z = Complex64::new(zr, zi);
     let actual = bessel_y(order, z);
 
-    let expected = bessel_y_ref(order, z.into());
+    let expected = bessel_y_ref(order, z);
     assert_results_are_equal(&actual, &expected, &Vec::new(), 1e6);
 }
 
@@ -76,7 +76,7 @@ fn test_bessel_h(
     let z = Complex64::new(zr, zi);
     let actual = hankel(order, z, kind);
     // dbg!(&actual);
-    let expected = bessel_h_ref(order, z.into(), kind);
+    let expected = bessel_h_ref(order, z, kind);
     // dbg!(&expected);
     assert_results_are_equal(&actual, &expected, &Vec::new(), 1e6);
 }

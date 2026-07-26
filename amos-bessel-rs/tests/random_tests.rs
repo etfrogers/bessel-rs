@@ -241,7 +241,7 @@ fn test_bessel_random_logspace(
 #[rstest]
 fn test_fortran_ang(mut rng: SmallRng) {
     let mut random_val = || random_val_rng(&mut rng);
-    const THREE_PI_BY_2: f64 = 4.71238898038468986e+00;
+    const THREE_PI_BY_2: f64 = 4.712_388_980_384_69;
 
     let fortran_ang = |zth: Complex64| -> f64 {
         let mut ang = THREE_PI_BY_2;
@@ -261,7 +261,7 @@ fn test_fortran_ang(mut rng: SmallRng) {
     let shift_arg = |zth: Complex64| -> f64 {
         let mut ang = zth.arg();
         if ang < 0.0 {
-            ang = (PI * 2.0) + ang;
+            ang += PI * 2.0;
         }
         ang.clamp(0.0, THREE_PI_BY_2)
     };
