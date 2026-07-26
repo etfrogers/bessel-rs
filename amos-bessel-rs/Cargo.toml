@@ -42,6 +42,10 @@ fortran-amos-testing = { path = "../fortran-amos-testing" }
 name = "bessel_bench"
 harness = false
 
+[[bench]]
+name = "precision_bench"
+harness = false
+
 
 [[test]]
 name = "grid_tests"
