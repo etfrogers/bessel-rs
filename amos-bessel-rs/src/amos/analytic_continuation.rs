@@ -96,17 +96,17 @@ pub fn analytic_continuation<T: BesselFloat>(
     //     SCALE NEAR EXPONENT EXTREMES DURING RECURRENCE ON K FUNCTIONS
     //-----------------------------------------------------------------------
     let abs_s2 = k_curr.abs();
-    let mut overflow_state = if abs_s2 <= T::MACHINE_CONSTANTS.overflow_boundary[0] {
+    let mut overflow_state = if abs_s2 <= Overflow::boundary(&Overflow::NearUnder) {
         Overflow::NearUnder
-    } else if abs_s2 > T::MACHINE_CONSTANTS.overflow_boundary[1] {
+    } else if abs_s2 > Overflow::boundary(&Overflow::None) {
         Overflow::NearOver
     } else {
         Overflow::None
     };
-    let mut boundary = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state];
-    k_prev *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
-    k_curr *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
-    let mut recip_scaling_factor = T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+    let mut boundary = overflow_state.boundary::<T>();
+    k_prev *= overflow_state.scaling_factor::<T>();
+    k_curr *= overflow_state.scaling_factor::<T>();
+    let mut recip_scaling_factor = overflow_state.reciprocal_scaling_factor::<T>();
     for (yi, ii) in y.iter_mut().zip(i_values).skip(2) {
         //TODO common pattern below
         (k_prev, k_curr) = (k_curr, recurrence_factor * k_curr + k_prev);
@@ -121,8 +121,8 @@ pub fn analytic_continuation<T: BesselFloat>(
             scaled_k_component = Some(k_component);
             if n_good == 3 {
                 n_good = -4;
-                k_prev = saved_k_component * T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
-                k_curr = k_component * T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
+                k_prev = saved_k_component * overflow_state.scaling_factor::<T>();
+                k_curr = k_component * overflow_state.scaling_factor::<T>();
                 unscaled_k_curr = k_component;
             }
         }
@@ -131,12 +131,12 @@ pub fn analytic_continuation<T: BesselFloat>(
         k_continuation_coeff = -k_continuation_coeff;
         if overflow_state != Overflow::NearOver && max_abs_component(k_component) < boundary {
             overflow_state.increment();
-            boundary = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state];
+            boundary = overflow_state.boundary::<T>();
             k_prev *= recip_scaling_factor;
             k_curr = unscaled_k_curr;
-            k_prev *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
-            k_curr *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
-            recip_scaling_factor = T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+            k_prev *= overflow_state.scaling_factor::<T>();
+            k_curr *= overflow_state.scaling_factor::<T>();
+            recip_scaling_factor = overflow_state.reciprocal_scaling_factor::<T>();
         }
     }
     Ok((y, n_zeros))

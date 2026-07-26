@@ -1,5 +1,3 @@
-use std::ops::Index;
-
 use num::Complex;
 use num::complex::ComplexFloat;
 
@@ -65,19 +63,34 @@ impl Overflow {
             Overflow::None => *self = Self::NearOver,
         }
     }
-}
 
-impl<T: BesselFloat> Index<Overflow> for [T] {
-    type Output = T;
+    /// Originally T::MACHINE_CONSTANTS.scaling_factors[overflow_state]
+    pub fn scaling_factor<T: BesselFloat>(&self) -> T {
+        match self {
+            Overflow::NearUnder => T::MACHINE_CONSTANTS.rtol,
+            Overflow::None => T::one(),
+            Overflow::NearOver => T::MACHINE_CONSTANTS.abs_error_tolerance,
+            _ => panic!("Cannot get scaling factor for fatal overflow/underflow"),
+        }
+    }
 
-    fn index(&self, index: Overflow) -> &Self::Output {
-        match index {
-            Overflow::Over(_) | Overflow::Under(_) => {
-                panic!("Overflow and underflow are not valid indices")
-            }
-            Overflow::NearOver => &self[2],
-            Overflow::NearUnder => &self[0],
-            Overflow::None => &self[1],
+    /// Originally T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state]
+    pub fn reciprocal_scaling_factor<T: BesselFloat>(&self) -> T {
+        match self {
+            Overflow::NearUnder => T::MACHINE_CONSTANTS.abs_error_tolerance,
+            Overflow::None => T::one(),
+            Overflow::NearOver => T::MACHINE_CONSTANTS.rtol,
+            _ => panic!("Cannot get reciprocal scaling factor for fatal overflow/underflow"),
+        }
+    }
+
+    /// Originally T::MACHINE_CONSTANTS.overflow_boundary[overflow_state]
+    pub fn boundary<T: BesselFloat>(&self) -> T {
+        match self {
+            Overflow::NearUnder => T::MACHINE_CONSTANTS.absolute_approximation_limit,
+            Overflow::None => T::one() / T::MACHINE_CONSTANTS.absolute_approximation_limit,
+            Overflow::NearOver => T::max_value() / T::two(),
+            _ => panic!("Cannot get boundary for fatal overflow/underflow"),
         }
     }
 }
@@ -178,7 +191,7 @@ pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
         Overflow::Over(_) => return Err(Overflow),
         Overflow::Under(was_refined) => {
             if !was_refined {
-                y[0..n_to_test].iter_mut().for_each(|v| *v = T::C_ZERO);
+                y[0..n_to_test].fill(T::C_ZERO);
             }
             return Ok(n_to_test);
         }
@@ -193,7 +206,7 @@ pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
                 T::MACHINE_CONSTANTS.absolute_approximation_limit,
                 T::MACHINE_CONSTANTS.abs_error_tolerance,
             ) {
-                y[0..n_to_test].iter_mut().for_each(|v| *v = T::C_ZERO);
+                y[0..n_to_test].fill(T::C_ZERO);
                 return Ok(n_to_test);
             }
         }

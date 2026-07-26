@@ -416,8 +416,8 @@ pub(crate) fn backward_recurrence<T: BesselFloat>(
     };
     let index_adjustment = if forward { -T::one() } else { T::one() };
 
-    let mut recip_scale_factor = T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
-    let mut boundary = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state];
+    let mut recip_scale_factor = overflow_state.reciprocal_scaling_factor::<T>();
+    let mut boundary = overflow_state.boundary::<T>();
 
     for (i, yi) in iterator {
         let modified_order = order + T::from_usize(i) + index_adjustment;
@@ -425,12 +425,12 @@ pub(crate) fn backward_recurrence<T: BesselFloat>(
         *yi = s2 * recip_scale_factor;
         if overflow_state != Overflow::NearOver && max_abs_component(*yi) > boundary {
             overflow_state.increment();
-            boundary = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state];
+            boundary = overflow_state.boundary::<T>();
             s1 *= recip_scale_factor;
             s2 = *yi;
-            s1 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
-            s2 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
-            recip_scale_factor = T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+            s1 *= overflow_state.scaling_factor::<T>();
+            s2 *= overflow_state.scaling_factor::<T>();
+            recip_scale_factor = overflow_state.reciprocal_scaling_factor::<T>();
         }
     }
 }

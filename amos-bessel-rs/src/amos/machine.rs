@@ -36,12 +36,6 @@ pub struct MachineConsts<T: BesselFloat> {
     /// Originally FNUL.  The lower boundary of the asymptotic series for large order.
     pub asymptotic_order_limit: T,
     pub rtol: T,
-    /// Originally CSSR
-    pub scaling_factors: [T; 3],
-    /// Originally CSRR
-    pub reciprocal_scaling_factors: [T; 3],
-    /// Originally BRY
-    pub overflow_boundary: [T; 3],
 }
 
 impl<T: BesselFloat> MachineConsts<T> {
@@ -81,13 +75,6 @@ impl<T: BesselFloat> MachineConsts<T> {
         //     NITUDE ARE SCALED TO KEEP INTERMEDIATE ARITHMETIC ON SCALE,
         //     EXP(ALIM)=EXP(ELIM)*TOL
         //-----------------------------------------------------------------------
-        let scaling_factors = [rtol, T::from_f64(1.0), abs_error_tolerance];
-        let reciprocal_scaling_factors = [abs_error_tolerance, T::from_f64(1.0), rtol];
-        let overflow_boundary = [
-            absolute_approximation_limit,
-            T::from_f64(1.0) / absolute_approximation_limit,
-            T::max_value() / T::from_f64(2.0),
-        ];
         Self {
             underflow_limit,
             absolute_approximation_limit,
@@ -98,9 +85,6 @@ impl<T: BesselFloat> MachineConsts<T> {
             asymptotic_z_limit,
             asymptotic_order_limit,
             rtol,
-            scaling_factors,
-            reciprocal_scaling_factors,
-            overflow_boundary,
         }
     }
 }

@@ -57,22 +57,24 @@ pub(crate) fn i_asymp_large_order<T: BesselFloat>(
         //     SCALE BACKWARD RECURRENCE, BRY(3) IS DEFINED BUT NEVER USED
         //----------------------------------------------------------------------
         let (mut overflow_state, mut ASCLE, mut CSCLR) =
-            if cy[0].abs() <= T::MACHINE_CONSTANTS.overflow_boundary[0] {
+            if cy[0].abs() <= T::MACHINE_CONSTANTS.absolute_approximation_limit {
                 (
                     Overflow::NearUnder,
-                    T::MACHINE_CONSTANTS.overflow_boundary[0],
+                    T::MACHINE_CONSTANTS.absolute_approximation_limit,
                     T::one() / T::MACHINE_CONSTANTS.abs_error_tolerance,
                 )
-            } else if cy[0].abs() >= T::MACHINE_CONSTANTS.overflow_boundary[1] {
+            } else if cy[0].abs()
+                >= T::from_f64(1.0) / T::MACHINE_CONSTANTS.absolute_approximation_limit
+            {
                 (
                     Overflow::NearOver,
-                    T::MACHINE_CONSTANTS.overflow_boundary[2],
+                    T::max_value() / T::from_f64(2.0),
                     T::MACHINE_CONSTANTS.abs_error_tolerance,
                 )
             } else {
                 (
                     Overflow::None,
-                    T::MACHINE_CONSTANTS.overflow_boundary[1],
+                    T::from_f64(1.0) / T::MACHINE_CONSTANTS.absolute_approximation_limit,
                     T::one(),
                 )
             };
@@ -96,7 +98,7 @@ pub(crate) fn i_asymp_large_order<T: BesselFloat>(
                 continue;
             }
             overflow_state.increment();
-            ASCLE = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state];
+            ASCLE = overflow_state.boundary::<T>();
             s1 *= CSCRR;
             s2 = st;
             CSCLR *= T::MACHINE_CONSTANTS.abs_error_tolerance;
@@ -126,7 +128,7 @@ pub(crate) fn i_asymp_large_order<T: BesselFloat>(
                 continue;
             }
             overflow_state.increment();
-            ASCLE = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state];
+            ASCLE = overflow_state.boundary::<T>();
             s1 *= CSCRR;
             s2 = y[K - 1];
             CSCLR *= T::MACHINE_CONSTANTS.abs_error_tolerance;

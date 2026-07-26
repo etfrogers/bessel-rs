@@ -225,8 +225,8 @@ pub fn k_right_half_plane<T: BesselFloat>(
             } else {
                 Overflow::None
             };
-        s2 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state] * rz;
-        s1 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
+        s2 *= overflow_state.scaling_factor::<T>() * rz;
+        s1 *= overflow_state.scaling_factor::<T>();
         if scaling == Scaling::Scaled {
             let z_exp = z.exp();
             s1 *= z_exp;
@@ -248,7 +248,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
                 underflow_occurred = true;
                 overflow_state = Overflow::NearUnder;
             } else {
-                coeff *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state] * (-z).exp();
+                coeff *= overflow_state.scaling_factor::<T>() * (-z).exp();
             }
         }
         let mut AK = (signed_fractional_order * T::PI()).cos().abs();
@@ -381,7 +381,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
                 let half_exponent_limit = T::half() * T::MACHINE_CONSTANTS.exponent_limit;
 
                 let abs_limit = (-T::MACHINE_CONSTANTS.exponent_limit).exp();
-                let ASCLE = T::MACHINE_CONSTANTS.overflow_boundary[0];
+                let ASCLE = T::MACHINE_CONSTANTS.absolute_approximation_limit;
                 let mut zd = z;
                 let mut IC: isize = -1;
                 let mut J = 1;
@@ -421,8 +421,8 @@ pub fn k_right_half_plane<T: BesselFloat>(
                 s1 = cy[J];
             }
 
-            let mut P1R = T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
-            let mut ASCLE = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state];
+            let mut P1R = overflow_state.reciprocal_scaling_factor::<T>();
+            let mut ASCLE = overflow_state.boundary();
             for _ in n_tested..=integer_order {
                 // TODO same loop as below?
                 // TODO and same recurrence logic used in ZUNKX, ZUNIX?
@@ -436,12 +436,12 @@ pub fn k_right_half_plane<T: BesselFloat>(
                     continue;
                 }
                 overflow_state.increment();
-                ASCLE = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state];
+                ASCLE = overflow_state.boundary();
                 s1 *= P1R;
                 s2 = p2;
-                s1 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
-                s2 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
-                P1R = T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+                s1 *= overflow_state.scaling_factor::<T>();
+                s2 *= overflow_state.scaling_factor::<T>();
+                P1R = overflow_state.reciprocal_scaling_factor::<T>();
             }
         }
         if n == 1 {
@@ -452,9 +452,9 @@ pub fn k_right_half_plane<T: BesselFloat>(
     let mut y = T::c_zeros(n);
     let n_completed = if !underflow_occurred {
         // ********* basic setup
-        y[0] = s1 * T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+        y[0] = s1 * overflow_state.reciprocal_scaling_factor::<T>();
         if n > 1 {
-            y[1] = s2 * T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+            y[1] = s2 * overflow_state.reciprocal_scaling_factor::<T>();
             2
         } else {
             1
@@ -483,14 +483,14 @@ pub fn k_right_half_plane<T: BesselFloat>(
         }
         let mut working_index = nz;
         s1 = y[working_index];
-        y[working_index] *= T::MACHINE_CONSTANTS.reciprocal_scaling_factors[0];
+        y[working_index] *= T::MACHINE_CONSTANTS.abs_error_tolerance;
         if n_non_zero > 1 {
             // if n_non_zero == 1 {
             //     return Ok((y, nz));
             // }
             working_index += 1;
             s2 = y[working_index];
-            y[working_index] *= T::MACHINE_CONSTANTS.reciprocal_scaling_factors[0];
+            y[working_index] *= T::MACHINE_CONSTANTS.abs_error_tolerance;
         }
         if n_non_zero > 2 {
             ck = (order + T::from_usize(working_index)) * rz;
@@ -502,8 +502,8 @@ pub fn k_right_half_plane<T: BesselFloat>(
     if n_completed >= n {
         return Ok((y, nz));
     }
-    let mut P1R = T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
-    let mut ASCLE = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state];
+    let mut P1R = overflow_state.reciprocal_scaling_factor::<T>();
+    let mut ASCLE = overflow_state.boundary();
     for y_elem in y.iter_mut().skip(n_completed) {
         // TODO same loops as above
         (s1, s2) = (s2, ck * s2 + s1);
@@ -516,12 +516,12 @@ pub fn k_right_half_plane<T: BesselFloat>(
             continue;
         }
         overflow_state.increment();
-        ASCLE = T::MACHINE_CONSTANTS.overflow_boundary[overflow_state];
+        ASCLE = overflow_state.boundary();
         s1 *= P1R;
         s2 = *y_elem;
-        s1 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
-        s2 *= T::MACHINE_CONSTANTS.scaling_factors[overflow_state];
-        P1R = T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state];
+        s1 *= overflow_state.scaling_factor::<T>();
+        s2 *= overflow_state.scaling_factor::<T>();
+        P1R = overflow_state.reciprocal_scaling_factor::<T>();
     }
     Ok((y, nz))
 }
