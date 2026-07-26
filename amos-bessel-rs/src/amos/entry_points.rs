@@ -1,4 +1,4 @@
-use num::{Complex, complex::ComplexFloat};
+use num::{Complex, Integer, complex::ComplexFloat};
 
 use crate::{
     BesselError, Scaling,
@@ -151,14 +151,12 @@ pub fn complex_bessel_h<T: BesselFloat>(
     //     CALCULATE (order*FRAC_PI_2*I).exp() TO MINIMIZE LOSSES OF SIGNIFICANCE
     //     WHEN order IS LARGE
     //-----------------------------------------------------------------------
-    let int_order = order.to_i64().unwrap();
-    let half_int_order = int_order / 2;
-    let int_remain = int_order - 2 * half_int_order;
-    let arg = (order - T::from_f64((int_order - int_remain) as f64)) * sign;
-    let mut csgn = (T::one() / sign) * T::I * Complex::<T>::cis(arg);
-    if half_int_order % 2 != 0 {
-        csgn = -csgn;
+    let arg = (order % T::two()) * sign;
+    let mut phase_multiplier = (T::one() / sign) * T::I * Complex::<T>::cis(arg);
+    if (order.to_i64().unwrap() / 2).is_odd() {
+        phase_multiplier = -phase_multiplier;
     }
+
     for element in cy.iter_mut() {
         let scaling =
             if max_abs_component(*element) < T::MACHINE_CONSTANTS.absolute_approximation_limit {
@@ -167,8 +165,8 @@ pub fn complex_bessel_h<T: BesselFloat>(
             } else {
                 T::one()
             };
-        *element *= csgn * scaling;
-        csgn *= T::I * -rotation_float;
+        *element *= phase_multiplier * scaling;
+        phase_multiplier *= T::I * -rotation_float;
     }
     if partial_loss_of_significance {
         Err(PartialLossOfSignificance { y: cy, nz })
@@ -270,7 +268,7 @@ pub fn complex_bessel_i<T: BesselFloat>(
                 T::one()
             };
         let mut csgn = Complex::<T>::cis(arg);
-        if !integer_order.is_multiple_of(2) {
+        if !integer_order.is_even() {
             csgn = -csgn;
         }
         (-z, csgn)
@@ -349,13 +347,10 @@ pub fn complex_bessel_j<T: BesselFloat>(
     //     CALCULATE CSGN=EXP(order*FRAC_PI_2*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
     //     WHEN order IS LARGE
     //-----------------------------------------------------------------------
-    let order_int = order.to_i64().unwrap();
-    let half_order_int = order_int / 2;
-    let order_rounded_down_to_even = 2 * half_order_int;
-    let arg = (order - T::from_f64(order_rounded_down_to_even as f64)) * T::FRAC_PI_2();
-    let mut csgn = Complex::<T>::cis(arg);
-    if (half_order_int % 2) != 0 {
-        csgn = -csgn;
+    let arg = (order % T::two()) * T::FRAC_PI_2();
+    let mut phase_multiplier = Complex::<T>::cis(arg);
+    if (order.to_i64().unwrap() / 2).is_odd() {
+        phase_multiplier = -phase_multiplier;
     }
     //-----------------------------------------------------------------------
     //     ZN IS IN THE RIGHT HALF PLANE
@@ -364,7 +359,7 @@ pub fn complex_bessel_j<T: BesselFloat>(
     let mut zn = -T::I * z;
     if z.im < T::zero() {
         zn = -zn;
-        csgn.im = -csgn.im;
+        phase_multiplier.im = -phase_multiplier.im;
         sign_selector = -sign_selector;
     }
     let (mut cy, nz) = i_right_half_plane(zn, order, scaling, n)?;
@@ -375,8 +370,8 @@ pub fn complex_bessel_j<T: BesselFloat>(
             *cyi *= T::MACHINE_CONSTANTS.rtol;
             scaling = T::MACHINE_CONSTANTS.abs_error_tolerance;
         }
-        *cyi *= csgn * scaling;
-        csgn *= sign_selector * T::I;
+        *cyi *= phase_multiplier * scaling;
+        phase_multiplier *= T::I * sign_selector;
     }
     if partial_significance_loss {
         Err(PartialLossOfSignificance { y: cy, nz })
@@ -581,11 +576,11 @@ pub fn complex_bessel_y<T: BesselFloat>(
     let mut nz = nz_i.min(nz_k);
     let frac_order = order.fract();
     let integer_order = order.to_usize().unwrap();
-    let mut csgn = Complex::<T>::cis(T::FRAC_PI_2() * frac_order);
+    let mut i_coeff = Complex::<T>::cis(T::FRAC_PI_2() * frac_order);
     let index = integer_order % 4;
-    csgn *= T::from_cpx64(CIP[index]);
-    let mut cspn = csgn.conj() * T::FRAC_2_PI();
-    csgn *= T::I;
+    i_coeff *= T::from_cpx64(CIP[index]);
+    let mut k_coeff = i_coeff.conj() * T::FRAC_2_PI();
+    i_coeff *= T::I;
 
     let mut ey = T::one();
     if scaling == Scaling::Scaled {
@@ -596,7 +591,7 @@ pub fn complex_bessel_y<T: BesselFloat>(
         } else {
             T::zero()
         };
-        cspn *= ex * ey;
+        k_coeff *= ex * ey;
         nz = 0;
     }
     let mut y: Vec<Complex<T>> = bess_i
@@ -608,14 +603,14 @@ pub fn complex_bessel_y<T: BesselFloat>(
             //       SCALED MODE if cy(I) OR CWRK(I) ARE CLOSE TO UNDERFLOW TO;
             //       PREVENT UNDERFLOW IN AN INTERMEDIATE COMPUTATION.;
             //----------------------------------------------------------------------;
-            let z_k = scaled_multiply(z_k, cspn, scaling);
-            let z_i = scaled_multiply(z_i, csgn, scaling);
+            let z_k = scaled_multiply(z_k, k_coeff, scaling);
+            let z_i = scaled_multiply(z_i, i_coeff, scaling);
             let val = z_i - z_k;
             if scaling == Scaling::Scaled && val == T::C_ZERO && ey == T::zero() {
                 nz += 1;
             }
-            csgn *= T::I;
-            cspn *= -T::I;
+            i_coeff *= T::I;
+            k_coeff *= -T::I;
             val
         })
         .collect();
@@ -695,11 +690,6 @@ pub fn complex_airy<T: BesselFloat>(
     const COEFF: f64 = 1.837_762_984_739_306_8e-1;
 
     let abs_z = z.abs();
-    let float_is_derivative = if return_derivative {
-        T::one()
-    } else {
-        T::zero()
-    };
     //--------------------------------------------------------------------------
     //     TEST FOR PROPER RANGE
     //-----------------------------------------------------------------------
@@ -722,7 +712,11 @@ pub fn complex_airy<T: BesselFloat>(
         //-----------------------------------------------------------------------
         //     CASE FOR CABS(z) > 1.0
         //-----------------------------------------------------------------------
-        let order = (T::one() + float_is_derivative) / T::from_f64(3.0);
+        let order = (if return_derivative {
+            T::two()
+        } else {
+            T::one()
+        }) / T::from_f64(3.0);
         let ln_abs_z = abs_z.ln();
 
         let sqrt_z = z.sqrt();
@@ -825,12 +819,13 @@ pub fn complex_airy_b<T: BesselFloat>(
     const POWER_SERIES_COEFFS: (f64, f64) = (6.149_266_274_460_007e-1, -4.482_883_573_538_264e-1);
     const COEF: f64 = 5.773_502_691_896_257e-1;
 
-    let abs_z = z.abs();
-    let float_is_derivative = if return_derivative {
-        T::one()
+    let (order1, order2) = if return_derivative {
+        (T::two() / T::from_f64(3.0), T::one() / T::from_f64(3.0))
     } else {
-        T::zero()
+        (T::one() / T::from_f64(3.0), T::two() / T::from_f64(3.0))
     };
+
+    let abs_z = z.abs();
     let mut partial_loss_of_significance = false;
 
     let bi = if abs_z <= T::one() {
@@ -850,7 +845,6 @@ pub fn complex_airy_b<T: BesselFloat>(
         //-----------------------------------------------------------------------;
         //     CASE FOR CABS(z) > 1.0;
         //-----------------------------------------------------------------------;
-        let order = (T::one() + float_is_derivative) / T::from_f64(3.0);
         //-----------------------------------------------------------------------;
         //     TEST FOR RANGE;
         //-----------------------------------------------------------------------;
@@ -892,18 +886,18 @@ pub fn complex_airy_b<T: BesselFloat>(
         //     AA=FACTOR FOR ANALYTIC CONTINUATION OF I(order,zeta);
         //     KODE=2 RETURNS EXP(-ABS(Xzeta))*I(order,zeta) FROM ZBESI;
         //-----------------------------------------------------------------------;
-        let (cy, _) = i_right_half_plane(zeta, order, scaling, 1)?;
-        let mut s1 = Complex::<T>::cis(rotation_angle * order) * cy[0] * scale_factor;
-        let order = (T::two() - float_is_derivative) / T::from_f64(3.0);
-        let (mut cy, _) = i_right_half_plane(zeta, order, scaling, 2)?;
+        let (cy, _) = i_right_half_plane(zeta, order1, scaling, 1)?;
+        let mut s1 = Complex::<T>::cis(rotation_angle * order1) * cy[0] * scale_factor;
+        let (mut cy, _) = i_right_half_plane(zeta, order2, scaling, 2)?;
         cy[0] *= scale_factor;
         cy[1] *= scale_factor;
 
         //-----------------------------------------------------------------------;
         //     BACKWARD RECUR ONE STEP FOR ORDERS -1/3 OR -2/3;
         //-----------------------------------------------------------------------;
-        let s2 = (T::two() * order) * (cy[0] / zeta) + cy[1];
-        s1 = T::from_f64(COEF) * (s1 + s2 * Complex::<T>::cis(rotation_angle * (order - T::one())));
+        let s2 = (T::two() * order2) * (cy[0] / zeta) + cy[1];
+        s1 =
+            T::from_f64(COEF) * (s1 + s2 * Complex::<T>::cis(rotation_angle * (order2 - T::one())));
         let z_factor = if return_derivative { z } else { z.sqrt() };
         s1 * z_factor / scale_factor
     };
