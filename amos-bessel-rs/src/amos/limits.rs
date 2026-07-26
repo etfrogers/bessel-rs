@@ -23,7 +23,7 @@ pub enum Overflow {
 }
 
 impl Overflow {
-    pub fn find_overflow<T: BesselFloat>(rs1: T, phi: Complex<T>, extra_refinement: T) -> Self {
+    pub fn check<T: BesselFloat>(rs1: T, phi: Complex<T>, extra_refinement: T) -> Self {
         //-----------------------------------------------------------------------
         //     TEST FOR UNDERFLOW AND OVERFLOW
         //-----------------------------------------------------------------------
@@ -104,16 +104,16 @@ impl<T: BesselFloat> Index<Overflow> for [T] {
 ///
 /// `ik_type == IKType::I && n_underflow > 0` means the last
 ///     `n_underflow` y values were set to zero.
-///     The first `(n - n_underflow)` values must be set by another routine
+///     The first `(n_to_test - n_underflow)` values must be set by another routine
 ///
-/// `ik_type == IKType::K && n_underflow == n` means all y values were set to zero
+/// `ik_type == IKType::K && n_underflow == n_to_test` means all y values were set to zero
 ///
-/// `ik_type = IKType::K && 0 < n_underflow < n` not considered (it is not
+/// `ik_type = IKType::K && 0 < n_underflow < n_to_test` not considered (it is not
 ///     a possible return value). y must be set by
 ///     another routine
 ///
 /// Originally ZUIOK
-pub fn check_underflow_uniform_asymp_params<T: BesselFloat>(
+pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
@@ -174,7 +174,7 @@ pub fn check_underflow_uniform_asymp_params<T: BesselFloat>(
     //-----------------------------------------------------------------------
     //     OVERFLOW TEST
     //-----------------------------------------------------------------------
-    match Overflow::find_overflow(cz.re, phi, extra_refinement) {
+    match Overflow::check(cz.re, phi, extra_refinement) {
         Overflow::Over(_) => return Err(Overflow),
         Overflow::Under(was_refined) => {
             if !was_refined {
@@ -199,7 +199,7 @@ pub fn check_underflow_uniform_asymp_params<T: BesselFloat>(
         }
         Overflow::None | Overflow::NearOver => (),
     }
-    // On K type, we only check the max n value, as per function documentation
+    // On K type, we only check the max n_to_test value, as per function documentation
     if ik_type == IKType::K || n_to_test == 1 {
         return Ok(n_underflow);
     }
@@ -211,7 +211,7 @@ pub fn check_underflow_uniform_asymp_params<T: BesselFloat>(
         let modified_order = order + T::from_usize(i);
         let (mut cz, phi, _arg, extra_refinement) = get_parameters(modified_order);
         // Match below says that first time we get here and no underflow is found, we immediately return
-        match Overflow::find_overflow(cz.re, phi, extra_refinement) {
+        match Overflow::check(cz.re, phi, extra_refinement) {
             Overflow::Under(was_refined) => {
                 if was_refined {
                     // Now do a similar overflow check, but on complex values, rather
@@ -240,48 +240,45 @@ pub fn check_underflow_uniform_asymp_params<T: BesselFloat>(
 }
 
 /// underflow_add_i_k tests for a possible underflow resulting from the
-/// addition of the i and k functions in the analytic con-
-/// tinuation formula where s1=k function and s2=i function.
-/// on kode=1 the i and k functions are different orders of
-/// magnitude, but for kode=2 they can be of the same order
+/// addition of the i and k functions in the analytic
+/// continuation formula where s_k = k function and s_k = i function.
+/// In unscaled calculations the i and k functions are different orders of
+/// magnitude, but for scaled calculations they can be of the same order
 /// of magnitude and the maximum must be at least one
 /// precision above the underflow limit.
 ///
-/// Returns 1 if underflow is found, and 0 otherwise, but can also modify
+/// Returns `true` if underflow is found, and `false` otherwise, but can also modify
 /// the value of s1, s2, and n_underflow.
 ///
-/// If s1 is large enough to be set without underflowing, it is
-/// set to (s1.ln() - 2.0 * zr).exp(); That is, 2*zr is subtracted
+/// If s_k is large enough to be set without underflowing, it is
+/// set to `(s_k.ln() - 2.0 * zr).exp()`. That is, `2*zr` is subtracted
 /// from the exponent.
 ///
 /// If underflow is found, the function sets s1 and s2 to zero.
 ///
 /// Originally ZS1S2
-pub fn underflow_add_i_k<T: BesselFloat>(
+pub(crate) fn underflow_add_i_k<T: BesselFloat>(
     zr: Complex<T>,
     s_k: &mut Complex<T>,
     s_i: &mut Complex<T>,
     n_good: &mut isize,
-) -> usize {
-    let mut abs_s1 = s_k.abs();
-    let abs_s2 = s_i.abs();
-    if (s_k.re != T::zero() || s_k.im != T::zero()) && (abs_s1 != T::zero()) {
-        let test = (-T::two() * zr.re) + abs_s1.ln();
-        let s1d = *s_k;
-        *s_k = T::C_ZERO;
-        abs_s1 = T::zero();
+) -> bool {
+    let abs_s_k = s_k.abs();
+    if abs_s_k != T::zero() {
+        let test = (-T::two() * zr.re) + abs_s_k.ln();
         if test >= (-T::MACHINE_CONSTANTS.approximation_limit) {
-            *s_k = (s1d.ln() - zr * T::two()).exp();
-            abs_s1 = s_k.abs();
+            *s_k = (s_k.ln() - zr * T::two()).exp();
             *n_good += 1;
+        } else {
+            *s_k = T::C_ZERO;
         }
     }
-    if abs_s1.max(abs_s2) > T::MACHINE_CONSTANTS.absolute_approximation_limit {
-        0
+    if s_k.abs().max(s_i.abs()) > T::MACHINE_CONSTANTS.absolute_approximation_limit {
+        false
     } else {
         *s_k = T::C_ZERO;
         *s_i = T::C_ZERO;
         *n_good = 0;
-        1
+        true
     }
 }

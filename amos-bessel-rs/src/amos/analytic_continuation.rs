@@ -59,8 +59,10 @@ pub fn analytic_continuation<T: BesselFloat>(
     let mut k_prev = k_values[0];
     let mut k_component = k_prev;
     let mut i_component = i_values[0];
-    if scaling == Scaling::Scaled {
-        n_zeros += underflow_add_i_k(negative_z, &mut k_component, &mut i_component, &mut n_good);
+    if scaling == Scaling::Scaled
+        && underflow_add_i_k(negative_z, &mut k_component, &mut i_component, &mut n_good)
+    {
+        n_zeros += 1;
     }
 
     let mut y = T::c_zeros(n);
@@ -74,7 +76,9 @@ pub fn analytic_continuation<T: BesselFloat>(
     k_component = k_curr;
     i_component = i_values[1];
     let mut scaled_k_component = if scaling == Scaling::Scaled {
-        n_zeros += underflow_add_i_k(negative_z, &mut k_component, &mut i_component, &mut n_good);
+        if underflow_add_i_k(negative_z, &mut k_component, &mut i_component, &mut n_good) {
+            n_zeros += 1;
+        }
         Some(k_component)
     } else {
         None
@@ -110,8 +114,9 @@ pub fn analytic_continuation<T: BesselFloat>(
         let mut unscaled_k_curr = k_component;
         i_component = ii;
         if scaling == Scaling::Scaled && n_good >= 0 {
-            n_zeros +=
-                underflow_add_i_k(negative_z, &mut k_component, &mut i_component, &mut n_good);
+            if underflow_add_i_k(negative_z, &mut k_component, &mut i_component, &mut n_good) {
+                n_zeros += 1;
+            }
             let saved_k_component = scaled_k_component.unwrap();
             scaled_k_component = Some(k_component);
             if n_good == 3 {
@@ -205,9 +210,9 @@ pub fn airy_analytic_continuation<T: BesselFloat>(
     let mut i_value = i_value[0];
     if scaling == Scaling::Scaled {
         let mut n_good_dummy = 0;
-        let n_zeros_inner =
-            underflow_add_i_k(negative_z, &mut k_value, &mut i_value, &mut n_good_dummy);
-        n_zeros += n_zeros_inner;
+        if underflow_add_i_k(negative_z, &mut k_value, &mut i_value, &mut n_good_dummy) {
+            n_zeros += 1;
+        }
     }
     let y = vec![k_coeff * k_value + i_coeff * i_value];
     Ok((y, n_zeros))

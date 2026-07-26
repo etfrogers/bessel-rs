@@ -521,7 +521,7 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
     let s1 = scaling.scale_zetas(z, modified_order, zeta1, zeta2);
     // phi is chosen here for refined tests to equal the original tests
     // which don't test refinement
-    match Overflow::find_overflow(s1.re, T::C_ONE, T::ZERO) {
+    match Overflow::check(s1.re, T::C_ONE, T::ZERO) {
         Overflow::Over(_) => return Err(BesselError::Overflow),
         Overflow::Under(_) => return Ok((n, 0)),
         _ => (),
@@ -565,7 +565,7 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
                 s1 += Complex::<T>::new(T::ZERO, z.im);
             }
 
-            let of = Overflow::find_overflow(s1.re, phi, T::ZERO);
+            let of = Overflow::check(s1.re, phi, T::ZERO);
             if i == 0 {
                 overflow_state = of;
             }
@@ -664,7 +664,7 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
 
     // phi is chosen here for refined tests to equal the original tests
     // which don't test refinement
-    match Overflow::find_overflow(s1.re, T::C_ONE, T::zero()) {
+    match Overflow::check(s1.re, T::C_ONE, T::zero()) {
         Overflow::Over(_) => return Err(BesselError::Overflow),
         Overflow::Under(_) => return Ok((n, 0)),
         _ => (),
@@ -718,7 +718,7 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
             //-----------------------------------------------------------------------
             //     TEST FOR UNDERFLOW AND OVERFLOW
             //-----------------------------------------------------------------------
-            let of = Overflow::find_overflow(
+            let of = Overflow::check(
                 s1.re,
                 phi,
                 T::from_f64(-0.25) * arg.abs().ln() - T::from_f64(AIC),
@@ -794,7 +794,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
     //     EXP(-ALIM)=EXP(-ELIM)/TOL=APPROX. ONE PRECISION GREATER THAN
     //     THE UNDERFLOW LIMIT
     //-----------------------------------------------------------------------
-    let zr = if z.re < T::ZERO { -z } else { z };
+    let modified_z = if z.re < T::ZERO { -z } else { z };
     let mut phi = [T::C_ZERO; 2];
     let mut zeta1 = [T::C_ZERO; 2];
     let mut zeta2 = [T::C_ZERO; 2];
@@ -813,10 +813,10 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
 
         let sum_opt;
         (phi[j], zeta1[j], zeta2[j], sum_opt) =
-            ik_uniform_asymp_params(zr, modified_order, IKType::K, false);
+            ik_uniform_asymp_params(modified_z, modified_order, IKType::K, false);
         sum[j] = sum_opt.unwrap();
-        let mut s1 = -scaling.scale_zetas(zr, modified_order, zeta1[j], zeta2[j]);
-        let of = Overflow::find_overflow(s1.re, phi[j], T::ZERO);
+        let mut s1 = -scaling.scale_zetas(modified_z, modified_order, zeta1[j], zeta2[j]);
+        let of = Overflow::check(s1.re, phi[j], T::ZERO);
         if !found_one_good_entry {
             k_overflow_state = of;
         }
@@ -865,7 +865,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         };
     }
 
-    let rz = calc_rz(zr);
+    let rz = calc_rz(modified_z);
     if n_elements_set < n {
         //-----------------------------------------------------------------------
         //     TEST LAST MEMBER FOR UNDERFLOW AND OVERFLOW. SET SEQUENCE TO ZERO
@@ -873,14 +873,14 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         //-----------------------------------------------------------------------
         let modified_order = order + T::from_usize(n - 1);
         let (phi, zet1d, zet2d, _sumd) = ik_uniform_asymp_params(
-            zr,
+            modified_z,
             modified_order,
             IKType::K,
             rotation == RotationDirection::None,
         );
-        let overflow_test = -scaling.scale_zetas(zr, modified_order, zet1d, zet2d);
+        let overflow_test = -scaling.scale_zetas(modified_z, modified_order, zet1d, zet2d);
 
-        match Overflow::find_overflow(overflow_test.re.abs(), phi, T::ZERO) {
+        match Overflow::check(overflow_test.re.abs(), phi, T::ZERO) {
             Overflow::Over(_) => return Err(BesselError::Overflow),
             Overflow::Under(_) => {
                 return if z.re < T::ZERO {
@@ -898,7 +898,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         backward_recurrence(
             true,
             order,
-            zr,
+            modified_z,
             &mut y,
             n_elements_set,
             s1,
@@ -938,13 +938,13 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         //-----------------------------------------------------------------------
         // TODO no logic needed! as zunik ccahes the values. Should the other similar functions, too?
         let (phid, zet1d, zet2d, sumd) =
-            ik_uniform_asymp_params(zr, modified_order, IKType::I, false); //, &mut INITD);
+            ik_uniform_asymp_params(modified_z, modified_order, IKType::I, false); //, &mut INITD);
         let sumd = sumd.unwrap();
-        let mut s1 = scaling.scale_zetas(zr, modified_order, zet1d, zet2d);
+        let mut s1 = scaling.scale_zetas(modified_z, modified_order, zet1d, zet2d);
         //-----------------------------------------------------------------------
         //     TEST FOR UNDERFLOW AND OVERFLOW
         //-----------------------------------------------------------------------
-        let of = Overflow::find_overflow(s1.re, phid, T::ZERO);
+        let of = Overflow::check(s1.re, phid, T::ZERO);
         if !found_one_good_entry && !matches!(of, Overflow::Under(_)) {
             i_overflow_state = of;
         }
@@ -978,7 +978,9 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         //-----------------------------------------------------------------------
         s1 = *yi;
         if scaling == Scaling::Scaled {
-            nz += underflow_add_i_k(zr, &mut s1, &mut s2, &mut dummy_n_good);
+            if underflow_add_i_k(modified_z, &mut s1, &mut s2, &mut dummy_n_good) {
+                nz += 1;
+            }
         }
         *yi = s1 * cspn + s2;
         cspn = -cspn;
@@ -1010,7 +1012,9 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
 
             let mut c1 = *yi;
             if scaling == Scaling::Scaled {
-                nz += underflow_add_i_k(zr, &mut c1, &mut unscaled_s2, &mut dummy_n_good);
+                if underflow_add_i_k(modified_z, &mut c1, &mut unscaled_s2, &mut dummy_n_good) {
+                    nz += 1;
+                }
             }
             *yi = c1 * cspn + unscaled_s2;
             cspn = -cspn;
@@ -1093,7 +1097,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
         (phi[j], arg[j], zeta1[j], zeta2[j], asum[j], bsum[j]) =
             hj_uniform_asymp_params(zn, modified_order, false);
         let s1 = -scaling.scale_zetas(zb, modified_order, zeta1[j], zeta2[j]);
-        let of = Overflow::find_overflow(
+        let of = Overflow::check(
             s1.re,
             phi[j],
             T::from_f64(-0.25) * arg[j].abs().ln() - T::from_f64(AIC),
@@ -1177,7 +1181,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
         (phid, argd, zeta1d, zeta2d, asumd, bsumd) =
             hj_uniform_asymp_params(zn, modified_order, rotation == RotationDirection::None);
         let s1 = -scaling.scale_zetas(zb, modified_order, zeta1d, zeta2d);
-        match Overflow::find_overflow(s1.re, phid, T::ZERO) {
+        match Overflow::check(s1.re, phid, T::ZERO) {
             Overflow::Over(_) => return Err(BesselError::Overflow),
 
             Overflow::Under(_) => {
@@ -1262,7 +1266,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
         }
         let mut s1 = scaling.scale_zetas(zb, modified_order, zeta1d, zeta2d);
 
-        let of = Overflow::find_overflow(
+        let of = Overflow::check(
             s1.re,
             phid,
             T::from_f64(-0.25) * argd.abs().ln() - T::from_f64(AIC),
@@ -1306,7 +1310,9 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
         //-----------------------------------------------------------------------;
         s1 = *yi;
         if scaling == Scaling::Scaled {
-            nz += underflow_add_i_k(zr, &mut s1, &mut s2, &mut iuf);
+            if underflow_add_i_k(zr, &mut s1, &mut s2, &mut iuf) {
+                nz += 1;
+            }
         }
         *yi = s1 * cspn + s2;
         cspn = -cspn;
@@ -1340,7 +1346,9 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
             let old_c2 = c2;
             let mut c1 = *yi;
             if scaling == Scaling::Scaled {
-                nz += underflow_add_i_k(zr, &mut c1, &mut c2, &mut iuf);
+                if underflow_add_i_k(zr, &mut c1, &mut c2, &mut iuf) {
+                    nz += 1;
+                }
             }
             *yi = c1 * cspn + c2;
             cspn = -cspn;
