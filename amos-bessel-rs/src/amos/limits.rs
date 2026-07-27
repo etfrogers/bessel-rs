@@ -12,7 +12,7 @@ use super::{IKType, Scaling, utils::will_underflow};
 use super::machine::MachineConsts;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Overflow {
+pub enum OverflowState {
     Over { was_refined: bool },
     NearOver,
     Under { was_refined: bool },
@@ -20,7 +20,7 @@ pub enum Overflow {
     None,
 }
 
-impl Overflow {
+impl OverflowState {
     pub fn check<T: BesselFloat>(rs1: T, phi: Complex<T>, extra_refinement: T) -> Self {
         //-----------------------------------------------------------------------
         //     TEST FOR UNDERFLOW AND OVERFLOW
@@ -55,21 +55,23 @@ impl Overflow {
 
     pub fn increment(&mut self) {
         match self {
-            Overflow::Over { .. } | Overflow::Under { .. } => {
+            OverflowState::Over { .. } | OverflowState::Under { .. } => {
                 panic!("Overflow and underflow are not valid for incrementation")
             }
-            Overflow::NearOver => panic!("NearOver is the largest possible overflow condition"),
-            Overflow::NearUnder => *self = Self::None,
-            Overflow::None => *self = Self::NearOver,
+            OverflowState::NearOver => {
+                panic!("NearOver is the largest possible overflow condition")
+            }
+            OverflowState::NearUnder => *self = Self::None,
+            OverflowState::None => *self = Self::NearOver,
         }
     }
 
     /// Originally T::MACHINE_CONSTANTS.scaling_factors[overflow_state]
     pub fn scaling_factor<T: BesselFloat>(&self) -> T {
         match self {
-            Overflow::NearUnder => T::MACHINE_CONSTANTS.rtol,
-            Overflow::None => T::one(),
-            Overflow::NearOver => T::MACHINE_CONSTANTS.abs_error_tolerance,
+            OverflowState::NearUnder => T::MACHINE_CONSTANTS.rtol,
+            OverflowState::None => T::one(),
+            OverflowState::NearOver => T::MACHINE_CONSTANTS.abs_error_tolerance,
             _ => panic!("Cannot get scaling factor for fatal overflow/underflow"),
         }
     }
@@ -77,9 +79,9 @@ impl Overflow {
     /// Originally T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state]
     pub fn reciprocal_scaling_factor<T: BesselFloat>(&self) -> T {
         match self {
-            Overflow::NearUnder => T::MACHINE_CONSTANTS.abs_error_tolerance,
-            Overflow::None => T::one(),
-            Overflow::NearOver => T::MACHINE_CONSTANTS.rtol,
+            OverflowState::NearUnder => T::MACHINE_CONSTANTS.abs_error_tolerance,
+            OverflowState::None => T::one(),
+            OverflowState::NearOver => T::MACHINE_CONSTANTS.rtol,
             _ => panic!("Cannot get reciprocal scaling factor for fatal overflow/underflow"),
         }
     }
@@ -87,9 +89,9 @@ impl Overflow {
     /// Originally T::MACHINE_CONSTANTS.overflow_boundary[overflow_state]
     pub fn boundary<T: BesselFloat>(&self) -> T {
         match self {
-            Overflow::NearUnder => T::MACHINE_CONSTANTS.absolute_approximation_limit,
-            Overflow::None => T::one() / T::MACHINE_CONSTANTS.absolute_approximation_limit,
-            Overflow::NearOver => T::max_value() / T::two(),
+            OverflowState::NearUnder => T::MACHINE_CONSTANTS.absolute_approximation_limit,
+            OverflowState::None => T::one() / T::MACHINE_CONSTANTS.absolute_approximation_limit,
+            OverflowState::NearOver => T::max_value() / T::two(),
             _ => panic!("Cannot get boundary for fatal overflow/underflow"),
         }
     }
@@ -187,15 +189,15 @@ pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
     //-----------------------------------------------------------------------
     //     OVERFLOW TEST
     //-----------------------------------------------------------------------
-    match Overflow::check(cz.re, phi, extra_refinement) {
-        Overflow::Over { .. } => return Err(Overflow),
-        Overflow::Under { was_refined } => {
+    match OverflowState::check(cz.re, phi, extra_refinement) {
+        OverflowState::Over { .. } => return Err(Overflow),
+        OverflowState::Under { was_refined } => {
             if !was_refined {
                 y[0..n_to_test].fill(T::C_ZERO);
             }
             return Ok(n_to_test);
         }
-        Overflow::NearUnder => {
+        OverflowState::NearUnder => {
             cz += phi.ln();
             if imaginary_dominant {
                 cz -= T::from_f64(0.25) * arg.ln() + T::from_f64(AIC);
@@ -210,7 +212,7 @@ pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
                 return Ok(n_to_test);
             }
         }
-        Overflow::None | Overflow::NearOver => (),
+        OverflowState::None | OverflowState::NearOver => (),
     }
     // On K type, we only check the max n_to_test value, as per function documentation
     if ik_type == IKType::K || n_to_test == 1 {
@@ -224,8 +226,8 @@ pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
         let modified_order = order + T::from_usize(i);
         let (mut cz, phi, _arg, extra_refinement) = get_parameters(modified_order);
         // Match below says that first time we get here and no underflow is found, we immediately return
-        match Overflow::check(cz.re, phi, extra_refinement) {
-            Overflow::Under { was_refined } => {
+        match OverflowState::check(cz.re, phi, extra_refinement) {
+            OverflowState::Under { was_refined } => {
                 if was_refined {
                     // Now do a similar overflow check, but on complex values, rather
                     // than the absolute values used in find_overflow
@@ -243,8 +245,10 @@ pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
                     }
                 }
             }
-            Overflow::NearUnder => (),
-            Overflow::None | Overflow::NearOver | Overflow::Over { .. } => return Ok(n_underflow),
+            OverflowState::NearUnder => (),
+            OverflowState::None | OverflowState::NearOver | OverflowState::Over { .. } => {
+                return Ok(n_underflow);
+            }
         }
         *yi = T::C_ZERO;
         n_underflow += 1;

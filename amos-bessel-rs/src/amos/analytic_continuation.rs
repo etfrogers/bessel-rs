@@ -6,7 +6,7 @@ use crate::{
         RotationDirection,
         asymptotics::i_asymptotic,
         i_power_series,
-        limits::{Overflow, underflow_add_i_k},
+        limits::{OverflowState, underflow_add_i_k},
         max_abs_component,
         recurrence::i_miller,
         right_half_plane::{i_right_half_plane, k_right_half_plane},
@@ -96,12 +96,12 @@ pub fn analytic_continuation<T: BesselFloat>(
     //     SCALE NEAR EXPONENT EXTREMES DURING RECURRENCE ON K FUNCTIONS
     //-----------------------------------------------------------------------
     let abs_s2 = k_curr.abs();
-    let mut overflow_state = if abs_s2 <= Overflow::boundary(&Overflow::NearUnder) {
-        Overflow::NearUnder
-    } else if abs_s2 > Overflow::boundary(&Overflow::None) {
-        Overflow::NearOver
+    let mut overflow_state = if abs_s2 <= OverflowState::boundary(&OverflowState::NearUnder) {
+        OverflowState::NearUnder
+    } else if abs_s2 > OverflowState::boundary(&OverflowState::None) {
+        OverflowState::NearOver
     } else {
-        Overflow::None
+        OverflowState::None
     };
     let mut boundary = overflow_state.boundary::<T>();
     k_prev *= overflow_state.scaling_factor::<T>();
@@ -129,7 +129,7 @@ pub fn analytic_continuation<T: BesselFloat>(
         *yi = k_continuation_coeff * k_component + i_continuation_coeff * i_component;
         recurrence_factor += reciprocal_z;
         k_continuation_coeff = -k_continuation_coeff;
-        if overflow_state != Overflow::NearOver && max_abs_component(k_component) < boundary {
+        if overflow_state != OverflowState::NearOver && max_abs_component(k_component) < boundary {
             overflow_state.increment();
             boundary = overflow_state.boundary::<T>();
             k_prev *= recip_scaling_factor;

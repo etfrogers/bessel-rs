@@ -8,7 +8,7 @@ use crate::{
     amos::{
         CIP, IKType, PositiveArg, RotationDirection,
         airy::airy_pair,
-        limits::{Overflow, check_underflow_uniform_asymp_params, underflow_add_i_k},
+        limits::{OverflowState, check_underflow_uniform_asymp_params, underflow_add_i_k},
         max_abs_component,
         recurrence::backward_recurrence,
         utils::{AIC, calc_rz, will_underflow},
@@ -521,12 +521,12 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
     let s1 = scaling.scale_zetas(z, modified_order, zeta1, zeta2);
     // phi is chosen here for refined tests to equal the original tests
     // which don't test refinement
-    match Overflow::check(s1.re, T::C_ONE, T::ZERO) {
-        Overflow::Over { .. } => return Err(BesselError::Overflow),
-        Overflow::Under { .. } => return Ok((n, 0)),
+    match OverflowState::check(s1.re, T::C_ONE, T::ZERO) {
+        OverflowState::Over { .. } => return Err(BesselError::Overflow),
+        OverflowState::Under { .. } => return Ok((n, 0)),
         _ => (),
     }
-    let mut overflow_state = Overflow::None; // this value should never be used
+    let mut overflow_state = OverflowState::None; // this value should never be used
     let mut cy = [T::C_ZERO; 2];
     let mut handle_underflow = |n_remaining: &mut usize,
                                 y: &mut [Complex<T>]|
@@ -565,13 +565,13 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
                 s1 += Complex::<T>::new(T::ZERO, z.im);
             }
 
-            let of = Overflow::check(s1.re, phi, T::ZERO);
+            let of = OverflowState::check(s1.re, phi, T::ZERO);
             if i == 0 {
                 overflow_state = of;
             }
             match of {
-                Overflow::Over { .. } => return Err(BesselError::Overflow),
-                Overflow::Under { .. } => {
+                OverflowState::Over { .. } => return Err(BesselError::Overflow),
+                OverflowState::Under { .. } => {
                     if handle_underflow(&mut n_remaining, y)? {
                         return Ok((n_zeros, n_remaining));
                     }
@@ -585,7 +585,7 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
             let mut s2 = phi * sum;
             s1 = overflow_state.scaling_factor::<T>() * s1.exp();
             s2 *= s1;
-            if overflow_state == Overflow::NearUnder
+            if overflow_state == OverflowState::NearUnder
                 && will_underflow(
                     s2,
                     T::MACHINE_CONSTANTS.absolute_approximation_limit,
@@ -663,9 +663,9 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
 
     // phi is chosen here for refined tests to equal the original tests
     // which don't test refinement
-    match Overflow::check(s1.re, T::C_ONE, T::zero()) {
-        Overflow::Over { .. } => return Err(BesselError::Overflow),
-        Overflow::Under { .. } => return Ok((n, 0)),
+    match OverflowState::check(s1.re, T::C_ONE, T::zero()) {
+        OverflowState::Over { .. } => return Err(BesselError::Overflow),
+        OverflowState::Under { .. } => return Ok((n, 0)),
         _ => (),
     }
 
@@ -673,7 +673,7 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
         modified_order + T::from_usize(n - 1) > T::MACHINE_CONSTANTS.asymptotic_order_limit
     );
 
-    let mut overflow_state = Overflow::NearUnder;
+    let mut overflow_state = OverflowState::NearUnder;
     let mut cy = [T::C_ZERO; 2];
     let mut handle_underflow = |n_remaining: &mut usize,
                                 c2: &mut Complex<T>,
@@ -717,7 +717,7 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
             //-----------------------------------------------------------------------
             //     TEST FOR UNDERFLOW AND OVERFLOW
             //-----------------------------------------------------------------------
-            let of = Overflow::check(
+            let of = OverflowState::check(
                 s1.re,
                 phi,
                 T::from_f64(-0.25) * arg.abs().ln() - T::from_f64(AIC),
@@ -726,8 +726,8 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
                 overflow_state = of;
             }
             match of {
-                Overflow::Over { .. } => return Err(BesselError::Overflow),
-                Overflow::Under { .. } => {
+                OverflowState::Over { .. } => return Err(BesselError::Overflow),
+                OverflowState::Under { .. } => {
                     if handle_underflow(&mut n_remaining, &mut c2, y)? {
                         return Ok((n_zeros, n_remaining));
                     }
@@ -744,7 +744,7 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
             let mut s2 = phi * (d_airy * bsum + a_airy * asum);
             let s1 = overflow_state.scaling_factor::<T>() * s1.exp();
             s2 *= s1;
-            if overflow_state == Overflow::NearUnder
+            if overflow_state == OverflowState::NearUnder
                 && will_underflow(
                     s2,
                     T::MACHINE_CONSTANTS.absolute_approximation_limit,
@@ -800,7 +800,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
     let mut cy = [T::C_ZERO; 2];
     let mut n_elements_set = 0;
     let mut y = T::c_zeros(n);
-    let mut k_overflow_state = Overflow::NearUnder;
+    let mut k_overflow_state = OverflowState::NearUnder;
 
     let mut j = 1;
     for i in 0..n {
@@ -814,13 +814,13 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
             ik_uniform_asymp_params(modified_z, modified_order, IKType::K, false);
         sum[j] = sum_opt.unwrap();
         let mut s1 = -scaling.scale_zetas(modified_z, modified_order, zeta1[j], zeta2[j]);
-        let of = Overflow::check(s1.re, phi[j], T::ZERO);
+        let of = OverflowState::check(s1.re, phi[j], T::ZERO);
         if !found_one_good_entry {
             k_overflow_state = of;
         }
         match of {
-            Overflow::Over { .. } => return Err(BesselError::Overflow),
-            Overflow::Under { .. } => {
+            OverflowState::Over { .. } => return Err(BesselError::Overflow),
+            OverflowState::Under { .. } => {
                 if z.re < T::ZERO {
                     return Err(BesselError::Overflow);
                 }
@@ -828,7 +828,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
                 y[i] = T::C_ZERO;
                 n_zeros += 1;
             }
-            Overflow::None | Overflow::NearOver | Overflow::NearUnder => {
+            OverflowState::None | OverflowState::NearOver | OverflowState::NearUnder => {
                 //-----------------------------------------------------------------------
                 //     SCALE S1 TO KEEP INTERMEDIATE ARITHMETIC ON SCALE NEAR
                 //     EXPONENT EXTREMES
@@ -841,7 +841,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
                     T::MACHINE_CONSTANTS.absolute_approximation_limit,
                     T::MACHINE_CONSTANTS.abs_error_tolerance,
                 );
-                if k_overflow_state != Overflow::NearUnder || !will_underflow {
+                if k_overflow_state != OverflowState::NearUnder || !will_underflow {
                     cy[found_one_good_entry as usize] = s2;
                     y[i] = s2 * k_overflow_state.reciprocal_scaling_factor::<T>();
                     if found_one_good_entry {
@@ -878,9 +878,9 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         );
         let overflow_test = -scaling.scale_zetas(modified_z, modified_order, zet1d, zet2d);
 
-        match Overflow::check(overflow_test.re.abs(), phi, T::ZERO) {
-            Overflow::Over { .. } => return Err(BesselError::Overflow),
-            Overflow::Under { .. } => {
+        match OverflowState::check(overflow_test.re.abs(), phi, T::ZERO) {
+            OverflowState::Over { .. } => return Err(BesselError::Overflow),
+            OverflowState::Under { .. } => {
                 return if z.re < T::ZERO {
                     Err(BesselError::Overflow)
                 } else {
@@ -925,7 +925,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
     }
     let mut dummy_n_good = 0;
     let mut found_one_good_entry = false;
-    let mut i_overflow_state = Overflow::None;
+    let mut i_overflow_state = OverflowState::None;
     let mut remaining_n = n;
     for (i, yi) in y.iter_mut().enumerate().rev() {
         remaining_n = i;
@@ -942,21 +942,21 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         //-----------------------------------------------------------------------
         //     TEST FOR UNDERFLOW AND OVERFLOW
         //-----------------------------------------------------------------------
-        let of = Overflow::check(s1.re, phid, T::ZERO);
-        if !found_one_good_entry && !matches!(of, Overflow::Under { .. }) {
+        let of = OverflowState::check(s1.re, phid, T::ZERO);
+        if !found_one_good_entry && !matches!(of, OverflowState::Under { .. }) {
             i_overflow_state = of;
         }
         let mut s2 = match of {
-            Overflow::Over { .. } => {
+            OverflowState::Over { .. } => {
                 return Err(BesselError::Overflow);
             }
-            Overflow::Under { .. } => T::C_ZERO,
-            Overflow::NearOver | Overflow::NearUnder | Overflow::None => {
+            OverflowState::Under { .. } => T::C_ZERO,
+            OverflowState::NearOver | OverflowState::NearUnder | OverflowState::None => {
                 let st = phid * sumd;
                 let mut s2 = T::I * st * rotation_angle;
                 s1 = s1.exp() * i_overflow_state.scaling_factor::<T>();
                 s2 *= s1;
-                if i_overflow_state == Overflow::NearUnder
+                if i_overflow_state == OverflowState::NearUnder
                     && will_underflow(
                         s2,
                         T::MACHINE_CONSTANTS.absolute_approximation_limit,
@@ -1014,7 +1014,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
             }
             *yi = c1 * cspn + unscaled_s2;
             cspn = -cspn;
-            if i_overflow_state == Overflow::NearOver {
+            if i_overflow_state == OverflowState::NearOver {
                 continue;
             }
             if max_abs_component(unscaled_s2) <= absolute_approximation_limit {
@@ -1081,7 +1081,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
     let mut bsum = [None; 2];
     let mut cy = [T::C_ZERO; 2];
     let mut j = 1;
-    let mut k_overflow_state = Overflow::None;
+    let mut k_overflow_state = OverflowState::None;
     let mut n_elements_set = 0;
 
     for i in 0..n {
@@ -1092,7 +1092,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
         (phi[j], arg[j], zeta1[j], zeta2[j], asum[j], bsum[j]) =
             hj_uniform_asymp_params(zn, modified_order, false);
         let s1 = -scaling.scale_zetas(zb, modified_order, zeta1[j], zeta2[j]);
-        let of = Overflow::check(
+        let of = OverflowState::check(
             s1.re,
             phi[j],
             T::from_f64(-0.25) * arg[j].abs().ln() - T::from_f64(AIC),
@@ -1121,10 +1121,10 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
         }
 
         match of {
-            Overflow::Over { .. } => return Err(BesselError::Overflow),
+            OverflowState::Over { .. } => return Err(BesselError::Overflow),
 
-            Overflow::Under { .. } => handle_underflow(&mut found_one_good_entry, &mut cs)?,
-            Overflow::NearOver | Overflow::NearUnder | Overflow::None => {
+            OverflowState::Under { .. } => handle_underflow(&mut found_one_good_entry, &mut cs)?,
+            OverflowState::NearOver | OverflowState::NearUnder | OverflowState::None => {
                 //-----------------------------------------------------------------------;
                 //     SCALE S1 TO KEEP INTERMEDIATE ARITHMETIC ON SCALE NEAR;
                 //     EXPONENT EXTREMES;
@@ -1136,7 +1136,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
                 let mut s2 = pt * cs;
                 let s1 = s1.exp() * k_overflow_state.scaling_factor::<T>();
                 s2 *= s1;
-                if k_overflow_state == Overflow::NearUnder
+                if k_overflow_state == OverflowState::NearUnder
                     && will_underflow(
                         s2,
                         T::MACHINE_CONSTANTS.absolute_approximation_limit,
@@ -1176,16 +1176,16 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
         (phid, argd, zeta1d, zeta2d, asumd, bsumd) =
             hj_uniform_asymp_params(zn, modified_order, rotation == RotationDirection::None);
         let s1 = -scaling.scale_zetas(zb, modified_order, zeta1d, zeta2d);
-        match Overflow::check(s1.re, phid, T::ZERO) {
-            Overflow::Over { .. } => return Err(BesselError::Overflow),
+        match OverflowState::check(s1.re, phid, T::ZERO) {
+            OverflowState::Over { .. } => return Err(BesselError::Overflow),
 
-            Overflow::Under { .. } => {
+            OverflowState::Under { .. } => {
                 if z.re < T::ZERO {
                     return Err(BesselError::Overflow);
                 }
                 return Ok((T::c_zeros(n), n_zeros));
             }
-            Overflow::NearOver | Overflow::None | Overflow::NearUnder => (),
+            OverflowState::NearOver | OverflowState::None | OverflowState::NearUnder => (),
         }
         let [s1, s2] = cy;
         backward_recurrence(
@@ -1230,7 +1230,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
     let mut iuf = 0;
 
     found_one_good_entry = false;
-    let mut i_overflow_state = Overflow::None;
+    let mut i_overflow_state = OverflowState::None;
     let mut remaining_n = n;
     for (i, yi) in y.iter_mut().enumerate().rev() {
         remaining_n = i;
@@ -1261,28 +1261,28 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
         }
         let mut s1 = scaling.scale_zetas(zb, modified_order, zeta1d, zeta2d);
 
-        let of = Overflow::check(
+        let of = OverflowState::check(
             s1.re,
             phid,
             T::from_f64(-0.25) * argd.abs().ln() - T::from_f64(AIC),
         );
         if !found_one_good_entry {
-            i_overflow_state = if matches!(of, Overflow::Under { .. }) {
-                Overflow::None
+            i_overflow_state = if matches!(of, OverflowState::Under { .. }) {
+                OverflowState::None
             } else {
                 of
             };
         }
         let mut s2 = match of {
-            Overflow::Over { .. } => return Err(BesselError::Overflow),
-            Overflow::Under { .. } => T::C_ZERO,
-            Overflow::NearOver | Overflow::None | Overflow::NearUnder => {
+            OverflowState::Over { .. } => return Err(BesselError::Overflow),
+            OverflowState::Under { .. } => T::C_ZERO,
+            OverflowState::NearOver | OverflowState::None | OverflowState::NearUnder => {
                 let (airy, d_airy) = airy_pair(argd);
                 let pt = ((d_airy * bsumd.unwrap()) + (airy * asumd.unwrap())) * phid;
                 let mut s2 = pt * cs;
                 s1 = s1.exp() * i_overflow_state.scaling_factor::<T>();
                 s2 *= s1;
-                if i_overflow_state == Overflow::NearUnder
+                if i_overflow_state == OverflowState::NearUnder
                     && will_underflow(
                         s2,
                         T::MACHINE_CONSTANTS.absolute_approximation_limit,
@@ -1342,7 +1342,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
             }
             *yi = c1 * cspn + c2;
             cspn = -cspn;
-            if i_overflow_state != Overflow::NearOver && max_abs_component(c2) > ascle {
+            if i_overflow_state != OverflowState::NearOver && max_abs_component(c2) > ascle {
                 i_overflow_state.increment();
                 ascle = i_overflow_state.boundary::<T>();
                 s1 *= recip_scale_factor;

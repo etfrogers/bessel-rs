@@ -6,7 +6,7 @@ use crate::{
     amos::{
         RotationDirection,
         asymptotics::{i_uniform_asymp1, i_uniform_asymp2, k_uniform_asymp1, k_uniform_asymp2},
-        limits::Overflow,
+        limits::OverflowState,
         max_abs_component,
         utils::{calc_rz, imaginary_dominant},
     },
@@ -59,7 +59,7 @@ pub(crate) fn i_asymp_large_order<T: BesselFloat>(
         let (mut overflow_state, mut ASCLE, mut CSCLR) =
             if cy[0].abs() <= T::MACHINE_CONSTANTS.absolute_approximation_limit {
                 (
-                    Overflow::NearUnder,
+                    OverflowState::NearUnder,
                     T::MACHINE_CONSTANTS.absolute_approximation_limit,
                     T::one() / T::MACHINE_CONSTANTS.abs_error_tolerance,
                 )
@@ -67,13 +67,13 @@ pub(crate) fn i_asymp_large_order<T: BesselFloat>(
                 >= T::from_f64(1.0) / T::MACHINE_CONSTANTS.absolute_approximation_limit
             {
                 (
-                    Overflow::NearOver,
+                    OverflowState::NearOver,
                     T::max_value() / T::from_f64(2.0),
                     T::MACHINE_CONSTANTS.abs_error_tolerance,
                 )
             } else {
                 (
-                    Overflow::None,
+                    OverflowState::None,
                     T::from_f64(1.0) / T::MACHINE_CONSTANTS.absolute_approximation_limit,
                     T::one(),
                 )
@@ -90,7 +90,7 @@ pub(crate) fn i_asymp_large_order<T: BesselFloat>(
             s2 = (DFNU + FNUI) * rz * s2 + s1;
             s1 = st;
             FNUI -= T::one();
-            if overflow_state == Overflow::NearOver {
+            if overflow_state == OverflowState::NearOver {
                 continue;
             }
             let st = s2 * CSCRR;
@@ -120,7 +120,7 @@ pub(crate) fn i_asymp_large_order<T: BesselFloat>(
             y[K - 1] = s2 * CSCRR;
             FNUI -= T::one();
             K -= 1;
-            if overflow_state == Overflow::NearOver {
+            if overflow_state == OverflowState::NearOver {
                 continue;
             }
             // using K (rather than K-1) below as Amos "saved" the y value before K was decremented

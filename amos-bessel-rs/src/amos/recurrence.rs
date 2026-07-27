@@ -9,7 +9,7 @@ use crate::{
     Scaling,
     amos::{
         gamma_ln,
-        limits::Overflow,
+        limits::OverflowState,
         max_abs_component,
         utils::{calc_rz, will_underflow},
     },
@@ -404,7 +404,7 @@ pub(crate) fn backward_recurrence<T: BesselFloat>(
     n_offset: usize,
     mut s1: Complex<T>,
     mut s2: Complex<T>,
-    mut overflow_state: Overflow,
+    mut overflow_state: OverflowState,
 ) {
     let rz = calc_rz(z);
 
@@ -423,7 +423,7 @@ pub(crate) fn backward_recurrence<T: BesselFloat>(
         let modified_order = order + T::from_usize(i) + index_adjustment;
         (s1, s2) = (s2, s1 + modified_order * rz * s2);
         *yi = s2 * recip_scale_factor;
-        if overflow_state != Overflow::NearOver && max_abs_component(*yi) > boundary {
+        if overflow_state != OverflowState::NearOver && max_abs_component(*yi) > boundary {
             overflow_state.increment();
             boundary = overflow_state.boundary::<T>();
             s1 *= recip_scale_factor;

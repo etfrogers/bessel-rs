@@ -10,7 +10,7 @@ use crate::{
         asymptotics::i_asymp_large_order,
         asymptotics::i_asymptotic,
         gamma_ln, i_power_series,
-        limits::{Overflow, check_underflow_uniform_asymp_params},
+        limits::{OverflowState, check_underflow_uniform_asymp_params},
         max_abs_component,
         recurrence::{i_miller, scale_k_recurrence},
         utils::{calc_rz, will_underflow},
@@ -222,9 +222,9 @@ pub fn k_right_half_plane<T: BesselFloat>(
 
         overflow_state =
             if (order + T::one()) * smu.re.abs() > T::MACHINE_CONSTANTS.approximation_limit {
-                Overflow::NearOver
+                OverflowState::NearOver
             } else {
-                Overflow::None
+                OverflowState::None
             };
         s2 *= overflow_state.scaling_factor::<T>() * rz;
         s1 *= overflow_state.scaling_factor::<T>();
@@ -243,11 +243,11 @@ pub fn k_right_half_plane<T: BesselFloat>(
         //     RECURSION;
         //-----------------------------------------------------------------------;
         let mut coeff = Complex::<T>::new(RTFRAC_PI_2, T::ZERO) / z.sqrt();
-        overflow_state = Overflow::None;
+        overflow_state = OverflowState::None;
         if scaling == Scaling::Unscaled {
             if z.re > T::MACHINE_CONSTANTS.approximation_limit {
                 underflow_occurred = true;
-                overflow_state = Overflow::NearUnder;
+                overflow_state = OverflowState::NearUnder;
             } else {
                 coeff *= overflow_state.scaling_factor::<T>() * (-z).exp();
             }
@@ -415,7 +415,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
                         s2 *= abs_limit;
                     }
                 }
-                overflow_state = Overflow::NearUnder;
+                overflow_state = OverflowState::NearUnder;
 
                 s2 = cy[J];
                 J = 1 - J;
@@ -429,7 +429,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
                 // TODO and same recurrence logic used in ZUNKX, ZUNIX?
                 (s1, s2) = (s2, ck * s2 + s1);
                 ck += rz;
-                if overflow_state == Overflow::NearOver {
+                if overflow_state == OverflowState::NearOver {
                     continue;
                 }
                 let p2 = s2 * P1R;
@@ -495,7 +495,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
         }
         if n_non_zero > 2 {
             ck = (order + T::from_usize(working_index)) * rz;
-            overflow_state = Overflow::NearUnder;
+            overflow_state = OverflowState::NearUnder;
         }
         working_index + 1
     };
@@ -510,7 +510,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
         (s1, s2) = (s2, ck * s2 + s1);
         ck += rz;
         *y_elem = s2 * P1R;
-        if overflow_state == Overflow::NearOver {
+        if overflow_state == OverflowState::NearOver {
             continue;
         };
         if max_abs_component(*y_elem) <= ASCLE {
