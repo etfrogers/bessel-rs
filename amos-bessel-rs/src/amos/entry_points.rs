@@ -1,7 +1,9 @@
 use num::{Complex, Integer, complex::ComplexFloat};
 
 use crate::{
-    BesselError, Scaling,
+    BesselError,
+    BesselError::*,
+    BesselFloat, Scaling,
     amos::{
         CIP, HankelKind, IKType, RotationDirection,
         airy::airy_power_series,
@@ -12,7 +14,7 @@ use crate::{
         right_half_plane::{i_right_half_plane, k_right_half_plane},
         utils::{is_significance_lost, sanitise_inputs},
     },
-    types::{BesselError::*, BesselFloat, BesselResult},
+    types::BesselResult,
 };
 
 /// Computes the H-Bessel functions (Hankel functions) of a complex argument.

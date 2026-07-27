@@ -3,11 +3,10 @@ use num::{
     complex::{Complex, ComplexFloat},
 };
 
-use crate::types::{BesselError::*, BesselResult};
 use crate::{
-    Scaling,
+    BesselError, BesselFloat, Scaling,
     amos::utils::{RTPI, calc_rz},
-    types::BesselFloat,
+    types::BesselResult,
 };
 
 /// asymptotic_i computes the I bessel function for real(z) >= 0.0 by
@@ -34,7 +33,7 @@ pub fn i_asymptotic<T: BesselFloat>(
     };
 
     if cz.re.abs() > T::MACHINE_CONSTANTS.exponent_limit {
-        return Err(Overflow);
+        return Err(BesselError::Overflow);
     }
     let scaled_calculations = cz.re.abs() > T::MACHINE_CONSTANTS.approximation_limit;
     let mut coeff = (T::from_f64(RTPI) * z.conj() * recip_abs_z.powi(2)).sqrt();
@@ -105,7 +104,7 @@ pub fn i_asymptotic<T: BesselFloat>(
                 }
             }
             if !converged {
-                return Err(DidNotConverge);
+                return Err(BesselError::DidNotConverge);
             }
             (cs1, cs2)
         };

@@ -1,6 +1,6 @@
 use num::complex::{Complex, ComplexFloat};
 
-use crate::types::{BesselError, BesselFloat};
+use crate::{BesselError, BesselFloat};
 
 pub const RTPI: f64 = 0.159_154_943_091_895_35;
 pub const RT_THREE: f64 = 1.73205080757;

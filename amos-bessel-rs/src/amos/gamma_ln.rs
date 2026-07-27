@@ -2,7 +2,7 @@ use std::f64;
 
 use thiserror::Error;
 
-use crate::types::BesselFloat;
+use crate::BesselFloat;
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub(crate) enum GammaError {

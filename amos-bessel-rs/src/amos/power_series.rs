@@ -1,9 +1,13 @@
 use num::complex::{Complex, ComplexFloat};
 
-use crate::types::BesselResult;
-use crate::{amos::utils::calc_rz, types::BesselFloat};
-
-use super::{Scaling, gamma_ln, utils::will_underflow};
+use crate::{
+    BesselFloat, Scaling,
+    amos::{
+        gamma_ln,
+        utils::{calc_rz, will_underflow},
+    },
+    types::BesselResult,
+};
 
 /// z_power_series computes the I bessel function for `real(z) >= 0.0` by
 /// means of the power series for large `z.abs()` in the

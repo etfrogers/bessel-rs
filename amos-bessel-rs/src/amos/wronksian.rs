@@ -1,11 +1,8 @@
 #![allow(non_snake_case)]
 use super::Scaling;
 use crate::{
+    BesselError, BesselFloat,
     amos::{recurrence::i_ratios, right_half_plane::k_right_half_plane},
-    types::{
-        BesselError::{self},
-        BesselFloat,
-    },
 };
 
 use num::{Complex, complex::ComplexFloat};

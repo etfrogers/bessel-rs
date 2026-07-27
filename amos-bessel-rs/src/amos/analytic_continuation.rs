@@ -1,7 +1,7 @@
 use num::{Complex, Integer, complex::ComplexFloat};
 
 use crate::{
-    BesselError, Scaling,
+    BesselError, BesselFloat, Scaling,
     amos::{
         RotationDirection,
         asymptotics::i_asymptotic,
@@ -12,7 +12,7 @@ use crate::{
         right_half_plane::{i_right_half_plane, k_right_half_plane},
         utils::calc_rz,
     },
-    types::{BesselFloat, BesselResult, BesselValues},
+    types::{BesselResult, BesselValues},
 };
 
 /// Applies the analytic continuation formula

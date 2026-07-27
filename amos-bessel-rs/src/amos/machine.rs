@@ -1,6 +1,6 @@
 use std::sync::LazyLock;
 
-use crate::types::BesselFloat;
+use crate::BesselFloat;
 
 /// `exponent_limit` is a number such that if you take `exponent_limit.exp()` or `(-exponent_limit).exp()`
 /// , you will create a number that is at risk of overflowing `T`. In this case "at risk of overflow" means

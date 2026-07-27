@@ -3,8 +3,7 @@
 use num::{Complex, Zero, complex::ComplexFloat};
 
 use crate::{
-    BesselError::{self, DidNotConverge},
-    Scaling,
+    BesselError, Scaling,
     amos::{
         IKType,
         asymptotics::i_asymp_large_order,
@@ -303,7 +302,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
                         }
                     }
                     if !converged {
-                        return Err(DidNotConverge);
+                        return Err(BesselError::DidNotConverge);
                     }
                     FK += SPI * arg_z * (recurrence_threshold / abs_z).sqrt();
                     FHS = (T::from_f64(0.25) - frac_order_sqr).abs();

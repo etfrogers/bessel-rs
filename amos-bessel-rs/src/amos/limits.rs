@@ -1,12 +1,12 @@
 use num::Complex;
 use num::complex::ComplexFloat;
 
-use crate::BesselError;
-use crate::amos::asymptotics::{hj_uniform_asymp_params, ik_uniform_asymp_params};
-use crate::amos::utils::{AIC, imaginary_dominant};
-use crate::types::{BesselError::*, BesselFloat};
-
-use super::{IKType, Scaling, utils::will_underflow};
+use crate::amos::{
+    IKType,
+    asymptotics::{hj_uniform_asymp_params, ik_uniform_asymp_params},
+    utils::{AIC, imaginary_dominant, will_underflow},
+};
+use crate::{BesselError, BesselFloat, Scaling};
 
 #[allow(unused_imports)]
 use super::machine::MachineConsts;
@@ -190,7 +190,7 @@ pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
     //     OVERFLOW TEST
     //-----------------------------------------------------------------------
     match OverflowState::check(cz.re, phi, extra_refinement) {
-        OverflowState::Over { .. } => return Err(Overflow),
+        OverflowState::Over { .. } => return Err(BesselError::Overflow),
         OverflowState::Under { was_refined } => {
             if !was_refined {
                 y[0..n_to_test].fill(T::C_ZERO);
