@@ -30,7 +30,8 @@ pub struct MachineConsts<T: BesselFloat> {
     /// Originally ALIM
     pub approximation_limit: T,
     /// Originally DIG. Number of base 10 digits in abs_error_tolerance = 10.pow(-dig).
-    pub _significant_digits: T,
+    #[allow(dead_code)]
+    pub significant_digits: T,
     /// Originally RL. The lower boundary of the asymptotic expansion for large z.
     pub asymptotic_z_limit: T,
     /// Originally FNUL.  The lower boundary of the asymptotic series for large order.
@@ -41,7 +42,7 @@ pub struct MachineConsts<T: BesselFloat> {
 impl<T: BesselFloat> MachineConsts<T> {
     fn new() -> Self {
         // Here we use approximate value, rather than calculating `10.0_f64.ln()`, as
-        // this matches the the Fotran code, and the exact value causes subtle differences
+        // this matches the Fortran code, and the exact value causes subtle differences
         // in output (should just be what values are accepted, but cause tests to fail)
         let ln_10: T = T::from_f64(2.303);
 
@@ -59,10 +60,10 @@ impl<T: BesselFloat> MachineConsts<T> {
         // Multiplying by ln_10 converts from 10^x overflowing to e^x overflowing
         let exponent_limit = ln_10 * decimal_exponent_limit;
 
-        let base_type_siginficant_digits: T =
+        let base_type_significant_digits: T =
             digits_per_bit * (T::from_f64(T::MANTISSA_DIGITS as f64) - T::one());
-        // siginficant_digits == abs_error_tolerance.log10() -- see test
-        let significant_digits = base_type_siginficant_digits.min(T::from_f64(18.0));
+        // significant_digits == -abs_error_tolerance.log10() -- see test
+        let significant_digits = base_type_significant_digits.min(T::from_f64(18.0));
         // Again, multiply number of base 10 digits by ln_10 to convert to e^x
         let approximation_limit = exponent_limit - (significant_digits * ln_10);
 
@@ -81,7 +82,7 @@ impl<T: BesselFloat> MachineConsts<T> {
             abs_error_tolerance,
             exponent_limit,
             approximation_limit,
-            _significant_digits: significant_digits,
+            significant_digits,
             asymptotic_z_limit,
             asymptotic_order_limit,
             rtol,
