@@ -7,11 +7,11 @@ use super::{Scaling, gamma_ln, utils::will_underflow};
 
 /// z_power_series computes the I bessel function for `real(z) >= 0.0` by
 /// means of the power series for large `z.abs()` in the
-/// region `z.abs() <= 2*sqrt(fnu+1)`. nz=0 is a normal return.
-/// nz > 0 means that the last nz components were set to zero
-/// due to underflow. nz < 0 means underflow occurred, but the
+/// region `z.abs() <= 2*sqrt(fnu+1)`. n_zeros=0 is a normal return.
+/// n_zeros > 0 means that the last n_zeros components were set to zero
+/// due to underflow. n_zeros < 0 means underflow occurred, but the
 /// condition cabs(z) <= 2*sqrt(fnu+1) was violated and the
-/// computation must be completed in another routine with n=n-abs(nz).
+/// computation must be completed in another routine with n=n-abs(n_zeros).
 ///
 /// Originally ZSERI
 pub fn i_power_series<T: BesselFloat>(
@@ -20,25 +20,25 @@ pub fn i_power_series<T: BesselFloat>(
     kode: Scaling,
     n: usize,
 ) -> BesselResult<T, isize> {
-    let mut nz = 0;
+    let mut n_zeros = 0;
     let abs_z = z.abs();
     let mut y = T::c_zeros(n);
 
     if abs_z < T::MACHINE_CONSTANTS.underflow_limit {
         // If z is zero or very small, can return straight away.
-        // If it's zero, then nz = 0 (as y==0), but if its very small but nonzero, then
-        // we underflowed, so set nz = n. This is then adjusted for order = 0,
-        // as we can set y[0] to one, and return one less nz.
+        // If it's zero, then n_zeros = 0 (as y==0), but if its very small but non_zerosero, then
+        // we underflowed, so set n_zeros = n. This is then adjusted for order = 0,
+        // as we can set y[0] to one, and return one less n_zeros.
         if order == T::zero() {
             y[0] = T::C_ONE;
         }
         if abs_z != T::zero() {
-            nz = n.try_into().unwrap();
+            n_zeros = n.try_into().unwrap();
             if order == T::zero() {
-                nz -= 1;
+                n_zeros -= 1;
             }
         }
-        return Ok((y, nz));
+        return Ok((y, n_zeros));
     }
 
     let mut scale_factor = T::one();
@@ -70,7 +70,7 @@ pub fn i_power_series<T: BesselFloat>(
                 ak1.re -= z.re;
             }
             if ak1.re <= -T::MACHINE_CONSTANTS.exponent_limit {
-                nz += 1;
+                n_zeros += 1;
                 y[k] = T::C_ZERO;
                 if abs_cz > modified_order {
                     break;
@@ -100,7 +100,7 @@ pub fn i_power_series<T: BesselFloat>(
                     T::MACHINE_CONSTANTS.abs_error_tolerance,
                 )
             {
-                nz += 1;
+                n_zeros += 1;
                 y[k] = T::C_ZERO;
                 continue;
             }
@@ -131,7 +131,7 @@ pub fn i_power_series<T: BesselFloat>(
             }
         }
     }
-    Ok((y, nz))
+    Ok((y, n_zeros))
 }
 
 fn single_n_iteration<T: BesselFloat>(modified_order: T, cz: Complex<T>) -> Complex<T> {

@@ -21,7 +21,6 @@ pub fn i_asymptotic<T: BesselFloat>(
     scaling: Scaling,
     n: usize,
 ) -> BesselResult<T, usize> {
-    let nz = 0;
     let mut y = T::c_zeros(n);
     let abs_z = z.abs();
     //-----------------------------------------------------------------------;
@@ -129,5 +128,5 @@ pub fn i_asymptotic<T: BesselFloat>(
             *yi *= exp_cz;
         }
     }
-    Ok((y, nz))
+    Ok((y, 0))
 }

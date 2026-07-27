@@ -22,13 +22,13 @@ fn bench_backends(c: &mut Criterion) {
                 group.bench_with_input(
                     BenchmarkId::new(format!("amos/{type_name}"), &id),
                     &(order, n),
-                    |b, &(ord, nz)| b.iter(|| bessel_zeros(fun_type, ord, nz, 1e-14)),
+                    |b, &(ord, n_zeros)| b.iter(|| bessel_zeros(fun_type, ord, n_zeros, 1e-14)),
                 );
 
                 group.bench_with_input(
                     BenchmarkId::new(format!("fast/{type_name}"), &id),
                     &(order, n),
-                    |b, &(ord, nz)| b.iter(|| fast::bessel_zeros(fun_type, ord, nz, 1e-14)),
+                    |b, &(ord, n_zeros)| b.iter(|| fast::bessel_zeros(fun_type, ord, n_zeros, 1e-14)),
                 );
             }
         }

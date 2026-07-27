@@ -511,7 +511,7 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
     n: usize,
     y: &mut [Complex<T>],
 ) -> Result<(usize, usize), BesselError<T>> {
-    let mut nz = 0;
+    let mut n_zeros = 0;
     let mut n_remaining = n;
     //-----------------------------------------------------------------------
     //     CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER
@@ -535,7 +535,7 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
         //     SET UNDERFLOW AND UPDATE PARAMETERS
         //-----------------------------------------------------------------------
         y[*n_remaining - 1] = T::C_ZERO;
-        nz += 1;
+        n_zeros += 1;
         *n_remaining -= 1;
         if *n_remaining == 0 {
             return Ok(true);
@@ -543,7 +543,7 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
         let n_underflow =
             check_underflow_uniform_asymp_params(z, order, scaling, IKType::I, *n_remaining, y)?;
         *n_remaining -= n_underflow;
-        nz += n_underflow;
+        n_zeros += n_underflow;
         if *n_remaining == 0 {
             return Ok(true);
         }
@@ -573,7 +573,7 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
                 Overflow::Over { .. } => return Err(BesselError::Overflow),
                 Overflow::Under { .. } => {
                     if handle_underflow(&mut n_remaining, y)? {
-                        return Ok((nz, n_remaining));
+                        return Ok((n_zeros, n_remaining));
                     }
                     continue 'outer;
                 }
@@ -593,7 +593,7 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
                 )
             {
                 if handle_underflow(&mut n_remaining, y)? {
-                    return Ok((nz, n_remaining));
+                    return Ok((n_zeros, n_remaining));
                 }
                 continue 'outer;
             }
@@ -606,7 +606,7 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
         let [s1, s2] = cy;
         backward_recurrence(false, order, z, y, n_remaining - 2, s1, s2, overflow_state);
     }
-    Ok((nz, 0))
+    Ok((n_zeros, 0))
 }
 
 /// i_uniform_asymp2 computes I(fnu,z) in the right half plane by means of
@@ -627,7 +627,7 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
     n: usize,
     y: &mut [Complex<T>],
 ) -> Result<(usize, usize), BesselError<T>> {
-    let mut nz = 0;
+    let mut n_zeros = 0;
     let mut n_remaining = n;
 
     //-----------------------------------------------------------------------
@@ -683,7 +683,7 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
         //     SET UNDERFLOW AND UPDATE PARAMETERS
         //-----------------------------------------------------------------------
         y[*n_remaining - 1] = T::C_ZERO;
-        nz += 1;
+        n_zeros += 1;
         *n_remaining -= 1;
         if *n_remaining == 0 {
             return Ok(true);
@@ -691,7 +691,7 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
         let n_underflow =
             check_underflow_uniform_asymp_params(z, order, scaling, IKType::I, *n_remaining, y)?;
         *n_remaining -= n_underflow;
-        nz += n_underflow;
+        n_zeros += n_underflow;
         if *n_remaining == 0 {
             return Ok(true);
         }
@@ -729,7 +729,7 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
                 Overflow::Over { .. } => return Err(BesselError::Overflow),
                 Overflow::Under { .. } => {
                     if handle_underflow(&mut n_remaining, &mut c2, y)? {
-                        return Ok((nz, n_remaining));
+                        return Ok((n_zeros, n_remaining));
                     }
                     continue 'outer;
                 }
@@ -752,7 +752,7 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
                 )
             {
                 if handle_underflow(&mut n_remaining, &mut c2, y)? {
-                    return Ok((nz, n_remaining));
+                    return Ok((n_zeros, n_remaining));
                 }
                 continue 'outer;
             }
@@ -770,7 +770,7 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
         let [s1, s2] = cy;
         backward_recurrence(false, order, z, y, n_remaining - 2, s1, s2, overflow_state);
     }
-    Ok((nz, 0))
+    Ok((n_zeros, 0))
 }
 
 /// zunk1 computes K(fnu,z) and its analytic continuation from the
@@ -787,7 +787,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
     n: usize,
 ) -> BesselResult<T> {
     let mut found_one_good_entry = false;
-    let mut nz = 0;
+    let mut n_zeros = 0;
     //-----------------------------------------------------------------------
     //     EXP(-ALIM)=EXP(-ELIM)/TOL=APPROX. ONE PRECISION GREATER THAN
     //     THE UNDERFLOW LIMIT
@@ -826,7 +826,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
                 }
                 found_one_good_entry = false;
                 y[i] = T::C_ZERO;
-                nz += 1;
+                n_zeros += 1;
             }
             Overflow::None | Overflow::NearOver | Overflow::NearUnder => {
                 //-----------------------------------------------------------------------
@@ -853,10 +853,10 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
                         return Err(BesselError::Overflow);
                     }
                     y[i] = T::C_ZERO;
-                    nz += 1;
+                    n_zeros += 1;
                     if i > 0 && y[i - 1] != T::C_ZERO {
                         y[i - 1] = T::C_ZERO;
-                        nz += 1
+                        n_zeros += 1
                     }
                 }
             }
@@ -905,12 +905,12 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         );
     }
     if rotation == RotationDirection::None {
-        return Ok((y, nz));
+        return Ok((y, n_zeros));
     }
     //-----------------------------------------------------------------------
     //     ANALYTIC CONTINUATION FOR RE(Z) < 0.0
     //-----------------------------------------------------------------------
-    nz = 0;
+    n_zeros = 0;
     let rotation_angle = -T::PI() * T::from_f64(rotation.signum());
     //-----------------------------------------------------------------------
     //     CSPN AND CSGN ARE COEFF OF K AND I FUNCTIONS RESP.
@@ -975,10 +975,10 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         //     ADD I AND K FUNCTIONS, K SEQUENCE IN Y(I), I=1,N
         //-----------------------------------------------------------------------
         s1 = *yi;
-        if scaling == Scaling::Scaled {
-            if underflow_add_i_k(modified_z, &mut s1, &mut s2, &mut dummy_n_good) {
-                nz += 1;
-            }
+        if scaling == Scaling::Scaled
+            && underflow_add_i_k(modified_z, &mut s1, &mut s2, &mut dummy_n_good)
+        {
+            n_zeros += 1;
         }
         *yi = s1 * cspn + s2;
         cspn = -cspn;
@@ -1007,10 +1007,10 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
             let ck = unscaled_s2;
 
             let mut c1 = *yi;
-            if scaling == Scaling::Scaled {
-                if underflow_add_i_k(modified_z, &mut c1, &mut unscaled_s2, &mut dummy_n_good) {
-                    nz += 1;
-                }
+            if scaling == Scaling::Scaled
+                && underflow_add_i_k(modified_z, &mut c1, &mut unscaled_s2, &mut dummy_n_good)
+            {
+                n_zeros += 1;
             }
             *yi = c1 * cspn + unscaled_s2;
             cspn = -cspn;
@@ -1029,7 +1029,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
             reciprocal_scale_factor = i_overflow_state.reciprocal_scaling_factor::<T>();
         }
     }
-    Ok((y, nz))
+    Ok((y, n_zeros))
 }
 
 /// zunk2 computes K(fnu,z) and its analytic continuation from the
@@ -1053,7 +1053,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
     let cr2: Complex<T> = Complex::<T>::new(-T::half(), -T::from_f64(8.660_254_037_844_386e-1));
 
     let mut found_one_good_entry = false;
-    let mut nz = 0;
+    let mut n_zeros = 0;
     let mut y = T::c_zeros(n);
     let zr = if z.re < T::ZERO { -z } else { z };
     let mut zn = -T::I * zr;
@@ -1107,11 +1107,11 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
             }
             *of_already = false;
             y[i] = T::C_ZERO;
-            nz += 1;
+            n_zeros += 1;
             *cs_ *= -T::I;
             if i != 0 && y[i - 1] != T::C_ZERO {
                 y[i - 1] = T::C_ZERO;
-                nz += 1;
+                n_zeros += 1;
             }
             Ok(())
         };
@@ -1183,7 +1183,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
                 if z.re < T::ZERO {
                     return Err(BesselError::Overflow);
                 }
-                return Ok((T::c_zeros(n), nz));
+                return Ok((T::c_zeros(n), n_zeros));
             }
             Overflow::NearOver | Overflow::None | Overflow::NearUnder => (),
         }
@@ -1200,12 +1200,12 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
         );
     }
     if rotation == RotationDirection::None {
-        return Ok((y, nz));
+        return Ok((y, n_zeros));
     }
     //-----------------------------------------------------------------------
     //     ANALYTIC CONTINUATION FOR RE(Z) < 0.0
     //-----------------------------------------------------------------------
-    nz = 0;
+    n_zeros = 0;
     let sgn = -T::PI() * T::from_f64(rotation.signum());
     //-----------------------------------------------------------------------
     //     CSPN AND CSGN ARE COEFF OF K AND I FUNCIONS RESP.
@@ -1304,10 +1304,8 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
         //     ADD I AND K FUNCTIONS, K SEQUENCE IN Y(I), I=1,N;
         //-----------------------------------------------------------------------;
         s1 = *yi;
-        if scaling == Scaling::Scaled {
-            if underflow_add_i_k(zr, &mut s1, &mut s2, &mut iuf) {
-                nz += 1;
-            }
+        if scaling == Scaling::Scaled && underflow_add_i_k(zr, &mut s1, &mut s2, &mut iuf) {
+            n_zeros += 1;
         }
         *yi = s1 * cspn + s2;
         cspn = -cspn;
@@ -1339,10 +1337,8 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
             let mut c2 = s2 * recip_scale_factor;
             let old_c2 = c2;
             let mut c1 = *yi;
-            if scaling == Scaling::Scaled {
-                if underflow_add_i_k(zr, &mut c1, &mut c2, &mut iuf) {
-                    nz += 1;
-                }
+            if scaling == Scaling::Scaled && underflow_add_i_k(zr, &mut c1, &mut c2, &mut iuf) {
+                n_zeros += 1;
             }
             *yi = c1 * cspn + c2;
             cspn = -cspn;
@@ -1357,5 +1353,5 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
             }
         }
     }
-    Ok((y, nz))
+    Ok((y, n_zeros))
 }

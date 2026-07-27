@@ -243,7 +243,7 @@ impl<T: BesselFloat> BackFrom<Result<Complex<T>, BesselError<T>>, T> for T {
             Ok(cpx) => T::back_from(cpx),
             // below we can assume that y has one element, as the input type is BesselResult<Complex<T>> not
             // BesselResult<Vec<Complex<T>>>
-            Err(BesselError::PartialLossOfSignificance { y, nz: _ }) => T::back_from(&y[0]),
+            Err(BesselError::PartialLossOfSignificance { y, n_zeros: _ }) => T::back_from(&y[0]),
             Err(err) => Err((*err).clone()),
         }
     }
@@ -256,7 +256,7 @@ impl<T: BesselFloat> BackFrom<Result<Self, BesselError<T>>, T> for Complex<T> {
             Ok(cpx) => Ok(*cpx),
             // below we can assume that y has one element, as the input type is BesselResult<Complex<T>> not
             // BesselResult<Vec<Complex<T>>>
-            Err(BesselError::PartialLossOfSignificance { y, nz: _ }) => Ok(y[0]),
+            Err(BesselError::PartialLossOfSignificance { y, n_zeros: _ }) => Ok(y[0]),
             Err(err) => Err((*err).clone()),
         }
     }
@@ -307,7 +307,7 @@ pub enum BesselError<T: BesselFloat = f64> {
         /// Value(s) of Bessel function (reduced accuracy)
         y: Vec<Complex<T>>,
         /// Number of entries in `y` explicitly set to zero (as per the `complex_bessel_...` docs`)
-        nz: usize,
+        n_zeros: usize,
     } = 3,
     #[error("Loss of too much significance in output")]
     /// Complete loss of significance in output. No value could be calculated
@@ -348,7 +348,10 @@ impl<T: BesselFloat> BesselError<T> {
                 details: "from i32".to_string(),
             }),
             2 => Some(BesselError::Overflow),
-            3 => Some(BesselError::PartialLossOfSignificance { y: vec![], nz: 0 }),
+            3 => Some(BesselError::PartialLossOfSignificance {
+                y: vec![],
+                n_zeros: 0,
+            }),
             4 => Some(BesselError::LossOfSignificance),
             5 => Some(BesselError::DidNotConverge),
             6 => Some(BesselError::ComplexOutputForRealInput {
@@ -365,12 +368,12 @@ impl<T: BesselFloat> BesselError<T> {
                 details: details.clone(),
             },
             BesselError::Overflow => BesselError::Overflow,
-            BesselError::PartialLossOfSignificance { y, nz } => {
+            BesselError::PartialLossOfSignificance { y, n_zeros } => {
                 BesselError::PartialLossOfSignificance {
                     y: y.iter()
                         .map(|c| Complex::new(c.re.to_f32().unwrap(), c.im.to_f32().unwrap()))
                         .collect(),
-                    nz: *nz,
+                    n_zeros: *n_zeros,
                 }
             }
             BesselError::LossOfSignificance => BesselError::LossOfSignificance,
@@ -395,7 +398,7 @@ macro_rules! simple_bessel_wrapper {
             // [<simple_ $base_func>] concatenates into simple_bessel_j
             #[inline]
             fn [<$base_func _single>]<T:BesselFloat>(order: T, z: Complex<T>) -> Result<Complex<T>, BesselError<T>> {
-                let (result_vec, _nz) = [<complex_$base_func>](z, order, Scaling::Unscaled, 1)?;
+                let (result_vec, _n_zeros) = [<complex_$base_func>](z, order, Scaling::Unscaled, 1)?;
                 Ok(result_vec[0])
             }
         }

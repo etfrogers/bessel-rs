@@ -27,7 +27,7 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
     KODE: Scaling,
     N: usize,
 ) -> BesselResult<T, usize> {
-    let mut NZ = 0;
+    let mut n_zeros = 0;
     let AZ = z.abs();
     let mut NN: usize = N;
     let mut DFNU = order + T::from_usize(N - 1);
@@ -39,10 +39,10 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
         let NW;
         (cy, NW) = i_power_series(z, order, KODE, NN)?;
         let INW: usize = NW.unsigned_abs();
-        NZ += INW;
+        n_zeros += INW;
         NN -= INW;
         if NN == 0 || NW >= 0 {
-            return Ok((cy, NZ));
+            return Ok((cy, n_zeros));
         }
 
         DFNU = order + (T::from_usize(NN) - T::one());
@@ -54,9 +54,9 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
         //-----------------------------------------------------------------------
         //     ASYMPTOTIC EXPANSION FOR LARGE Z
         //-----------------------------------------------------------------------
-        let (cy, nw) = i_asymptotic(z, order, KODE, NN)?;
-        debug_assert!(nw == NZ);
-        return Ok((cy, NZ));
+        let (cy, n_zeros_asymptotic) = i_asymptotic(z, order, KODE, NN)?;
+        debug_assert!(n_zeros_asymptotic == n_zeros);
+        return Ok((cy, n_zeros));
     }
     let mut skip_az_rl_check = true;
     if DFNU > T::one() {
@@ -64,11 +64,12 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
         //-----------------------------------------------------------------------
         //     OVERFLOW AND UNDERFLOW TEST ON I SEQUENCE FOR MILLER ALGORITHM
         //-----------------------------------------------------------------------
-        let nw = check_underflow_uniform_asymp_params(z, order, KODE, IKType::I, NN, &mut cy)?;
-        NZ += nw;
-        NN -= nw;
+        let n_zeros_underflow =
+            check_underflow_uniform_asymp_params(z, order, KODE, IKType::I, NN, &mut cy)?;
+        n_zeros += n_zeros_underflow;
+        NN -= n_zeros_underflow;
         if NN == 0 {
-            return Ok((cy, NZ));
+            return Ok((cy, n_zeros));
         }
         DFNU = order + T::from_usize(NN - 1);
     }
@@ -84,9 +85,9 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
             .unwrap();
 
         let (NW, NLAST) = i_asymp_large_order(z, order, KODE, NN, NUI, &mut cy)?;
-        NZ += NW;
+        n_zeros += NW;
         if NLAST == 0 {
-            return Ok((cy, NZ));
+            return Ok((cy, n_zeros));
         }
         NN = NLAST;
     }
@@ -95,7 +96,7 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
         //     MILLER ALGORITHM NORMALIZED BY THE SERIES
         //-----------------------------------------------------------------------
         let (cy, _) = i_miller(z, order, KODE, NN)?;
-        return Ok((cy, NZ)); //}
+        return Ok((cy, n_zeros)); //}
     }
     //-----------------------------------------------------------------------
     //     MILLER ALGORITHM NORMALIZED BY THE WRONSKIAN
@@ -109,8 +110,8 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
         if NW > 0 {
             Err(BesselError::Overflow)
         } else {
-            let nz = i_wronksian(z, order, KODE, NN, &mut cy)?;
-            Ok((cy, nz))
+            let n_zeros = i_wronksian(z, order, KODE, NN, &mut cy)?;
+            Ok((cy, n_zeros))
         }
     } else {
         Ok((vec![T::C_ONE; NN], NN))
@@ -141,7 +142,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
     ];
 
     let abs_z = z.abs();
-    let mut nz = 0;
+    let mut n_zeros = 0;
     let mut underflow_occurred = false;
     let mut overflow_state;
     let rz = calc_rz(z);
@@ -210,7 +211,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
             if scaling == Scaling::Scaled {
                 y *= z.exp();
             }
-            return Ok((vec![y], nz));
+            return Ok((vec![y], n_zeros));
         }
 
         //-----------------------------------------------------------------------;
@@ -473,20 +474,20 @@ pub fn k_right_half_plane<T: BesselFloat>(
             order,
             n,
             &mut y,
-            &mut nz,
+            &mut n_zeros,
             rz,
             T::MACHINE_CONSTANTS.absolute_approximation_limit,
         );
-        let n_non_zero = (n - nz) as isize;
+        let n_non_zero = (n - n_zeros) as isize;
         if n_non_zero <= 0 {
-            return Ok((y, nz));
+            return Ok((y, n_zeros));
         }
-        let mut working_index = nz;
+        let mut working_index = n_zeros;
         s1 = y[working_index];
         y[working_index] *= T::MACHINE_CONSTANTS.abs_error_tolerance;
         if n_non_zero > 1 {
             // if n_non_zero == 1 {
-            //     return Ok((y, nz));
+            //     return Ok((y, n_zeros));
             // }
             working_index += 1;
             s2 = y[working_index];
@@ -500,7 +501,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
     };
     // End Setup
     if n_completed >= n {
-        return Ok((y, nz));
+        return Ok((y, n_zeros));
     }
     let mut P1R = overflow_state.reciprocal_scaling_factor::<T>();
     let mut ASCLE = overflow_state.boundary();
@@ -523,7 +524,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
         s2 *= overflow_state.scaling_factor::<T>();
         P1R = overflow_state.reciprocal_scaling_factor::<T>();
     }
-    Ok((y, nz))
+    Ok((y, n_zeros))
 }
 
 fn k_right_half_plane_helper<T: BesselFloat>(

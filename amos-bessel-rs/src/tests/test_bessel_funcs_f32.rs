@@ -36,7 +36,7 @@ fn assert_results_are_equal_fotran<T: DiagnosticBesselFloat>(
     if actual.is_ok()
         && matches!(
             expected,
-            Err(BesselError::PartialLossOfSignificance { y: _, nz: _ })
+            Err(BesselError::PartialLossOfSignificance { y: _, n_zeros: _ })
         )
     {
         // the single output functions unwrap partial loss of significance, where

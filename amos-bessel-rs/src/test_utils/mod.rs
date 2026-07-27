@@ -42,7 +42,7 @@ pub fn check_against_fortran<T: DiagnosticBesselFloat>(
 ) {
     let actual = rust_func(z, order, scaling, n);
 
-    let (cy, nz, ierr) = fortran_func(order.to_f64().unwrap(), z.to_c64(), scaling as i32, n);
+    let (cy, n_zeros, ierr) = fortran_func(order.to_f64().unwrap(), z.to_c64(), scaling as i32, n);
     let (cy_loop_fort, _, _) = fortran_bess_loop(
         order.to_f64().unwrap(),
         z.to_c64(),
@@ -67,12 +67,15 @@ pub fn check_against_fortran<T: DiagnosticBesselFloat>(
                 vec![]
             }
         };
-        println!("Order: {order:e}\nz: {z:e}\nscaling: {scaling:?}\nn: {n}");
+        println!("Order: {order:e}\n_zeros: {z:e}\nscaling: {scaling:?}\nn: {n}");
         println!("#[case({:e}, {:e}, {:e})]", order, z.re, z.im);
         println!("#[case({:.1}, {:.1}, {:.1})]\n", order, z.re, z.im);
         match &actual {
             Ok(actual) => {
-                println!("Fortran Nz: {nz}, translator Nz: {}\n", actual.1);
+                println!(
+                    "Fortran n_zeros: {n_zeros}, translator n_zeros: {}\n",
+                    actual.1
+                );
                 print_complex_arrays(&cy, &actual.0, &cy_loop_fort, &cy_loop_rust);
             }
             Err(err) => {
@@ -82,10 +85,13 @@ pub fn check_against_fortran<T: DiagnosticBesselFloat>(
                 );
                 if let BesselError::PartialLossOfSignificance {
                     y: ref actual_y,
-                    nz: actual_nz,
+                    n_zeros: actual_n_zeros,
                 } = *err
                 {
-                    println!("Fortran Nz: {nz}, translator Nz: {}\n", actual_nz);
+                    println!(
+                        "Fortran n_zeros: {n_zeros}, translator n_zeros: {}\n",
+                        actual_n_zeros
+                    );
                     print_complex_arrays(&cy, actual_y, &cy_loop_fort, &cy_loop_rust);
                 }
             }
@@ -112,15 +118,15 @@ pub fn check_against_fortran<T: DiagnosticBesselFloat>(
             };
             if let BesselError::PartialLossOfSignificance {
                 y: ref actual_y,
-                nz: actual_nz,
+                n_zeros: actual_n_zeros,
             } = *err
             {
-                if nz != actual_nz {
+                if n_zeros != actual_n_zeros {
                     // for partial loss of significance, it seems occasionally fortran
                     // will return some values very nearly zero, but it's only happening
                     // on a release build, so it may be some optimization issue. It also occurs
                     // sometimes (though flakily on a linux build) To avoid
-                    // this causing test failures, effectively skipping the check on the nz value
+                    // this causing test failures, effectively skipping the check on the n_zeros value
                     // And falling through to the value checks, below, but these will catch large errors.
                     // This is not ideal, but I have not been able to find a better solution.
                     //
@@ -128,7 +134,7 @@ pub fn check_against_fortran<T: DiagnosticBesselFloat>(
                     // already a case where the results are not fully trustworthy, so it seems
                     // reasonable to me to allow this kind of mismatch in this case.
 
-                    // fail("Failed for mismatched nz value");
+                    // fail("Failed for mismatched n_zeros value");
                 }
                 if cy.iter().any(|x| x.is_nan()) {
                     // if the fortran failed to give a sensible answer, we don;t have anything to check
@@ -153,17 +159,17 @@ fn rust_bess_loop<T: BesselFloat>(
     func: BesselSig<T>,
 ) -> BesselResult<T> {
     let mut y = vec![Complex::<T>::zero(); n];
-    let mut nz = 0;
+    let mut n_zeros = 0;
     for i in 0..n {
-        let (yi, nzi) = match func(z, order + T::from_f64(i as f64), scaling, 1) {
-            Ok((y_, nz_)) => (y_, nz_),
-            Err(BesselError::PartialLossOfSignificance { y, nz }) => (y, nz),
+        let (yi, n_zeros_i) = match func(z, order + T::from_f64(i as f64), scaling, 1) {
+            Ok((y_, n_zeros_)) => (y_, n_zeros_),
+            Err(BesselError::PartialLossOfSignificance { y, n_zeros }) => (y, n_zeros),
             Err(err) => return Err(err),
         };
         y[i] = yi[0];
-        nz += nzi;
+        n_zeros += n_zeros_i;
     }
-    Ok((y, nz))
+    Ok((y, n_zeros))
 }
 
 pub fn fortran_bess_loop(
@@ -174,16 +180,16 @@ pub fn fortran_bess_loop(
     func: BesselFortranSig,
 ) -> (Vec<Complex64>, usize, i32) {
     let mut y = vec![Complex64::zero(); n];
-    let mut nz = 0;
+    let mut n_zeros = 0;
     for i in 0..n {
-        let (yi, nzi, ierr) = func(order + i as f64, z, scaling as i32, 1);
+        let (yi, n_zeros_i, ierr) = func(order + i as f64, z, scaling as i32, 1);
         if ierr != 0 {
-            return (y, nz, ierr);
+            return (y, n_zeros, ierr);
         }
         y[i] = yi[0];
-        nz += nzi;
+        n_zeros += n_zeros_i;
     }
-    (y, nz, 0)
+    (y, n_zeros, 0)
 }
 
 #[allow(type_alias_bounds)]
@@ -214,7 +220,7 @@ pub fn sig_airy<T: BesselFloat>(
     scaling: Scaling,
     _n: usize,
 ) -> Result<BesselValues<T>, BesselError<T>> {
-    complex_airy(z, false, scaling).map(|(y, nz)| (vec![y], nz))
+    complex_airy(z, false, scaling).map(|(y, n_zeros)| (vec![y], n_zeros))
 }
 
 pub fn sig_airy_fortran(
@@ -233,7 +239,7 @@ pub fn sig_airyp<T: BesselFloat>(
     scaling: Scaling,
     _n: usize,
 ) -> Result<BesselValues<T>, BesselError<T>> {
-    complex_airy(z, true, scaling).map(|(y, nz)| (vec![y], nz))
+    complex_airy(z, true, scaling).map(|(y, n_zeros)| (vec![y], n_zeros))
 }
 
 pub fn sig_airyp_fortran(

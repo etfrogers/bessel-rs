@@ -25,7 +25,7 @@ pub(crate) fn i_wronksian<T: BesselFloat>(
     //     Y(I)=I(FNU+I,Z)/I(FNU+I-1,Z) FROM CRATI NORMALIZED BY THE
     //     WRONSKIAN WITH K(FNU,Z) AND K(FNU+1,Z) FROM CBKNU.
     //-----------------------------------------------------------------------
-    let nz = 0;
+
     let (cw, _) = k_right_half_plane(zr, order, scaling, 2)?;
     let y_ratios = i_ratios(zr, order, n);
     //-----------------------------------------------------------------------
@@ -65,5 +65,5 @@ pub(crate) fn i_wronksian<T: BesselFloat>(
         cinu *= y_ratios[i - 1];
         y[i] = cinu * CSCLR;
     }
-    Ok(nz)
+    Ok(0)
 }

@@ -75,7 +75,7 @@
 //!   it is unwrapped and returned as `Ok(value)`. by the simpler functions.
 //!
 //! - The general form of the Amos functions return is a `Result<(Vec<Complex<f64>>, usize>, BesselError>`, where the `Vec` contains
-//!   the values of the function at orders `[order, order + 1, ..., order + n]` and `nz` contains the number of the elements
+//!   the values of the function at orders `[order, order + 1, ..., order + n]` and `n_zeros` contains the number of the elements
 //!   in the Vec that have been set to zero due to underflow.
 //!
 //!

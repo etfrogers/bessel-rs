@@ -22,7 +22,7 @@ Unlike a fatal error, the `PartialLossOfSignificance` enum payload actually **co
 pub enum BesselError<T: BesselFloat = f64> {
     PartialLossOfSignificance {
         y: Vec<Complex<T>>, // The lossy computed values
-        nz: usize,          // Elements explicitly zeroed
+        n_zeros: usize,          // Elements explicitly zeroed
     },
     // ...
 }

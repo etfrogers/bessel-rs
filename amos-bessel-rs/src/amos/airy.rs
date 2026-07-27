@@ -90,7 +90,7 @@ pub fn airy_pair<T: BesselFloat>(z: Complex<T>) -> (Complex<T>, Complex<T>) {
     let evaluate_airy_and_unwrap =
         |is_derivative| match complex_airy(z, is_derivative, Scaling::Scaled) {
             Ok((y, _)) => y,
-            Err(PartialLossOfSignificance { y, nz: _ }) => y[0],
+            Err(PartialLossOfSignificance { y, n_zeros: _ }) => y[0],
             // If loss of significance, Fortran code would continue with un-initialised y,
             // which is usually ~=0. As long as it is << d_airy, the logic below means
             // it will not matter what the precise value is

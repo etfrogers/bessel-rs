@@ -48,7 +48,7 @@ use crate::{
 /// A tuple containing:
 /// * `cy`: A vector of complex numbers containing the values of the Hankel
 ///   functions for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `nz`: The number of components in `cy` set to zero due to underflow.
+/// * `n_zeros`: The number of components in `cy` set to zero due to underflow.
 pub fn complex_bessel_h<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -57,7 +57,7 @@ pub fn complex_bessel_h<T: BesselFloat>(
     n: usize,
 ) -> BesselResult<T> {
     sanitise_inputs(z, order, n, true)?;
-    let mut nz = 0;
+    let mut n_zeros = 0;
 
     let modified_order = order + T::from_usize(n - 1);
 
@@ -75,7 +75,7 @@ pub fn complex_bessel_h<T: BesselFloat>(
     if abs_z < T::MACHINE_CONSTANTS.underflow_limit {
         return Err(Overflow);
     }
-    let (mut cy, nz) = if order < T::MACHINE_CONSTANTS.asymptotic_order_limit {
+    let (mut cy, n_zeros) = if order < T::MACHINE_CONSTANTS.asymptotic_order_limit {
         if modified_order > T::one() {
             if modified_order > T::two() {
                 let mut cy = T::c_zeros(n);
@@ -88,7 +88,7 @@ pub fn complex_bessel_h<T: BesselFloat>(
                     &mut cy,
                 )?;
 
-                nz += n_underflow;
+                n_zeros += n_underflow;
 
                 // Here nn=n or nn=0 since n_underflow=(0 or nn) on return from
                 // check_underflow_uniform_asymp_params (for ik_type = k)
@@ -98,9 +98,9 @@ pub fn complex_bessel_h<T: BesselFloat>(
                     return if zn.re < T::zero() {
                         Err(Overflow)
                     } else if partial_loss_of_significance {
-                        Err(PartialLossOfSignificance { y: cy, nz })
+                        Err(PartialLossOfSignificance { y: cy, n_zeros })
                     } else {
-                        Ok((cy, nz))
+                        Ok((cy, n_zeros))
                     };
                 }
             }
@@ -137,9 +137,9 @@ pub fn complex_bessel_h<T: BesselFloat>(
                 zn = -zn;
             }
         }
-        let (cy, nw) = k_asymp_large_order(zn, order, scaling, asymptotic_rotation, n)?;
-        nz += nw;
-        (cy, nz)
+        let (cy, n_zeros_k) = k_asymp_large_order(zn, order, scaling, asymptotic_rotation, n)?;
+        n_zeros += n_zeros_k;
+        (cy, n_zeros)
     };
     //-----------------------------------------------------------------------
     //     H(M,order,z) = -FMM*(I/FRAC_PI_2)*(ZT**order)*K(order,-z*ZT)
@@ -169,9 +169,9 @@ pub fn complex_bessel_h<T: BesselFloat>(
         phase_multiplier *= T::I * -rotation_float;
     }
     if partial_loss_of_significance {
-        Err(PartialLossOfSignificance { y: cy, nz })
+        Err(PartialLossOfSignificance { y: cy, n_zeros })
     } else {
-        Ok((cy, nz))
+        Ok((cy, n_zeros))
     }
 }
 
@@ -239,7 +239,7 @@ pub fn complex_hankel2<T: BesselFloat>(
 /// A tuple containing:
 /// * `cy`: A vector of complex numbers containing the values of the Bessel
 ///   functions for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `nz`: The number of components in `cy` set to zero due to underflow.
+/// * `n_zeros`: The number of components in `cy` set to zero due to underflow.
 pub fn complex_bessel_i<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -273,8 +273,8 @@ pub fn complex_bessel_i<T: BesselFloat>(
         }
         (-z, csgn)
     };
-    let (mut y, nz) = i_right_half_plane(zn, order, scaling, n)?;
-    let remaining_n = n - nz;
+    let (mut y, n_zeros) = i_right_half_plane(zn, order, scaling, n)?;
+    let remaining_n = n - n_zeros;
     if z.re < T::zero() && remaining_n > 0 {
         //-----------------------------------------------------------------------
         //     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE
@@ -294,9 +294,9 @@ pub fn complex_bessel_i<T: BesselFloat>(
     }
 
     if partial_significance_loss {
-        Err(PartialLossOfSignificance { y, nz })
+        Err(PartialLossOfSignificance { y, n_zeros })
     } else {
-        Ok((y, nz))
+        Ok((y, n_zeros))
     }
 }
 
@@ -332,7 +332,7 @@ pub fn complex_bessel_i<T: BesselFloat>(
 /// A tuple containing:
 /// * `cy`: A vector of complex numbers containing the values of the Bessel
 ///   functions for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `nz`: The number of components in `cy` set to zero due to underflow.
+/// * `n_zeros`: The number of components in `cy` set to zero due to underflow.
 pub fn complex_bessel_j<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -362,8 +362,8 @@ pub fn complex_bessel_j<T: BesselFloat>(
         phase_multiplier.im = -phase_multiplier.im;
         sign_selector = -sign_selector;
     }
-    let (mut cy, nz) = i_right_half_plane(zn, order, scaling, n)?;
-    for cyi in cy.iter_mut().take(n - nz) {
+    let (mut cy, n_zeros) = i_right_half_plane(zn, order, scaling, n)?;
+    for cyi in cy.iter_mut().take(n - n_zeros) {
         let mut scaling = T::one();
         // TODO is the below a pattern?
         if (max_abs_component(*cyi)) <= T::MACHINE_CONSTANTS.absolute_approximation_limit {
@@ -374,9 +374,9 @@ pub fn complex_bessel_j<T: BesselFloat>(
         phase_multiplier *= T::I * sign_selector;
     }
     if partial_significance_loss {
-        Err(PartialLossOfSignificance { y: cy, nz })
+        Err(PartialLossOfSignificance { y: cy, n_zeros })
     } else {
-        Ok((cy, nz))
+        Ok((cy, n_zeros))
     }
 }
 
@@ -418,7 +418,7 @@ pub fn complex_bessel_j<T: BesselFloat>(
 /// A tuple containing:
 /// * `cy`: A vector of complex numbers containing the values of the Bessel
 ///   functions for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `nz`: The number of components in `cy` set to zero due to underflow.
+/// * `n_zeros`: The number of components in `cy` set to zero due to underflow.
 pub fn complex_bessel_k<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -440,7 +440,7 @@ pub fn complex_bessel_k<T: BesselFloat>(
         return Err(Overflow);
     }
 
-    let mut nz = 0;
+    let mut n_zeros = 0;
     if order > T::MACHINE_CONSTANTS.asymptotic_order_limit {
         //-----------------------------------------------------------------------
         //     UNIFORM ASYMPTOTIC EXPANSIONS FOR order > asymptotic_order_limit
@@ -453,11 +453,11 @@ pub fn complex_bessel_k<T: BesselFloat>(
             RotationDirection::Right
         };
 
-        let (y, nz) = k_asymp_large_order(z, order, scaling, rotation, n)?;
+        let (y, n_zeros) = k_asymp_large_order(z, order, scaling, rotation, n)?;
         return if partial_significance_loss {
-            Err(PartialLossOfSignificance { y, nz })
+            Err(PartialLossOfSignificance { y, n_zeros })
         } else {
-            Ok((y, nz))
+            Ok((y, n_zeros))
         };
     }
 
@@ -465,7 +465,7 @@ pub fn complex_bessel_k<T: BesselFloat>(
         let mut y = T::c_zeros(n);
         let n_underflow =
             check_underflow_uniform_asymp_params(z, order, scaling, IKType::K, n, &mut y)?;
-        nz += n_underflow;
+        n_zeros += n_underflow;
 
         //-----------------------------------------------------------------------;
         //     HERE NN=n OR NN=0 SINCE NUF=0,NN, OR -1 ON RETURN FROM CUOIK;
@@ -475,9 +475,9 @@ pub fn complex_bessel_k<T: BesselFloat>(
             return if z.re < T::zero() {
                 Err(Overflow)
             } else if partial_significance_loss {
-                Err(PartialLossOfSignificance { y, nz })
+                Err(PartialLossOfSignificance { y, n_zeros })
             } else {
-                Ok((y, nz))
+                Ok((y, n_zeros))
             };
         }
     }
@@ -487,7 +487,7 @@ pub fn complex_bessel_k<T: BesselFloat>(
             return Err(Overflow);
         }
     }
-    let (y, nz) = if z.re >= T::zero() {
+    let (y, n_zeros) = if z.re >= T::zero() {
         //-----------------------------------------------------------------------;
         //     RIGHT HALF PLANE COMPUTATION, REAL(z) >= 0.;
         //-----------------------------------------------------------------------;
@@ -497,7 +497,7 @@ pub fn complex_bessel_k<T: BesselFloat>(
         //     LEFT HALF PLANE COMPUTATION;
         //     PI/2 < z.arg() <= PI AND -PI < z.arg() < -PI/2.;
         //-----------------------------------------------------------------------;
-        if nz != 0 {
+        if n_zeros != 0 {
             return Err(Overflow);
         }
         let rotation = if z.im < T::zero() {
@@ -508,9 +508,9 @@ pub fn complex_bessel_k<T: BesselFloat>(
         analytic_continuation(z, order, scaling, rotation, n)?
     };
     if partial_significance_loss {
-        Err(PartialLossOfSignificance { y, nz })
+        Err(PartialLossOfSignificance { y, n_zeros })
     } else {
-        Ok((y, nz))
+        Ok((y, n_zeros))
     }
 }
 
@@ -549,7 +549,7 @@ pub fn complex_bessel_k<T: BesselFloat>(
 /// A tuple containing:
 /// * `cy`: A vector of complex numbers containing the values of the Bessel
 ///   functions for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `nz`: The number of components in `cy` set to zero due to underflow.
+/// * `n_zeros`: The number of components in `cy` set to zero due to underflow.
 pub fn complex_bessel_y<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -562,18 +562,21 @@ pub fn complex_bessel_y<T: BesselFloat>(
     let mut partial_loss_of_significance = false;
 
     let mut unwrap_psl = |result: BesselResult<T>| match result {
-        Ok((y_, nz_)) => Ok((y_, nz_)),
-        Err(PartialLossOfSignificance { y: y_, nz: nz_ }) => {
+        Ok((y_, n_zeros_)) => Ok((y_, n_zeros_)),
+        Err(PartialLossOfSignificance {
+            y: y_,
+            n_zeros: n_zeros_,
+        }) => {
             partial_loss_of_significance = true;
-            Ok((y_, nz_))
+            Ok((y_, n_zeros_))
         }
         err => err,
     };
 
-    let (bess_i, nz_i) = unwrap_psl(complex_bessel_i(zn, order, scaling, n))?;
-    let (bess_k, nz_k) = unwrap_psl(complex_bessel_k(zn, order, scaling, n))?;
+    let (bess_i, n_zeros_i) = unwrap_psl(complex_bessel_i(zn, order, scaling, n))?;
+    let (bess_k, n_zeros_k) = unwrap_psl(complex_bessel_k(zn, order, scaling, n))?;
 
-    let mut nz = nz_i.min(nz_k);
+    let mut n_zeros = n_zeros_i.min(n_zeros_k);
     let frac_order = order.fract();
     let integer_order = order.to_usize().unwrap();
     let mut i_coeff = Complex::<T>::cis(T::FRAC_PI_2() * frac_order);
@@ -592,7 +595,7 @@ pub fn complex_bessel_y<T: BesselFloat>(
             T::zero()
         };
         k_coeff *= ex * ey;
-        nz = 0;
+        n_zeros = 0;
     }
     let mut y: Vec<Complex<T>> = bess_i
         .iter()
@@ -607,7 +610,7 @@ pub fn complex_bessel_y<T: BesselFloat>(
             let z_i = scaled_multiply(z_i, i_coeff, scaling);
             let val = z_i - z_k;
             if scaling == Scaling::Scaled && val == T::C_ZERO && ey == T::zero() {
-                nz += 1;
+                n_zeros += 1;
             }
             i_coeff *= T::I;
             k_coeff *= -T::I;
@@ -619,9 +622,9 @@ pub fn complex_bessel_y<T: BesselFloat>(
         y.iter_mut().for_each(|v| *v = v.conj());
     }
     if partial_loss_of_significance {
-        Err(PartialLossOfSignificance { y, nz })
+        Err(PartialLossOfSignificance { y, n_zeros })
     } else {
-        Ok((y, nz))
+        Ok((y, n_zeros))
     }
 }
 
@@ -732,7 +735,7 @@ pub fn complex_airy<T: BesselFloat>(
             zeta.re = T::zero();
         }
         let re_zeta = zeta.re;
-        let (cy, nz) = if re_zeta < T::zero() || z.re <= T::zero() {
+        let (cy, n_zeros) = if re_zeta < T::zero() || z.re <= T::zero() {
             //-----------------------------------------------------------------------
             //     OVERFLOW TEST
             //-----------------------------------------------------------------------
@@ -769,12 +772,12 @@ pub fn complex_airy<T: BesselFloat>(
 
         let mut s1 = cy[0] * T::from_f64(COEFF) * scale_factor;
         s1 *= if return_derivative { -z } else { sqrt_z };
-        (s1 / scale_factor, nz)
+        (s1 / scale_factor, n_zeros)
     };
     if partial_loss_of_significance {
         Err(PartialLossOfSignificance {
             y: vec![retval.0],
-            nz: retval.1,
+            n_zeros: retval.1,
         })
     } else {
         Ok(retval)
@@ -902,7 +905,10 @@ pub fn complex_airy_b<T: BesselFloat>(
         s1 * z_factor / scale_factor
     };
     if partial_loss_of_significance {
-        Err(PartialLossOfSignificance { y: vec![bi], nz: 0 })
+        Err(PartialLossOfSignificance {
+            y: vec![bi],
+            n_zeros: 0,
+        })
     } else {
         Ok(bi)
     }

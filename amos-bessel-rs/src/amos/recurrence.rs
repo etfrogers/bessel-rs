@@ -26,7 +26,7 @@ pub(crate) fn i_miller<T: BesselFloat>(
     n: usize,
 ) -> BesselResult<T, usize> {
     let scale: T = T::two() * T::MIN_POSITIVE / T::MACHINE_CONSTANTS.abs_error_tolerance;
-    let nz = 0;
+    let n_zeros = 0;
     let abs_z = z.abs();
     let int_abs_z = abs_z.to_usize().unwrap();
     let int_order = order.to_usize().unwrap();
@@ -176,7 +176,7 @@ pub(crate) fn i_miller<T: BesselFloat>(
     for element in y.iter_mut() {
         *element *= cnorm;
     }
-    Ok((y, nz))
+    Ok((y, n_zeros))
 }
 
 /// i_ratios computes ratios of I bessel functions by backward
@@ -284,7 +284,7 @@ pub(crate) fn i_ratios<T: BesselFloat>(z: Complex<T>, order: T, n: usize) -> Vec
 
 /// Set k functions to zero on underflow, continue recurrence
 /// on scaled functions until two members come on scale, then
-/// return with min(nz+2,n) values scaled by 1/tol.
+/// return with min(n_zeros+2,n) values scaled by 1/tol.
 ///
 /// Originally ZKSCL
 pub(crate) fn scale_k_recurrence<T: BesselFloat>(
@@ -292,11 +292,11 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
     order: T,
     n: usize,
     y: &mut [Complex<T>],
-    nz: &mut usize,
+    n_zeros: &mut usize,
     rz: Complex<T>,
     absolute_approximation_limit: T,
 ) {
-    *nz = 0;
+    *n_zeros = 0;
     // let NN = min(2, n);
     let mut cy = [T::C_ZERO; 2];
     let mut i_completed = 0;
@@ -304,7 +304,7 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
     for i in 0..min(2, n) {
         let s1 = y[i];
         cy[i] = s1;
-        *nz += 1;
+        *n_zeros += 1;
         y[i] = T::C_ZERO;
         if -zr.re + s1.abs().ln() < -T::MACHINE_CONSTANTS.exponent_limit {
             continue;
@@ -320,19 +320,19 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
         }
         y[i] = cs;
         i_completed = i;
-        *nz -= 1;
+        *n_zeros -= 1;
     }
-    if n <= 2 || *nz == 0 {
+    if n <= 2 || *n_zeros == 0 {
         return;
     }
     // if i_completed < 1 {
     //     y[0] = T::C_ZERO;
-    //     *nz = 2;
+    //     *n_zeros = 2;
     // }
     // if n == 2 {
     //     return;
     // }
-    // if *nz == 0 {
+    // if *n_zeros == 0 {
     //     return;
     // }
     let FN = order + T::one();
@@ -354,7 +354,7 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
         s1 = cs;
         ck += rz;
         let ALAS = s2.abs().ln();
-        *nz += 1;
+        *n_zeros += 1;
         *yi = Complex::<T>::zero();
         if -zd.re + s2.abs().ln() >= -T::MACHINE_CONSTANTS.exponent_limit {
             cs = s2.ln() - zd;
@@ -365,7 +365,7 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
                 T::MACHINE_CONSTANTS.abs_error_tolerance,
             ) {
                 *yi = cs;
-                *nz -= 1;
+                *n_zeros -= 1;
                 if i_completed == i - 1 {
                     skip_to_40 = true;
                     break;
@@ -383,14 +383,14 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
         s2 *= CELMR;
     }
     if !skip_to_40 {
-        *nz = n;
+        *n_zeros = n;
         if i_completed == n {
-            *nz = n - 1
+            *n_zeros = n - 1
         };
     } else {
-        *nz = I - 2;
+        *n_zeros = I - 2;
     }
-    for element in y.iter_mut().take(*nz) {
+    for element in y.iter_mut().take(*n_zeros) {
         *element = T::C_ZERO;
     }
 }

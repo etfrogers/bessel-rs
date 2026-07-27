@@ -38,9 +38,9 @@ pub fn analytic_continuation<T: BesselFloat>(
     let (k_values, n_zeros_inner) = k_right_half_plane(negative_z, order, scaling, 2.min(n))?;
     if n_zeros_inner > 0 {
         return Err(BesselError::Overflow);
-        // Amos also handled  NW = -1 or -2  as error cases, but in rust these
+        // Amos also handled  n_zeros_inner = -1 or -2  as error cases, but in rust these
         // are handled by k_right_half_plane returning an error,
-        // The amos code defaults to an overflow, if NW != 0
+        // The amos code defaults to an overflow, if n_zeros_inner != 0
     }
     let rotation_angle = -T::PI() * T::from_f64(rotation.signum());
     let mut i_continuation_coeff = Complex::<T>::new(T::ZERO, rotation_angle);
@@ -188,8 +188,8 @@ pub fn airy_analytic_continuation<T: BesselFloat>(
     //-----------------------------------------------------------------------
     //     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE FOR THE K FUNCTION
     //-----------------------------------------------------------------------s
-    let (k_value, nz) = k_right_half_plane(negative_z, order, scaling, 1)?;
-    if nz != 0 {
+    let (k_value, n_zeros_k) = k_right_half_plane(negative_z, order, scaling, 1)?;
+    if n_zeros_k != 0 {
         return Err(BesselError::Overflow);
     }
     let rotation_angle = -T::PI() * T::from_f64(rotation.signum());
