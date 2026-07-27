@@ -1,4 +1,3 @@
-#![allow(non_snake_case)]
 use std::cmp::min;
 
 use itertools::Either;
@@ -18,6 +17,21 @@ use crate::{
 /// i_miller computes the i bessel function for re(z) >= 0.0 by the
 /// Miller algorithm normalized by a Neumann series.
 /// Originally ZMLRI
+/// The Miller algorithm relies on a brilliant trick: you start at some arbitrarily high index  N , assume
+///
+///    I (z) = 1
+///     N
+///
+///  and
+///
+///    I   (z) = 0
+///     N+1
+///
+/// , and then iterate backwards down to I₀(z). Because the backward recurrence is numerically stable,
+/// you get the correct relative sequence. Then, you sum
+/// the sequence using a known normalization identity (like the Neumann series) to find out what the
+/// true scaling factor should have been, and scale all the
+/// answers up to the truth.
 pub(crate) fn i_miller<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -29,151 +43,153 @@ pub(crate) fn i_miller<T: BesselFloat>(
     let abs_z = z.abs();
     let int_abs_z = abs_z.to_usize().unwrap();
     let int_order = order.to_usize().unwrap();
-    let INU = int_order + n - 1;
-    let AT = T::from_f64(int_abs_z as f64) + T::one();
-    let RAZ = T::one() / abs_z;
-    let mut ck = z.conj() * RAZ * RAZ * AT;
-    let rz = two_over_z_safe(z);
-    let mut p1 = T::C_ZERO;
-    let mut p2 = T::C_ONE;
-    let mut ACK = (AT + T::one()) * RAZ;
-    let RHO = ACK + (ACK * ACK - T::one()).sqrt();
-    let RHO2 = RHO * RHO;
-    let mut TST = (RHO2 + RHO2) / ((RHO2 - T::one()) * (RHO - T::one()));
-    TST /= T::MACHINE_CONSTANTS.abs_error_tolerance;
-    //-----------------------------------------------------------------------
-    //     COMPUTE RELATIVE TRUNCATION ERROR INDEX FOR SERIES
-    //-----------------------------------------------------------------------
-    let mut AK = AT;
+    let modified_int_order = int_order + n - 1;
+    let abs_z_plus_one = T::from_usize(int_abs_z + 1);
+    let reciprocal_abs_z = T::one() / abs_z;
+    let two_over_z = two_over_z_safe(z);
+    let mut fwd_k_minus_1 = T::C_ZERO;
+    let mut fwd_k = T::C_ONE;
+    let mut abs_recurrence_factor = (abs_z_plus_one + T::one()) * reciprocal_abs_z;
+    let rho =
+        abs_recurrence_factor + (abs_recurrence_factor * abs_recurrence_factor - T::one()).sqrt();
+    let rho_sq = rho * rho;
+    let mut convergence_test = (rho_sq + rho_sq) / ((rho_sq - T::one()) * (rho - T::one()));
+    convergence_test /= T::MACHINE_CONSTANTS.abs_error_tolerance;
+    // Phase 1: Forward Sequence Truncation Bound
+    // Run the recurrence forward. The sequence diverges, representing the rapidly growing K_nu(z).
+    // We run it until the sequence exceeds a convergence threshold, which tells us how high
+    // an index we need to start the backward recurrence from to ensure the truncation error
+    // doesn't pollute the final values at our target index.
     let mut converged = false;
-    let mut I = 0;
+    let mut series_trunctation_index = 0;
     for i in 0..80 {
-        I = i + 1;
-        let pt = p2;
-        p2 = p1 - ck * p2;
-        p1 = pt;
-        ck += rz;
-        if p2.abs() > TST * AK * AK {
+        series_trunctation_index = i + 2;
+        let current_index_magnitude = abs_z_plus_one + T::from_usize(i);
+        let recurrence_factor = two_over_z * ((abs_z_plus_one + T::from_usize(i * 2)) / T::two());
+        (fwd_k_minus_1, fwd_k) = (fwd_k, fwd_k_minus_1 - recurrence_factor * fwd_k);
+        if fwd_k.abs() > convergence_test * current_index_magnitude * current_index_magnitude {
             converged = true;
             break;
         }
-        AK += T::one();
     }
     if !converged {
         return Err(DidNotConverge);
     }
-    I += 1;
-    let mut K = 0;
-    if INU >= int_abs_z {
-        //-----------------------------------------------------------------------
-        //     COMPUTE RELATIVE TRUNCATION ERROR FOR RATIOS
-        //-----------------------------------------------------------------------
-        p1 = T::C_ZERO;
-        p2 = T::C_ONE;
-        let AT = T::from_f64(INU as f64) + T::one();
-        ck = z.conj() * RAZ * RAZ * AT;
-        ACK = AT * RAZ;
-        TST = (ACK / T::MACHINE_CONSTANTS.abs_error_tolerance).sqrt();
+    let mut ratio_truncation_index = 0;
+    if modified_int_order >= int_abs_z {
+        // Phase 2: Forward Ratio Truncation Bound
+        // If the order is very large compared to |z|, we run a secondary forward
+        // recurrence to calculate an even higher truncation index specifically
+        // for the Neumann normalisation sum (which requires more terms to converge).
+        fwd_k_minus_1 = T::C_ZERO;
+        fwd_k = T::C_ONE;
+        let starting_order = T::from_f64(modified_int_order as f64) + T::one();
+        convergence_test =
+            (starting_order * reciprocal_abs_z / T::MACHINE_CONSTANTS.abs_error_tolerance).sqrt();
         let mut hit_loop_end = false;
         converged = false;
         for k in 0..80 {
-            K = k;
-            let pt = p2;
-            p2 = p1 - ck * pt;
-            p1 = pt;
-            ck += rz;
-            let AP = p2.abs();
-            if AP < TST {
+            ratio_truncation_index = k + 1;
+            let recurrence_factor =
+                two_over_z * ((starting_order + T::from_usize(k * 2)) / T::two());
+            (fwd_k_minus_1, fwd_k) = (fwd_k, fwd_k_minus_1 - recurrence_factor * fwd_k);
+            let abs_fwd_k = fwd_k.abs();
+            if abs_fwd_k < convergence_test {
                 continue;
             }
             if hit_loop_end {
                 converged = true;
                 break;
             }
-            ACK = ck.abs();
-            let FLAM = ACK + (ACK * ACK - T::one()).sqrt();
-            let FKAP = AP / p1.abs();
-            let RHO = FLAM.min(FKAP);
-            TST *= (RHO / (RHO * RHO - T::one())).sqrt();
+            abs_recurrence_factor = recurrence_factor.abs();
+            let lambda = abs_recurrence_factor
+                + (abs_recurrence_factor * abs_recurrence_factor - T::one()).sqrt();
+            let kappa = abs_fwd_k / fwd_k_minus_1.abs();
+            let rho = lambda.min(kappa);
+            convergence_test *= (rho / (rho * rho - T::one())).sqrt();
             hit_loop_end = true;
         }
         if !converged {
             return Err(DidNotConverge);
         }
     }
-    //-----------------------------------------------------------------------
-    //     BACKWARD RECURRENCE AND SUM NORMALIZING RELATION
-    //-----------------------------------------------------------------------
-    K += 1;
-    let KK = (I + int_abs_z).max(K + INU);
-    let mut kk_float = T::from_f64(KK as f64);
-    let mut p1 = T::C_ZERO;
-    //-----------------------------------------------------------------------
-    //     SCALE P2 AND SUM BY SCLE
-    //-----------------------------------------------------------------------
-    let mut p2 = Complex::<T>::new(scale, T::ZERO);
+    // Phase 3: Backward Recurrence and Neumann Normalisation
+    // Run the backward recurrence from the truncation bound down to zero.
+    // Simultaneously, accumulate the Neumann series normalisation sum, which mathematically equals e^z.
+    // Dividing our unscaled sequence by this sum exactly normalises the whole array.
+    let start_index =
+        (series_trunctation_index + int_abs_z).max(ratio_truncation_index + modified_int_order);
+    let mut kk_float = T::from_f64(start_index as f64);
+    let mut val_k_plus_one = T::C_ZERO;
+    // Initialize the recurrence starting values and scale them to avoid underflow
+    let mut val_k = Complex::<T>::new(scale, T::ZERO);
     let fractional_order = order.fract();
     let twice_fractional_order = fractional_order + fractional_order;
-    let mut BK = (gamma_ln(kk_float + twice_fractional_order + T::one()).unwrap()
+    let mut binomial_coeff = (gamma_ln(kk_float + twice_fractional_order + T::one()).unwrap()
         - gamma_ln(kk_float + T::one()).unwrap()
         - gamma_ln(twice_fractional_order + T::one()).unwrap())
     .exp();
-    let mut sumr = T::C_ZERO;
-    for _ in 0..(KK - INU) {
-        let pt = p2;
-        p2 = p1 + (kk_float + fractional_order) * (rz * p2);
-        p1 = pt;
-        AK = T::one() - twice_fractional_order / (kk_float + twice_fractional_order);
-        ACK = BK * AK;
-        sumr += (ACK + BK) * p1;
-        BK = ACK;
+    let mut normalisation_sum = T::C_ZERO;
+    // Neumann normalisation loop
+    for _ in 0..(start_index - modified_int_order) {
+        let pt = val_k;
+        val_k = val_k_plus_one + (kk_float + fractional_order) * (two_over_z * val_k);
+        val_k_plus_one = pt;
+        let binomial_ratio =
+            T::one() - twice_fractional_order / (kk_float + twice_fractional_order);
+        let next_binomial_coeff = binomial_coeff * binomial_ratio;
+        normalisation_sum += (next_binomial_coeff + binomial_coeff) * val_k_plus_one;
+        binomial_coeff = next_binomial_coeff;
         kk_float -= T::one();
     }
     let mut y = T::c_zeros(n);
-    y[n - 1] = p2;
+    y[n - 1] = val_k;
     if n != 1 {
         for i in 1..n {
-            let pt = p2;
-            p2 = p1 + (kk_float + fractional_order) * (rz * pt);
-            p1 = pt;
-            AK = T::one() - twice_fractional_order / (kk_float + twice_fractional_order);
-            ACK = BK * AK;
-            sumr += (ACK + BK) * p1;
-            BK = ACK;
+            let pt = val_k;
+            val_k = val_k_plus_one + (kk_float + fractional_order) * (two_over_z * pt);
+            val_k_plus_one = pt;
+            let binomial_ratio =
+                T::one() - twice_fractional_order / (kk_float + twice_fractional_order);
+            let next_binomial_coeff = binomial_coeff * binomial_ratio;
+            normalisation_sum += (next_binomial_coeff + binomial_coeff) * val_k_plus_one;
+            binomial_coeff = next_binomial_coeff;
             kk_float -= T::one();
-            y[n - (i + 1)] = p2;
+            y[n - (i + 1)] = val_k;
         }
     }
     if int_order > 0 {
         for _i in 0..int_order {
-            let pt = p2;
-            p2 = p1 + (kk_float + fractional_order) * (rz * pt);
-            p1 = pt;
-            AK = T::one() - twice_fractional_order / (kk_float + twice_fractional_order);
-            ACK = BK * AK;
-            sumr += (ACK + BK) * p1;
-            BK = ACK;
+            (val_k_plus_one, val_k) = (
+                val_k,
+                val_k_plus_one + (kk_float + fractional_order) * (two_over_z * val_k),
+            );
+            let binomial_ratio =
+                T::one() - twice_fractional_order / (kk_float + twice_fractional_order);
+            let next_binomial_coeff = binomial_coeff * binomial_ratio;
+            normalisation_sum += (next_binomial_coeff + binomial_coeff) * val_k_plus_one;
+            binomial_coeff = next_binomial_coeff;
             kk_float -= T::one();
         }
     }
 
-    let mut pt = z;
+    let mut scaled_z = z;
     if scaling == Scaling::Scaled {
-        pt.re = T::ZERO;
+        scaled_z.re = T::ZERO;
     }
-    p1 = -fractional_order * rz.ln() + pt;
-    let AP = gamma_ln(T::one() + fractional_order).unwrap();
-    p1 -= AP;
-    //-----------------------------------------------------------------------
-    //     THE DIVISION CEXP(PT)/(SUM+P2) IS ALTERED TO AVOID OVERFLOW
-    //     IN THE DENOMINATOR BY SQUARING LARGE QUANTITIES
-    //-----------------------------------------------------------------------
-    p2 += sumr;
-    let AP = p2.abs();
-    ck = p1.exp() / AP;
-    let cnorm = ck * p2.conj() / AP;
+    let mut ln_leading_term = -fractional_order * two_over_z.ln() + scaled_z;
+    let gamma_term = gamma_ln(T::one() + fractional_order).unwrap();
+    ln_leading_term -= gamma_term;
+    // Calculate the final normalisation constant.
+    // The complex division exp(ln_leading_term) / (normalisation_sum + val_k) is performed
+    // by dividing by the magnitude twice, to avoid intermediate overflow from squaring
+    // large quantities when computing the complex denominator.
+    val_k += normalisation_sum;
+    let sum_magnitude = val_k.abs();
+    let normalization_constant =
+        (ln_leading_term.exp() / sum_magnitude) * val_k.conj() / sum_magnitude;
     for element in y.iter_mut() {
-        *element *= cnorm;
+        *element *= normalization_constant;
     }
     Ok((y, n_zeros))
 }
