@@ -1,7 +1,4 @@
-use num::{
-    Complex, Float,
-    complex::{Complex64, ComplexFloat},
-};
+use num::{Complex, Float, complex::ComplexFloat};
 use std::{f64::consts::PI, ops::Neg};
 
 pub use entry_points::*;
@@ -33,12 +30,15 @@ pub(crate) enum IKType {
     K = 2,
 }
 
-const CIP: [Complex64; 4] = [
-    Complex64::new(1.0, 0.0),
-    Complex64::new(0.0, 1.0),
-    Complex64::new(-1.0, 0.0),
-    Complex64::new(0.0, -1.0),
-];
+pub(crate) fn i_pow<T: BesselFloat>(n: usize) -> Complex<T> {
+    match n % 4 {
+        0 => Complex::new(T::one(), T::zero()),
+        1 => Complex::new(T::zero(), T::one()),
+        2 => Complex::new(-T::one(), T::zero()),
+        3 => Complex::new(T::zero(), -T::one()),
+        _ => unreachable!(),
+    }
+}
 
 /// Used to specify the kind of Hankel function in the [hankel](crate::hankel) and
 /// [complex_bessel_h] functions.
@@ -99,6 +99,13 @@ pub(crate) enum RotationDirection {
 }
 
 impl RotationDirection {
+    /// Returns the signum of the rotation direction as an `f64`.
+    ///
+    /// **WARNING:** In Rust, `0.0_f64.signum()` evaluates to `1.0`. So calling this on
+    /// `RotationDirection::None` will return `1.0`. Do not "optimize" this to return `0.0`
+    /// for `None`! This behavior perfectly mimics the legacy Fortran `SIGN(1.0, 0.0)` which
+    /// also evaluates to `1.0` by transferring the positive sign of zero. The codebase
+    /// relies on this Fortran quirk.
     pub fn signum(&self) -> f64 {
         (*self as i32 as f64).signum()
     }

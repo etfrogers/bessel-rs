@@ -6,7 +6,7 @@ use super::consts::{ALPHA, AR, BETA, BR, C_ZUNHJ, C_ZUNIK, CON, GAMMA};
 use crate::{
     BesselError, Scaling,
     amos::{
-        CIP, IKType, PositiveArg, RotationDirection,
+        i_pow, IKType, PositiveArg, RotationDirection,
         airy::airy_pair,
         limits::{OverflowState, check_underflow_uniform_asymp_params, underflow_add_i_k},
         max_abs_component,
@@ -638,8 +638,7 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
     let integer_order = order.to_usize().unwrap();
 
     let build_c2 = |effective_n: usize| {
-        let index = (integer_order + effective_n - 1) % 4;
-        let mut c2 = Complex::<T>::cis(T::FRAC_PI_2() * order.fract()) * T::from_cpx64(CIP[index]);
+        let mut c2 = Complex::<T>::cis(T::FRAC_PI_2() * order.fract()) * i_pow(integer_order + effective_n - 1);
         if z.im <= T::zero() {
             c2 = c2.conj();
         }
@@ -1062,7 +1061,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
     let order_fract = order.fract();
     let angle = -T::FRAC_PI_2() * order_fract;
     let c2 = -T::I * Complex::<T>::from_polar(T::FRAC_PI_2(), angle);
-    let mut cs = cr1 * c2 * T::from_cpx64(CIP[integer_order % 4].conj());
+    let mut cs = cr1 * c2 * i_pow(integer_order).conj();
     if zr.im <= T::ZERO {
         zn.re = -zn.re;
         zb.im = -zb.im;
@@ -1226,7 +1225,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
     let cos_sin = Complex::<T>::cis(angle);
     // let mut cs = Complex::<T>::I * Complex::<T>::from_polar(CSGNI, ANG);
     let mut cs = csgn * Complex::<T>::new(cos_sin.im, cos_sin.re);
-    cs *= T::from_cpx64(CIP[modified_integer_order % 4]);
+    cs *= i_pow(modified_integer_order);
     let mut iuf = 0;
 
     found_one_good_entry = false;
