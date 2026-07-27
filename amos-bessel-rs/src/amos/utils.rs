@@ -8,7 +8,7 @@ pub const AIC: f64 = 1.265_512_123_484_645_4; // == gamma_ln(-0.5).re
 
 /// This slightly odd form of calculation avoids overflow/underflow
 /// when z is large/small respectively.
-pub(crate) fn calc_rz<T: BesselFloat>(z: Complex<T>) -> Complex<T> {
+pub(crate) fn two_over_z_safe<T: BesselFloat>(z: Complex<T>) -> Complex<T> {
     //2.0 * z.conj() / abs_z.powi(2)
     let r_abs_z = T::one() / z.abs();
     let intermediate = z.conj() * r_abs_z;

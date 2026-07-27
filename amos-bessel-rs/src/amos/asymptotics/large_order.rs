@@ -8,7 +8,7 @@ use crate::{
         asymptotics::{i_uniform_asymp1, i_uniform_asymp2, k_uniform_asymp1, k_uniform_asymp2},
         limits::OverflowState,
         max_abs_component,
-        utils::{calc_rz, imaginary_dominant},
+        utils::{imaginary_dominant, two_over_z_safe},
     },
     types::{BesselFloat, BesselResult},
 };
@@ -83,7 +83,7 @@ pub(crate) fn i_asymp_large_order<T: BesselFloat>(
         let mut s1 = cy[1] * CSCLR;
         let mut s2 = cy[0] * CSCLR;
         // working out rz in multiple steps seems to give different floating point answer.
-        let rz = calc_rz(z);
+        let rz = two_over_z_safe(z);
 
         for _ in 0..NUI {
             let st = s2;

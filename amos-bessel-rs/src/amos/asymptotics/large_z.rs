@@ -5,7 +5,7 @@ use num::{
 
 use crate::{
     BesselError, BesselFloat, Scaling,
-    amos::utils::{RTPI, calc_rz},
+    amos::utils::{RTPI, two_over_z_safe},
     types::BesselResult,
 };
 
@@ -115,7 +115,7 @@ pub fn i_asymptotic<T: BesselFloat>(
         *elem = s1 * coeff;
     }
     if n > 2 {
-        let rz = calc_rz(z);
+        let rz = two_over_z_safe(z);
         // recur downward from the last two elements
         for k in (0..n - 2).rev() {
             y[k] = (rz * y[k + 1]) * (T::from_usize(k + 1) + order) + y[k + 2];

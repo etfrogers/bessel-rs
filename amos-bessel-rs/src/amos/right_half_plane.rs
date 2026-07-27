@@ -12,7 +12,7 @@ use crate::{
         limits::{OverflowState, check_underflow_uniform_asymp_params},
         max_abs_component,
         recurrence::{i_miller, scale_k_recurrence},
-        utils::{calc_rz, will_underflow},
+        utils::{two_over_z_safe, will_underflow},
         wronksian::i_wronksian,
     },
     types::{BesselFloat, BesselResult, BesselValues},
@@ -144,7 +144,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
     let mut n_zeros = 0;
     let mut underflow_occurred = false;
     let mut overflow_state;
-    let rz = calc_rz(z);
+    let rz = two_over_z_safe(z);
     let mut integer_order = (order.round()).to_isize().unwrap(); // round to nearest int
     let simple_case = integer_order == 0 && n == 1;
 

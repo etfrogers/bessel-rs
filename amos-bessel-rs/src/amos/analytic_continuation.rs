@@ -10,7 +10,7 @@ use crate::{
         max_abs_component,
         recurrence::i_miller,
         right_half_plane::{i_right_half_plane, k_right_half_plane},
-        utils::calc_rz,
+        utils::two_over_z_safe,
     },
     types::{BesselResult, BesselValues},
 };
@@ -90,7 +90,7 @@ pub fn analytic_continuation<T: BesselFloat>(
     }
 
     k_continuation_coeff = -k_continuation_coeff;
-    let reciprocal_z = calc_rz(negative_z);
+    let reciprocal_z = two_over_z_safe(negative_z);
     let mut recurrence_factor = (order + T::one()) * reciprocal_z;
     //-----------------------------------------------------------------------
     //     SCALE NEAR EXPONENT EXTREMES DURING RECURRENCE ON K FUNCTIONS

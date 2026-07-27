@@ -6,12 +6,13 @@ use super::consts::{ALPHA, AR, BETA, BR, C_ZUNHJ, C_ZUNIK, CON, GAMMA};
 use crate::{
     BesselError, Scaling,
     amos::{
-        i_pow, IKType, PositiveArg, RotationDirection,
+        IKType, PositiveArg, RotationDirection,
         airy::airy_pair,
+        i_pow,
         limits::{OverflowState, check_underflow_uniform_asymp_params, underflow_add_i_k},
         max_abs_component,
         recurrence::backward_recurrence,
-        utils::{AIC, calc_rz, will_underflow},
+        utils::{AIC, two_over_z_safe, will_underflow},
     },
     types::{BesselFloat, BesselResult, UniformAssymptoticParameters, cache_key},
 };
@@ -638,7 +639,8 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
     let integer_order = order.to_usize().unwrap();
 
     let build_c2 = |effective_n: usize| {
-        let mut c2 = Complex::<T>::cis(T::FRAC_PI_2() * order.fract()) * i_pow(integer_order + effective_n - 1);
+        let mut c2 = Complex::<T>::cis(T::FRAC_PI_2() * order.fract())
+            * i_pow(integer_order + effective_n - 1);
         if z.im <= T::zero() {
             c2 = c2.conj();
         }
@@ -862,7 +864,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         };
     }
 
-    let rz = calc_rz(modified_z);
+    let rz = two_over_z_safe(modified_z);
     if n_elements_set < n {
         //-----------------------------------------------------------------------
         //     TEST LAST MEMBER FOR UNDERFLOW AND OVERFLOW. SET SEQUENCE TO ZERO
@@ -1158,7 +1160,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
         };
     }
 
-    let rz = calc_rz(zr);
+    let rz = two_over_z_safe(zr);
     let mut phid = T::C_ZERO;
     let mut argd = T::C_ZERO;
     let mut zeta1d = T::C_ZERO;

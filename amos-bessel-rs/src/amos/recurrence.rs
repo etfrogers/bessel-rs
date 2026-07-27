@@ -11,7 +11,7 @@ use crate::{
         gamma_ln,
         limits::OverflowState,
         max_abs_component,
-        utils::{calc_rz, will_underflow},
+        utils::{two_over_z_safe, will_underflow},
     },
     types::{BesselFloat, BesselResult},
 };
@@ -34,7 +34,7 @@ pub(crate) fn i_miller<T: BesselFloat>(
     let AT = T::from_f64(int_abs_z as f64) + T::one();
     let RAZ = T::one() / abs_z;
     let mut ck = z.conj() * RAZ * RAZ * AT;
-    let rz = calc_rz(z);
+    let rz = two_over_z_safe(z);
     let mut p1 = T::C_ZERO;
     let mut p2 = T::C_ONE;
     let mut ACK = (AT + T::one()) * RAZ;
@@ -196,7 +196,7 @@ pub(crate) fn i_ratios<T: BesselFloat>(z: Complex<T>, order: T, n: usize) -> Vec
     let ID_ = modified_int_order as isize - int_abs_z - 1;
     let ID = if ID_ > 0 { 0 } else { ID_ };
 
-    let rz = calc_rz(z);
+    let rz = two_over_z_safe(z);
     let mut K = 1;
     let mut abs_p2;
     {
@@ -406,7 +406,7 @@ pub(crate) fn backward_recurrence<T: BesselFloat>(
     mut s2: Complex<T>,
     mut overflow_state: OverflowState,
 ) {
-    let rz = calc_rz(z);
+    let rz = two_over_z_safe(z);
 
     let base_iterator = y.iter_mut().enumerate();
     let iterator = if forward {

@@ -4,7 +4,7 @@ use crate::{
     BesselFloat, Scaling,
     amos::{
         gamma_ln,
-        utils::{calc_rz, will_underflow},
+        utils::{two_over_z_safe, will_underflow},
     },
     types::BesselResult,
 };
@@ -54,7 +54,7 @@ pub fn i_power_series<T: BesselFloat>(
     } else {
         T::C_ZERO
     };
-    let rz = calc_rz(z);
+    let rz = two_over_z_safe(z);
 
     let abs_cz = cz.abs();
     let ln_half_z = half_z.ln();
