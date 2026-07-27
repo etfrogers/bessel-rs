@@ -10,7 +10,6 @@ use crate::{
         asymptotics::i_asymptotic,
         gamma_ln, i_power_series,
         limits::{OverflowState, check_underflow_uniform_asymp_params},
-        max_abs_component,
         recurrence::{i_miller, scale_k_recurrence},
         utils::{two_over_z_safe, will_underflow},
         wronksian::i_wronksian,
@@ -428,20 +427,8 @@ pub fn k_right_half_plane<T: BesselFloat>(
                 // TODO and same recurrence logic used in ZUNKX, ZUNIX?
                 (s1, s2) = (s2, ck * s2 + s1);
                 ck += rz;
-                if overflow_state == OverflowState::NearOver {
-                    continue;
-                }
                 let p2 = s2 * P1R;
-                if max_abs_component(p2) <= ASCLE {
-                    continue;
-                }
-                overflow_state.increment();
-                ASCLE = overflow_state.boundary();
-                s1 *= P1R;
-                s2 = p2;
-                s1 *= overflow_state.scaling_factor::<T>();
-                s2 *= overflow_state.scaling_factor::<T>();
-                P1R = overflow_state.reciprocal_scaling_factor::<T>();
+                overflow_state.scale_recurrence(&mut s1, &mut s2, p2, &mut ASCLE, &mut P1R);
             }
         }
         if n == 1 {
@@ -509,19 +496,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
         (s1, s2) = (s2, ck * s2 + s1);
         ck += rz;
         *y_elem = s2 * P1R;
-        if overflow_state == OverflowState::NearOver {
-            continue;
-        };
-        if max_abs_component(*y_elem) <= ASCLE {
-            continue;
-        }
-        overflow_state.increment();
-        ASCLE = overflow_state.boundary();
-        s1 *= P1R;
-        s2 = *y_elem;
-        s1 *= overflow_state.scaling_factor::<T>();
-        s2 *= overflow_state.scaling_factor::<T>();
-        P1R = overflow_state.reciprocal_scaling_factor::<T>();
+        overflow_state.scale_recurrence(&mut s1, &mut s2, *y_elem, &mut ASCLE, &mut P1R);
     }
     Ok((y, n_zeros))
 }

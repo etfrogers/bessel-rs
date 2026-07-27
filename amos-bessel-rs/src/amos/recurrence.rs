@@ -10,7 +10,6 @@ use crate::{
     amos::{
         gamma_ln,
         limits::OverflowState,
-        max_abs_component,
         utils::{two_over_z_safe, will_underflow},
     },
     types::{BesselFloat, BesselResult},
@@ -416,21 +415,27 @@ pub(crate) fn backward_recurrence<T: BesselFloat>(
     };
     let index_adjustment = if forward { -T::one() } else { T::one() };
 
+    let initial_i = if forward {
+        n_offset
+    } else {
+        n_offset.saturating_sub(1)
+    };
+    let mut ck = (order + T::from_usize(initial_i) + index_adjustment) * rz;
+    let ck_step = if forward { rz } else { -rz };
+
     let mut recip_scale_factor = overflow_state.reciprocal_scaling_factor::<T>();
     let mut boundary = overflow_state.boundary::<T>();
 
-    for (i, yi) in iterator {
-        let modified_order = order + T::from_usize(i) + index_adjustment;
-        (s1, s2) = (s2, s1 + modified_order * rz * s2);
+    for (_, yi) in iterator {
+        (s1, s2) = (s2, s1 + ck * s2);
+        ck += ck_step;
         *yi = s2 * recip_scale_factor;
-        if overflow_state != OverflowState::NearOver && max_abs_component(*yi) > boundary {
-            overflow_state.increment();
-            boundary = overflow_state.boundary::<T>();
-            s1 *= recip_scale_factor;
-            s2 = *yi;
-            s1 *= overflow_state.scaling_factor::<T>();
-            s2 *= overflow_state.scaling_factor::<T>();
-            recip_scale_factor = overflow_state.reciprocal_scaling_factor::<T>();
-        }
+        overflow_state.scale_recurrence(
+            &mut s1,
+            &mut s2,
+            *yi,
+            &mut boundary,
+            &mut recip_scale_factor,
+        );
     }
 }

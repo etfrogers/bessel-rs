@@ -1331,10 +1331,10 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
 
         let mut recip_scale_factor = i_overflow_state.reciprocal_scaling_factor::<T>();
         let mut ascle = i_overflow_state.boundary::<T>();
-        // TODO recurr with assignment fn
-        for (i, yi) in y.iter_mut().enumerate().take(remaining_n).rev() {
-            let modified_order = order + T::from_usize(i + 1);
-            (s1, s2) = (s2, s1 + modified_order * (rz * s2));
+        let mut ck = (order + T::from_usize(remaining_n)) * rz;
+        for yi in y.iter_mut().take(remaining_n).rev() {
+            (s1, s2) = (s2, s1 + ck * s2);
+            ck -= rz;
             let mut c2 = s2 * recip_scale_factor;
             let old_c2 = c2;
             let mut c1 = *yi;
@@ -1343,15 +1343,13 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
             }
             *yi = c1 * cspn + c2;
             cspn = -cspn;
-            if i_overflow_state != OverflowState::NearOver && max_abs_component(c2) > ascle {
-                i_overflow_state.increment();
-                ascle = i_overflow_state.boundary::<T>();
-                s1 *= recip_scale_factor;
-                s2 = old_c2;
-                s1 *= i_overflow_state.scaling_factor::<T>();
-                s2 *= i_overflow_state.scaling_factor::<T>();
-                recip_scale_factor = i_overflow_state.reciprocal_scaling_factor::<T>();
-            }
+            i_overflow_state.scale_recurrence(
+                &mut s1,
+                &mut s2,
+                old_c2,
+                &mut ascle,
+                &mut recip_scale_factor,
+            );
         }
     }
     Ok((y, n_zeros))

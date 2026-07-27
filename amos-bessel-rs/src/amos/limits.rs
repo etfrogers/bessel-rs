@@ -95,6 +95,33 @@ impl OverflowState {
             _ => panic!("Cannot get boundary for fatal overflow/underflow"),
         }
     }
+
+    /// Adjusts the scaling factors during a recurrence step if the magnitude of the
+    /// newly computed term exceeds the boundary for the current overflow state.
+    ///
+    /// The values `s1` and `s2` are the recurrence state variables.
+    /// `unscaled_s2` is the newly computed term before scaling.
+    pub fn scale_recurrence<T: BesselFloat>(
+        &mut self,
+        s1: &mut Complex<T>,
+        s2: &mut Complex<T>,
+        unscaled_s2: Complex<T>,
+        boundary: &mut T,
+        recip_scaling_factor: &mut T,
+    ) {
+        if *self != OverflowState::NearOver
+            && crate::amos::max_abs_component(unscaled_s2) > *boundary
+        {
+            self.increment();
+            *boundary = self.boundary::<T>();
+            *s1 *= *recip_scaling_factor;
+            *s2 = unscaled_s2;
+            let sf = self.scaling_factor::<T>();
+            *s1 *= sf;
+            *s2 *= sf;
+            *recip_scaling_factor = self.reciprocal_scaling_factor::<T>();
+        }
+    }
 }
 
 /// check_underflow_uniform_asymp_params computes the leading terms of the uniform asymptotic

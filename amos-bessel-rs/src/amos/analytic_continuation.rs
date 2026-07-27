@@ -7,7 +7,6 @@ use crate::{
         asymptotics::i_asymptotic,
         i_power_series,
         limits::{OverflowState, underflow_add_i_k},
-        max_abs_component,
         recurrence::i_miller,
         right_half_plane::{i_right_half_plane, k_right_half_plane},
         utils::two_over_z_safe,
@@ -129,15 +128,13 @@ pub fn analytic_continuation<T: BesselFloat>(
         *yi = k_continuation_coeff * k_component + i_continuation_coeff * i_component;
         recurrence_factor += reciprocal_z;
         k_continuation_coeff = -k_continuation_coeff;
-        if overflow_state != OverflowState::NearOver && max_abs_component(k_component) < boundary {
-            overflow_state.increment();
-            boundary = overflow_state.boundary::<T>();
-            k_prev *= recip_scaling_factor;
-            k_curr = unscaled_k_curr;
-            k_prev *= overflow_state.scaling_factor::<T>();
-            k_curr *= overflow_state.scaling_factor::<T>();
-            recip_scaling_factor = overflow_state.reciprocal_scaling_factor::<T>();
-        }
+        overflow_state.scale_recurrence(
+            &mut k_prev,
+            &mut k_curr,
+            unscaled_k_curr,
+            &mut boundary,
+            &mut recip_scaling_factor,
+        );
     }
     Ok((y, n_zeros))
 }
