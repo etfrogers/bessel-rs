@@ -522,8 +522,8 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
     // phi is chosen here for refined tests to equal the original tests
     // which don't test refinement
     match Overflow::check(s1.re, T::C_ONE, T::ZERO) {
-        Overflow::Over(_) => return Err(BesselError::Overflow),
-        Overflow::Under(_) => return Ok((n, 0)),
+        Overflow::Over { .. } => return Err(BesselError::Overflow),
+        Overflow::Under { .. } => return Ok((n, 0)),
         _ => (),
     }
     let mut overflow_state = Overflow::None; // this value should never be used
@@ -570,8 +570,8 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
                 overflow_state = of;
             }
             match of {
-                Overflow::Over(_) => return Err(BesselError::Overflow),
-                Overflow::Under(_) => {
+                Overflow::Over { .. } => return Err(BesselError::Overflow),
+                Overflow::Under { .. } => {
                     if handle_underflow(&mut n_remaining, y)? {
                         return Ok((nz, n_remaining));
                     }
@@ -664,8 +664,8 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
     // phi is chosen here for refined tests to equal the original tests
     // which don't test refinement
     match Overflow::check(s1.re, T::C_ONE, T::zero()) {
-        Overflow::Over(_) => return Err(BesselError::Overflow),
-        Overflow::Under(_) => return Ok((n, 0)),
+        Overflow::Over { .. } => return Err(BesselError::Overflow),
+        Overflow::Under { .. } => return Ok((n, 0)),
         _ => (),
     }
 
@@ -726,8 +726,8 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
                 overflow_state = of;
             }
             match of {
-                Overflow::Over(_) => return Err(BesselError::Overflow),
-                Overflow::Under(_) => {
+                Overflow::Over { .. } => return Err(BesselError::Overflow),
+                Overflow::Under { .. } => {
                     if handle_underflow(&mut n_remaining, &mut c2, y)? {
                         return Ok((nz, n_remaining));
                     }
@@ -819,8 +819,8 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
             k_overflow_state = of;
         }
         match of {
-            Overflow::Over(_) => return Err(BesselError::Overflow),
-            Overflow::Under(_) => {
+            Overflow::Over { .. } => return Err(BesselError::Overflow),
+            Overflow::Under { .. } => {
                 if z.re < T::ZERO {
                     return Err(BesselError::Overflow);
                 }
@@ -879,8 +879,8 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         let overflow_test = -scaling.scale_zetas(modified_z, modified_order, zet1d, zet2d);
 
         match Overflow::check(overflow_test.re.abs(), phi, T::ZERO) {
-            Overflow::Over(_) => return Err(BesselError::Overflow),
-            Overflow::Under(_) => {
+            Overflow::Over { .. } => return Err(BesselError::Overflow),
+            Overflow::Under { .. } => {
                 return if z.re < T::ZERO {
                     Err(BesselError::Overflow)
                 } else {
@@ -943,14 +943,14 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         //     TEST FOR UNDERFLOW AND OVERFLOW
         //-----------------------------------------------------------------------
         let of = Overflow::check(s1.re, phid, T::ZERO);
-        if !found_one_good_entry && !matches!(of, Overflow::Under(_)) {
+        if !found_one_good_entry && !matches!(of, Overflow::Under { .. }) {
             i_overflow_state = of;
         }
         let mut s2 = match of {
-            Overflow::Over(_) => {
+            Overflow::Over { .. } => {
                 return Err(BesselError::Overflow);
             }
-            Overflow::Under(_) => T::C_ZERO,
+            Overflow::Under { .. } => T::C_ZERO,
             Overflow::NearOver | Overflow::NearUnder | Overflow::None => {
                 let st = phid * sumd;
                 let mut s2 = T::I * st * rotation_angle;
@@ -1121,9 +1121,9 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
         }
 
         match of {
-            Overflow::Over(_) => return Err(BesselError::Overflow),
+            Overflow::Over { .. } => return Err(BesselError::Overflow),
 
-            Overflow::Under(_) => handle_underflow(&mut found_one_good_entry, &mut cs)?,
+            Overflow::Under { .. } => handle_underflow(&mut found_one_good_entry, &mut cs)?,
             Overflow::NearOver | Overflow::NearUnder | Overflow::None => {
                 //-----------------------------------------------------------------------;
                 //     SCALE S1 TO KEEP INTERMEDIATE ARITHMETIC ON SCALE NEAR;
@@ -1177,9 +1177,9 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
             hj_uniform_asymp_params(zn, modified_order, rotation == RotationDirection::None);
         let s1 = -scaling.scale_zetas(zb, modified_order, zeta1d, zeta2d);
         match Overflow::check(s1.re, phid, T::ZERO) {
-            Overflow::Over(_) => return Err(BesselError::Overflow),
+            Overflow::Over { .. } => return Err(BesselError::Overflow),
 
-            Overflow::Under(_) => {
+            Overflow::Under { .. } => {
                 if z.re < T::ZERO {
                     return Err(BesselError::Overflow);
                 }
@@ -1267,15 +1267,15 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
             T::from_f64(-0.25) * argd.abs().ln() - T::from_f64(AIC),
         );
         if !found_one_good_entry {
-            i_overflow_state = if matches!(of, Overflow::Under(_)) {
+            i_overflow_state = if matches!(of, Overflow::Under { .. }) {
                 Overflow::None
             } else {
                 of
             };
         }
         let mut s2 = match of {
-            Overflow::Over(_) => return Err(BesselError::Overflow),
-            Overflow::Under(_) => T::C_ZERO,
+            Overflow::Over { .. } => return Err(BesselError::Overflow),
+            Overflow::Under { .. } => T::C_ZERO,
             Overflow::NearOver | Overflow::None | Overflow::NearUnder => {
                 let (airy, d_airy) = airy_pair(argd);
                 let pt = ((d_airy * bsumd.unwrap()) + (airy * asumd.unwrap())) * phid;

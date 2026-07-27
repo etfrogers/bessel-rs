@@ -13,9 +13,9 @@ use super::machine::MachineConsts;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Overflow {
-    Over(bool),
+    Over { was_refined: bool },
     NearOver,
-    Under(bool),
+    Under { was_refined: bool },
     NearUnder,
     None,
 }
@@ -27,9 +27,9 @@ impl Overflow {
         //-----------------------------------------------------------------------
         if rs1.abs() > T::MACHINE_CONSTANTS.exponent_limit {
             return if rs1 > T::zero() {
-                Self::Over(false)
+                Self::Over { was_refined: false }
             } else {
-                Self::Under(false)
+                Self::Under { was_refined: false }
             };
         }
         if rs1.abs() < T::MACHINE_CONSTANTS.approximation_limit {
@@ -41,9 +41,9 @@ impl Overflow {
         let refined_rs1 = rs1 + phi.abs().ln() + extra_refinement;
         if refined_rs1.abs() > T::MACHINE_CONSTANTS.exponent_limit {
             return if refined_rs1 > T::zero() {
-                Self::Over(true)
+                Self::Over { was_refined: true }
             } else {
-                Self::Under(true)
+                Self::Under { was_refined: true }
             };
         }
         if refined_rs1 > T::zero() {
@@ -55,7 +55,7 @@ impl Overflow {
 
     pub fn increment(&mut self) {
         match self {
-            Overflow::Over(_) | Overflow::Under(_) => {
+            Overflow::Over { .. } | Overflow::Under { .. } => {
                 panic!("Overflow and underflow are not valid for incrementation")
             }
             Overflow::NearOver => panic!("NearOver is the largest possible overflow condition"),
@@ -188,8 +188,8 @@ pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
     //     OVERFLOW TEST
     //-----------------------------------------------------------------------
     match Overflow::check(cz.re, phi, extra_refinement) {
-        Overflow::Over(_) => return Err(Overflow),
-        Overflow::Under(was_refined) => {
+        Overflow::Over { .. } => return Err(Overflow),
+        Overflow::Under { was_refined } => {
             if !was_refined {
                 y[0..n_to_test].fill(T::C_ZERO);
             }
@@ -225,7 +225,7 @@ pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
         let (mut cz, phi, _arg, extra_refinement) = get_parameters(modified_order);
         // Match below says that first time we get here and no underflow is found, we immediately return
         match Overflow::check(cz.re, phi, extra_refinement) {
-            Overflow::Under(was_refined) => {
+            Overflow::Under { was_refined } => {
                 if was_refined {
                     // Now do a similar overflow check, but on complex values, rather
                     // than the absolute values used in find_overflow
@@ -244,7 +244,7 @@ pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
                 }
             }
             Overflow::NearUnder => (),
-            Overflow::None | Overflow::NearOver | Overflow::Over(_) => return Ok(n_underflow),
+            Overflow::None | Overflow::NearOver | Overflow::Over { .. } => return Ok(n_underflow),
         }
         *yi = T::C_ZERO;
         n_underflow += 1;
