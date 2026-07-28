@@ -380,7 +380,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
                 let half_exponent_limit = T::half() * T::MACHINE_CONSTANTS.exponent_limit;
 
                 let abs_limit = (-T::MACHINE_CONSTANTS.exponent_limit).exp();
-                let ASCLE = T::MACHINE_CONSTANTS.absolute_approximation_limit;
+
                 let mut zd = z;
                 let mut IC: isize = -1;
                 let mut J = 1;
@@ -393,7 +393,11 @@ pub fn k_right_half_plane<T: BesselFloat>(
                     let abs_ln_s2 = s2.abs().ln();
                     if -zd.re + abs_ln_s2 >= -T::MACHINE_CONSTANTS.exponent_limit {
                         let p1 = (-zd + s2.ln()).exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
-                        if !will_underflow(p1, ASCLE, T::MACHINE_CONSTANTS.abs_error_tolerance) {
+                        if !will_underflow(
+                            p1,
+                            T::MACHINE_CONSTANTS.absolute_approximation_limit,
+                            T::MACHINE_CONSTANTS.abs_error_tolerance,
+                        ) {
                             J = 1 - J;
                             cy[J] = p1;
                             // below implies we got here twice in a row
@@ -455,15 +459,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
         if n > 1 {
             y[1] = s2;
         }
-        scale_k_recurrence(
-            z,
-            order,
-            n,
-            &mut y,
-            &mut n_zeros,
-            rz,
-            T::MACHINE_CONSTANTS.absolute_approximation_limit,
-        );
+        scale_k_recurrence(z, order, n, &mut y, &mut n_zeros, rz);
         let n_non_zero = (n - n_zeros) as isize;
         if n_non_zero <= 0 {
             return Ok((y, n_zeros));

@@ -339,7 +339,6 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
     y: &mut [Complex<T>],
     n_zeros: &mut usize,
     rz: Complex<T>,
-    absolute_approximation_limit: T,
 ) {
     *n_zeros = 0;
     // let NN = min(2, n);
@@ -358,7 +357,7 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
         let cs = (s1.ln() - zr).exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
         if will_underflow(
             cs,
-            absolute_approximation_limit,
+            T::MACHINE_CONSTANTS.absolute_approximation_limit,
             T::MACHINE_CONSTANTS.abs_error_tolerance,
         ) {
             continue;
@@ -406,7 +405,7 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
             cs = cs.exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
             if !will_underflow(
                 cs,
-                absolute_approximation_limit,
+                T::MACHINE_CONSTANTS.absolute_approximation_limit,
                 T::MACHINE_CONSTANTS.abs_error_tolerance,
             ) {
                 *yi = cs;
