@@ -230,11 +230,7 @@ pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
                 cz -= T::from_f64(0.25) * arg.ln() + T::from_f64(AIC);
             }
             cz = cz.exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
-            if will_underflow(
-                cz,
-                T::MACHINE_CONSTANTS.absolute_approximation_limit,
-                T::MACHINE_CONSTANTS.abs_error_tolerance,
-            ) {
+            if will_underflow(cz) {
                 y[0..n_to_test].fill(T::C_ZERO);
                 return Ok(n_to_test);
             }
@@ -263,11 +259,7 @@ pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
                         cz -= arg.ln() * T::from_f64(0.25) + T::from_f64(AIC)
                     }
                     cz = cz.exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
-                    if !will_underflow(
-                        cz,
-                        T::MACHINE_CONSTANTS.absolute_approximation_limit,
-                        T::MACHINE_CONSTANTS.abs_error_tolerance,
-                    ) {
+                    if !will_underflow(cz) {
                         return Ok(n_underflow);
                     }
                 }

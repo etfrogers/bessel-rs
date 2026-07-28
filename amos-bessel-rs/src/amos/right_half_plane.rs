@@ -393,11 +393,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
                     let abs_ln_s2 = s2.abs().ln();
                     if -zd.re + abs_ln_s2 >= -T::MACHINE_CONSTANTS.exponent_limit {
                         let p1 = (-zd + s2.ln()).exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
-                        if !will_underflow(
-                            p1,
-                            T::MACHINE_CONSTANTS.absolute_approximation_limit,
-                            T::MACHINE_CONSTANTS.abs_error_tolerance,
-                        ) {
+                        if !will_underflow(p1) {
                             J = 1 - J;
                             cy[J] = p1;
                             // below implies we got here twice in a row

@@ -96,13 +96,7 @@ pub fn i_power_series<T: BesselFloat>(
             };
             let s1 = single_n_iteration(current_order, half_z_sq);
             let s2 = s1 * coeff;
-            if near_underflow
-                && will_underflow(
-                    s2,
-                    T::MACHINE_CONSTANTS.absolute_approximation_limit,
-                    T::MACHINE_CONSTANTS.abs_error_tolerance,
-                )
-            {
+            if near_underflow && will_underflow(s2) {
                 n_zeros += 1;
                 y[k] = T::C_ZERO;
                 continue;

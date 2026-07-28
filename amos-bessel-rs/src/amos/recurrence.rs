@@ -355,11 +355,7 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
         }
 
         let cs = (s1.ln() - zr).exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
-        if will_underflow(
-            cs,
-            T::MACHINE_CONSTANTS.absolute_approximation_limit,
-            T::MACHINE_CONSTANTS.abs_error_tolerance,
-        ) {
+        if will_underflow(cs) {
             continue;
         }
         y[i] = cs;
@@ -403,11 +399,7 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
         if -zd.re + s2.abs().ln() >= -T::MACHINE_CONSTANTS.exponent_limit {
             cs = s2.ln() - zd;
             cs = cs.exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
-            if !will_underflow(
-                cs,
-                T::MACHINE_CONSTANTS.absolute_approximation_limit,
-                T::MACHINE_CONSTANTS.abs_error_tolerance,
-            ) {
+            if !will_underflow(cs) {
                 *yi = cs;
                 *n_zeros -= 1;
                 if i_completed == i - 1 {

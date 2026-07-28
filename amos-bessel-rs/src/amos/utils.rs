@@ -29,15 +29,15 @@ pub(crate) fn imaginary_dominant<T: BesselFloat>(z: Complex<T>) -> bool {
 /// if the underflow is at least one precision below the magnitude
 /// of the largest component; otherwise the phase angle does not have
 /// absolute accuracy and an underflow is assumed
-pub(crate) fn will_underflow<T: BesselFloat>(y: Complex<T>, ascle: T, tol: T) -> bool {
+pub(crate) fn will_underflow<T: BesselFloat>(y: Complex<T>) -> bool {
     let re_abs = y.re.abs();
     let im_abs = y.im.abs();
     let min_abs_component = re_abs.min(im_abs);
-    if min_abs_component > ascle {
+    if min_abs_component > T::MACHINE_CONSTANTS.absolute_approximation_limit {
         false
     } else {
         let max_abs_component = re_abs.max(im_abs);
-        max_abs_component < min_abs_component / tol
+        max_abs_component < min_abs_component / T::MACHINE_CONSTANTS.abs_error_tolerance
     }
 }
 

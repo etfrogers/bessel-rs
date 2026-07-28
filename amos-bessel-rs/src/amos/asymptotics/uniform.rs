@@ -586,13 +586,7 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
             let mut s2 = phi * sum;
             s1 = overflow_state.scaling_factor::<T>() * s1.exp();
             s2 *= s1;
-            if overflow_state == OverflowState::NearUnder
-                && will_underflow(
-                    s2,
-                    T::MACHINE_CONSTANTS.absolute_approximation_limit,
-                    T::MACHINE_CONSTANTS.abs_error_tolerance,
-                )
-            {
+            if overflow_state == OverflowState::NearUnder && will_underflow(s2) {
                 if handle_underflow(&mut n_remaining, y)? {
                     return Ok((n_zeros, n_remaining));
                 }
@@ -745,13 +739,7 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
             let mut s2 = phi * (d_airy * bsum + a_airy * asum);
             let s1 = overflow_state.scaling_factor::<T>() * s1.exp();
             s2 *= s1;
-            if overflow_state == OverflowState::NearUnder
-                && will_underflow(
-                    s2,
-                    T::MACHINE_CONSTANTS.absolute_approximation_limit,
-                    T::MACHINE_CONSTANTS.abs_error_tolerance,
-                )
-            {
+            if overflow_state == OverflowState::NearUnder && will_underflow(s2) {
                 if handle_underflow(&mut n_remaining, &mut c2, y)? {
                     return Ok((n_zeros, n_remaining));
                 }
@@ -837,11 +825,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
                 let mut s2 = phi[j] * sum[j];
                 s1 = k_overflow_state.scaling_factor::<T>() * s1.exp();
                 s2 *= s1;
-                let will_underflow = will_underflow(
-                    s2,
-                    T::MACHINE_CONSTANTS.absolute_approximation_limit,
-                    T::MACHINE_CONSTANTS.abs_error_tolerance,
-                );
+                let will_underflow = will_underflow(s2);
                 if k_overflow_state != OverflowState::NearUnder || !will_underflow {
                     cy[found_one_good_entry as usize] = s2;
                     y[i] = s2 * k_overflow_state.reciprocal_scaling_factor::<T>();
@@ -957,13 +941,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
                 let mut s2 = T::I * st * rotation_angle;
                 s1 = s1.exp() * i_overflow_state.scaling_factor::<T>();
                 s2 *= s1;
-                if i_overflow_state == OverflowState::NearUnder
-                    && will_underflow(
-                        s2,
-                        T::MACHINE_CONSTANTS.absolute_approximation_limit,
-                        T::MACHINE_CONSTANTS.abs_error_tolerance,
-                    )
-                {
+                if i_overflow_state == OverflowState::NearUnder && will_underflow(s2) {
                     s2 = T::C_ZERO;
                 }
                 s2
@@ -1137,13 +1115,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
                 let mut s2 = pt * cs;
                 let s1 = s1.exp() * k_overflow_state.scaling_factor::<T>();
                 s2 *= s1;
-                if k_overflow_state == OverflowState::NearUnder
-                    && will_underflow(
-                        s2,
-                        T::MACHINE_CONSTANTS.absolute_approximation_limit,
-                        T::MACHINE_CONSTANTS.abs_error_tolerance,
-                    )
-                {
+                if k_overflow_state == OverflowState::NearUnder && will_underflow(s2) {
                     handle_underflow(&mut found_one_good_entry, &mut cs)?
                 }
                 if zr.im <= T::ZERO {
@@ -1283,13 +1255,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
                 let mut s2 = pt * cs;
                 s1 = s1.exp() * i_overflow_state.scaling_factor::<T>();
                 s2 *= s1;
-                if i_overflow_state == OverflowState::NearUnder
-                    && will_underflow(
-                        s2,
-                        T::MACHINE_CONSTANTS.absolute_approximation_limit,
-                        T::MACHINE_CONSTANTS.abs_error_tolerance,
-                    )
-                {
+                if i_overflow_state == OverflowState::NearUnder && will_underflow(s2) {
                     s2 = T::C_ZERO;
                 }
                 s2
