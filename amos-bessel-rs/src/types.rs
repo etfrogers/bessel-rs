@@ -46,6 +46,7 @@ pub trait BesselFloat:
 
     fn from_f64(value: f64) -> Self;
     fn from_usize(value: usize) -> Self;
+    fn from_isize(value: isize) -> Self;
     fn from_cpx64(value: Complex<f64>) -> Complex<Self>;
     fn half() -> Self;
     fn two() -> Self;
@@ -100,6 +101,11 @@ impl BesselFloat for f64 {
     fn from_usize(value: usize) -> Self {
         value as f64
     }
+
+    #[inline]
+    fn from_isize(value: isize) -> Self {
+        value as f64
+    }
 }
 
 impl BesselFloat for f32 {
@@ -141,6 +147,11 @@ impl BesselFloat for f32 {
 
     #[inline]
     fn from_usize(value: usize) -> Self {
+        value as f32
+    }
+
+    #[inline]
+    fn from_isize(value: isize) -> Self {
         value as f32
     }
 }

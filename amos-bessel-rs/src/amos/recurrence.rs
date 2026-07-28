@@ -204,97 +204,127 @@ pub(crate) fn i_miller<T: BesselFloat>(
 /// Originally ZRATI
 pub(crate) fn i_ratios<T: BesselFloat>(z: Complex<T>, order: T, n: usize) -> Vec<Complex<T>> {
     let abs_z = z.abs();
-    let integer_order = order.to_usize().unwrap();
-    let modified_int_order = integer_order + n - 1;
+    let integer_order = order.to_isize().unwrap();
+    let modified_int_order = integer_order + n as isize - 1;
     let int_abs_z = abs_z.to_isize().unwrap();
-    let FNUP = T::from_f64((int_abs_z + 1).max(modified_int_order as isize) as f64);
-    let ID_ = modified_int_order as isize - int_abs_z - 1;
-    let ID = if ID_ > 0 { 0 } else { ID_ };
+    // starting_index is the safe starting order for the forward truncation test loop.
+    // To guarantee that the terms are decaying, the truncation test must start looking at an index of at least |z| + 1.
+    // However, it also must start at least as
+    // high as the maximum order we actually need to calculate in our output array (which is  modified_int_order , or νₘₐₓ).
+    // So starting_index is simply max (|z| + 1,νₘₐₓ).
+    let starting_index = (int_abs_z + 1).max(modified_int_order);
+    // After the forward loop runs for K steps starting from sarting_index,
+    // we need to run the backward loop from  staring_index + n_steps  all the way down to our target order νₘₐₓ.
+    // How many steps is that? The distance is (FNUP + K) - νₘₐₓ.
+    //
+    //  • If νₘₐₓ ≥ |z| + 1, then  FNUP  was just νₘₐₓ. The distance is exactly K. In this case,  index_difference  is clamped to 0.
+    //  • If νₘₐₓ < |z| + 1, then  FNUP  was |z| + 1. The distance is K + (|z| + 1 - νₘₐₓ).
+    // Notice that (|z| + 1 - νₘₐₓ) is exactly  -index_difference !
+    let index_difference = modified_int_order - int_abs_z - 1;
+    let index_difference = if index_difference > 0 {
+        0
+    } else {
+        index_difference
+    };
 
-    let rz = two_over_z_safe(z);
-    let mut K = 1;
-    let mut abs_p2;
+    let two_over_z = two_over_z_safe(z);
+    let mut n_steps = 1;
+    let mut abs_fwd_k;
     {
-        let mut t1 = rz * FNUP;
-        let mut p2 = -t1;
-        let mut p1 = T::C_ONE;
-        t1 += rz;
+        // First recurr forward to find the placed to start:
+        // The sequence divereges, but we want to figure out how high an index
+        // K we needs to start from before the truncation error is
+        // smaller than machine tolerance.
+        let mut fwd_k = -two_over_z * T::from_isize(starting_index);
+        let mut fwd_k_minus_1 = T::C_ONE;
 
-        abs_p2 = p2.abs();
-        let mut abs_p1 = p1.abs();
-        //-----------------------------------------------------------------------
-        //     THE OVERFLOW TEST ON K(FNU+I-1,Z) BEFORE THE CALL TO CBKNU
-        //     GUARANTEES THAT P2 IS ON SCALE. SCALE TEST1 AND ALL SUBSEQUENT
-        //     P2 VALUES BY AP1 TO ENSURE THAT AN OVERFLOW DOES NOT OCCUR
-        //     PREMATURELY.
-        //-----------------------------------------------------------------------
-        let ARG = (abs_p2 + abs_p2) / (abs_p1 * T::MACHINE_CONSTANTS.abs_error_tolerance);
-        let TEST1 = ARG.sqrt();
-        let mut TEST = TEST1;
-        p1 /= abs_p1;
-        p2 /= abs_p1;
-        abs_p2 /= abs_p1;
-        let mut first_pass = true;
-        'l10: loop {
-            K += 1;
-            abs_p1 = abs_p2;
-            (p1, p2) = (p2, p1 - (t1 * p2));
-            t1 += rz;
-            abs_p2 = p2.abs();
-            if abs_p1 <= TEST {
+        abs_fwd_k = fwd_k.abs();
+        let mut abs_fwd_k_minus_1 = fwd_k_minus_1.abs();
+        // Scale base_convergence_test and all subsequent fwd_k values by
+        // abs_fwd_k_minus_1 to ensure that an overflow does not occur prematurely
+        let initial_test_arg = (abs_fwd_k + abs_fwd_k)
+            / (abs_fwd_k_minus_1 * T::MACHINE_CONSTANTS.abs_error_tolerance);
+        let base_convergence_test = initial_test_arg.sqrt();
+        let mut convergence_test = base_convergence_test;
+        fwd_k_minus_1 /= abs_fwd_k_minus_1;
+        fwd_k /= abs_fwd_k_minus_1;
+        abs_fwd_k /= abs_fwd_k_minus_1;
+        let mut rough_check = true;
+
+        // we expect to break before the end (i.e. never get to i == 1000)
+        // in fortran this was an infinite loop, but here I want the loop index
+        for i in 1..1000 {
+            // first loop roughly checking that we are in a high-growth region
+            n_steps += 1;
+            abs_fwd_k_minus_1 = abs_fwd_k;
+            let recurrence_factor = two_over_z * T::from_isize(starting_index + i);
+            (fwd_k_minus_1, fwd_k) = (fwd_k, fwd_k_minus_1 - (recurrence_factor * fwd_k));
+
+            abs_fwd_k = fwd_k.abs();
+            if abs_fwd_k_minus_1 <= convergence_test {
                 continue;
             }
-            if !first_pass {
-                break 'l10;
+            // if we get here, we have reached the high growth region, and move into
+            // doing a more refined check. Note that the convergence_test is modified below
+            // if we then reach this point with the modified convergence_test, then break
+            if !rough_check {
+                break;
             }
-            {
-                let ak = t1.abs() / T::two();
-                let flam = ak + (ak.powi(2) - T::one()).sqrt();
-                let rho = abs_p2 / abs_p1.min(flam);
-                TEST = TEST1 * (rho / (rho.powi(2) - T::one())).sqrt();
-            }
-            first_pass = false;
+            rough_check = false;
+
+            let abs_next_recurrence_factor = (recurrence_factor + two_over_z).abs() / T::two();
+            let lambda =
+                abs_next_recurrence_factor + (abs_next_recurrence_factor.powi(2) - T::one()).sqrt();
+            let rho = abs_fwd_k / abs_fwd_k_minus_1.min(lambda);
+            convergence_test = base_convergence_test * (rho / (rho.powi(2) - T::one())).sqrt();
         }
     }
 
-    let mut p1 = Complex::<T>::new(T::one() / abs_p2, T::ZERO);
-    let mut p2 = T::C_ZERO;
+    let mut val_k = Complex::<T>::new(T::one() / abs_fwd_k, T::ZERO);
+    let mut val_k_plus_1 = T::C_ZERO;
 
     {
-        let kk: usize = (K as isize + 1 - ID).try_into().unwrap();
-        let mut t1 = Complex::<T>::from(T::from_usize(kk));
+        // Phase 2: Calculate the unscaled top ratio
+        // We run a standard Miller backward recurrence starting from the truncation bound,
+        // without bothering to calculate the Neumann normalisation sum.
+        // We don't care about absolute values, only the ratio of the top two terms.
+        let n_backward_steps = n_steps + 1 - index_difference;
         let modified_order = order + T::from_usize(n - 1);
-        for _ in 0..kk {
-            (p1, p2) = (p1 * (rz * (modified_order + t1.re)) + p2, p1);
-            t1.re -= T::one();
+        for k in (1..=n_backward_steps as usize).rev() {
+            (val_k, val_k_plus_1) = (
+                val_k * (two_over_z * (modified_order + T::from_usize(k))) + val_k_plus_1,
+                val_k,
+            );
         }
-        if p1.re == T::ZERO && p1.im == T::ZERO {
-            p1 = Complex::<T>::new(
+        if val_k.re == T::ZERO && val_k.im == T::ZERO {
+            val_k = Complex::<T>::new(
                 T::MACHINE_CONSTANTS.abs_error_tolerance,
                 T::MACHINE_CONSTANTS.abs_error_tolerance,
             );
         }
     }
-    let mut cy = T::c_zeros(n);
-    cy[n - 1] = p2 / p1;
+    let mut ratios = T::c_zeros(n);
+    ratios[n - 1] = val_k_plus_1 / val_k;
     if n > 1 {
-        let mut t1 = Complex::<T>::from(T::from_usize(n - 1));
-        let cdfnu = order * rz;
+        // Phase 3: Evaluate the continued fraction downwards
+        // Since R_{k-1} = 1 / (2(\nu+k)/z + R_k), we can simply step downwards
+        // using the anchored top ratio to evaluate the continued fraction for the entire array.
+        let base_order_term = order * two_over_z;
         for k in (1..n).rev() {
-            let mut pt = cdfnu + t1 * rz + cy[k];
-            let mut abs_pt = pt.abs();
+            let mut fraction_denominator =
+                base_order_term + T::from_usize(k) * two_over_z + ratios[k];
+            let mut abs_pt = fraction_denominator.abs();
             if abs_pt == T::ZERO {
-                pt = Complex::<T>::new(
+                fraction_denominator = Complex::<T>::new(
                     T::MACHINE_CONSTANTS.abs_error_tolerance,
                     T::MACHINE_CONSTANTS.abs_error_tolerance,
                 );
-                abs_pt = pt.abs();
+                abs_pt = fraction_denominator.abs();
             }
-            cy[k - 1] = pt.conj() / abs_pt.powi(2);
-            t1 -= T::one();
+            ratios[k - 1] = fraction_denominator.conj() / abs_pt.powi(2);
         }
     }
-    cy
+    ratios
 }
 
 /// Set k functions to zero on underflow, continue recurrence
