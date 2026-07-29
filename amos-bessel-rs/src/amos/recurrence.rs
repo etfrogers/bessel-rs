@@ -453,14 +453,14 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
 ///
 /// # Arguments
 /// * `forward` - If `true`, iterates forwards (increasing order) and writes to `y[n_offset..]`.
-///               If `false`, iterates backwards (decreasing order) and writes to `y[..n_offset]`.
+///   If `false`, iterates backwards (decreasing order) and writes to `y[..n_offset]`.
 /// * `order` - The base order $\nu$ corresponding to `y[0]`.
 /// * `z` - The complex argument $z$.
 /// * `y` - The output array where the computed values will be written.
 /// * `n_offset` - The index partitioning the array. Defines where the iteration begins
-///                depending on the `forward` direction.
+///   depending on the `forward` direction.
 /// * `s1`, `s2` - The starting values for the recurrence. For forward recurrence, these
-///                typically correspond to $Z_{\nu-1}$ and $Z_{\nu}$ (or related scaled terms).
+///   typically correspond to $Z_{\nu-1}$ and $Z_{\nu}$ (or related scaled terms).
 /// * `overflow_state` - The state tracker used to manage dynamic reciprocal scaling factors.
 ///
 /// # Mathematical Details

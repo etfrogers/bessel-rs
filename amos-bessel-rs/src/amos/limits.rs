@@ -66,7 +66,7 @@ impl OverflowState {
         }
     }
 
-    /// Originally T::MACHINE_CONSTANTS.scaling_factors[overflow_state]
+    // Originally T::MACHINE_CONSTANTS.scaling_factors[overflow_state]
     pub fn scaling_factor<T: BesselFloat>(&self) -> T {
         match self {
             OverflowState::NearUnder => T::MACHINE_CONSTANTS.rtol,
@@ -76,7 +76,7 @@ impl OverflowState {
         }
     }
 
-    /// Originally T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state]
+    // Originally T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state]
     pub fn reciprocal_scaling_factor<T: BesselFloat>(&self) -> T {
         match self {
             OverflowState::NearUnder => T::MACHINE_CONSTANTS.abs_error_tolerance,
@@ -86,7 +86,7 @@ impl OverflowState {
         }
     }
 
-    /// Originally T::MACHINE_CONSTANTS.overflow_boundary[overflow_state]
+    // Originally T::MACHINE_CONSTANTS.overflow_boundary[overflow_state]
     pub fn boundary<T: BesselFloat>(&self) -> T {
         match self {
             OverflowState::NearUnder => T::MACHINE_CONSTANTS.absolute_approximation_limit,

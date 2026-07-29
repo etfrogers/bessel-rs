@@ -20,7 +20,7 @@ pub(crate) fn imaginary_dominant<T: BesselFloat>(z: Complex<T>) -> bool {
 }
 
 /// `y` enters as a scaled quantity whose magnitude is greater than
-/// (all names below are from [MachineConsts])
+/// (all names below are from [crate::amos::machine::MachineConsts])
 /// `(-approximation_limit).exp() = absolute_approximation_limit
 ///  = 2.0 * f64::MIN_POSITIVE/abs_error_tolerance`.
 /// The test is made to see

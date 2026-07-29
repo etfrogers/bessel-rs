@@ -3,6 +3,7 @@ use num::{Complex, complex::ComplexFloat};
 use crate::{BesselError, Scaling, amos::complex_airy, types::BesselFloat};
 
 const MAX_AIRY_ITERATIONS: usize = 25;
+
 pub fn airy_power_series<T: BesselFloat>(
     z: Complex<T>,
     return_derivative: bool,
