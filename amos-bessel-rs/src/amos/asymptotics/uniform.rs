@@ -854,14 +854,14 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         //     TEST LAST MEMBER FOR UNDERFLOW AND OVERFLOW. SET SEQUENCE TO ZERO
         //     ON UNDERFLOW.
         //-----------------------------------------------------------------------
-        let modified_order = order + T::from_usize(n - 1);
+        let max_order = order + T::from_usize(n - 1);
         let (phi, zet1d, zet2d, _sumd) = ik_uniform_asymp_params(
             modified_z,
-            modified_order,
+            max_order,
             IKType::K,
             rotation == RotationDirection::None,
         );
-        let overflow_test = -scaling.scale_zetas(modified_z, modified_order, zet1d, zet2d);
+        let overflow_test = -scaling.scale_zetas(modified_z, max_order, zet1d, zet2d);
 
         match OverflowState::check(overflow_test.re.abs(), phi, T::ZERO) {
             OverflowState::Over { .. } => return Err(BesselError::Overflow),
@@ -914,16 +914,16 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
     let mut remaining_n = n;
     for (i, yi) in y.iter_mut().enumerate().rev() {
         remaining_n = i;
-        let modified_order = order + T::from_usize(i);
+        let current_order = order + T::from_usize(i);
         //-----------------------------------------------------------------------
         //     LOGIC TO SORT OUT CASES WHOSE PARAMETERS WERE SET FOR THE K
         //     FUNCTION ABOVE
         //-----------------------------------------------------------------------
         // TODO no logic needed! as zunik ccahes the values. Should the other similar functions, too?
         let (phid, zet1d, zet2d, sumd) =
-            ik_uniform_asymp_params(modified_z, modified_order, IKType::I, false); //, &mut INITD);
+            ik_uniform_asymp_params(modified_z, current_order, IKType::I, false); //, &mut INITD);
         let sumd = sumd.unwrap();
-        let mut s1 = scaling.scale_zetas(modified_z, modified_order, zet1d, zet2d);
+        let mut s1 = scaling.scale_zetas(modified_z, current_order, zet1d, zet2d);
         //-----------------------------------------------------------------------
         //     TEST FOR UNDERFLOW AND OVERFLOW
         //-----------------------------------------------------------------------
@@ -980,8 +980,8 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         let mut reciprocal_scale_factor = i_overflow_state.reciprocal_scaling_factor::<T>();
         let mut absolute_approximation_limit = i_overflow_state.boundary::<T>();
         for (i, yi) in y.iter_mut().enumerate().take(remaining_n).rev() {
-            let modified_order = order + T::from_usize(i + 1);
-            (s1, s2) = (s2, s1 + modified_order * (two_over_z * s2));
+            let current_order = order + T::from_usize(i + 1);
+            (s1, s2) = (s2, s1 + current_order * (two_over_z * s2));
             let mut unscaled_s2 = s2 * reciprocal_scale_factor;
             let ck = unscaled_s2;
 
@@ -1067,10 +1067,10 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
         n_elements_set = i + 1;
         // j flip-flops between 0 and 1 using  = 1-j
         j = 1 - j;
-        let modified_order = order + T::from_usize(i);
+        let current_order = order + T::from_usize(i);
         (phi[j], arg[j], zeta1[j], zeta2[j], asum[j], bsum[j]) =
-            hj_uniform_asymp_params(zn, modified_order, false);
-        let s1 = -scaling.scale_zetas(zb, modified_order, zeta1[j], zeta2[j]);
+            hj_uniform_asymp_params(zn, current_order, false);
+        let s1 = -scaling.scale_zetas(zb, current_order, zeta1[j], zeta2[j]);
         let of = OverflowState::check(
             s1.re,
             phi[j],
@@ -1145,10 +1145,10 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
         //     TEST LAST MEMBER FOR UNDERFLOW AND OVERFLOW. SET SEQUENCE TO ZERO;
         //     ON UNDERFLOW.;
         //-----------------------------------------------------------------------;
-        let modified_order = order + T::from_usize(n - 1);
+        let max_order = order + T::from_usize(n - 1);
         (phid, argd, zeta1d, zeta2d, asumd, bsumd) =
-            hj_uniform_asymp_params(zn, modified_order, rotation == RotationDirection::None);
-        let s1 = -scaling.scale_zetas(zb, modified_order, zeta1d, zeta2d);
+            hj_uniform_asymp_params(zn, max_order, rotation == RotationDirection::None);
+        let s1 = -scaling.scale_zetas(zb, max_order, zeta1d, zeta2d);
         match OverflowState::check(s1.re, phid, T::ZERO) {
             OverflowState::Over { .. } => return Err(BesselError::Overflow),
 
@@ -1207,7 +1207,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
     let mut remaining_n = n;
     for (i, yi) in y.iter_mut().enumerate().rev() {
         remaining_n = i;
-        let modified_order = order + T::from_usize(i);
+        let current_order = order + T::from_usize(i);
         //-----------------------------------------------------------------------
         //     LOGIC TO SORT OUT CASES WHOSE PARAMETERS WERE SET FOR THE K
         //     FUNCTION ABOVE
@@ -1228,11 +1228,11 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
             j = 1 - j;
         } else if !(use_preset_overflow || in_last_two_set) {
             (phid, argd, zeta1d, zeta2d, asumd, bsumd) =
-                hj_uniform_asymp_params(zn, modified_order, false);
+                hj_uniform_asymp_params(zn, current_order, false);
         } else {
             // Case were overflow check has already set the ___d variables ?
         }
-        let mut s1 = scaling.scale_zetas(zb, modified_order, zeta1d, zeta2d);
+        let mut s1 = scaling.scale_zetas(zb, current_order, zeta1d, zeta2d);
 
         let of = OverflowState::check(
             s1.re,

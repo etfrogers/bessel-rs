@@ -62,7 +62,7 @@ pub fn complex_bessel_h<T: BesselFloat>(
     sanitise_inputs(z, order, n, true)?;
     let mut n_zeros = 0;
 
-    let modified_order = order + T::from_usize(n - 1);
+    let max_order = order + T::from_usize(n - 1);
 
     let rotation = hankel_kind.get_rotation();
     let rotation_float: T = rotation.to_float();
@@ -71,7 +71,7 @@ pub fn complex_bessel_h<T: BesselFloat>(
     //     TEST FOR PROPER RANGE
     //-----------------------------------------------------------------------
     let abs_z = z.abs();
-    let partial_loss_of_significance = is_significance_lost(abs_z, modified_order, false)?;
+    let partial_loss_of_significance = is_significance_lost(abs_z, max_order, false)?;
     //-----------------------------------------------------------------------
     //     OVERFLOW TEST ON THE LAST MEMBER OF THE SEQUENCE
     //-----------------------------------------------------------------------
@@ -79,8 +79,8 @@ pub fn complex_bessel_h<T: BesselFloat>(
         return Err(Overflow);
     }
     let (mut cy, n_zeros) = if order < T::MACHINE_CONSTANTS.asymptotic_order_limit {
-        if modified_order > T::one() {
-            if modified_order > T::two() {
+        if max_order > T::one() {
+            if max_order > T::two() {
                 let mut cy = T::c_zeros(n);
                 let n_underflow = check_underflow_uniform_asymp_params(
                     zn,
@@ -108,7 +108,7 @@ pub fn complex_bessel_h<T: BesselFloat>(
                 }
             }
             if abs_z <= T::MACHINE_CONSTANTS.abs_error_tolerance
-                && -modified_order * (T::half() * abs_z).ln() > T::MACHINE_CONSTANTS.exponent_limit
+                && -max_order * (T::half() * abs_z).ln() > T::MACHINE_CONSTANTS.exponent_limit
             {
                 return Err(Overflow);
             }
@@ -252,8 +252,8 @@ pub fn complex_bessel_i<T: BesselFloat>(
     sanitise_inputs(z, order, n, false)?;
 
     let abs_z = z.abs();
-    let modified_order = order + T::from_usize(n - 1);
-    let partial_significance_loss = is_significance_lost(abs_z, modified_order, false)?;
+    let max_order = order + T::from_usize(n - 1);
+    let partial_significance_loss = is_significance_lost(abs_z, max_order, false)?;
 
     let (zn, mut csgn) = if z.re >= T::zero() {
         (z, T::C_ONE)
@@ -433,8 +433,8 @@ pub fn complex_bessel_k<T: BesselFloat>(
     //     TEST FOR PROPER RANGE;
     //-----------------------------------------------------------------------;
     let abs_z = z.abs();
-    let modified_order = order + T::from_usize(n - 1);
-    let partial_significance_loss = is_significance_lost(abs_z, modified_order, false)?;
+    let max_order = order + T::from_usize(n - 1);
+    let partial_significance_loss = is_significance_lost(abs_z, max_order, false)?;
 
     //-----------------------------------------------------------------------;
     //     OVERFLOW TEST ON THE LAST MEMBER OF THE SEQUENCE;
@@ -464,7 +464,7 @@ pub fn complex_bessel_k<T: BesselFloat>(
         };
     }
 
-    if modified_order > T::two() {
+    if max_order > T::two() {
         let mut y = T::c_zeros(n);
         let n_underflow =
             check_underflow_uniform_asymp_params(z, order, scaling, IKType::K, n, &mut y)?;
@@ -484,9 +484,9 @@ pub fn complex_bessel_k<T: BesselFloat>(
             };
         }
     }
-    if (modified_order > T::one()) && abs_z <= T::MACHINE_CONSTANTS.abs_error_tolerance {
+    if (max_order > T::one()) && abs_z <= T::MACHINE_CONSTANTS.abs_error_tolerance {
         let half_abs_z = T::half() * abs_z;
-        if -modified_order * half_abs_z.ln() > T::MACHINE_CONSTANTS.exponent_limit {
+        if -max_order * half_abs_z.ln() > T::MACHINE_CONSTANTS.exponent_limit {
             return Err(Overflow);
         }
     }

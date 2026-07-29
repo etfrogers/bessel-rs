@@ -246,8 +246,8 @@ pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
     //-----------------------------------------------------------------------
     // Note n_to_test is NOT y.len() in this case.
     for (i, yi) in y.iter_mut().enumerate().take(n_to_test).rev() {
-        let modified_order = order + T::from_usize(i);
-        let (mut cz, phi, _arg, extra_refinement) = get_parameters(modified_order);
+        let current_order = order + T::from_usize(i);
+        let (mut cz, phi, _arg, extra_refinement) = get_parameters(current_order);
         // Match below says that first time we get here and no underflow is found, we immediately return
         match OverflowState::check(cz.re, phi, extra_refinement) {
             OverflowState::Under { was_refined } => {
