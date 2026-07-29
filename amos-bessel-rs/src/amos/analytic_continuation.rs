@@ -90,7 +90,7 @@ pub fn analytic_continuation<T: BesselFloat>(
 
     k_continuation_coeff = -k_continuation_coeff;
     let two_over_z = two_over_z_safe(negative_z);
-    let mut recurrence_factor = (order + T::one()) * two_over_z;
+
     //-----------------------------------------------------------------------
     //     SCALE NEAR EXPONENT EXTREMES DURING RECURRENCE ON K FUNCTIONS
     //-----------------------------------------------------------------------
@@ -106,8 +106,9 @@ pub fn analytic_continuation<T: BesselFloat>(
     k_prev *= overflow_state.scaling_factor::<T>();
     k_curr *= overflow_state.scaling_factor::<T>();
     let mut recip_scaling_factor = overflow_state.reciprocal_scaling_factor::<T>();
-    for (yi, ii) in y.iter_mut().zip(i_values).skip(2) {
+    for (i, (yi, ii)) in y.iter_mut().zip(i_values).enumerate().skip(2) {
         //TODO common pattern below
+        let recurrence_factor = (order + T::from_usize(i - 1)) * two_over_z;
         (k_prev, k_curr) = (k_curr, recurrence_factor * k_curr + k_prev);
         k_component = k_curr * recip_scaling_factor;
         let mut unscaled_k_curr = k_component;
@@ -126,7 +127,6 @@ pub fn analytic_continuation<T: BesselFloat>(
             }
         }
         *yi = k_continuation_coeff * k_component + i_continuation_coeff * i_component;
-        recurrence_factor += two_over_z;
         k_continuation_coeff = -k_continuation_coeff;
         overflow_state.scale_recurrence(
             &mut k_prev,
