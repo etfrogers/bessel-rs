@@ -443,8 +443,33 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
     }
 }
 
+/// Runs a standard Bessel recurrence relation while applying dynamic scaling
+/// to prevent floating-point overflow.
+///
+/// This function executes the standard recurrence `(s1, s2) = (s2, s1 + ck * s2)`
+/// across a slice of the output array `y`. On each iteration, it writes the scaled
+/// `s2` into the array and updates the provided `OverflowState` to ensure intermediate
+/// arithmetic does not exceed exponent limits.
+///
+/// # Arguments
+/// * `forward` - If `true`, iterates forwards (increasing order) and writes to `y[n_offset..]`.
+///               If `false`, iterates backwards (decreasing order) and writes to `y[..n_offset]`.
+/// * `order` - The base order $\nu$ corresponding to `y[0]`.
+/// * `z` - The complex argument $z$.
+/// * `y` - The output array where the computed values will be written.
+/// * `n_offset` - The index partitioning the array. Defines where the iteration begins
+///                depending on the `forward` direction.
+/// * `s1`, `s2` - The starting values for the recurrence. For forward recurrence, these
+///                typically correspond to $Z_{\nu-1}$ and $Z_{\nu}$ (or related scaled terms).
+/// * `overflow_state` - The state tracker used to manage dynamic reciprocal scaling factors.
+///
+/// # Mathematical Details
+/// The recurrence multiplier `recurrence_factor` is computed dynamically from the absolute array index `i`,
+/// rendering the loop stateless. Depending on the `forward` flag, `ck` evaluates to exactly
+/// $\frac{2}{z}(\nu + i \pm 1)$, correctly mirroring the specific step in the sequence.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn backward_recurrence<T: BesselFloat>(
+#[inline]
+pub(crate) fn scale_controlled_recurrence<T: BesselFloat>(
     forward: bool,
     order: T,
     z: Complex<T>,
@@ -454,7 +479,7 @@ pub(crate) fn backward_recurrence<T: BesselFloat>(
     mut s2: Complex<T>,
     mut overflow_state: OverflowState,
 ) {
-    let rz = two_over_z_safe(z);
+    let two_over_z = two_over_z_safe(z);
 
     let base_iterator = y.iter_mut().enumerate();
     let iterator = if forward {
@@ -464,20 +489,12 @@ pub(crate) fn backward_recurrence<T: BesselFloat>(
     };
     let index_adjustment = if forward { -T::one() } else { T::one() };
 
-    let initial_i = if forward {
-        n_offset
-    } else {
-        n_offset.saturating_sub(1)
-    };
-    let mut ck = (order + T::from_usize(initial_i) + index_adjustment) * rz;
-    let ck_step = if forward { rz } else { -rz };
-
     let mut recip_scale_factor = overflow_state.reciprocal_scaling_factor::<T>();
     let mut boundary = overflow_state.boundary::<T>();
 
-    for (_, yi) in iterator {
-        (s1, s2) = (s2, s1 + ck * s2);
-        ck += ck_step;
+    for (i, yi) in iterator {
+        let recurrence_factor = two_over_z * (order + T::from_usize(i) + index_adjustment);
+        (s1, s2) = (s2, s1 + recurrence_factor * s2);
         *yi = s2 * recip_scale_factor;
         overflow_state.scale_recurrence(
             &mut s1,

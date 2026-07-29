@@ -11,7 +11,7 @@ use crate::{
         i_pow,
         limits::{OverflowState, check_underflow_uniform_asymp_params, underflow_add_i_k},
         max_abs_component,
-        recurrence::backward_recurrence,
+        recurrence::scale_controlled_recurrence,
         utils::{AIC, two_over_z_safe, will_underflow},
     },
     types::{BesselFloat, BesselResult, UniformAssymptoticParameters, cache_key},
@@ -599,7 +599,7 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
     }
     if n_remaining > 2 {
         let [s1, s2] = cy;
-        backward_recurrence(false, order, z, y, n_remaining - 2, s1, s2, overflow_state);
+        scale_controlled_recurrence(false, order, z, y, n_remaining - 2, s1, s2, overflow_state);
     }
     Ok((n_zeros, 0))
 }
@@ -757,7 +757,7 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
     }
     if n_remaining > 2 {
         let [s1, s2] = cy;
-        backward_recurrence(false, order, z, y, n_remaining - 2, s1, s2, overflow_state);
+        scale_controlled_recurrence(false, order, z, y, n_remaining - 2, s1, s2, overflow_state);
     }
     Ok((n_zeros, 0))
 }
@@ -878,7 +878,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         //     FORWARD RECUR FOR REMAINDER OF THE SEQUENCE
         //----------------------------------------------------------------------------
         let [s1, s2] = cy;
-        backward_recurrence(
+        scale_controlled_recurrence(
             true,
             order,
             modified_z,
@@ -1161,7 +1161,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
             OverflowState::NearOver | OverflowState::None | OverflowState::NearUnder => (),
         }
         let [s1, s2] = cy;
-        backward_recurrence(
+        scale_controlled_recurrence(
             true,
             order,
             zr,

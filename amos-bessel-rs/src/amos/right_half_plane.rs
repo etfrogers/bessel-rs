@@ -10,7 +10,7 @@ use crate::{
         asymptotics::i_asymptotic,
         gamma_ln, i_power_series,
         limits::{OverflowState, check_underflow_uniform_asymp_params},
-        recurrence::{i_miller, scale_k_recurrence},
+        recurrence::{i_miller, scale_controlled_recurrence, scale_k_recurrence},
         utils::{two_over_z_safe, will_underflow},
         wronksian::i_wronksian,
     },
@@ -472,7 +472,6 @@ pub fn k_right_half_plane<T: BesselFloat>(
             y[working_index] *= T::MACHINE_CONSTANTS.abs_error_tolerance;
         }
         if n_non_zero > 2 {
-            ck = (order + T::from_usize(working_index)) * two_over_z;
             overflow_state = OverflowState::NearUnder;
         }
         working_index + 1
@@ -481,15 +480,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
     if n_completed >= n {
         return Ok((y, n_zeros));
     }
-    let mut P1R = overflow_state.reciprocal_scaling_factor::<T>();
-    let mut ASCLE = overflow_state.boundary();
-    for y_elem in y.iter_mut().skip(n_completed) {
-        // TODO same loops as above
-        (s1, s2) = (s2, ck * s2 + s1);
-        ck += two_over_z;
-        *y_elem = s2 * P1R;
-        overflow_state.scale_recurrence(&mut s1, &mut s2, *y_elem, &mut ASCLE, &mut P1R);
-    }
+    scale_controlled_recurrence(true, order, z, &mut y, n_completed, s1, s2, overflow_state);
     Ok((y, n_zeros))
 }
 
