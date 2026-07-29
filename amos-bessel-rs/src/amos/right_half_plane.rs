@@ -1,5 +1,3 @@
-#![allow(non_snake_case)]
-
 use num::{Complex, Zero, complex::ComplexFloat};
 
 use crate::{
@@ -18,102 +16,137 @@ use crate::{
 };
 
 /// i_right_half_plane computes the i function in the right half z plane
+///
+/// i_right_half_plane  acts as a master dispatcher for computing the I_v (z)
+/// sequence in the right half of the complex plane (Re (z) ≥ 0).
+///
+/// Because the Modified Bessel Function
+///   I_v (z)
+/// has wildly different behavioral regimes (growing exponentially for large z, decaying exponentially for large ν),
+/// there is no single algorithm that can compute it accurately everywhere. This function checks the magnitude of
+/// z and ν and routes the computation to the most numerically stable algorithm.
+///
+/// ### 1. The Power Series Regime (Small z)
+///
+/// If |z| is very small (|z| ≤ 2) or ν is relatively large compared to z, it attempts to use a standard Taylor/Power Series ( [i_power_series] ).
+///
+/// - If the series converges successfully, it returns.
+/// - If the highest orders underflow to  0 , it subtracts them from  remaining_n  and passes the rest of the array down to the next algorithms.
+///
+/// ### 2. Large Argument Asymptotics (Large z, Small ν)
+///
+/// If |z| is massive (above the machine's asymptotic limit) and ν is relatively small (2|z| ≥ ν²),
+/// it uses Hankel's asymptotic expansion for large arguments ( [i_asymptotic] ).
+///
+/// ### 3. Underflow Truncation
+///
+/// Before running any intermediate recurrences, if νₘₐₓ > 1, it runs a quick check ( [check_underflow_uniform_asymp_params] ).
+/// Because I_v (z) decays extremely fast as ν → ∞, this calculates exactly how many of the highest-order requested values
+/// will mathematically underflow to `0.0`.
+/// It fills those with `0.0` , updates `remaining_n`, and saves the system from doing pointless, unstable math.
+///
+/// ### 4. Large Order Asymptotics (Extremely Large ν or z)
+///
+/// If the requested order or argument exceeds the machine's strict asymptotic limit, standard recurrences break down.
+/// It delegates to [i_asymp_large_order], which uses Debye polynomials (Uniform Asymptotic Expansions) to bootstrap
+/// the recurrence from a very high order.
+///
+/// ### 5. Miller's Algorithm (Intermediate Regime)
+///
+/// If it reaches this point, we are in the "messy middle" where asymptotics fail. It uses Miller's Algorithm,
+/// which runs a backward recurrence from a dynamically calculated starting bound.
+/// But because Miller's algorithm only gives relative (unscaled) values, they must be normalized.
+/// It chooses between two normalization methods:
+///
+/// - Series Normalization ( [i_miller] ): If |z| is small enough, it normalizes the sequence by
+///   plugging it into the known Neumann series identity ∑Iₙ(z) = eᶻ.
+/// - Wronskian Normalization ( [i_wronksian] ): For larger |z|, the Neumann series
+///   requires too many terms to converge. Instead, it computes K_v (z)
+///   independently, and normalizes the I sequence using the Wronskian cross-product identity:
+///   I_v K_v+1    + I_v+1   K_v  = 1/z
+///
 /// Originally ZBINU
 pub(crate) fn i_right_half_plane<T: BesselFloat>(
     z: Complex<T>,
     order: T,
-    KODE: Scaling,
-    N: usize,
+    scaling: Scaling,
+    n: usize,
 ) -> BesselResult<T, usize> {
     let mut n_zeros = 0;
-    let AZ = z.abs();
-    let mut NN: usize = N;
-    let mut DFNU = order + T::from_usize(N - 1);
-    let mut cy = T::c_zeros(N);
-    if AZ <= T::two() || AZ * AZ * T::from_f64(0.25) <= DFNU + T::one() {
-        //-----------------------------------------------------------------------
-        //     POWER SERIES
-        //-----------------------------------------------------------------------
-        let NW;
-        (cy, NW) = i_power_series(z, order, KODE, NN)?;
-        let INW: usize = NW.unsigned_abs();
-        n_zeros += INW;
-        NN -= INW;
-        if NN == 0 || NW >= 0 {
-            return Ok((cy, n_zeros));
+    let abs_z = z.abs();
+    let mut remaining_n: usize = n;
+    let mut max_order = order + T::from_usize(n - 1);
+    let mut y = T::c_zeros(n);
+    if abs_z <= T::two() || abs_z.powi(2) * T::from_f64(0.25) <= max_order + T::one() {
+        // Power series for small z
+        let n_zeros_inner;
+        // i_power_series return *signed* n_zeros. As per the docs
+        // n_zeros > 0 means that the last n_zeros components were set to zero
+        // due to underflow. (As is the normal convention)
+        // n_zeros < 0 means underflow occurred, but the
+        // condition z.abs() <= 2*(order+1).sqrt() was violated and the
+        // computation must be completed in another routine with n=n-abs(n_zeros).
+        (y, n_zeros_inner) = i_power_series(z, order, scaling, remaining_n)?;
+        let calculation_finished = n_zeros_inner >= 0;
+        let n_to_complete: usize = n_zeros_inner.unsigned_abs();
+        n_zeros += n_to_complete;
+        remaining_n -= n_to_complete;
+        if remaining_n == 0 || calculation_finished {
+            return Ok((y, n_zeros));
         }
-
-        DFNU = order + (T::from_usize(NN) - T::one());
+        max_order = order + (T::from_usize(remaining_n) - T::one());
     }
 
-    if (AZ >= T::MACHINE_CONSTANTS.asymptotic_z_limit)
-        && ((DFNU <= T::one()) || (AZ + AZ >= DFNU * DFNU))
+    if (abs_z >= T::MACHINE_CONSTANTS.asymptotic_z_limit)
+        && ((max_order <= T::one()) || (max_order.powi(2) <= abs_z + abs_z))
     {
-        //-----------------------------------------------------------------------
-        //     ASYMPTOTIC EXPANSION FOR LARGE Z
-        //-----------------------------------------------------------------------
-        let (cy, n_zeros_asymptotic) = i_asymptotic(z, order, KODE, NN)?;
+        // Large Argument Asymptotics (Large z, Small order)
+        let (cy, n_zeros_asymptotic) = i_asymptotic(z, order, scaling, remaining_n)?;
         debug_assert!(n_zeros_asymptotic == n_zeros);
         return Ok((cy, n_zeros));
     }
-    let mut skip_az_rl_check = true;
-    if DFNU > T::one() {
-        skip_az_rl_check = false;
+
+    if max_order > T::one() {
         //-----------------------------------------------------------------------
         //     OVERFLOW AND UNDERFLOW TEST ON I SEQUENCE FOR MILLER ALGORITHM
         //-----------------------------------------------------------------------
-        let n_zeros_underflow =
-            check_underflow_uniform_asymp_params(z, order, KODE, IKType::I, NN, &mut cy)?;
+        let n_zeros_underflow = check_underflow_uniform_asymp_params(
+            z,
+            order,
+            scaling,
+            IKType::I,
+            remaining_n,
+            &mut y,
+        )?;
         n_zeros += n_zeros_underflow;
-        NN -= n_zeros_underflow;
-        if NN == 0 {
-            return Ok((cy, n_zeros));
+        remaining_n -= n_zeros_underflow;
+        if remaining_n == 0 {
+            return Ok((y, n_zeros));
         }
-        DFNU = order + T::from_usize(NN - 1);
+        max_order = order + T::from_usize(remaining_n - 1);
     }
-    if (DFNU > T::MACHINE_CONSTANTS.asymptotic_order_limit)
-        || (AZ > T::MACHINE_CONSTANTS.asymptotic_order_limit)
-    {
-        //-----------------------------------------------------------------------
-        //     INCREMENT FNU+NN-1 UP TO FNUL, COMPUTE AND RECUR BACKWARD
-        //-----------------------------------------------------------------------
-        let NUI = ((T::MACHINE_CONSTANTS.asymptotic_order_limit - DFNU).trunc() + T::one())
-            .max(T::zero())
-            .to_usize()
-            .unwrap();
 
-        let (NW, NLAST) = i_asymp_large_order(z, order, KODE, NN, NUI, &mut cy)?;
-        n_zeros += NW;
-        if NLAST == 0 {
-            return Ok((cy, n_zeros));
-        }
-        NN = NLAST;
-    }
-    if !skip_az_rl_check && AZ <= T::MACHINE_CONSTANTS.asymptotic_z_limit {
-        //-----------------------------------------------------------------------
-        //     MILLER ALGORITHM NORMALIZED BY THE SERIES
-        //-----------------------------------------------------------------------
-        let (cy, _) = i_miller(z, order, KODE, NN)?;
-        return Ok((cy, n_zeros)); //}
-    }
-    //-----------------------------------------------------------------------
-    //     MILLER ALGORITHM NORMALIZED BY THE WRONSKIAN
-    //-----------------------------------------------------------------------
-    //-----------------------------------------------------------------------
-    //     OVERFLOW TEST ON K FUNCTIONS USED IN WRONSKIAN
-    //-----------------------------------------------------------------------
-    if let Ok(NW) =
-        check_underflow_uniform_asymp_params(z, order, KODE, IKType::K, 2, &mut [T::C_ONE; 2])
+    if (max_order > T::MACHINE_CONSTANTS.asymptotic_order_limit)
+        || (abs_z > T::MACHINE_CONSTANTS.asymptotic_order_limit)
     {
-        if NW > 0 {
-            Err(BesselError::Overflow)
-        } else {
-            let n_zeros = i_wronksian(z, order, KODE, NN, &mut cy)?;
-            Ok((cy, n_zeros))
+        let (n_zeros_asymp_lo, remaining_n) =
+            i_asymp_large_order(z, order, scaling, remaining_n, &mut y)?;
+        n_zeros += n_zeros_asymp_lo;
+        if remaining_n == 0 {
+            return Ok((y, n_zeros));
         }
-    } else {
-        Ok((vec![T::C_ONE; NN], NN))
     }
+
+    if max_order <= T::one() && abs_z <= T::MACHINE_CONSTANTS.asymptotic_z_limit {
+        // Miller algorithm with series normalisation
+        //-----------------------------------------------------------------------
+        let y = i_miller(z, order, scaling, remaining_n)?;
+        return Ok((y, n_zeros));
+    }
+
+    // Miller algorithm nomralised by the Wronksian
+    let n_zeros_wr = i_wronksian(z, order, scaling, remaining_n, &mut y)?;
+    Ok((y, n_zeros + n_zeros_wr))
 }
 
 /// k_right_half_plane computes the k bessel function in the right half z plane.

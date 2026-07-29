@@ -180,7 +180,8 @@ pub fn airy_analytic_continuation<T: BesselFloat>(
         //     MILLER ALGORITHM NORMALIZED BY THE SERIES FOR THE I FUNCTION
         //-----------------------------------------------------------------------
         } else {
-            i_miller(negative_z, order, scaling, 1)?
+            let y = i_miller(negative_z, order, scaling, 1)?;
+            (y, 0)
         };
     //-----------------------------------------------------------------------
     //     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE FOR THE K FUNCTION

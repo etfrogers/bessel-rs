@@ -4,19 +4,18 @@ use itertools::Either;
 use num::{Complex, complex::ComplexFloat};
 
 use crate::{
-    BesselError::DidNotConverge,
+    BesselError::{self, DidNotConverge},
     Scaling,
     amos::{
         gamma_ln,
         limits::OverflowState,
         utils::{two_over_z_safe, will_underflow},
     },
-    types::{BesselFloat, BesselResult},
+    types::BesselFloat,
 };
 
 /// i_miller computes the i bessel function for re(z) >= 0.0 by the
 /// Miller algorithm normalized by a Neumann series.
-/// Originally ZMLRI
 /// The Miller algorithm relies on a brilliant trick: you start at some arbitrarily high index  N , assume
 ///
 ///    I (z) = 1
@@ -32,14 +31,15 @@ use crate::{
 /// the sequence using a known normalization identity (like the Neumann series) to find out what the
 /// true scaling factor should have been, and scale all the
 /// answers up to the truth.
+///
+/// Originally ZMLRI
 pub(crate) fn i_miller<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
     n: usize,
-) -> BesselResult<T, usize> {
+) -> Result<Vec<Complex<T>>, BesselError<T>> {
     let scale: T = T::two() * T::MIN_POSITIVE / T::MACHINE_CONSTANTS.abs_error_tolerance;
-    let n_zeros = 0;
     let abs_z = z.abs();
     let int_abs_z = abs_z.to_usize().unwrap();
     let int_order = order.to_usize().unwrap();
@@ -191,7 +191,7 @@ pub(crate) fn i_miller<T: BesselFloat>(
     for element in y.iter_mut() {
         *element *= normalization_constant;
     }
-    Ok((y, n_zeros))
+    Ok(y)
 }
 
 /// i_ratios computes ratios of I bessel functions by backward

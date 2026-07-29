@@ -2,13 +2,16 @@
 use super::Scaling;
 use crate::{
     BesselError, BesselFloat,
-    amos::{recurrence::i_ratios, right_half_plane::k_right_half_plane},
+    amos::{
+        IKType, limits::check_underflow_uniform_asymp_params, recurrence::i_ratios,
+        right_half_plane::k_right_half_plane,
+    },
 };
 
 use num::{Complex, complex::ComplexFloat};
 
 // i_wronksian computes the i bessel function for re(z) >= 0.0 by
-// normalizing the i function ratios from zrati by the Wronskian
+// normalizing the i function ratios from [i_ratios] by the Wronskian
 // Originally ZWRSK
 pub(crate) fn i_wronksian<T: BesselFloat>(
     zr: Complex<T>,
@@ -17,6 +20,18 @@ pub(crate) fn i_wronksian<T: BesselFloat>(
     n: usize,
     y: &mut [Complex<T>],
 ) -> Result<usize, BesselError<T>> {
+    match check_underflow_uniform_asymp_params(zr, order, scaling, IKType::K, 2, &mut [T::C_ONE; 2])
+    {
+        Ok(n_underflow) => {
+            if n_underflow > 0 {
+                return Err(BesselError::Overflow);
+            }
+        }
+        Err(_) => {
+            y.fill(T::C_ZERO);
+            return Ok(n);
+        }
+    }
     //-----------------------------------------------------------------------
     //     I(FNU+I-1,Z) BY BACKWARD RECURRENCE FOR RATIOS
     //     Y(I)=I(FNU+I,Z)/I(FNU+I-1,Z) FROM CRATI NORMALIZED BY THE

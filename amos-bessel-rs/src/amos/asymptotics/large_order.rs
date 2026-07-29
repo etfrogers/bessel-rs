@@ -27,14 +27,40 @@ pub(crate) fn i_asymp_large_order<T: BesselFloat>(
     order: T,
     KODE: Scaling,
     n: usize,
-    NUI: usize,
     y: &mut [Complex<T>],
 ) -> Result<(usize, usize), BesselError<T>> {
+    // To use the maths in below correctly, order must be > asymptotic_order_limit
+    // If it isn't then we increment it up to that limit, then recur backward to find
+    // the actual values at the requested order. As such, it needs to know the number of steps up to that limit,
+    // which is what is calculated below.
+    let max_order = order + T::from_usize(n - 1);
+
+    let steps_to_asymptotic_limit =
+        ((T::MACHINE_CONSTANTS.asymptotic_order_limit - max_order).trunc() + T::one())
+            .max(T::zero())
+            .to_usize()
+            .unwrap();
+
     let imaginary_dominant = imaginary_dominant(z);
-    if NUI != 0 {
-        let mut FNUI = T::from_usize(NUI);
-        let DFNU = order + T::from_usize(n - 1);
-        let GNU = DFNU + FNUI;
+    if steps_to_asymptotic_limit == 0 {
+        let (NW, NLAST) = if imaginary_dominant {
+            //-----------------------------------------------------------------------
+            //     ASYMPTOTIC EXPANSION FOR J(FNU,Z*EXP(M*FRAC_PI_2)) FOR LARGE FNU
+            //     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I
+            //     AND FRAC_PI_2=PI/2
+            //-----------------------------------------------------------------------
+            i_uniform_asymp2(z, order, KODE, n, y)?
+        } else {
+            //-----------------------------------------------------------------------
+            //     ASYMPTOTIC EXPANSION FOR I(FNU,Z) FOR LARGE FNU APPLIED IN
+            //     -PI/3 <= ARG(Z) <= PI/3
+            //-----------------------------------------------------------------------
+            i_uniform_asymp1(z, order, KODE, n, y)?
+        };
+        Ok((NW, NLAST))
+    } else {
+        let mut FNUI = T::from_usize(steps_to_asymptotic_limit);
+        let GNU = max_order + FNUI;
         let mut cy = [T::C_ZERO; 2];
         let (NW, NLAST) = if imaginary_dominant {
             //-----------------------------------------------------------------------
@@ -85,9 +111,9 @@ pub(crate) fn i_asymp_large_order<T: BesselFloat>(
         // working out rz in multiple steps seems to give different floating point answer.
         let two_over_z = two_over_z_safe(z);
 
-        for _ in 0..NUI {
+        for _ in 0..steps_to_asymptotic_limit {
             let st = s2;
-            s2 = (DFNU + FNUI) * two_over_z * s2 + s1;
+            s2 = (max_order + FNUI) * two_over_z * s2 + s1;
             s1 = st;
             FNUI -= T::one();
             if overflow_state == OverflowState::NearOver {
@@ -136,24 +162,8 @@ pub(crate) fn i_asymp_large_order<T: BesselFloat>(
             s1 *= CSCLR;
             s2 *= CSCLR;
         }
-        return Ok((0, NLAST));
+        Ok((0, NLAST))
     }
-    let (NW, NLAST) = if imaginary_dominant {
-        //-----------------------------------------------------------------------
-        //     ASYMPTOTIC EXPANSION FOR J(FNU,Z*EXP(M*FRAC_PI_2)) FOR LARGE FNU
-        //     APPLIED IN PI/3 < ABS(ARG(Z)) <= PI/2 WHERE M=+I OR -I
-        //     AND FRAC_PI_2=PI/2
-        //-----------------------------------------------------------------------
-        i_uniform_asymp2(z, order, KODE, n, y)?
-    } else {
-        //-----------------------------------------------------------------------
-        //     ASYMPTOTIC EXPANSION FOR I(FNU,Z) FOR LARGE FNU APPLIED IN
-        //     -PI/3 <= ARG(Z) <= PI/3
-        //-----------------------------------------------------------------------
-        i_uniform_asymp1(z, order, KODE, n, y)?
-    };
-
-    Ok((NW, NLAST))
 }
 
 /// zbunk computes the K Bessel function for order > asymptotic_order_limit.
