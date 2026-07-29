@@ -83,11 +83,11 @@ pub(crate) fn i_asymp_large_order<T: BesselFloat>(
         let mut s1 = cy[1] * CSCLR;
         let mut s2 = cy[0] * CSCLR;
         // working out rz in multiple steps seems to give different floating point answer.
-        let rz = two_over_z_safe(z);
+        let two_over_z = two_over_z_safe(z);
 
         for _ in 0..NUI {
             let st = s2;
-            s2 = (DFNU + FNUI) * rz * s2 + s1;
+            s2 = (DFNU + FNUI) * two_over_z * s2 + s1;
             s1 = st;
             FNUI -= T::one();
             if overflow_state == OverflowState::NearOver {
@@ -115,7 +115,7 @@ pub(crate) fn i_asymp_large_order<T: BesselFloat>(
         let mut K = NL;
         for _ in 0..NL {
             let st = s2;
-            s2 = (order + FNUI) * (rz * s2) + s1;
+            s2 = (order + FNUI) * (two_over_z * s2) + s1;
             s1 = st;
             y[K - 1] = s2 * CSCRR;
             FNUI -= T::one();

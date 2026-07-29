@@ -115,10 +115,10 @@ pub fn i_asymptotic<T: BesselFloat>(
         *elem = s1 * coeff;
     }
     if n > 2 {
-        let rz = two_over_z_safe(z);
+        let two_over_z = two_over_z_safe(z);
         // recur downward from the last two elements
         for k in (0..n - 2).rev() {
-            y[k] = (rz * y[k + 1]) * (T::from_usize(k + 1) + order) + y[k + 2];
+            y[k] = (two_over_z * y[k + 1]) * (T::from_usize(k + 1) + order) + y[k + 2];
         }
     }
     if scaled_calculations {

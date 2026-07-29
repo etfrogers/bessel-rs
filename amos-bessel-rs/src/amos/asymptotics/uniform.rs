@@ -848,7 +848,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         };
     }
 
-    let rz = two_over_z_safe(modified_z);
+    let two_over_z = two_over_z_safe(modified_z);
     if n_elements_set < n {
         //-----------------------------------------------------------------------
         //     TEST LAST MEMBER FOR UNDERFLOW AND OVERFLOW. SET SEQUENCE TO ZERO
@@ -981,7 +981,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         let mut absolute_approximation_limit = i_overflow_state.boundary::<T>();
         for (i, yi) in y.iter_mut().enumerate().take(remaining_n).rev() {
             let modified_order = order + T::from_usize(i + 1);
-            (s1, s2) = (s2, s1 + modified_order * (rz * s2));
+            (s1, s2) = (s2, s1 + modified_order * (two_over_z * s2));
             let mut unscaled_s2 = s2 * reciprocal_scale_factor;
             let ck = unscaled_s2;
 
@@ -1132,7 +1132,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
         };
     }
 
-    let rz = two_over_z_safe(zr);
+    let two_over_z = two_over_z_safe(zr);
     let mut phid = T::C_ZERO;
     let mut argd = T::C_ZERO;
     let mut zeta1d = T::C_ZERO;
@@ -1297,10 +1297,10 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
 
         let mut recip_scale_factor = i_overflow_state.reciprocal_scaling_factor::<T>();
         let mut ascle = i_overflow_state.boundary::<T>();
-        let mut ck = (order + T::from_usize(remaining_n)) * rz;
+        let mut ck = (order + T::from_usize(remaining_n)) * two_over_z;
         for yi in y.iter_mut().take(remaining_n).rev() {
             (s1, s2) = (s2, s1 + ck * s2);
-            ck -= rz;
+            ck -= two_over_z;
             let mut c2 = s2 * recip_scale_factor;
             let old_c2 = c2;
             let mut c1 = *yi;

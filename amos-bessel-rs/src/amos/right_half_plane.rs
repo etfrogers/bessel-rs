@@ -143,7 +143,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
     let mut n_zeros = 0;
     let mut underflow_occurred = false;
     let mut overflow_state;
-    let rz = two_over_z_safe(z);
+    let two_over_z = two_over_z_safe(z);
     let mut integer_order = (order.round()).to_isize().unwrap(); // round to nearest int
     let simple_case = integer_order == 0 && n == 1;
 
@@ -158,7 +158,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
     let (mut s1, mut s2) = if (signed_fractional_order.abs() != T::half()) && (abs_z <= T::two()) {
         // series for (z.abs() <= 2.0) and not half integer order
         let mut fc = T::one();
-        let mut smu = rz.ln();
+        let mut smu = two_over_z.ln();
         let fmu = smu * signed_fractional_order;
         let csh = fmu.sinh();
         let cch = fmu.cosh();
@@ -224,7 +224,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
             } else {
                 OverflowState::None
             };
-        s2 *= overflow_state.scaling_factor::<T>() * rz;
+        s2 *= overflow_state.scaling_factor::<T>() * two_over_z;
         s1 *= overflow_state.scaling_factor::<T>();
         if scaling == Scaling::Scaled {
             let z_exp = z.exp();
@@ -363,7 +363,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
     //     FORWARD RECURSION ON THE THREE TERM RECURSION WITH RELATION WITH
     //     SCALING NEAR EXPONENT EXTREMES ON KFLAG=1 OR KFLAG=3
     //-----------------------------------------------------------------------
-    let mut ck = (signed_fractional_order + T::one()) * rz;
+    let mut ck = (signed_fractional_order + T::one()) * two_over_z;
     if n == 1 {
         integer_order -= 1
     };
@@ -389,7 +389,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
                     // TODO same calculation as other loops - this one is over different range and sets cy
                     // (so is designed to run until cy is set, and record this in INUB)
                     (s1, s2) = (s2, s2 * ck + s1);
-                    ck += rz;
+                    ck += two_over_z;
                     let abs_ln_s2 = s2.abs().ln();
                     if -zd.re + abs_ln_s2 >= -T::MACHINE_CONSTANTS.exponent_limit {
                         let p1 = (-zd + s2.ln()).exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
@@ -426,7 +426,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
                 // TODO same loop as below?
                 // TODO and same recurrence logic used in ZUNKX, ZUNIX?
                 (s1, s2) = (s2, ck * s2 + s1);
-                ck += rz;
+                ck += two_over_z;
                 let p2 = s2 * P1R;
                 overflow_state.scale_recurrence(&mut s1, &mut s2, p2, &mut ASCLE, &mut P1R);
             }
@@ -455,7 +455,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
         if n > 1 {
             y[1] = s2;
         }
-        scale_k_recurrence(z, order, n, &mut y, &mut n_zeros, rz);
+        scale_k_recurrence(z, order, n, &mut y, &mut n_zeros, two_over_z);
         let n_non_zero = (n - n_zeros) as isize;
         if n_non_zero <= 0 {
             return Ok((y, n_zeros));
@@ -472,7 +472,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
             y[working_index] *= T::MACHINE_CONSTANTS.abs_error_tolerance;
         }
         if n_non_zero > 2 {
-            ck = (order + T::from_usize(working_index)) * rz;
+            ck = (order + T::from_usize(working_index)) * two_over_z;
             overflow_state = OverflowState::NearUnder;
         }
         working_index + 1
@@ -486,7 +486,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
     for y_elem in y.iter_mut().skip(n_completed) {
         // TODO same loops as above
         (s1, s2) = (s2, ck * s2 + s1);
-        ck += rz;
+        ck += two_over_z;
         *y_elem = s2 * P1R;
         overflow_state.scale_recurrence(&mut s1, &mut s2, *y_elem, &mut ASCLE, &mut P1R);
     }
