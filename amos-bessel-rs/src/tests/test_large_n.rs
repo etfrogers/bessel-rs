@@ -199,3 +199,19 @@ fn test_bessel_large_n_complex_f32(#[case] order: f64, #[case] zr: f64, #[case] 
         }
     }
 }
+
+#[rstest]
+fn test_scale_k_recurrence() {
+    let z = Complex64::new(715.0, 0.0);
+    let order = 0.0;
+    let n = 800;
+    check_against_fortran(
+        order,
+        z,
+        Scaling::Unscaled,
+        n,
+        complex_bessel_k,
+        zbesk_fortran,
+        1e6,
+    );
+}

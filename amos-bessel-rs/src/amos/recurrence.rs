@@ -1,7 +1,7 @@
 use std::cmp::min;
 
 use itertools::Either;
-use num::{Complex, Zero, complex::ComplexFloat};
+use num::{Complex, complex::ComplexFloat};
 
 use crate::{
     BesselError::DidNotConverge,
@@ -327,83 +327,98 @@ pub(crate) fn i_ratios<T: BesselFloat>(z: Complex<T>, order: T, n: usize) -> Vec
     ratios
 }
 
-/// Set k functions to zero on underflow, continue recurrence
-/// on scaled functions until two members come on scale, then
-/// return with min(n_zeros+2,n) values scaled by 1/tol.
+/// Iterate through k functions (the first number of which may be zeros), set
+/// them to zero on underflow, continuing recurrence
+/// on scaled functions until the first two members of the sequence *don't* underflow
+/// come on scale, then return with min(n_zeros+2,n) values scaled by 1/tol.
 ///
 /// Originally ZKSCL
 pub(crate) fn scale_k_recurrence<T: BesselFloat>(
-    zr: Complex<T>,
+    z: Complex<T>,
     order: T,
     n: usize,
+    // input y values are scaled
     y: &mut [Complex<T>],
     n_zeros: &mut usize,
-    rz: Complex<T>,
+    two_over_z: Complex<T>,
 ) {
     *n_zeros = 0;
-    // let NN = min(2, n);
-    let mut cy = [T::C_ZERO; 2];
     let mut i_completed = 0;
-    // repeats twice, unless n < 2
-    for i in 0..min(2, n) {
-        let s1 = y[i];
-        cy[i] = s1;
-        *n_zeros += 1;
-        y[i] = T::C_ZERO;
-        if -zr.re + s1.abs().ln() < -T::MACHINE_CONSTANTS.exponent_limit {
-            continue;
-        }
 
-        let cs = (s1.ln() - zr).exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
-        if will_underflow(cs) {
+    // Copy the values by value before we start mutating y
+    let original_scaled_0 = y[0];
+    let original_scaled_1 = if n > 1 { y[1] } else { T::C_ZERO };
+
+    // repeats twice, unless n < 2
+    // This tests the first two values in the loop, and can be the only bit
+    // that runs
+    for (i, yi) in y.iter_mut().enumerate().take(min(2, n)) {
+        let current_val = *yi;
+        // Assumption: the value is too small (will underflow)
+        *n_zeros += 1;
+        *yi = T::C_ZERO;
+        if -z.re + current_val.abs().ln() < -T::MACHINE_CONSTANTS.exponent_limit {
+            // if the scaling would put the (negative) exponent below the (negative)
+            // limit, the the value was too small (assumption true)
             continue;
         }
-        y[i] = cs;
+        // note: this is unscaled by the standard scaling, but is still a factor of
+        // abs_error_tolerance smaller than the final answer
+        let unscaled_value =
+            (current_val.ln() - z).exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
+        if will_underflow(unscaled_value) {
+            // if the scaled value would underflow when (later) put back on scale by multiplying
+            // by abs_error_tolerance, then the value is still too small, and would underflow
+            // so assumption above is true
+            continue;
+        }
+        // Here we know the assumption is false, so set the value properly and
+        // decrement n_zeros to undo the increment above
+        *yi = unscaled_value;
         i_completed = i;
         *n_zeros -= 1;
     }
     if n <= 2 || *n_zeros == 0 {
+        // If there are less than two values requested, we've tested them all, so also
+        // return.
+        // n_zeros == 0 means that both the first two value were on scale, and
+        // we can return.
         return;
     }
-    // if i_completed < 1 {
-    //     y[0] = T::C_ZERO;
-    //     *n_zeros = 2;
-    // }
-    // if n == 2 {
-    //     return;
-    // }
-    // if *n_zeros == 0 {
-    //     return;
-    // }
-    let FN = order + T::one();
-    let mut ck = FN * rz;
-    let mut s1 = cy[0];
-    let mut s2 = cy[1];
-    let half_elim = T::half() * T::MACHINE_CONSTANTS.exponent_limit;
-    let ELM = (-T::MACHINE_CONSTANTS.exponent_limit).exp();
-    let CELMR = ELM;
-    let mut zd = zr;
-    //     FIND TWO CONSECUTIVE Y VALUES ON SCALE. SCALE RECURRENCE if
-    //     S2 GETS LARGER THAN EXP(ELIM/2)
-    let mut skip_to_40 = false;
-    let mut I = 0;
+
+    let mut scaled_k_minus_1 = original_scaled_0;
+    let mut scaled_k = original_scaled_1;
+    let half_exponent_limit = T::half() * T::MACHINE_CONSTANTS.exponent_limit;
+    let internal_scaling_factor = (-T::MACHINE_CONSTANTS.exponent_limit).exp();
+    let mut effective_z = z;
+    // Run the recurrence forward on the scaled values until two consecutive values come
+    // on scale. If the scaled sequence grows too large (exceeding e^(limit/2)), we dynamically
+    // scale it down to avoid intermediate overflow.
+    let mut found_two_good_values = false;
+    let mut n_tested = 0;
     for (i, yi) in y.iter_mut().enumerate().skip(2) {
-        I = i;
-        let mut cs = s2;
-        s2 = cs * ck + s1;
-        s1 = cs;
-        ck += rz;
-        let ALAS = s2.abs().ln();
+        n_tested = i;
+        let recurrence_factor = (order + T::from_usize(i - 1)) * two_over_z;
+        (scaled_k_minus_1, scaled_k) = (scaled_k, scaled_k * recurrence_factor + scaled_k_minus_1);
+
+        // Assumption: the value is too small (will underflow)
         *n_zeros += 1;
-        *yi = Complex::<T>::zero();
-        if -zd.re + s2.abs().ln() >= -T::MACHINE_CONSTANTS.exponent_limit {
-            cs = s2.ln() - zd;
-            cs = cs.exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
-            if !will_underflow(cs) {
-                *yi = cs;
+        *yi = T::C_ZERO;
+        if -effective_z.re + scaled_k.abs().ln() >= -T::MACHINE_CONSTANTS.exponent_limit {
+            // note: the value below is unscaled by the standard scaling, but is still a factor of
+            // abs_error_tolerance smaller than the final answer
+            let unscaled_value =
+                (scaled_k.ln() - effective_z).exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
+            if !will_underflow(unscaled_value) {
+                // by this point, we know the assumption was false, so set the value,
+                // and undo the increment we did above
+                *yi = unscaled_value;
                 *n_zeros -= 1;
+
+                // the if below means:
+                // "If we got to this line twice in a row on two iterations of the loop"
                 if i_completed == i - 1 {
-                    skip_to_40 = true;
+                    found_two_good_values = true;
                     break;
                 }
                 i_completed = i;
@@ -411,23 +426,20 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
             }
         }
 
-        if ALAS < half_elim {
-            continue;
+        if scaled_k.abs().ln() > half_exponent_limit {
+            effective_z -= T::MACHINE_CONSTANTS.exponent_limit;
+            scaled_k_minus_1 *= internal_scaling_factor;
+            scaled_k *= internal_scaling_factor;
         }
-        zd -= T::MACHINE_CONSTANTS.exponent_limit;
-        s1 *= CELMR;
-        s2 *= CELMR;
     }
-    if !skip_to_40 {
+    if found_two_good_values {
+        *n_zeros = n_tested - 2;
+    } else {
         *n_zeros = n;
         if i_completed == n {
+            // this means we found one good value, on the last iteration
             *n_zeros = n - 1
-        };
-    } else {
-        *n_zeros = I - 2;
-    }
-    for element in y.iter_mut().take(*n_zeros) {
-        *element = T::C_ZERO;
+        }
     }
 }
 
