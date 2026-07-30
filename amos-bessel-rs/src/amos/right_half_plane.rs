@@ -63,7 +63,7 @@ use crate::{
 /// - Wronskian Normalization ( [i_wronksian] ): For larger |z|, the Neumann series
 ///   requires too many terms to converge. Instead, it computes K_v (z)
 ///   independently, and normalizes the I sequence using the Wronskian cross-product identity:
-///   I_v K_v+1    + I_v+1   K_v  = 1/z
+///   I_v K_v+1 + I_v+1 K_v = 1/z
 ///
 /// Originally ZBINU
 pub(crate) fn i_right_half_plane<T: BesselFloat>(
@@ -77,7 +77,7 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
     let mut remaining_n: usize = n;
     let mut max_order = order + T::from_usize(n - 1);
     let mut y = T::c_zeros(n);
-    if abs_z <= T::two() || abs_z.powi(2) * T::from_f64(0.25) <= max_order + T::one() {
+    if abs_z <= T::two() || abs_z.powi(2) * T::from_f64(0.25) <= max_order + T::ONE {
         // Power series for small z
         let n_zeros_inner;
         // i_power_series return *signed* n_zeros. As per the docs
@@ -94,11 +94,11 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
         if remaining_n == 0 || calculation_finished {
             return Ok((y, n_zeros));
         }
-        max_order = order + (T::from_usize(remaining_n) - T::one());
+        max_order = order + (T::from_usize(remaining_n) - T::ONE);
     }
 
     if (abs_z >= T::MACHINE_CONSTANTS.asymptotic_z_limit)
-        && ((max_order <= T::one()) || (max_order.powi(2) <= abs_z + abs_z))
+        && ((max_order <= T::ONE) || (max_order.powi(2) <= abs_z + abs_z))
     {
         // Large Argument Asymptotics (Large z, Small order)
         let (cy, n_zeros_asymptotic) = i_asymptotic(z, order, scaling, remaining_n)?;
@@ -106,10 +106,8 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
         return Ok((cy, n_zeros));
     }
 
-    if max_order > T::one() {
-        //-----------------------------------------------------------------------
-        //     OVERFLOW AND UNDERFLOW TEST ON I SEQUENCE FOR MILLER ALGORITHM
-        //-----------------------------------------------------------------------
+    if max_order > T::ONE {
+        // Overflow and underflow test on I sequence for Miller algorithm
         let n_zeros_underflow = check_underflow_uniform_asymp_params(
             z,
             order,
@@ -137,40 +135,38 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
         }
     }
 
-    if max_order <= T::one() && abs_z <= T::MACHINE_CONSTANTS.asymptotic_z_limit {
-        // Miller algorithm with series normalisation
-        //-----------------------------------------------------------------------
+    if max_order <= T::ONE && abs_z <= T::MACHINE_CONSTANTS.asymptotic_z_limit {
+        // Miller algorithm with series normalization
         let y = i_miller(z, order, scaling, remaining_n)?;
         return Ok((y, n_zeros));
     }
 
-    // Miller algorithm nomralised by the Wronksian
+    // Miller algorithm normalized by the Wronskian
     let n_zeros_wr = i_wronksian(z, order, scaling, remaining_n, &mut y)?;
     Ok((y, n_zeros + n_zeros_wr))
 }
 
-/// k_right_half_plane computes the k bessel function in the right half z plane.
-/// Originally ZBKNU
+// Could be moved to utils if it's used outside this file
+#[inline]
+fn one_over_sinc<T: BesselFloat>(x: T) -> T {
+    if x == T::ZERO {
+        T::ONE
+    } else {
+        let pi_x = x * T::PI();
+        pi_x / pi_x.sin()
+    }
+}
+
+/// Computes a sequence of Modified Bessel functions of the second kind, $K_{\nu+k}(z)$
+/// for $k = 0, 1, \dots, n-1$, in the right-half plane ($\text{Re}(z) \ge 0$).
+/// Originally Amos routine `ZBKNU`.
 pub fn k_right_half_plane<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
     n: usize,
 ) -> Result<BesselValues<T, usize>, BesselError<T>> {
-    const KMAX: usize = 30;
-    let RTFRAC_PI_2: T = T::from_f64(1.253_314_137_315_500_3);
-    let SPI: T = T::from_f64(1.909_859_317_102_744);
-    let FPI: T = T::from_f64(1.897_699_993_315_177_5);
-    let CC: [T; 8] = [
-        T::from_f64(5.772_156_649_015_329e-1),
-        T::from_f64(-4.200_263_503_409_524e-2),
-        T::from_f64(-4.219_773_455_554_433e-2),
-        T::from_f64(7.218_943_246_663_1e-3),
-        T::from_f64(-2.152_416_741_149_509_8e-4),
-        T::from_f64(-2.013_485_478_078_824e-5),
-        T::from_f64(1.133_027_231_981_696e-6),
-        T::from_f64(6.116_095_104_481_416e-9),
-    ];
+    let sqrt_pi_over_2: T = T::from_f64(1.253_314_137_315_500_3);
 
     let abs_z = z.abs();
     let mut n_zeros = 0;
@@ -178,81 +174,36 @@ pub fn k_right_half_plane<T: BesselFloat>(
     let mut overflow_state;
     let two_over_z = two_over_z_safe(z);
     let mut integer_order = (order.round()).to_isize().unwrap(); // round to nearest int
-    let simple_case = integer_order == 0 && n == 1;
+    let small_order_n_eq_1 = integer_order == 0 && n == 1;
 
-    let signed_fractional_order = order - T::from_f64(integer_order as f64); // signed fractional part (-0.5 < DNU < 0.5 )
+    let signed_fractional_order = order - T::from_f64(integer_order as f64); // signed fractional part (-0.5 <= x <= 0.5)
     let frac_order_sqr = if signed_fractional_order.abs() > T::MACHINE_CONSTANTS.abs_error_tolerance
     {
-        signed_fractional_order * signed_fractional_order
+        signed_fractional_order.powi(2)
     } else {
         T::ZERO
     };
 
-    let (mut s1, mut s2) = if (signed_fractional_order.abs() != T::half()) && (abs_z <= T::two()) {
-        // series for (z.abs() <= 2.0) and not half integer order
-        let mut fc = T::one();
-        let mut smu = two_over_z.ln();
-        let fmu = smu * signed_fractional_order;
-        let csh = fmu.sinh();
-        let cch = fmu.cosh();
-        if signed_fractional_order != T::ZERO {
-            fc = signed_fractional_order * T::PI();
-            fc /= fc.sin();
-            smu = csh / signed_fractional_order;
-        }
-        //-----------------------------------------------------------------------;
-        //     GAM(1-Z)*GAM(1+Z)=PI*Z/SIN(PI*Z), T1=1/GAM(1-DNU), T2=1/GAM(1+DNU);
-        //-----------------------------------------------------------------------;
-        let t2 = (-gamma_ln(T::one() + signed_fractional_order).unwrap()).exp();
-        let t1 = T::one() / (t2 * fc);
+    let (mut k_v_minus_1, mut k_v) = if (signed_fractional_order.abs() != T::half())
+        && (abs_z <= T::two())
+    {
+        // Small |z| <= 2.0 (and non-half-integer order): compute seed values K_nu and K_{nu+1}
+        // using Temme's power series expansion.
+        let (mut s1, mut s2, shinc_mu) =
+            compute_small_z_power_series(z, frac_order_sqr, signed_fractional_order);
 
-        let g1 = if signed_fractional_order.abs() <= T::from_f64(0.1) {
-            //-----------------------------------------------------------------------;
-            //     SERIES FOR F0 TO RESOLVE INDETERMINACY FOR SMALL ABS(DNU);
-            //-----------------------------------------------------------------------;
-            let mut ak = T::one();
-            let mut sum = CC[0];
-            for cc in CC[1..].iter() {
-                ak *= frac_order_sqr;
-                let tm = *cc * ak;
-                sum += tm;
-                if tm.abs() < T::MACHINE_CONSTANTS.abs_error_tolerance {
-                    break;
-                }
-            }
-            -sum
-        } else {
-            (t1 - t2) / (T::two() * signed_fractional_order)
-        };
-        let g2 = (t1 + t2) * T::half();
-        let f = fc * (g1 * cch + g2 * smu);
-        let p = T::half() * fmu.exp() / t2;
-        let q = (T::half() / fmu.exp()) / t1;
-
-        let ck = T::C_ONE;
-        if simple_case {
-            //-----------------------------------------------------------------------;
-            //     SPECIAL CASE
-            //     GENERATE K(FNU,Z), 0.0  <=  FNU  <  0.5 AND N=1;
-            //-----------------------------------------------------------------------;
-            let (s1, _) =
-                k_right_half_plane_helper(z, frac_order_sqr, signed_fractional_order, f, p, q, ck);
-
+        if small_order_n_eq_1 {
+            // Fast exit: order is small (integer_order == 0) and only n = 1 value was requested,
+            // so we can return K_nu directly without running forward recurrence.
             let mut y = s1;
             if scaling == Scaling::Scaled {
                 y *= z.exp();
             }
-            return Ok((vec![y], n_zeros));
+            return Ok((vec![y], 0));
         }
 
-        //-----------------------------------------------------------------------;
-        //     GENERATE K(DNU,Z) AND K(DNU+1,Z) FOR FORWARD RECURRENCE;
-        //-----------------------------------------------------------------------;
-        let (mut s1, mut s2) =
-            k_right_half_plane_helper(z, frac_order_sqr, signed_fractional_order, f, p, q, ck);
-
         overflow_state =
-            if (order + T::one()) * smu.re.abs() > T::MACHINE_CONSTANTS.approximation_limit {
+            if (order + T::ONE) * shinc_mu.re.abs() > T::MACHINE_CONSTANTS.approximation_limit {
                 OverflowState::NearOver
             } else {
                 OverflowState::None
@@ -266,14 +217,10 @@ pub fn k_right_half_plane<T: BesselFloat>(
         }
         (s1, s2)
     } else {
-        // alternative series for z.abs() > 2.0 or half integer order
-        //-----------------------------------------------------------------------;
-        //     underflow_occured=0 MEANS NO UNDERFLOW OCCURRED;
-        //     underflow_occured=1 MEANS AN UNDERFLOW OCCURRED- COMPUTATION PROCEEDS WITH;
-        //     KODED=2 AND A TEST FOR ON SCALE VALUES IS MADE DURING FORWARD;
-        //     RECURSION;
-        //-----------------------------------------------------------------------;
-        let mut coeff = Complex::<T>::new(RTFRAC_PI_2, T::ZERO) / z.sqrt();
+        // Large |z| > 2.0 or half-integer orders: compute starting seeds via Miller's algorithm
+        // or the exact asymptotic coefficient.
+        // If Re(z) is large, enable scaled computation to prevent premature underflow.
+        let mut coeff = Complex::<T>::new(sqrt_pi_over_2, T::ZERO) / z.sqrt();
         overflow_state = OverflowState::None;
         if scaling == Scaling::Unscaled {
             if z.re > T::MACHINE_CONSTANTS.approximation_limit {
@@ -283,270 +230,379 @@ pub fn k_right_half_plane<T: BesselFloat>(
                 coeff *= overflow_state.scaling_factor::<T>() * (-z).exp();
             }
         }
-        let mut AK = (signed_fractional_order * T::PI()).cos().abs();
-        let mut FHS = (T::from_f64(0.25) - frac_order_sqr).abs();
+        let order_rotation = (signed_fractional_order * T::PI()).cos().abs();
+        let quarter_minus_nu_sqr = (T::from_f64(0.25) - frac_order_sqr).abs();
 
-        if signed_fractional_order.abs() == T::half() || AK == T::ZERO || FHS == T::ZERO {
+        if signed_fractional_order.abs() == T::half()
+            || order_rotation == T::ZERO
+            || quarter_minus_nu_sqr == T::ZERO
+        {
             (coeff, coeff)
         } else {
-            //-----------------------------------------------------------------------
-            //     MILLER ALGORITHM FOR CABS(Z) > R1;
-            //-----------------------------------------------------------------------
-            //-----------------------------------------------------------------------
-            //     COMPUTE R2=F(E). if CABS(Z) >= R2, USE FORWARD RECURRENCE TO
-            //     DETERMINE THE BACKWARD INDEX K. R2=F(E) IS A STRAIGHT LINE ON
-            //     12 <= E <= 60. E IS COMPUTED FROM 2**(-E)=B**(1-i1mach(14))=
-            //     TOL WHERE B IS THE BASE OF THE ARITHMETIC.
-            //-----------------------------------------------------------------------
-            // let f64_significant_digits =
-            // (f64::MANTISSA_DIGITS - 1) as f64 * (f64::RADIX as f64).log10();
-            let bits = T::from_f64((T::MANTISSA_DIGITS - 1) as f64);
-            let determiner = bits.clamp(T::from_f64(12.0), T::from_f64(60.0));
-            let recurrence_threshold = T::TWO_THIRDS * determiner - T::from_f64(6.0);
-            let arg_z = z.arg();
-
-            let (FK, FHS) = if abs_z > recurrence_threshold {
-                //-----------------------------------------------------------------------;
-                //     FORWARD RECURRENCE LOOP WHEN CABS(Z) >= R2;
-                //-----------------------------------------------------------------------;
-                let convergence_test =
-                    AK / (T::PI() * abs_z * T::MACHINE_CONSTANTS.abs_error_tolerance);
-                let mut FK = T::one();
-                if convergence_test >= T::one() {
-                    let mut FKS = T::two();
-                    let mut CKR = abs_z + abs_z + T::two();
-                    let mut p1 = T::ZERO;
-                    let mut p2 = T::one();
-                    let mut converged = false;
-                    for _ in 0..KMAX {
-                        let AK = FHS / FKS;
-                        let CBR = CKR / (FK + T::one());
-                        let pt = p2;
-                        p2 = CBR * p2 - AK * p1;
-                        p1 = pt;
-                        CKR += T::two();
-                        FKS += FK + FK + T::two();
-                        FHS += FK + FK;
-                        FK += T::one();
-                        if convergence_test < p2.abs() * FK {
-                            converged = true;
-                            break;
-                        }
-                    }
-                    if !converged {
-                        return Err(BesselError::DidNotConverge);
-                    }
-                    FK += SPI * arg_z * (recurrence_threshold / abs_z).sqrt();
-                    FHS = (T::from_f64(0.25) - frac_order_sqr).abs();
-                }
-                (FK, FHS)
-            } else {
-                //-----------------------------------------------------------------------;
-                //     COMPUTE BACKWARD INDEX K FOR CABS(Z) < R2;
-                //-----------------------------------------------------------------------;
-                AK *= FPI / (T::MACHINE_CONSTANTS.abs_error_tolerance * abs_z.sqrt().sqrt());
-                let AA = T::from_f64(3.0) * arg_z / (T::one() + abs_z);
-                let BB = T::from_f64(14.7) * arg_z / (T::from_f64(28.0) + abs_z);
-                AK = (AK.ln() + abs_z * AA.cos() / (T::one() + T::from_f64(0.008) * abs_z))
-                    / BB.cos();
-                let FK = T::from_f64(0.12125) * AK * AK / abs_z + T::from_f64(1.5);
-                (FK, FHS)
-            };
-            //-----------------------------------------------------------------------;
-            //     BACKWARD RECURRENCE LOOP FOR MILLER ALGORITHM;
-            //-----------------------------------------------------------------------;
-            let K = FK.to_usize().unwrap();
-            let mut k_squared = FK.floor().powi(2);
-            let mut p1 = Complex::<T>::zero();
-            let mut p2 = Complex::<T>::new(T::MACHINE_CONSTANTS.abs_error_tolerance, T::ZERO);
-            let mut cs = p2;
-            for i in (0..K).rev() {
-                let k_float = T::from_usize(i + 1);
-                let cb = (z + k_float) * T::two() / (k_float + T::one());
-                (p1, p2) = (
-                    p2,
-                    (p2 * cb - p1) * (k_squared + k_float) / (k_squared - k_float + FHS),
-                );
-                cs += p2;
-                k_squared -= (T::two() * k_float) - T::one();
-            }
-            //-----------------------------------------------------------------------;
-            //     COMPUTE (P2/CS)=(P2/CABS(CS))*(CONJG(CS)/CABS(CS)) FOR BETTER;
-            //     SCALING;
-            //-----------------------------------------------------------------------;
-            let mut s1 = p2 / cs.abs();
-            let mut s2 = Complex::<T>::zero();
-            cs = cs.conj() / cs.abs();
-            s1 *= coeff * cs;
-            if !simple_case {
-                //-----------------------------------------------------------------------;
-                //     COMPUTE P1/P2=(P1/CABS(P2)*CONJG(P2)/CABS(P2) FOR SCALING;
-                //-----------------------------------------------------------------------;
-                p1 /= p2.abs();
-                p2 = p2.conj() / p2.abs();
-                s2 = (((-(p1 * p2) + signed_fractional_order + T::half()) / z) + T::one()) * s1;
-            }
-            (s1, s2)
+            compute_large_z_miller_seeds(
+                z,
+                signed_fractional_order,
+                frac_order_sqr,
+                order_rotation,
+                quarter_minus_nu_sqr,
+                coeff,
+                small_order_n_eq_1,
+            )?
         }
     };
 
-    // Now s1, s2 set up, we can go to recurrence
-
-    //-----------------------------------------------------------------------
-    //     FORWARD RECURSION ON THE THREE TERM RECURSION WITH RELATION WITH
-    //     SCALING NEAR EXPONENT EXTREMES ON KFLAG=1 OR KFLAG=3
-    //-----------------------------------------------------------------------
-    let mut ck = (signed_fractional_order + T::one()) * two_over_z;
+    // Starting seeds k_v_minus_1 (K_nu) and k_v (K_{nu+1}) are ready; proceed to recurrence.
     if n == 1 {
         integer_order -= 1
     };
 
-    if !simple_case {
+    if !small_order_n_eq_1 {
         if integer_order > 0 {
-            let mut n_tested = 1;
+            let mut next_offset = 2;
             if underflow_occurred {
+                // Scaled forward recurrence to climb out of the underflow region.
+                // Once two consecutive non-underflowing values are found and stored in `recovery_buffer`,
+                // standard recurrence can safely resume.
                 underflow_occurred = false;
-                //-----------------------------------------------------------------------;
-                //     underflow_occured=1 CASES, FORWARD RECURRENCE ON SCALED VALUES ON UNDERFLOW;
-                //-----------------------------------------------------------------------;
-                let mut cy = [T::C_ZERO; 2];
+                let mut recovery_buffer = [T::C_ZERO; 2];
                 let half_exponent_limit = T::half() * T::MACHINE_CONSTANTS.exponent_limit;
 
                 let abs_limit = (-T::MACHINE_CONSTANTS.exponent_limit).exp();
 
-                let mut zd = z;
-                let mut IC: isize = -1;
-                let mut J = 1;
-                for i in 0..integer_order {
-                    n_tested = i + 2;
-                    // TODO same calculation as other loops - this one is over different range and sets cy
-                    // (so is designed to run until cy is set, and record this in INUB)
-                    (s1, s2) = (s2, s2 * ck + s1);
-                    ck += two_over_z;
-                    let abs_ln_s2 = s2.abs().ln();
-                    if -zd.re + abs_ln_s2 >= -T::MACHINE_CONSTANTS.exponent_limit {
-                        let p1 = (-zd + s2.ln()).exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
-                        if !will_underflow(p1) {
-                            J = 1 - J;
-                            cy[J] = p1;
-                            // below implies we got here twice in a row
-                            if IC == i - 1 {
-                                // underflow_occurred = true; //implies 270
+                let mut z_shift = z;
+                // Tracks the index of the previous non-underflowing value to ensure two in a row
+                let mut last_good_iteration: isize = -1;
+                // Alternates between 0 and 1 (via buf_idx = 1 - buf_idx) to buffer two
+                // consecutive values in recovery_buffer
+                let mut buf_idx = 1;
+
+                // This is the mathematical offset we are about to calculate.
+                // We already have offset 0 (k_v_minus_1) and offset 1 (k_v), so we start at 2!
+                for offset in 2..=integer_order + 1 {
+                    // Record that if we break, the next loop should pick up after us
+                    next_offset = offset + 1;
+
+                    let recurrence_factor =
+                        (signed_fractional_order + T::from_isize(offset - 1)) * two_over_z;
+                    (k_v_minus_1, k_v) = (k_v, k_v * recurrence_factor + k_v_minus_1);
+                    let ln_abs_k_v = k_v.abs().ln();
+                    if -z_shift.re + ln_abs_k_v >= -T::MACHINE_CONSTANTS.exponent_limit {
+                        let trial_k_v =
+                            (-z_shift + k_v.ln()).exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
+                        if !will_underflow(trial_k_v) {
+                            buf_idx = 1 - buf_idx;
+                            recovery_buffer[buf_idx] = trial_k_v;
+                            // Two consecutive non-underflowing values found
+                            if last_good_iteration == offset - 2 {
                                 break;
                             } else {
-                                IC = i;
+                                last_good_iteration = offset - 1;
                                 continue;
                             }
                         }
-                        if abs_ln_s2 < half_exponent_limit {
+                        if ln_abs_k_v < half_exponent_limit {
                             continue;
                         }
-                        zd.re -= T::MACHINE_CONSTANTS.exponent_limit;
-                        s1 *= abs_limit;
-                        s2 *= abs_limit;
+                        z_shift.re -= T::MACHINE_CONSTANTS.exponent_limit;
+                        k_v_minus_1 *= abs_limit;
+                        k_v *= abs_limit;
                     }
                 }
                 overflow_state = OverflowState::NearUnder;
 
-                s2 = cy[J];
-                J = 1 - J;
-                s1 = cy[J];
+                k_v = recovery_buffer[buf_idx];
+                buf_idx = 1 - buf_idx;
+                k_v_minus_1 = recovery_buffer[buf_idx];
             }
 
-            let mut P1R = overflow_state.reciprocal_scaling_factor::<T>();
-            let mut ASCLE = overflow_state.boundary();
-            for _ in n_tested..=integer_order {
-                // TODO same loop as below?
-                // TODO and same recurrence logic used in ZUNKX, ZUNIX?
-                (s1, s2) = (s2, ck * s2 + s1);
-                ck += two_over_z;
-                let p2 = s2 * P1R;
-                overflow_state.scale_recurrence(&mut s1, &mut s2, p2, &mut ASCLE, &mut P1R);
+            // Resume the standard forward recurrence: K_{v+1} = (2v/z) * K_{v} + K_{v-1}
+            // Because K_v grows extremely rapidly with order v, we must dynamically
+            // check and scale the values downwards at each step to prevent floating-point overflow.
+            let mut reciprocal_scaling_factor = overflow_state.reciprocal_scaling_factor::<T>();
+            let mut boundary = overflow_state.boundary();
+            for offset in next_offset..=integer_order + 1 {
+                let recurrence_factor =
+                    (signed_fractional_order + T::from_isize(offset - 1)) * two_over_z;
+                (k_v_minus_1, k_v) = (k_v, recurrence_factor * k_v + k_v_minus_1);
+                let scaled_k_v = k_v * reciprocal_scaling_factor;
+
+                overflow_state.scale_recurrence(
+                    &mut k_v_minus_1,
+                    &mut k_v,
+                    scaled_k_v,
+                    &mut boundary,
+                    &mut reciprocal_scaling_factor,
+                );
             }
         }
         if n == 1 {
-            s1 = s2;
+            k_v_minus_1 = k_v;
         }
     }
 
     let mut y = T::c_zeros(n);
-    let n_completed = if !underflow_occurred {
-        // ********* basic setup
-        y[0] = s1 * overflow_state.reciprocal_scaling_factor::<T>();
-        if n > 1 {
-            y[1] = s2 * overflow_state.reciprocal_scaling_factor::<T>();
-            2
-        } else {
-            1
-        }
 
-        // ********* End Basic Setup
-    } else {
-        // ******** Alternative setup if underflow_occured
-
-        y[0] = s1;
+    let n_completed = if underflow_occurred {
+        // Seed output array with the starting values
+        y[0] = k_v_minus_1;
         if n > 1 {
-            y[1] = s2;
+            y[1] = k_v;
         }
+        // Step up through orders until we find two values that don't underflow.
+        // scale_k_recurrence places them into y scaled by abs_error_tolerance, which we unscale below.
         scale_k_recurrence(z, order, n, &mut y, &mut n_zeros, two_over_z);
         let n_non_zero = (n - n_zeros) as isize;
         if n_non_zero <= 0 {
             return Ok((y, n_zeros));
         }
+
+        // Unscale the first two valid values by multiplying by abs_error_tolerance
         let mut working_index = n_zeros;
-        s1 = y[working_index];
+        k_v_minus_1 = y[working_index];
         y[working_index] *= T::MACHINE_CONSTANTS.abs_error_tolerance;
         if n_non_zero > 1 {
-            // if n_non_zero == 1 {
-            //     return Ok((y, n_zeros));
-            // }
             working_index += 1;
-            s2 = y[working_index];
+            k_v = y[working_index];
             y[working_index] *= T::MACHINE_CONSTANTS.abs_error_tolerance;
         }
         if n_non_zero > 2 {
+            // If some values underflowed, the first non-zero values are near the underflow boundary
             overflow_state = OverflowState::NearUnder;
         }
+        if n <= 2 {
+            return Ok((y, n_zeros));
+        }
+
         working_index + 1
+    } else {
+        // No underflow occurred: unscale and fill output array
+        y[0] = k_v_minus_1 * overflow_state.reciprocal_scaling_factor::<T>();
+        if n == 1 {
+            return Ok((y, n_zeros));
+        }
+        y[1] = k_v * overflow_state.reciprocal_scaling_factor::<T>();
+        if n == 2 {
+            return Ok((y, n_zeros));
+        }
+        2
     };
-    // End Setup
-    if n_completed >= n {
-        return Ok((y, n_zeros));
-    }
-    scale_controlled_recurrence(true, order, z, &mut y, n_completed, s1, s2, overflow_state);
+
+    // Fill in remaining values via forward recurrence with scaling control
+    scale_controlled_recurrence(
+        true,
+        order,
+        z,
+        &mut y,
+        n_completed,
+        k_v_minus_1,
+        k_v,
+        overflow_state,
+    );
     Ok((y, n_zeros))
 }
 
-fn k_right_half_plane_helper<T: BesselFloat>(
+/// Computes seed values $K_\nu(z)$ and $K_{\nu+1}(z)$ (unscaled) for small $|z| \le 2$
+/// using Nico Temme's (1975) power series algorithm.
+fn compute_small_z_power_series<T: BesselFloat>(
     z: Complex<T>,
     frac_order_sqr: T,
     signed_fractional_order: T,
-    mut f: Complex<T>,
-    mut p: Complex<T>,
-    mut q: Complex<T>,
-    mut ck: Complex<T>,
-) -> (Complex<T>, Complex<T>) {
-    let mut a1 = T::one();
-    let cz_sqr_over_4 = T::from_f64(0.25) * z.powu(2);
+) -> (Complex<T>, Complex<T>, Complex<T>) {
+    const MAX_ITERATIONS: usize = 1000;
+    let gamma_difference_taylor_coeffs: [T; 8] = [
+        T::from_f64(5.772_156_649_015_329e-1),
+        T::from_f64(-4.200_263_503_409_524e-2),
+        T::from_f64(-4.219_773_455_554_433e-2),
+        T::from_f64(7.218_943_246_663_1e-3),
+        T::from_f64(-2.152_416_741_149_509_8e-4),
+        T::from_f64(-2.013_485_478_078_824e-5),
+        T::from_f64(1.133_027_231_981_696e-6),
+        T::from_f64(6.116_095_104_481_416e-9),
+    ];
+
+    let two_over_z = two_over_z_safe(z);
+
+    // mu = nu * ln(2/z), so exp(mu) = (2/z)^nu and exp(-mu) = (z/2)^nu
+    let mu = two_over_z.ln() * signed_fractional_order;
+    let cosh_mu = mu.cosh();
+    let one_over_sinc_nu = one_over_sinc(signed_fractional_order);
+    // shinc_mu = sinh(mu) / nu = ((2/z)^nu - (z/2)^nu) / (2*nu)
+    // When nu -> 0, lim sinh(mu)/nu = ln(2/z)
+    let shinc_mu = if signed_fractional_order == T::ZERO {
+        two_over_z.ln()
+    } else {
+        mu.sinh() / signed_fractional_order
+    };
+    // Compute 1/Gamma(1+nu) and 1/Gamma(1-nu) using Euler's reflection formula:
+    // Gamma(1-nu) * Gamma(1+nu) = pi*nu / sin(pi*nu)
+    let recip_gamma_one_plus_nu = (-gamma_ln(T::ONE + signed_fractional_order).unwrap()).exp();
+    let recip_gamma_one_minus_nu = T::ONE / (recip_gamma_one_plus_nu * one_over_sinc_nu);
+
+    // Compute (1/Gamma(1-nu) - 1/Gamma(1+nu)) / (2*nu).
+    // When |nu| <= 0.1, use Taylor series expansion to avoid 0/0 numerical indeterminacy.
+    let gamma_diff_over_2nu = if signed_fractional_order.abs() <= T::from_f64(0.1) {
+        let mut sum = T::ZERO;
+        for (i, cc) in gamma_difference_taylor_coeffs.iter().enumerate() {
+            let term = *cc * frac_order_sqr.powi(i as i32);
+            sum += term;
+            if term.abs() < T::MACHINE_CONSTANTS.abs_error_tolerance {
+                break;
+            }
+        }
+        -sum
+    } else {
+        (recip_gamma_one_minus_nu - recip_gamma_one_plus_nu) / (T::two() * signed_fractional_order)
+    };
+    let mean_gamma = (recip_gamma_one_minus_nu + recip_gamma_one_plus_nu) * T::half();
+
+    // Initial terms of Temme's series at k=0:
+    // temme_coeff = f_0 = cancellation-free combination of (z/2)^-nu and (z/2)^+nu
+    // neg_order_term = p_0 = 0.5 * (z/2)^-nu / Gamma(1+nu)
+    // pos_order_term = q_0 = 0.5 * (z/2)^+nu / Gamma(1-nu)
+    let mut temme_coeff =
+        one_over_sinc_nu * (gamma_diff_over_2nu * cosh_mu + mean_gamma * shinc_mu);
+    let mut neg_order_term = T::half() * mu.exp() / recip_gamma_one_plus_nu;
+    let mut pos_order_term = (T::half() / mu.exp()) / recip_gamma_one_minus_nu;
+
+    let mut taylor_factor = T::C_ONE;
+    let mut term_magnitude = T::ONE;
+    let z_sqr_over_4 = T::from_f64(0.25) * z.powu(2);
     let abs_z = z.abs();
     let abs_z_sqr_over_4 = T::from_f64(0.25) * abs_z * abs_z;
-    let mut ak = T::one();
-    let mut bk = T::one() - frac_order_sqr;
 
-    let mut s1 = f;
-    let mut s2 = p;
+    let mut sum_k_nu = temme_coeff;
+    let mut sum_k_nu_plus_1 = neg_order_term;
     if abs_z >= T::MACHINE_CONSTANTS.abs_error_tolerance {
-        while a1 > T::MACHINE_CONSTANTS.abs_error_tolerance {
-            f = (f * ak + p + q) / bk;
-            p /= ak - signed_fractional_order;
-            q /= ak + signed_fractional_order;
-            ck *= cz_sqr_over_4 / ak;
-            s1 += ck * f;
-            s2 += ck * (p - ak * f);
-            a1 *= abs_z_sqr_over_4 / ak;
-            bk += (T::two() * ak) + T::one();
-            ak += T::one();
+        for step in 1..MAX_ITERATIONS {
+            let k = T::from_usize(step);
+            let k_sqr_minus_nu_sqr = k.powi(2) - frac_order_sqr;
+            temme_coeff = (temme_coeff * k + neg_order_term + pos_order_term) / k_sqr_minus_nu_sqr;
+            neg_order_term /= k - signed_fractional_order;
+            pos_order_term /= k + signed_fractional_order;
+            taylor_factor *= z_sqr_over_4 / k;
+            sum_k_nu += taylor_factor * temme_coeff;
+            sum_k_nu_plus_1 += taylor_factor * (neg_order_term - k * temme_coeff);
+            term_magnitude *= abs_z_sqr_over_4 / k;
+
+            if term_magnitude <= T::MACHINE_CONSTANTS.abs_error_tolerance {
+                break;
+            }
         }
     }
-    (s1, s2)
+    (sum_k_nu, sum_k_nu_plus_1, shinc_mu)
+}
+
+/// Computes seed values $K_\nu(z)$ and $K_{\nu+1}(z)$ for $|z| > 2$
+/// using Miller's backward recurrence algorithm normalized by the asymptotic series identity.
+fn compute_large_z_miller_seeds<T: BesselFloat>(
+    z: Complex<T>,
+    signed_fractional_order: T,
+    frac_order_sqr: T,
+    order_rotation: T,
+    quarter_minus_nu_sqr: T,
+    coeff: Complex<T>,
+    small_order_n_eq_1: bool,
+) -> Result<(Complex<T>, Complex<T>), BesselError<T>> {
+    let starting_k = determine_miller_starting_k(z, frac_order_sqr, order_rotation)?;
+    // Now we have starting_k, run the backward recurrence loop
+    // to determine the normalization factor and find K_nu, K_{nu+1}
+    let mut unnormalized_k_plus_1 = Complex::<T>::zero();
+    let mut unnormalized_k = Complex::<T>::new(T::MACHINE_CONSTANTS.abs_error_tolerance, T::ZERO);
+    let mut normalization_sum = unnormalized_k;
+    for k_int in (1..=starting_k).rev() {
+        let k = T::from_usize(k_int);
+        let k_sqr = k.powi(2);
+        let backward_recurrence_factor = (z + k) * T::two() / (k + T::ONE);
+        (unnormalized_k_plus_1, unnormalized_k) = (
+            unnormalized_k,
+            (unnormalized_k * backward_recurrence_factor - unnormalized_k_plus_1) * (k_sqr + k)
+                / (k_sqr - k + quarter_minus_nu_sqr),
+        );
+        normalization_sum += unnormalized_k;
+    }
+    // Normalize the unscaled K_nu using the accumulated sum: K_nu = (P_0 / sum) * coeff
+    let mut k_nu = unnormalized_k / normalization_sum.abs();
+
+    normalization_sum = normalization_sum.conj() / normalization_sum.abs();
+    k_nu *= coeff * normalization_sum;
+    let k_nu_plus_1 = if small_order_n_eq_1 {
+        T::C_ZERO
+    } else {
+        // Numerically stable ratio (P_1 / P_0)
+        unnormalized_k_plus_1 /= unnormalized_k.abs();
+        unnormalized_k = unnormalized_k.conj() / unnormalized_k.abs();
+        (((-(unnormalized_k_plus_1 * unnormalized_k) + signed_fractional_order + T::half()) / z)
+            + T::ONE)
+            * k_nu
+    };
+    Ok((k_nu, k_nu_plus_1))
+}
+
+fn determine_miller_starting_k<T: BesselFloat>(
+    z: Complex<T>,
+    frac_order_sqr: T,
+    order_rotation: T,
+) -> Result<usize, BesselError<T>> {
+    let abs_z = z.abs();
+    const K_MAX: usize = 30;
+    let miller_truncation_heuristic_1: T = T::from_f64(1.909_859_317_102_744);
+    let miller_truncation_heuristic_2: T = T::from_f64(1.897_699_993_315_177_5);
+
+    // Compute recurrence_threshold = f(E).
+    // If |z| >= R2, use forward recurrence to determine the backward truncation index K.
+    // The `recurrence_threshold` is a linear function over the mantissa bits E (12 <= E <= 60).
+    let bits = (T::MANTISSA_DIGITS - 1).clamp(12, 60) as f64;
+    let recurrence_threshold = T::from_f64((2.0 / 3.0) * bits - 6.0);
+    let arg_z = z.arg();
+
+    // Both blocks below are answering the question:
+    // How large does our starting index K need to be to achieve K_(nu+K) ≈ 0
+    // (that is, equals zero to within machine precision)
+    let starting_k = if abs_z > recurrence_threshold {
+        // Forward recurrence loop to determine starting_k when z.abs() >= recurrence_threshold
+        let convergence_test =
+            order_rotation / (T::PI() * abs_z * T::MACHINE_CONSTANTS.abs_error_tolerance);
+        if convergence_test <= T::ONE {
+            // skip the loop and just return trial index as 1
+            1
+        } else {
+            let mut trial_index = 1;
+            let mut p_prev = T::ZERO;
+            let mut p_curr = T::ONE;
+            let mut converged = false;
+            for i in 1..=K_MAX {
+                let i_plus_1 = T::from_usize(i + 1);
+                let i_float = T::from_usize(i);
+                let p_coeff_a = ((i_float - T::half()).powi(2) - frac_order_sqr)
+                    / (i_float * (i_float + T::ONE));
+                let p_coeff_b = (T::two() * abs_z + T::from_usize(2 * i)) / i_plus_1;
+                (p_prev, p_curr) = (p_curr, p_coeff_b * p_curr - p_coeff_a * p_prev);
+                trial_index = i + 1;
+                if convergence_test < p_curr.abs() * i_plus_1 {
+                    converged = true;
+                    break;
+                }
+            }
+            if !converged {
+                return Err(BesselError::DidNotConverge);
+            }
+            let raw_k = T::from_usize(trial_index)
+                + miller_truncation_heuristic_1 * arg_z * (recurrence_threshold / abs_z).sqrt();
+            raw_k.to_usize().unwrap()
+        }
+    } else {
+        // For small z.abs() (< recurrence threshold), we don't bother running the loop above;
+        // instead, we use a heuristic equation to calculate the K value directly.
+        let precision_factor = order_rotation * miller_truncation_heuristic_2
+            / (T::MACHINE_CONSTANTS.abs_error_tolerance * abs_z.sqrt().sqrt());
+        let angle_correction_a = T::from_f64(3.0) * arg_z / (T::ONE + abs_z);
+        let angle_correction_b = T::from_f64(14.7) * arg_z / (T::from_f64(28.0) + abs_z);
+        let heuristic_curve_factor = (precision_factor.ln()
+            + abs_z * angle_correction_a.cos() / (T::ONE + T::from_f64(0.008) * abs_z))
+            / angle_correction_b.cos();
+        let raw_k =
+            T::from_f64(0.12125) * heuristic_curve_factor.powi(2) / abs_z + T::from_f64(1.5);
+        raw_k.to_usize().unwrap()
+    };
+    Ok(starting_k)
 }

@@ -101,6 +101,12 @@ impl OverflowState {
     ///
     /// The values `s1` and `s2` are the recurrence state variables.
     /// `unscaled_s2` is the newly computed term before scaling.
+    ///
+    /// Note: `boundary` and `recip_scaling_factor` are explicitly passed in as mutable
+    /// references rather than evaluated internally via `self.boundary()` and 
+    /// `self.reciprocal_scaling_factor()`. This acts as a manual loop-invariant code
+    /// motion (hoisting), preventing the compiler from executing the `match` branches
+    /// inside those functions on every iteration of the tight innermost recurrence loops.
     pub fn scale_recurrence<T: BesselFloat>(
         &mut self,
         s1: &mut Complex<T>,

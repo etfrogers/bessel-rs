@@ -215,3 +215,46 @@ fn test_scale_k_recurrence() {
         1e6,
     );
 }
+
+#[rstest]
+fn test_k_right_half_plane_underflow_offset_bug() {
+    // z is extremely large, so K_0(715) evaluates to roughly e^-715,
+    // which is below f64::MIN_POSITIVE and underflows to exactly 0.
+    let z = Complex64::new(715.0, 0.0);
+    let n = 200;
+    let order = 0.0;
+
+    let (res, n_zeros) = complex_bessel_k(z, order, Scaling::Unscaled, n).unwrap();
+
+    // It should take 156 steps of the sequence growing before the values
+    // finally become large enough to be represented by an f64 again!
+    assert_eq!(n_zeros, 156);
+
+    // Therefore, the first 156 elements MUST be exactly zero.
+    for i in 0..=n_zeros {
+        assert_eq!(
+            res[i],
+            Complex64::new(0.0, 0.0),
+            "Index {} should have underflowed to 0",
+            i
+        );
+    }
+
+    // And the 157th element should finally be non-zero.
+    assert_ne!(
+        res[157],
+        Complex64::new(0.0, 0.0),
+        "Index 156 should be non-zero"
+    );
+
+    // also test against fortran
+    check_against_fortran(
+        order,
+        z,
+        Scaling::Unscaled,
+        n,
+        complex_bessel_k,
+        zbesk_fortran,
+        1e6,
+    );
+}
