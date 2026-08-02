@@ -10,7 +10,7 @@ use crate::{
         limits::{OverflowState, check_underflow_uniform_asymp_params},
         recurrence::{i_miller, scale_controlled_recurrence, scale_k_recurrence},
         utils::{two_over_z_safe, will_underflow},
-        wronksian::i_wronksian,
+        wronskian::i_wronskian,
     },
     types::{BesselFloat, BesselResult, BesselValues},
 };
@@ -142,7 +142,7 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
     }
 
     // Miller algorithm normalized by the Wronskian
-    let n_zeros_wr = i_wronksian(z, order, scaling, remaining_n, &mut y)?;
+    let n_zeros_wr = i_wronskian(z, order, scaling, remaining_n, &mut y)?;
     Ok((y, n_zeros + n_zeros_wr))
 }
 
