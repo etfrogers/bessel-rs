@@ -4,10 +4,10 @@ use crate::{
     BesselError, Scaling,
     amos::{
         IKType,
-        asymptotics::i_asymp_large_order,
-        asymptotics::i_asymptotic,
-        gamma_ln, i_power_series,
+        asymptotics::{i_asymp_large_order, i_asymptotic},
+        gamma_ln,
         limits::{OverflowState, check_underflow_uniform_asymp_params},
+        power_series::i_power_series,
         recurrence::{i_miller, scale_controlled_recurrence, scale_k_recurrence},
         utils::{two_over_z_safe, will_underflow},
         wronskian::i_wronskian,
