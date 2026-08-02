@@ -5,7 +5,7 @@ use num::{
 
 use crate::{
     BesselError, BesselFloat, Scaling,
-    amos::utils::{RTPI, two_over_z_safe},
+    amos::utils::{RECIP_TWO_PI, two_over_z_safe},
     types::BesselResult,
 };
 
@@ -36,7 +36,7 @@ pub fn i_asymptotic<T: BesselFloat>(
         return Err(BesselError::Overflow);
     }
     let scaled_calculations = cz.re.abs() > T::MACHINE_CONSTANTS.approximation_limit;
-    let mut coeff = (T::from_f64(RTPI) * z.conj() * recip_abs_z.powi(2)).sqrt();
+    let mut coeff = (T::from_f64(RECIP_TWO_PI) * z.conj() * recip_abs_z.powi(2)).sqrt();
     if !scaled_calculations {
         coeff *= cz.exp();
     }
