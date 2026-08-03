@@ -18,198 +18,195 @@ use crate::{
         recurrence::scale_controlled_recurrence,
         utils::{AIC, two_over_z_safe, will_underflow},
     },
-    types::{BesselFloat, BesselResult, UniformAssymptoticParameters, cache_key},
+    types::{BesselFloat, BesselResult},
 };
 
-pub(crate) fn ik_uniform_asymp_params<T: BesselFloat>(
-    zr: Complex<T>,
-    order: T,
-    ikflg: IKType,
-    only_phi_zeta: bool,
-) -> (Complex<T>, Complex<T>, Complex<T>, Option<Complex<T>>) {
-    // ***BEGIN PROLOGUE  ZUNIK
-    // ***REFER TO  ZBESI,ZBESK
-    //
-    //        ZUNIK COMPUTES PARAMETERS FOR THE UNIFORM ASYMPTOTIC
-    //        EXPANSIONS OF THE I AND K FUNCTIONS ON IKFLG= 1 OR 2
-    //        RESPECTIVELY BY
-    //
-    //        W(FNU,ZR) = PHI*EXP(ZETA)*SUM
-    //
-    //        WHERE       ZETA=-ZETA1 + ZETA2       OR
-    //                          ZETA1 - ZETA2
-    //
-    //        THE FIRST CALL MUST HAVE INIT=0. SUBSEQUENT CALLS WITH THE
-    //        SAME ZR AND FNU WILL RETURN THE I OR K FUNCTION ON IKFLG=
-    //        1 OR 2 WITH NO CHANGE IN INIT. CWRK IS A COMPLEX WORK
-    //        ARRAY. IPMTR=0 COMPUTES ALL PARAMETERS. IPMTR=1 COMPUTES PHI,
-    //        ZETA1,ZETA2.
-    //
-    // ***ROUTINES CALLED  ZDIV,ZLOG,ZSQRT,d1mach
-    // ***END PROLOGUE  ZUNIK
-    //
+// ***BEGIN PROLOGUE  ZUNIK
+// ***REFER TO  ZBESI,ZBESK
+//
+//        ZUNIK COMPUTES PARAMETERS FOR THE UNIFORM ASYMPTOTIC
+//        EXPANSIONS OF THE I AND K FUNCTIONS ON IKFLG= 1 OR 2
+//        RESPECTIVELY BY
+//
+//        W(FNU,ZR) = PHI*EXP(ZETA)*SUM
+//
+//        WHERE       ZETA=-ZETA1 + ZETA2       OR
+//                          ZETA1 - ZETA2
+//
+//        THE FIRST CALL MUST HAVE INIT=0. SUBSEQUENT CALLS WITH THE
+//        SAME ZR AND FNU WILL RETURN THE I OR K FUNCTION ON IKFLG=
+//        1 OR 2 WITH NO CHANGE IN INIT. CWRK IS A COMPLEX WORK
+//        ARRAY. IPMTR=0 COMPUTES ALL PARAMETERS. IPMTR=1 COMPUTES PHI,
+//        ZETA1,ZETA2.
+//
+// ***ROUTINES CALLED  ZDIV,ZLOG,ZSQRT,d1mach
+// ***END PROLOGUE  ZUNIK
+//
 
-    let compute_sum_i = |working: &Vec<Complex<T>>| working.iter().sum::<Complex<T>>();
-    let compute_sum_k = |working: &Vec<Complex<T>>| {
-        let mut term_sign = T::one();
-        working
-            .iter()
-            .map(|v| {
-                let output = v * term_sign;
-                term_sign = -term_sign;
-                output
-            })
-            .sum::<Complex<T>>()
-    };
+/// Initaial for the uniform asymptotic Debye expansion of modified Bessel functions $I_\nu$ and $K_\nu$.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct DebyeGeometry<T: BesselFloat> {
+    pub phi_i: Complex<T>,
+    pub phi_k: Complex<T>,
+    pub zeta1: Complex<T>,
+    pub zeta2: Complex<T>,
 
-    let mut cache = (*T::UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE)
-        .lock()
-        .expect("Failed to get results cache");
+    pub(crate) s: Complex<T>,
+    pub(crate) sr: Complex<T>,
+    pub(crate) reciprocal_order: T,
+    pub(crate) is_underflow: bool,
+}
 
-    if let Some(params) = cache.get_mut(&cache_key(zr, order)) {
-        let zeta1 = params.zeta1;
-        let zeta2 = params.zeta2;
+impl<T: BesselFloat> DebyeGeometry<T> {
+    pub fn compute(z: Complex<T>, order: T) -> Self {
+        let uflow_test = order * T::MACHINE_CONSTANTS.underflow_limit;
+        if z.re.abs() < uflow_test && z.im.abs() < uflow_test {
+            let zeta1 = Complex::<T>::new(
+                T::two() * T::MACHINE_CONSTANTS.underflow_limit.ln().abs() + order,
+                T::zero(),
+            );
+            let zeta2 = Complex::<T>::new(order, T::zero());
 
-        let working = &params.working;
-
-        let (phi, sum) = match ikflg {
-            IKType::I => {
-                let sum_i = if let Some(wkg) = working {
-                    Some(*params.sum_i.get_or_insert_with(|| compute_sum_i(wkg)))
-                } else {
-                    None
-                };
-                (params.phi_i, sum_i)
-            }
-            IKType::K => {
-                let sum_k = if let Some(wkg) = working {
-                    Some(*params.sum_k.get_or_insert_with(|| compute_sum_k(wkg)))
-                } else {
-                    None
-                };
-                (params.phi_k, sum_k)
-            }
-        };
-        if only_phi_zeta {
-            return (phi, zeta1, zeta2, None);
-        } else if sum.is_some() {
-            return (phi, zeta1, zeta2, sum);
-        }
-    }
-
-    //-----------------------------------------------------------------------
-    //     OVERFLOW TEST (ZR/FNU TOO SMALL)
-    //-----------------------------------------------------------------------
-    let uflow_test = order * T::MACHINE_CONSTANTS.underflow_limit;
-    if zr.re.abs() < uflow_test && zr.im.abs() < uflow_test {
-        let zeta1 = Complex::<T>::new(
-            T::two() * T::MACHINE_CONSTANTS.underflow_limit.ln().abs() + order,
-            T::zero(),
-        );
-        let zeta2 = Complex::<T>::new(order, T::zero());
-        let phi = T::C_ONE;
-        cache.insert(
-            cache_key(zr, order),
-            UniformAssymptoticParameters {
-                phi_i: phi,
-                phi_k: phi,
+            return Self {
+                phi_i: T::C_ONE,
+                phi_k: T::C_ONE,
                 zeta1,
                 zeta2,
-                sum_i: Some(T::C_ZERO),
-                sum_k: Some(T::C_ZERO),
-                working: Some(vec![]),
-            },
-        );
-        return (
-            phi,
-            zeta1,
-            zeta2,
-            if only_phi_zeta { None } else { Some(T::C_ZERO) },
-        );
-    }
+                s: T::C_ONE,
+                sr: T::C_ZERO,
+                reciprocal_order: T::ZERO,
+                is_underflow: true,
+            };
+        }
 
-    //-----------------------------------------------------------------------
-    //     INITIALIZE ALL VARIABLES
-    //-----------------------------------------------------------------------
-    let reciprocal_order = T::one() / order;
-    let t = zr * reciprocal_order;
-    let s = T::C_ONE + t * t;
-    let s_root = s.sqrt();
-    let zn = (T::C_ONE + s_root) / t;
-    let zeta1 = zn.ln() * order;
-    let zeta2 = s_root * order;
-    let t = T::C_ONE / s_root;
-    let sr = t * reciprocal_order;
-    let sr_root = sr.sqrt();
-    let phi_i = sr_root * T::from_f64(IK_NORMALIZATION_FACTORS[0]);
-    let phi_k = sr_root * T::from_f64(IK_NORMALIZATION_FACTORS[1]);
-    let phi = match ikflg {
-        IKType::I => phi_i,
-        IKType::K => phi_k,
-    };
-    if only_phi_zeta {
-        cache.insert(
-            cache_key(zr, order),
-            UniformAssymptoticParameters {
-                phi_i,
-                phi_k,
-                zeta1,
-                zeta2,
-                sum_i: None,
-                sum_k: None,
-                working: None,
-            },
-        );
-        return (phi, zeta1, zeta2, None);
-    };
+        let reciprocal_order = T::one() / order;
+        let t = z * reciprocal_order;
+        let s = T::C_ONE + t.powi(2);
+        let s_root = s.sqrt();
+        let zn = (T::C_ONE + s_root) / t;
+        let zeta1 = zn.ln() * order;
+        let zeta2 = s_root * order;
+        let t = T::C_ONE / s_root;
+        let sr = t * reciprocal_order;
+        let sr_root = sr.sqrt();
+        let phi_i = sr_root * T::from_f64(IK_NORMALIZATION_FACTORS[0]);
+        let phi_k = sr_root * T::from_f64(IK_NORMALIZATION_FACTORS[1]);
 
-    let mut working = Vec::new();
-    let t2 = T::C_ONE / s;
-    working.push(T::C_ONE);
-    let mut crfn = T::C_ONE;
-    let mut ac = T::one();
-    let mut l = 0;
-    for k in 1..15 {
-        let mut s = T::C_ZERO;
-        for _ in 0..=k {
-            l += 1;
-            s = s * t2 + T::from_f64(DEBYE_IK_POLYNOMIAL_COEFFS[l]);
-        }
-        crfn *= sr;
-        working.push(crfn * s);
-        ac *= reciprocal_order;
-        let test = working[k].re.abs() + working[k].im.abs();
-        if ac < T::MACHINE_CONSTANTS.abs_error_tolerance
-            && test < T::MACHINE_CONSTANTS.abs_error_tolerance
-        {
-            break;
-        }
-    }
-
-    let (sum_i, sum_k, sum) = match ikflg {
-        IKType::I => {
-            let sum_i = compute_sum_i(&working);
-            (Some(sum_i), None, sum_i)
-        }
-        IKType::K => {
-            let sum_k = compute_sum_k(&working);
-            (None, Some(sum_k), sum_k)
-        }
-    };
-    cache.insert(
-        cache_key(zr, order),
-        UniformAssymptoticParameters {
+        Self {
             phi_i,
             phi_k,
             zeta1,
             zeta2,
-            sum_i,
-            sum_k,
-            working: Some(working),
-        },
-    );
+            s,
+            sr,
+            reciprocal_order,
+            is_underflow: false,
+        }
+    }
+}
 
-    (phi, zeta1, zeta2, Some(sum))
+/// Parameters for the uniform asymptotic Debye expansion of modified Bessel functions $I_\nu$ and $K_\nu$.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct DebyeParams<T: BesselFloat> {
+    pub phi_i: Complex<T>,
+    pub phi_k: Complex<T>,
+    pub zeta1: Complex<T>,
+    pub zeta2: Complex<T>,
+    pub sum_i: Complex<T>, // Olver A(ζ) series
+    pub sum_k: Complex<T>, // Olver B(ζ) series
+}
+
+impl<T: BesselFloat> DebyeParams<T> {
+    pub fn compute(z: Complex<T>, order: T) -> Self {
+        let geom = DebyeGeometry::compute(z, order);
+        if geom.is_underflow {
+            Self {
+                phi_i: geom.phi_i,
+                phi_k: geom.phi_k,
+                zeta1: geom.zeta1,
+                zeta2: geom.zeta2,
+                sum_i: T::C_ZERO,
+                sum_k: T::C_ZERO,
+            }
+        } else {
+            let t2 = T::C_ONE / geom.s;
+            let mut sum_i = T::C_ONE;
+            let mut sum_k = T::C_ONE;
+            let mut term_sign = T::one();
+            let mut crfn = T::C_ONE;
+            let mut ac = T::one();
+            let mut l = 0;
+            for k in 1..15 {
+                let mut s = T::C_ZERO;
+                for _ in 0..=k {
+                    l += 1;
+                    s = s * t2 + T::from_f64(DEBYE_IK_POLYNOMIAL_COEFFS[l]);
+                }
+                crfn *= geom.sr;
+                let term = crfn * s;
+                sum_i += term;
+                term_sign = -term_sign;
+                sum_k += term * term_sign;
+
+                ac *= geom.reciprocal_order;
+                let test = term.re.abs() + term.im.abs();
+                if ac < T::MACHINE_CONSTANTS.abs_error_tolerance
+                    && test < T::MACHINE_CONSTANTS.abs_error_tolerance
+                {
+                    break;
+                }
+            }
+
+            Self {
+                phi_i: geom.phi_i,
+                phi_k: geom.phi_k,
+                zeta1: geom.zeta1,
+                zeta2: geom.zeta2,
+                sum_i,
+                sum_k,
+            }
+        }
+    }
+}
+
+pub(crate) struct AiryGeometry<T: BesselFloat> {
+    pub phi: Complex<T>,
+    pub arg: Complex<T>, // Argument to the Airy function: ζ · ν^(2/3)
+    pub zeta1: Complex<T>,
+    pub zeta2: Complex<T>,
+}
+
+impl<T: BesselFloat> AiryGeometry<T> {
+    pub fn compute(z: Complex<T>, order: T) -> Self {
+        Self {
+            phi: Complex::ZERO,
+            arg: Complex::ZERO,
+            zeta1: Complex::ZERO,
+            zeta2: Complex::ZERO,
+        }
+    }
+}
+
+pub(crate) struct AiryParams<T: BesselFloat> {
+    pub phi: Complex<T>,
+    pub arg: Complex<T>,
+    pub zeta1: Complex<T>,
+    pub zeta2: Complex<T>,
+    pub asum: Complex<T>, // Olver A(ζ) series
+    pub bsum: Complex<T>, // Olver B(ζ) series
+}
+
+impl<T: BesselFloat> AiryParams<T> {
+    pub fn compute(z: Complex<T>, order: T) -> Self {
+        Self {
+            phi: Complex::ZERO,
+            arg: Complex::ZERO,
+            zeta1: Complex::ZERO,
+            zeta2: Complex::ZERO,
+            asum: todo!(),
+            bsum: todo!(),
+        }
+    }
 }
 
 #[allow(clippy::type_complexity)]
@@ -421,7 +418,9 @@ pub(crate) fn hj_uniform_asymp_params<T: BesselFloat>(
         let raw2 = T::one() / aw2;
         let t2 = w2.conj() * raw2 * raw2;
         let mut up = T::c_zeros(14);
-        up[1] = (t2 * T::from_f64(AIRY_HJ_POLYNOMIAL_COEFFS[1]) + T::from_f64(AIRY_HJ_POLYNOMIAL_COEFFS[2])) * tfn;
+        up[1] = (t2 * T::from_f64(AIRY_HJ_POLYNOMIAL_COEFFS[1])
+            + T::from_f64(AIRY_HJ_POLYNOMIAL_COEFFS[2]))
+            * tfn;
         let mut bsum = up[1] + zc;
         let mut asum = T::C_ZERO;
         if reciprocal_order >= T::MACHINE_CONSTANTS.abs_error_tolerance {
@@ -447,7 +446,8 @@ pub(crate) fn hj_uniform_asymp_params<T: BesselFloat>(
                     ks += 1;
                     kp1 += 1;
                     l += 1;
-                    let mut za = Complex::<T>::new(T::from_f64(AIRY_HJ_POLYNOMIAL_COEFFS[l]), T::zero());
+                    let mut za =
+                        Complex::<T>::new(T::from_f64(AIRY_HJ_POLYNOMIAL_COEFFS[l]), T::zero());
                     for _ in 1..kp1 {
                         l += 1;
                         za = za * t2 + T::from_f64(AIRY_HJ_POLYNOMIAL_COEFFS[l]);
@@ -522,7 +522,10 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
     //     CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER
     //-----------------------------------------------------------------------
     let mut modified_order = order.max(T::one());
-    let (_, zeta1, zeta2, _) = ik_uniform_asymp_params(z, modified_order, IKType::I, true);
+
+    let DebyeGeometry { zeta1, zeta2, .. } = DebyeGeometry::compute(z, modified_order);
+
+    // let (_, zeta1, zeta2, _) = ik_uniform_asymp_params(z, modified_order, IKType::I, true);
     let s1 = scaling.scale_zetas(z, modified_order, zeta1, zeta2);
     // phi is chosen here for refined tests to equal the original tests
     // which don't test refinement
@@ -562,9 +565,17 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
     'outer: loop {
         for i in 0..2.min(n_remaining) {
             modified_order = order + T::from_usize(n_remaining - (i + 1));
-            let (phi, zeta1, zeta2, sum) =
-                ik_uniform_asymp_params(z, modified_order, IKType::I, false);
-            let sum = sum.unwrap();
+            let DebyeParams {
+                phi_i: phi,
+                phi_k: _,
+                zeta1,
+                zeta2,
+                sum_i: sum,
+                sum_k: _,
+            } = DebyeParams::compute(z, modified_order);
+            // let (phi, zeta1, zeta2, sum) =
+            //     ik_uniform_asymp_params(z, modified_order, IKType::I, false);
+            // let sum = sum.unwrap();
             let mut s1 = scaling.scale_zetas(z, modified_order, zeta1, zeta2);
             if scaling == Scaling::Scaled {
                 s1 += Complex::<T>::new(T::ZERO, z.im);
@@ -806,10 +817,11 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
     //     THE UNDERFLOW LIMIT
     //-----------------------------------------------------------------------
     let modified_z = if z.re < T::ZERO { -z } else { z };
-    let mut phi = [T::C_ZERO; 2];
-    let mut zeta1 = [T::C_ZERO; 2];
-    let mut zeta2 = [T::C_ZERO; 2];
-    let mut sum = [T::C_ZERO; 2];
+    // let mut phi = [T::C_ZERO; 2];
+    // let mut zeta1 = [T::C_ZERO; 2];
+    // let mut zeta2 = [T::C_ZERO; 2];
+    // let mut sum = [T::C_ZERO; 2];
+    let mut debye_seeds: [Option<DebyeParams<T>>; 2] = [None, None];
     let mut cy = [T::C_ZERO; 2];
     let mut n_elements_set = 0;
     let mut y = T::c_zeros(n);
@@ -819,15 +831,20 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
     for i in 0..n {
         n_elements_set = i + 1;
         // j flip-flops between 0 and 1 using j = 1-j
-        j = 1 - j;
+        // j = 1 - j;
         let modified_order = order + T::from_usize(i);
 
-        let sum_opt;
-        (phi[j], zeta1[j], zeta2[j], sum_opt) =
-            ik_uniform_asymp_params(modified_z, modified_order, IKType::K, false);
-        sum[j] = sum_opt.unwrap();
-        let mut s1 = -scaling.scale_zetas(modified_z, modified_order, zeta1[j], zeta2[j]);
-        let of = OverflowState::check(s1.re, phi[j], T::ZERO);
+        // Note: use modified_z so Re(z) >= 0
+        let params = DebyeParams::compute(modified_z, modified_order);
+        if i < 2 {
+            debye_seeds[i] = Some(params);
+        }
+
+        // Use the K fields:
+        let phi = params.phi_k;
+        let sum = params.sum_k;
+        let mut s1 = -scaling.scale_zetas(modified_z, modified_order, params.zeta1, params.zeta2);
+        let of = OverflowState::check(s1.re, phi, T::ZERO);
         if !found_one_good_entry {
             k_overflow_state = of;
         }
@@ -846,7 +863,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
                 //     SCALE S1 TO KEEP INTERMEDIATE ARITHMETIC ON SCALE NEAR
                 //     EXPONENT EXTREMES
                 //-----------------------------------------------------------------------
-                let mut s2 = phi[j] * sum[j];
+                let mut s2 = phi * sum;
                 s1 = k_overflow_state.scaling_factor::<T>() * s1.exp();
                 s2 *= s1;
                 let will_underflow = will_underflow(s2);
@@ -879,12 +896,19 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         //     ON UNDERFLOW.
         //-----------------------------------------------------------------------
         let max_order = order + T::from_usize(n - 1);
-        let (phi, zet1d, zet2d, _sumd) = ik_uniform_asymp_params(
-            modified_z,
-            max_order,
-            IKType::K,
-            rotation == RotationDirection::None,
-        );
+        let DebyeGeometry {
+            phi_i: _,
+            phi_k: phi,
+            zeta1: zet1d,
+            zeta2: zet2d,
+            ..
+        } = DebyeGeometry::compute(modified_z, max_order);
+        // let (phi, zet1d, zet2d, _sumd) = ik_uniform_asymp_params(
+        //     modified_z,
+        //     max_order,
+        //     IKType::K,
+        //     rotation == RotationDirection::None,
+        // );
         let overflow_test = -scaling.scale_zetas(modified_z, max_order, zet1d, zet2d);
 
         match OverflowState::check(overflow_test.re.abs(), phi, T::ZERO) {
@@ -940,15 +964,26 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
     for (i, yi) in y.iter_mut().enumerate().rev() {
         remaining_n = i;
         let current_order = order + T::from_usize(i);
+
+        // Reuse from stack if i is 0 or 1, otherwise compute fresh:
+        let params = if i < 2 {
+            debye_seeds[i].unwrap_or_else(|| DebyeParams::compute(modified_z, current_order))
+        } else {
+            DebyeParams::compute(modified_z, current_order)
+        };
+
+        // Use the I fields:
+        let phid = params.phi_i;
+        let sumd = params.sum_i;
         //-----------------------------------------------------------------------
         //     LOGIC TO SORT OUT CASES WHOSE PARAMETERS WERE SET FOR THE K
         //     FUNCTION ABOVE
         //-----------------------------------------------------------------------
         // TODO no logic needed! as zunik ccahes the values. Should the other similar functions, too?
-        let (phid, zet1d, zet2d, sumd) =
-            ik_uniform_asymp_params(modified_z, current_order, IKType::I, false); //, &mut INITD);
-        let sumd = sumd.unwrap();
-        let mut s1 = scaling.scale_zetas(modified_z, current_order, zet1d, zet2d);
+        // let (phid, zet1d, zet2d, sumd) =
+        //     ik_uniform_asymp_params(modified_z, current_order, IKType::I, false); //, &mut INITD);
+        // let sumd = sumd.unwrap();
+        let mut s1 = scaling.scale_zetas(modified_z, current_order, params.zeta1, params.zeta2);
         //-----------------------------------------------------------------------
         //     TEST FOR UNDERFLOW AND OVERFLOW
         //-----------------------------------------------------------------------

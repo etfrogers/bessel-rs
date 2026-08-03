@@ -3,7 +3,7 @@ use num::complex::ComplexFloat;
 
 use crate::amos::{
     IKType,
-    asymptotics::{hj_uniform_asymp_params, ik_uniform_asymp_params},
+    asymptotics::{DebyeGeometry, hj_uniform_asymp_params},
     utils::{AIC, imaginary_dominant, will_underflow},
 };
 use crate::{BesselError, BesselFloat, Scaling};
@@ -103,7 +103,7 @@ impl OverflowState {
     /// `unscaled_s2` is the newly computed term before scaling.
     ///
     /// Note: `boundary` and `recip_scaling_factor` are explicitly passed in as mutable
-    /// references rather than evaluated internally via `self.boundary()` and 
+    /// references rather than evaluated internally via `self.boundary()` and
     /// `self.reciprocal_scaling_factor()`. This acts as a manual loop-invariant code
     /// motion (hoisting), preventing the compiler from executing the `match` branches
     /// inside those functions on every iteration of the tight innermost recurrence loops.
@@ -191,7 +191,17 @@ pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
             let (phi, arg, zeta1, zeta2, _, _) = hj_uniform_asymp_params(zn, modified_order, true);
             (-zeta1 + zeta2, phi, arg, arg.abs())
         } else {
-            let (phi, zeta1, zeta2, _) = ik_uniform_asymp_params(zr, modified_order, ik_type, true);
+            let DebyeGeometry {
+                phi_i,
+                phi_k,
+                zeta1,
+                zeta2,
+                ..
+            } = DebyeGeometry::compute(zr, modified_order);
+            let phi = match ik_type {
+                IKType::I => phi_i,
+                IKType::K => phi_k,
+            };
             (-zeta1 + zeta2, phi, T::C_ZERO, T::zero())
         };
         if scaling == Scaling::Scaled {

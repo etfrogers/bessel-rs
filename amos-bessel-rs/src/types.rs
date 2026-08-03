@@ -1,8 +1,7 @@
 use std::{
-    collections::HashMap,
     fmt::Debug,
     ops::{AddAssign, Div, DivAssign, Mul, MulAssign, RemAssign, SubAssign},
-    sync::{LazyLock, Mutex},
+    sync::LazyLock,
 };
 
 use crate::amos::{MACHINE_CONSTANTS_32, MACHINE_CONSTANTS_64, MachineConsts};
@@ -15,7 +14,6 @@ use thiserror::Error;
 
 pub trait BesselFloat:
     Float
-    + CachableUAP<Self>
     + Debug
     + FloatConst
     + ConstZero
@@ -154,48 +152,6 @@ impl BesselFloat for f32 {
     fn from_isize(value: isize) -> Self {
         value as f32
     }
-}
-
-pub trait CachableUAP<T: BesselFloat>: 'static {
-    const UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE: &'static LazyLock<
-        Mutex<HashMap<CacheKey, UniformAssymptoticParameters<T>>>,
-    >;
-}
-
-impl CachableUAP<f64> for f64 {
-    const UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE: &'static LazyLock<
-        Mutex<HashMap<CacheKey, UniformAssymptoticParameters<Self>>>,
-    > = &UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE_64;
-}
-
-impl CachableUAP<f32> for f32 {
-    const UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE: &'static LazyLock<
-        Mutex<HashMap<CacheKey, UniformAssymptoticParameters<Self>>>,
-    > = &UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE_32;
-}
-
-pub struct UniformAssymptoticParameters<T: BesselFloat> {
-    pub(crate) phi_i: Complex<T>,
-    pub(crate) phi_k: Complex<T>,
-    pub(crate) zeta1: Complex<T>,
-    pub(crate) zeta2: Complex<T>,
-    pub(crate) sum_i: Option<Complex<T>>,
-    pub(crate) sum_k: Option<Complex<T>>,
-    pub(crate) working: Option<Vec<Complex<T>>>,
-}
-
-pub(crate) type CacheKey = (u64, u64, u64);
-
-static UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE_64: LazyLock<
-    Mutex<HashMap<CacheKey, UniformAssymptoticParameters<f64>>>,
-> = LazyLock::new(|| Mutex::new(HashMap::new()));
-
-static UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE_32: LazyLock<
-    Mutex<HashMap<CacheKey, UniformAssymptoticParameters<f32>>>,
-> = LazyLock::new(|| Mutex::new(HashMap::new()));
-
-pub(crate) fn cache_key<T: BesselFloat>(z: Complex<T>, order: T) -> CacheKey {
-    (z.re.to_bits(), z.im.to_bits(), order.to_bits())
 }
 
 #[allow(type_alias_bounds)]
