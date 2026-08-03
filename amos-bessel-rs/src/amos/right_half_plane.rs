@@ -1,4 +1,4 @@
-use num::{Complex, Zero, complex::ComplexFloat};
+use num::{Complex, ToPrimitive, Zero, complex::ComplexFloat};
 
 use crate::{
     BesselError, Scaling,
@@ -318,22 +318,17 @@ pub fn k_right_half_plane<T: BesselFloat>(
             // Resume the standard forward recurrence: K_{v+1} = (2v/z) * K_{v} + K_{v-1}
             // Because K_v grows extremely rapidly with order v, we must dynamically
             // check and scale the values downwards at each step to prevent floating-point overflow.
-            let mut reciprocal_scaling_factor = overflow_state.reciprocal_scaling_factor::<T>();
-            let mut boundary = overflow_state.boundary();
-            for offset in next_offset..=integer_order + 1 {
-                let recurrence_factor =
-                    (signed_fractional_order + T::from_isize(offset - 1)) * two_over_z;
-                (k_v_minus_1, k_v) = (k_v, recurrence_factor * k_v + k_v_minus_1);
-                let scaled_k_v = k_v * reciprocal_scaling_factor;
-
-                overflow_state.scale_recurrence(
-                    &mut k_v_minus_1,
-                    &mut k_v,
-                    scaled_k_v,
-                    &mut boundary,
-                    &mut reciprocal_scaling_factor,
-                );
-            }
+            (k_v_minus_1, k_v, overflow_state) = scale_controlled_recurrence(
+                true,
+                signed_fractional_order,
+                z,
+                None,
+                next_offset.to_usize().unwrap(),
+                (integer_order + 2).to_usize().unwrap(),
+                k_v_minus_1,
+                k_v,
+                overflow_state,
+            );
         }
         if n == 1 {
             k_v_minus_1 = k_v;
@@ -392,8 +387,9 @@ pub fn k_right_half_plane<T: BesselFloat>(
         true,
         order,
         z,
-        &mut y,
+        Some(&mut y),
         n_completed,
+        n,
         k_v_minus_1,
         k_v,
         overflow_state,

@@ -473,15 +473,16 @@ pub(crate) fn scale_controlled_recurrence<T: BesselFloat>(
     forward: bool,
     order: T,
     z: Complex<T>,
-    y: &mut [Complex<T>],
+    mut y: Option<&mut [Complex<T>]>,
     n_offset: usize,
+    n: usize,
     mut s1: Complex<T>,
     mut s2: Complex<T>,
     mut overflow_state: OverflowState,
-) {
+) -> (Complex<T>, Complex<T>, OverflowState) {
     let two_over_z = two_over_z_safe(z);
 
-    let base_iterator = y.iter_mut().enumerate();
+    let base_iterator = 0..n;
     let iterator = if forward {
         Either::Right(base_iterator.skip(n_offset))
     } else {
@@ -492,16 +493,20 @@ pub(crate) fn scale_controlled_recurrence<T: BesselFloat>(
     let mut recip_scale_factor = overflow_state.reciprocal_scaling_factor::<T>();
     let mut boundary = overflow_state.boundary::<T>();
 
-    for (i, yi) in iterator {
+    for i in iterator {
         let recurrence_factor = two_over_z * (order + T::from_usize(i) + index_adjustment);
         (s1, s2) = (s2, s1 + recurrence_factor * s2);
-        *yi = s2 * recip_scale_factor;
+        let yi = s2 * recip_scale_factor;
+        if let Some(vec) = y.as_mut() {
+            (*vec)[i] = yi;
+        }
         overflow_state.scale_recurrence(
             &mut s1,
             &mut s2,
-            *yi,
+            yi,
             &mut boundary,
             &mut recip_scale_factor,
         );
     }
+    (s1, s2, overflow_state)
 }

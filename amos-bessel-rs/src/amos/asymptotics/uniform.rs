@@ -599,7 +599,17 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
     }
     if n_remaining > 2 {
         let [s1, s2] = cy;
-        scale_controlled_recurrence(false, order, z, y, n_remaining - 2, s1, s2, overflow_state);
+        scale_controlled_recurrence(
+            false,
+            order,
+            z,
+            Some(y),
+            n_remaining - 2,
+            n,
+            s1,
+            s2,
+            overflow_state,
+        );
     }
     Ok((n_zeros, 0))
 }
@@ -757,7 +767,17 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
     }
     if n_remaining > 2 {
         let [s1, s2] = cy;
-        scale_controlled_recurrence(false, order, z, y, n_remaining - 2, s1, s2, overflow_state);
+        scale_controlled_recurrence(
+            false,
+            order,
+            z,
+            Some(y),
+            n_remaining - 2,
+            n,
+            s1,
+            s2,
+            overflow_state,
+        );
     }
     Ok((n_zeros, 0))
 }
@@ -882,8 +902,9 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
             true,
             order,
             modified_z,
-            &mut y,
+            Some(&mut y),
             n_elements_set,
+            n,
             s1,
             s2,
             k_overflow_state,
@@ -1165,8 +1186,9 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
             true,
             order,
             zr,
-            &mut y,
+            Some(&mut y),
             n_elements_set,
+            n,
             s1,
             s2,
             k_overflow_state,
