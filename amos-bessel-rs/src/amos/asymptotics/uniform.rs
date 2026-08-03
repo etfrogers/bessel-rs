@@ -2,7 +2,11 @@ use std::f64::consts::FRAC_PI_2;
 
 use num::{Complex, Integer, complex::ComplexFloat};
 
-use super::consts::{ALPHA, AR, BETA, BR, C_ZUNHJ, C_ZUNIK, CON, GAMMA};
+use super::consts::{
+    AIRY_ASYMP_COEFFS_A, AIRY_ASYMP_COEFFS_B, AIRY_HJ_POLYNOMIAL_COEFFS,
+    DEBYE_IK_POLYNOMIAL_COEFFS, IK_NORMALIZATION_FACTORS, TRANSITION_AIRY_A_COEFFS,
+    TRANSITION_AIRY_B_COEFFS, TURNING_POINT_ZETA_COEFFS,
+};
 use crate::{
     BesselError, Scaling,
     amos::{
@@ -137,8 +141,8 @@ pub(crate) fn ik_uniform_asymp_params<T: BesselFloat>(
     let t = T::C_ONE / s_root;
     let sr = t * reciprocal_order;
     let sr_root = sr.sqrt();
-    let phi_i = sr_root * T::from_f64(CON[0]);
-    let phi_k = sr_root * T::from_f64(CON[1]);
+    let phi_i = sr_root * T::from_f64(IK_NORMALIZATION_FACTORS[0]);
+    let phi_k = sr_root * T::from_f64(IK_NORMALIZATION_FACTORS[1]);
     let phi = match ikflg {
         IKType::I => phi_i,
         IKType::K => phi_k,
@@ -169,7 +173,7 @@ pub(crate) fn ik_uniform_asymp_params<T: BesselFloat>(
         let mut s = T::C_ZERO;
         for _ in 0..=k {
             l += 1;
-            s = s * t2 + T::from_f64(C_ZUNIK[l]);
+            s = s * t2 + T::from_f64(DEBYE_IK_POLYNOMIAL_COEFFS[l]);
         }
         crfn *= sr;
         working.push(crfn * s);
@@ -288,13 +292,13 @@ pub(crate) fn hj_uniform_asymp_params<T: BesselFloat>(
         let mut p = T::c_zeros(30);
         let mut ap = [T::zero(); 30];
         p[0] = T::C_ONE;
-        let mut suma = Complex::<T>::new(T::from_f64(GAMMA[0]), T::zero());
+        let mut suma = Complex::<T>::new(T::from_f64(TURNING_POINT_ZETA_COEFFS[0]), T::zero());
         ap[0] = T::one();
         if aw2 >= T::MACHINE_CONSTANTS.abs_error_tolerance {
             for k_ in 1..30 {
                 k = k_;
                 p[k_] = p[k_ - 1] * w2;
-                suma += p[k_] * T::from_f64(GAMMA[k_]);
+                suma += p[k_] * T::from_f64(TURNING_POINT_ZETA_COEFFS[k_]);
                 ap[k_] = ap[k_ - 1] * aw2;
                 if ap[k_] < T::MACHINE_CONSTANTS.abs_error_tolerance {
                     break;
@@ -317,7 +321,7 @@ pub(crate) fn hj_uniform_asymp_params<T: BesselFloat>(
         //-----------------------------------------------------------------------
         let sumb: Complex<T> = p[..kmax]
             .iter()
-            .zip(BETA)
+            .zip(TRANSITION_AIRY_B_COEFFS)
             .map(|(p, b)| p * T::from_f64(b))
             .sum();
         let mut asum = T::C_ZERO;
@@ -336,7 +340,7 @@ pub(crate) fn hj_uniform_asymp_params<T: BesselFloat>(
                 if !a_converged {
                     let mut suma = T::C_ZERO;
                     for k in 0..kmax {
-                        suma += p[k] * T::from_f64(ALPHA[l1 + k]);
+                        suma += p[k] * T::from_f64(TRANSITION_AIRY_A_COEFFS[l1 + k]);
                         if ap[k] < atol {
                             break;
                         }
@@ -349,7 +353,7 @@ pub(crate) fn hj_uniform_asymp_params<T: BesselFloat>(
                 if !b_converged {
                     let mut sumb = T::C_ZERO;
                     for k in 0..kmax {
-                        sumb += p[k] * T::from_f64(BETA[l2 + k]);
+                        sumb += p[k] * T::from_f64(TRANSITION_AIRY_B_COEFFS[l2 + k]);
                         if ap[k] < atol {
                             break;
                         }
@@ -413,11 +417,11 @@ pub(crate) fn hj_uniform_asymp_params<T: BesselFloat>(
         let tfn = w.conj() * raw * raw * reciprocal_order;
         let razth = T::one() / azth;
         let rzth = zth.conj() * razth * razth * reciprocal_order;
-        let zc = rzth * T::from_f64(AR[1]);
+        let zc = rzth * T::from_f64(AIRY_ASYMP_COEFFS_A[1]);
         let raw2 = T::one() / aw2;
         let t2 = w2.conj() * raw2 * raw2;
         let mut up = T::c_zeros(14);
-        up[1] = (t2 * T::from_f64(C_ZUNHJ[1]) + T::from_f64(C_ZUNHJ[2])) * tfn;
+        up[1] = (t2 * T::from_f64(AIRY_HJ_POLYNOMIAL_COEFFS[1]) + T::from_f64(AIRY_HJ_POLYNOMIAL_COEFFS[2])) * tfn;
         let mut bsum = up[1] + zc;
         let mut asum = T::C_ZERO;
         if reciprocal_order >= T::MACHINE_CONSTANTS.abs_error_tolerance {
@@ -443,16 +447,16 @@ pub(crate) fn hj_uniform_asymp_params<T: BesselFloat>(
                     ks += 1;
                     kp1 += 1;
                     l += 1;
-                    let mut za = Complex::<T>::new(T::from_f64(C_ZUNHJ[l]), T::zero());
+                    let mut za = Complex::<T>::new(T::from_f64(AIRY_HJ_POLYNOMIAL_COEFFS[l]), T::zero());
                     for _ in 1..kp1 {
                         l += 1;
-                        za = za * t2 + T::from_f64(C_ZUNHJ[l]);
+                        za = za * t2 + T::from_f64(AIRY_HJ_POLYNOMIAL_COEFFS[l]);
                     }
                     ptfn *= tfn;
                     up[kp1 - 1] = ptfn * za;
-                    cr[ks - 1] = przth * T::from_f64(BR[ks]);
+                    cr[ks - 1] = przth * T::from_f64(AIRY_ASYMP_COEFFS_B[ks]);
                     przth *= rzth;
-                    dr[ks - 1] = przth * T::from_f64(AR[ks + 1]);
+                    dr[ks - 1] = przth * T::from_f64(AIRY_ASYMP_COEFFS_A[ks + 1]);
                 }
                 pp *= rfnu2;
                 if !a_converged {

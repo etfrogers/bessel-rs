@@ -1,6 +1,22 @@
-pub(crate) const CON: [f64; 2] = [3.989_422_804_014_327e-1, 1.253_314_137_315_500_3];
+//! Constants and polynomial tables for uniform asymptotic expansions of Bessel functions.
+//!
+//! These tables are derived from Frank Olver's (1954) uniform asymptotic expansions for
+//! Bessel functions of large order (see Abramowitz & Stegun Chapter 9, and NIST DLMF 10.20 & 10.41).
 
-pub(crate) const C_ZUNIK: [f64; 120] = [
+/// Normalization prefactor constants for $I_\nu(\nu z)$ and $K_\nu(\nu z)$ Debye asymptotic expansions:
+/// - `[0]` = $\frac{1}{\sqrt{2\pi}} \approx 0.3989422804014327$ (prefactor for $I_\nu$)
+/// - `[1]` = $\sqrt{\frac{\pi}{2}} \approx 1.2533141373155003$ (prefactor for $K_\nu$)
+///
+/// Ref: Abramowitz & Stegun (9.7.7, 9.7.8), NIST DLMF (10.41.3, 10.41.4). Originally `CON`.
+pub(crate) const IK_NORMALIZATION_FACTORS: [f64; 2] = [3.989_422_804_014_327e-1, 1.253_314_137_315_500_3];
+
+/// Flattened coefficients table for the Debye polynomials $u_k(t)$ (degree $3k$) used in the
+/// uniform asymptotic expansion of modified Bessel functions $I_\nu$ and $K_\nu$ of large order.
+///
+/// Evaluated sequentially for orders $k = 1, \dots, 14$.
+///
+/// Ref: Abramowitz & Stegun (9.7.9, 9.7.10), NIST DLMF (10.41.3–10.41.10). Originally `C_ZUNIK` / `ZUNIK`.
+pub(crate) const DEBYE_IK_POLYNOMIAL_COEFFS: [f64; 120] = [
     1.0,
     -2.083_333_333_333_333_4e-1,
     1.25e-1,
@@ -123,7 +139,13 @@ pub(crate) const C_ZUNIK: [f64; 120] = [
     1.188_384_262_567_832_5e5,
 ];
 
-pub(crate) const AR: [f64; 14] = [
+/// Asymptotic expansion coefficients $u_s$ for the Airy function $Ai(\zeta)$:
+/// $$u_s = \frac{\Gamma(3s + 1/2)}{54^s s! \, \Gamma(s + 1/2)}, \quad u_0 = 1, \, u_1 = \frac{5}{48}, \, u_2 = \frac{385}{4608}, \dots$$
+///
+/// Used for $J_\nu, Y_\nu, H_\nu$ asymptotic parameter computations away from the turning point ($|1 - z^2/\nu^2| > 0.25$).
+///
+/// Ref: Abramowitz & Stegun (10.4.58). Originally `AR`.
+pub(crate) const AIRY_ASYMP_COEFFS_A: [f64; 14] = [
     1.0,
     1.041_666_666_666_666_7e-1,
     8.355_034_722_222_222e-2,
@@ -140,7 +162,13 @@ pub(crate) const AR: [f64; 14] = [
     1.791_902_007_775_343_7e6,
 ];
 
-pub(crate) const BR: [f64; 14] = [
+/// Asymptotic expansion coefficients $v_s$ for the Airy derivative $Ai'(\zeta)$:
+/// $$v_s = -\frac{6s + 1}{6s - 1} u_s, \quad v_0 = 1, \, v_1 = -\frac{7}{48}, \, v_2 = -\frac{455}{4608}, \dots$$
+///
+/// Used for $J_\nu, Y_\nu, H_\nu$ asymptotic parameter computations away from the turning point ($|1 - z^2/\nu^2| > 0.25$).
+///
+/// Ref: Abramowitz & Stegun (10.4.61). Originally `BR`.
+pub(crate) const AIRY_ASYMP_COEFFS_B: [f64; 14] = [
     1.0,
     -1.458_333_333_333_333_4e-1,
     -9.874_131_944_444_445e-2,
@@ -157,7 +185,11 @@ pub(crate) const BR: [f64; 14] = [
     -1.838_444_917_068_21e6,
 ];
 
-pub(crate) const C_ZUNHJ: [f64; 105] = [
+/// Polynomial coefficients for the Airy-type uniform asymptotic expansion of $J_\nu, Y_\nu, H_\nu$
+/// when $|1 - z^2/\nu^2| > 0.25$.
+///
+/// Ref: Abramowitz & Stegun (9.3.35–9.3.46), NIST DLMF (10.20). Originally `C_ZUNHJ` / `ZUNHJ`.
+pub(crate) const AIRY_HJ_POLYNOMIAL_COEFFS: [f64; 105] = [
     1.0,
     -2.083_333_333_333_333_4e-1,
     1.25e-1,
@@ -265,7 +297,13 @@ pub(crate) const C_ZUNHJ: [f64; 105] = [
     1.825_775_547_429_317_5e4,
 ];
 
-pub(crate) const ALPHA: [f64; 180] = [
+/// Double power series coefficients for the $A(\zeta)$ Airy expansion sum near the turning point
+/// ($|1 - z^2/\nu^2| \le 0.25$).
+///
+/// Arranged as 6 blocks of 30 coefficients for $s = 0, \dots, 5$.
+///
+/// Ref: Abramowitz & Stegun (9.3.39–9.3.41). Originally `ALPHA`.
+pub(crate) const TRANSITION_AIRY_A_COEFFS: [f64; 180] = [
     -4.444_444_444_444_444_4e-3,
     -9.220_779_220_779_22e-4,
     -8.848_928_848_928_849e-5,
@@ -448,7 +486,13 @@ pub(crate) const ALPHA: [f64; 180] = [
     4.820_059_245_520_954_5e-5,
 ];
 
-pub(crate) const BETA: [f64; 210] = [
+/// Double power series coefficients for the $B(\zeta)$ Airy derivative expansion sum near the turning point
+/// ($|1 - z^2/\nu^2| \le 0.25$).
+///
+/// Arranged as 7 blocks of 30 coefficients for $s = 0, \dots, 6$.
+///
+/// Ref: Abramowitz & Stegun (9.3.42–9.3.44). Originally `BETA`.
+pub(crate) const TRANSITION_AIRY_B_COEFFS: [f64; 210] = [
     1.799_887_214_135_533e-2,
     5.599_649_110_643_881e-3,
     2.885_014_022_311_327_7e-3,
@@ -661,7 +705,13 @@ pub(crate) const BETA: [f64; 210] = [
     1.421_119_756_644_385_4e-3,
 ];
 
-pub(crate) const GAMMA: [f64; 30] = [
+/// Taylor power series coefficients for the turning-point conformal mapping parameter $\zeta(w^2)/w^2$
+/// near $w^2 = 1 - z^2/\nu^2 \to 0$ ($|w^2| \le 0.25$):
+/// - `[0]` = $2^{-1/3} \approx 0.6299605249474366$
+/// - `[1]` = $\frac{2}{5} 2^{-1/3} \approx 0.25198420997897464$
+///
+/// Ref: Abramowitz & Stegun (9.3.38). Originally `GAMMA`.
+pub(crate) const TURNING_POINT_ZETA_COEFFS: [f64; 30] = [
     6.299_605_249_474_366e-1,
     2.519_842_099_789_746_4e-1,
     1.547_903_004_156_558_3e-1,
