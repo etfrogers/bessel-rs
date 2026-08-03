@@ -9,11 +9,25 @@ use crate::{
     types::BesselResult,
 };
 
-/// asymptotic_i computes the I bessel function for real(z) >= 0.0 by
-/// means of the asymptotic expansion for large z.abs() in the
-/// region z.abs() > rl.max(order.pow(2.0)/2).
+/// Computes the sequence $[I_\nu(z), \dots, I_{\nu+n-1}(z)]$ for $\operatorname{Re}(z) \ge 0$
+/// using Hankel's asymptotic expansion for large argument $|z| > \max(R_L, \nu^2 / 2)$.
 ///
-/// Originally ZASYI
+/// ### Mathematical Expansion
+/// For large $|z|$, $I_\nu(z)$ is given by Hankel's two-series expansion (Abramowitz & Stegun 9.7.1, NIST DLMF 10.40.1):
+/// $$I_\nu(z) \sim \frac{e^z}{\sqrt{2\pi z}} \sum_{m=0}^\infty \frac{(-1)^m (\nu, m)}{(8z)^m} + \frac{e^{-z \pm i\pi(\nu + 1/2)}}{\sqrt{2\pi z}} \sum_{m=0}^\infty \frac{(\nu, m)}{(8z)^m}$$
+/// where $(\nu, m) / 8^m$ is Hankel's symbol.
+///
+/// The two highest orders in the sequence ($\nu + n - 1$ and $\nu + n - 2$) are evaluated via the series,
+/// and the remaining elements are obtained by backward recurrence:
+/// $$I_k(z) = \frac{2(k + 1 + \nu)}{z} I_{k+1}(z) + I_{k+2}(z)$$
+///
+/// Originally Amos routine `ZASYI`.
+///
+/// # Arguments
+/// * `z` - Complex argument $\operatorname{Re}(z) \ge 0$.
+/// * `order` - Starting order $\nu \ge 0$.
+/// * `scaling` - `Scaling::Unscaled` ($I_\nu(z)$) or `Scaling::Scaled` ($e^{-|\operatorname{Re}(z)|} I_\nu(z)$).
+/// * `n` - Number of terms in the sequence.
 pub fn i_asymptotic<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -22,97 +36,89 @@ pub fn i_asymptotic<T: BesselFloat>(
 ) -> BesselResult<T, usize> {
     let mut y = T::c_zeros(n);
     let abs_z = z.abs();
-    //-----------------------------------------------------------------------;
-    //     OVERFLOW TEST;
-    //-----------------------------------------------------------------------;
     let recip_abs_z = T::one() / abs_z;
 
-    let cz = match scaling {
+    // Overflow / Exponent Range Test
+    let exponent_arg = match scaling {
         Scaling::Unscaled => z,
         Scaling::Scaled => Complex::<T>::new(T::zero(), z.im),
     };
-
-    if cz.re.abs() > T::MACHINE_CONSTANTS.exponent_limit {
+    if exponent_arg.re.abs() > T::MACHINE_CONSTANTS.exponent_limit {
         return Err(BesselError::Overflow);
     }
-    let scaled_calculations = cz.re.abs() > T::MACHINE_CONSTANTS.approximation_limit;
-    let mut coeff = (T::from_f64(RECIP_TWO_PI) * z.conj() * recip_abs_z.powi(2)).sqrt();
+    let scaled_calculations = exponent_arg.re.abs() > T::MACHINE_CONSTANTS.approximation_limit;
+
+    let mut prefactor = (T::from_f64(RECIP_TWO_PI) * z.conj() * recip_abs_z.powi(2)).sqrt();
     if !scaled_calculations {
-        coeff *= cz.exp();
+        prefactor *= exponent_arg.exp();
     }
-    let ez = z * T::from_f64(8.0);
-    //-----------------------------------------------------------------------;
+    let eight_z = T::from_f64(8.0) * z;
+    let abs_eight_z = T::from_f64(8.0) * abs_z;
+
     // When z is imaginary, the error test must be made relative to the
     // first reciprocal power since this is the leading term of the
     // expansion for the imaginary part.
-    //-----------------------------------------------------------------------;
-    let abs_ez = T::from_f64(8.0) * abs_z;
-    let s = T::MACHINE_CONSTANTS.abs_error_tolerance / abs_ez;
+    let rel_tol_scale = T::MACHINE_CONSTANTS.abs_error_tolerance / abs_eight_z;
     let max_iterations = (T::MACHINE_CONSTANTS.asymptotic_z_limit * T::two())
-        .to_i64()
+        .to_usize()
         .unwrap()
         + 2;
-    let mut p1 = if z.im == T::zero() {
+    let mut phase_factor = if z.im == T::zero() {
         T::C_ZERO
     } else {
-        //-----------------------------------------------------------------------;
-        // Calculate (pi*(0.5+fnu+n-il)*i).exp() to minimize losses of;
-        // significance when fnu or n is large;
-        //-----------------------------------------------------------------------;
+        // Compute the Stokes phase factor exp(i*pi*(0.5 + order + k) * sgn(Im(z)))
+        // using fract(order) to prevent loss of precision when order or n is large.
         let arg = order.fract() * T::PI();
-        let ak = -arg.sin();
-        let mut bk = arg.cos();
+        let phase_re = -arg.sin();
+        let mut phase_im = arg.cos();
         if z.im < T::zero() {
-            bk = -bk;
+            phase_im = -phase_im;
         };
-        let p1 = Complex::<T>::new(ak, bk);
+        let phase_factor = Complex::<T>::new(phase_re, phase_im);
         if (order.to_usize().unwrap() + n).is_even() {
-            -p1
+            -phase_factor
         } else {
-            p1
+            phase_factor
         }
     };
+
     for (k, elem) in y.iter_mut().enumerate().rev().take(2.min(n)) {
-        let (mut s1, s2) = {
+        let (mut sum_dominant, sum_subdominant) = {
             // this block is just to contain the large number of mutable variables in a small space
             let modified_order = order + T::from_usize(k);
-            let modified_order_sqr = (T::two() * modified_order).powf(T::two());
-            let mut sqk = modified_order_sqr - T::one();
-            let atol = s * sqk.abs();
+            let four_order_sqr = (T::two() * modified_order).powf(T::two());
+            let atol = rel_tol_scale * (four_order_sqr - T::one()).abs();
             let mut sign = T::one();
-            let mut cs1 = T::C_ONE;
-            let mut cs2 = T::C_ONE;
-            let mut ck = T::C_ONE;
-            let mut ak = T::zero();
-            let mut aa = T::one();
-            let mut bb = abs_ez;
-            let mut dk = ez;
+            let mut sum_alternating = T::C_ONE;
+            let mut sum_direct = T::C_ONE;
+            let mut term = T::C_ONE;
+            let mut term_magnitude = T::one();
             let mut converged = false;
-            'convergence: for _ in 0..max_iterations {
-                ck *= sqk / dk;
-                cs2 += ck;
+            for i in 0..max_iterations {
+                let odd = T::from_usize(2 * i + 1);
+                let step = T::from_usize(i + 1);
+                let numerator_factor = four_order_sqr - odd.powi(2); // 4ν² - (2i + 1)²
+                let denominator_factor = step * eight_z;
+                term *= numerator_factor / denominator_factor;
+                sum_direct += term;
                 sign = -sign;
-                cs1 += ck * sign;
-                dk += ez;
-                aa *= sqk.abs() / bb;
-                bb += abs_ez;
-                ak += T::from_f64(8.0);
-                sqk -= ak;
-                if aa <= atol {
+                sum_alternating += term * sign;
+                term_magnitude *= numerator_factor.abs() / (step * abs_eight_z);
+                if term_magnitude <= atol {
                     converged = true;
-                    break 'convergence;
+                    break;
                 }
             }
             if !converged {
                 return Err(BesselError::DidNotConverge);
             }
-            (cs1, cs2)
+            (sum_alternating, sum_direct)
         };
         if z.re * T::two() < T::MACHINE_CONSTANTS.exponent_limit {
-            s1 += (-z * T::two()).exp() * p1 * s2;
+            sum_dominant += (-z * T::two()).exp() * phase_factor * sum_subdominant;
         }
-        p1 = -p1;
-        *elem = s1 * coeff;
+        phase_factor = -phase_factor;
+        *elem = sum_dominant * prefactor;
     }
     if n > 2 {
         let two_over_z = two_over_z_safe(z);
@@ -122,7 +128,7 @@ pub fn i_asymptotic<T: BesselFloat>(
         }
     }
     if scaled_calculations {
-        let exp_cz = cz.exp();
+        let exp_cz = exponent_arg.exp();
         for yi in y.iter_mut() {
             *yi *= exp_cz;
         }
