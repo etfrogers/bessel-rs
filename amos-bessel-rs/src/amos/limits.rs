@@ -2,7 +2,7 @@ use num::Complex;
 use num::complex::ComplexFloat;
 
 use crate::amos::{
-    IKType,
+    ComplexExt, IKType,
     asymptotics::{AiryGeometry, DebyeGeometry},
     utils::{AIC, imaginary_dominant, will_underflow},
 };
@@ -115,9 +115,7 @@ impl OverflowState {
         boundary: &mut T,
         recip_scaling_factor: &mut T,
     ) {
-        if *self != OverflowState::NearOver
-            && crate::amos::max_abs_component(unscaled_s2) > *boundary
-        {
+        if *self != OverflowState::NearOver && unscaled_s2.linf_norm() > *boundary {
             self.increment();
             *boundary = self.boundary::<T>();
             *s1 *= *recip_scaling_factor;

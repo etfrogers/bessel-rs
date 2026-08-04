@@ -1,24 +1,41 @@
+//! Parameter calculation for uniform asymptotic expansions of Bessel functions.
+//!
+//! This module provides geometric and asymptotic parameters for evaluating Bessel functions
+//! of large orders $\nu$:
+//! - **Debye Uniform Expansions** for modified Bessel functions $I_\nu(z)$ and $K_\nu(z)$
+//!   ([`DebyeGeometry`], [`DebyeParams`]), originally implemented in Fortran `ZUNIK`.
+//! - **Airy Uniform Expansions** for Bessel and Hankel functions $J_\nu(z), Y_\nu(z), H^{(1)}_\nu(z), H^{(2)}_\nu(z)$
+//!   ([`AiryGeometry`], [`AiryState`], [`AiryParams`]), originally implemented in Fortran `ZUNHJ`.
+//!
+//! # References
+//! - Abramowitz & Stegun, *Handbook of Mathematical Functions* (1965), Chapter 9 (§9.3.35–9.3.46, §9.7.7–9.7.10).
+//! - F. W. J. Olver, *Asymptotics and Special Functions*, Academic Press (1974), pp. 376–382, 420.
+//! - NIST Digital Library of Mathematical Functions (DLMF), §10.20 and §10.41.
+
 use std::f64::consts::FRAC_PI_2;
 
 use num::{Complex, complex::ComplexFloat};
 
 use crate::{
     amos::{
-        PositiveArg,
+        ComplexExt,
         asymptotics::consts::{
             AIRY_ASYMP_COEFFS_A, AIRY_ASYMP_COEFFS_B, AIRY_HJ_POLYNOMIAL_COEFFS,
             DEBYE_IK_POLYNOMIAL_COEFFS, IK_NORMALIZATION_FACTORS, TRANSITION_AIRY_A_COEFFS,
-            TRANSITION_AIRY_B_COEFFS, TURNING_POINT_ZETA_COEFFS,
+            TRANSITION_AIRY_B_COEFFS, TRANSITION_AIRY_B0_COEFFS, TURNING_POINT_ZETA_COEFFS,
         },
     },
     types::BesselFloat,
 };
 
+/// Determines whether $|z|$ is sufficiently small relative to $\nu$ to trigger an underflow condition
+/// in the geometric parameters.
 fn geom_underflow<T: BesselFloat>(z: Complex<T>, order: T) -> bool {
     let test = order * T::MACHINE_CONSTANTS.underflow_limit;
     z.re.abs() <= test && z.im.abs() <= test
 }
 
+/// Generates fallback $(\zeta_1, \zeta_2)$ scaling parameters when an underflow condition occurs.
 fn underflow_zetas<T: BesselFloat>(order: T) -> (Complex<T>, Complex<T>) {
     let zeta1 = Complex::<T>::new(
         T::two() * T::MACHINE_CONSTANTS.underflow_limit.ln().abs() + order,
@@ -28,43 +45,39 @@ fn underflow_zetas<T: BesselFloat>(order: T) -> (Complex<T>, Complex<T>) {
     (zeta1, zeta2)
 }
 
-// ***BEGIN PROLOGUE  ZUNIK
-// ***REFER TO  ZBESI,ZBESK
-//
-//        ZUNIK COMPUTES PARAMETERS FOR THE UNIFORM ASYMPTOTIC
-//        EXPANSIONS OF THE I AND K FUNCTIONS ON IKFLG= 1 OR 2
-//        RESPECTIVELY BY
-//
-//        W(FNU,ZR) = PHI*EXP(ZETA)*SUM
-//
-//        WHERE       ZETA=-ZETA1 + ZETA2       OR
-//                          ZETA1 - ZETA2
-//
-//        THE FIRST CALL MUST HAVE INIT=0. SUBSEQUENT CALLS WITH THE
-//        SAME ZR AND FNU WILL RETURN THE I OR K FUNCTION ON IKFLG=
-//        1 OR 2 WITH NO CHANGE IN INIT. CWRK IS A COMPLEX WORK
-//        ARRAY. IPMTR=0 COMPUTES ALL PARAMETERS. IPMTR=1 COMPUTES PHI,
-//        ZETA1,ZETA2.
-//
-// ***ROUTINES CALLED  ZDIV,ZLOG,ZSQRT,d1mach
-// ***END PROLOGUE  ZUNIK
-//
-
-/// Initaial for the uniform asymptotic Debye expansion of modified Bessel functions $I_\nu$ and $K_\nu$.
+/// Geometric and scaling parameters for the Debye uniform asymptotic expansion of $I_\nu(z)$ and $K_\nu(z)$.
+///
+/// Computes the intermediate transformation variables:
+/// - $t = z / \nu$
+/// - $s = 1 + t^2$
+/// - $\zeta_1 = \nu \ln\left(\frac{1 + \sqrt{1 + t^2}}{t}\right)$
+/// - $\zeta_2 = \nu \sqrt{1 + t^2}$
+/// - $\Phi_I = \frac{(1 + t^2)^{-1/4}}{\sqrt{2\pi \nu}}, \quad \Phi_K = \sqrt{\frac{\pi}{2\nu}} (1 + t^2)^{-1/4}$
+///
+/// Ref: Abramowitz & Stegun (9.7.7–9.7.10), NIST DLMF (10.41). Originally part of Fortran `ZUNIK` (`IPMTR = 1`).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct DebyeGeometry<T: BesselFloat> {
+    /// Leading prefactor $\Phi_I = \frac{(1 + (z/\nu)^2)^{-1/4}}{\sqrt{2\pi\nu}}$ for $I_\nu(z)$.
     pub phi_i: Complex<T>,
+    /// Leading prefactor $\Phi_K = \sqrt{\frac{\pi}{2\nu}} (1 + (z/\nu)^2)^{-1/4}$ for $K_\nu(z)$.
     pub phi_k: Complex<T>,
+    /// Logarithmic scaling exponent $\zeta_1 = \nu \ln\left(\frac{1 + \sqrt{1 + (z/\nu)^2}}{z/\nu}\right)$.
     pub zeta1: Complex<T>,
+    /// Radical scaling exponent $\zeta_2 = \nu \sqrt{1 + (z/\nu)^2}$.
     pub zeta2: Complex<T>,
 
+    /// Intermediate square $s = 1 + (z/\nu)^2$.
     s: Complex<T>,
-    sr: Complex<T>,
+    /// Scaled radical $s_r = \frac{1}{\nu \sqrt{1 + (z/\nu)^2}}$.
+    expansion_step: Complex<T>,
+    /// Reciprocal order $1 / \nu$.
     reciprocal_order: T,
+    /// Indicates whether underflow occurred during parameter evaluation.
     is_underflow: bool,
 }
 
 impl<T: BesselFloat> DebyeGeometry<T> {
+    /// Computes the Debye geometric and scaling parameters for a given complex argument $z$ and order $\nu$.
     pub fn compute(z: Complex<T>, order: T) -> Self {
         if geom_underflow(z, order) {
             let (zeta1, zeta2) = underflow_zetas(order);
@@ -75,24 +88,23 @@ impl<T: BesselFloat> DebyeGeometry<T> {
                 zeta1,
                 zeta2,
                 s: T::C_ONE,
-                sr: T::C_ZERO,
+                expansion_step: T::C_ZERO,
                 reciprocal_order: T::ZERO,
                 is_underflow: true,
             };
         }
 
         let reciprocal_order = T::one() / order;
-        let t = z * reciprocal_order;
-        let s = T::C_ONE + t.powi(2);
-        let s_root = s.sqrt();
-        let zn = (T::C_ONE + s_root) / t;
-        let zeta1 = zn.ln() * order;
-        let zeta2 = s_root * order;
-        let t = T::C_ONE / s_root;
-        let sr = t * reciprocal_order;
-        let sr_root = sr.sqrt();
-        let phi_i = sr_root * T::from_f64(IK_NORMALIZATION_FACTORS[0]);
-        let phi_k = sr_root * T::from_f64(IK_NORMALIZATION_FACTORS[1]);
+        let z_over_order = z * reciprocal_order; // t = z / nu
+        let s = T::C_ONE + z_over_order.powi(2); // s = 1 + t^2
+        let sqrt_s = s.sqrt(); // sqrt(1 + t^2)
+        let log_arg = (T::C_ONE + sqrt_s) / z_over_order; // (1 + sqrt(1 + t^2)) / t
+        let zeta1 = log_arg.ln() * order; // zeta1 = nu * ln((1 + sqrt(s)) / t)
+        let zeta2 = sqrt_s * order; // zeta2 = nu * sqrt(s)
+        let expansion_step = Complex::<T>::from(reciprocal_order) / sqrt_s; // 1 / (nu * sqrt(1 + t^2))
+        let phi_base = expansion_step.sqrt(); // unnormalized (1 + t^2)^(-1/4) / sqrt(nu)
+        let phi_i = phi_base * T::from_f64(IK_NORMALIZATION_FACTORS[0]);
+        let phi_k = phi_base * T::from_f64(IK_NORMALIZATION_FACTORS[1]);
 
         Self {
             phi_i,
@@ -100,25 +112,41 @@ impl<T: BesselFloat> DebyeGeometry<T> {
             zeta1,
             zeta2,
             s,
-            sr,
+            expansion_step,
             reciprocal_order,
             is_underflow: false,
         }
     }
 }
 
-/// Parameters for the uniform asymptotic Debye expansion of modified Bessel functions $I_\nu$ and $K_\nu$.
+/// Full parameters for the Debye uniform asymptotic expansion of modified Bessel functions $I_\nu(z)$ and $K_\nu(z)$.
+///
+/// Encapsulates both the geometric scaling parameters ($\Phi_I, \Phi_K, \zeta_1, \zeta_2$) and the Olver
+/// asymptotic polynomial series sums:
+/// - $I_\nu(z) \sim \Phi_I e^{\zeta_2 - \zeta_1} \sum_I$
+/// - $K_\nu(z) \sim \Phi_K e^{\zeta_1 - \zeta_2} \sum_K$
+///
+/// where $\sum_I = \sum_{k=0}^{14} \frac{u_k(t)}{\nu^k}$ and $\sum_K = \sum_{k=0}^{14} (-1)^k \frac{u_k(t)}{\nu^k}$.
+///
+/// Ref: Abramowitz & Stegun (9.7.7–9.7.10), NIST DLMF (10.41). Originally Fortran `ZUNIK` (`IPMTR = 0`).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct DebyeParams<T: BesselFloat> {
+    /// Leading prefactor $\Phi_I$ for $I_\nu(z)$.
     pub phi_i: Complex<T>,
+    /// Leading prefactor $\Phi_K$ for $K_\nu(z)$.
     pub phi_k: Complex<T>,
+    /// Logarithmic scaling exponent $\zeta_1 = \nu \ln\left(\frac{1 + \sqrt{1 + (z/\nu)^2}}{z/\nu}\right)$.
     pub zeta1: Complex<T>,
+    /// Radical scaling exponent $\zeta_2 = \nu \sqrt{1 + (z/\nu)^2}$.
     pub zeta2: Complex<T>,
-    pub sum_i: Complex<T>, // Olver A(ζ) series
-    pub sum_k: Complex<T>, // Olver B(ζ) series
+    /// Olver asymptotic series sum for $I_\nu(z)$ ($\sum_{k=0}^{14} u_k(t) / \nu^k$).
+    pub sum_i: Complex<T>,
+    /// Olver asymptotic series sum for $K_\nu(z)$ ($\sum_{k=0}^{14} (-1)^k u_k(t) / \nu^k$).
+    pub sum_k: Complex<T>,
 }
 
 impl<T: BesselFloat> DebyeParams<T> {
+    /// Computes the complete Debye asymptotic parameters and Olver series sums for $z$ and order $\nu$.
     pub fn compute(z: Complex<T>, order: T) -> Self {
         let geom = DebyeGeometry::compute(z, order);
         if geom.is_underflow {
@@ -131,28 +159,26 @@ impl<T: BesselFloat> DebyeParams<T> {
                 sum_k: T::C_ZERO,
             }
         } else {
-            let t2 = T::C_ONE / geom.s;
+            let poly_arg = T::C_ONE / geom.s; // 1 / (1 + t^2), argument for Olver polynomials
             let mut sum_i = T::C_ONE;
             let mut sum_k = T::C_ONE;
             let mut term_sign = T::one();
-            let mut crfn = T::C_ONE;
-            let mut ac = T::one();
-            let mut l = 0;
-            for k in 1..15 {
-                let mut s = T::C_ZERO;
-                for _ in 0..=k {
-                    l += 1;
-                    s = s * t2 + T::from_f64(DEBYE_IK_POLYNOMIAL_COEFFS[l]);
-                }
-                crfn *= geom.sr;
-                let term = crfn * s;
+            let mut sr_power = T::C_ONE;
+            let mut recip_order_pow = T::one();
+
+            for coeffs in DEBYE_IK_POLYNOMIAL_COEFFS.iter().skip(1) {
+                // Evaluate the k-th Olver polynomial p_k(1/s) using Horner's method
+                let poly_val = evaluate_horner(coeffs, poly_arg);
+                sr_power *= geom.expansion_step;
+                let term = sr_power * poly_val;
                 sum_i += term;
-                term_sign = -term_sign;
+                term_sign = -term_sign; // (-1)^k alternating sign for K_nu
                 sum_k += term * term_sign;
 
-                ac *= geom.reciprocal_order;
-                let test = term.re.abs() + term.im.abs();
-                if ac < T::MACHINE_CONSTANTS.abs_error_tolerance
+                recip_order_pow *= geom.reciprocal_order;
+                let test = term.l1_norm();
+                // Early exit if term magnitude and (1/nu)^k drop below machine tolerance
+                if recip_order_pow < T::MACHINE_CONSTANTS.abs_error_tolerance
                     && test < T::MACHINE_CONSTANTS.abs_error_tolerance
                 {
                     break;
@@ -171,21 +197,34 @@ impl<T: BesselFloat> DebyeParams<T> {
     }
 }
 
+/// Geometric and scaling parameters for Airy-type uniform asymptotic expansions of $J_\nu, Y_\nu, H^{(1)}_\nu, H^{(2)}_\nu$.
+///
+/// Computes the Airy argument $\arg = \zeta \nu^{2/3}$, scaling exponents $\zeta_1, \zeta_2$, and prefactor $\Phi$
+/// where $\frac{2}{3} \nu \zeta^{3/2} = \zeta_1 - \zeta_2$.
+///
+/// Captures regime-specific scratch state in [`AiryState`] to allow efficient evaluation of the Olver $A(\zeta)$ and
+/// $B(\zeta)$ series in [`AiryParams::compute`] without redundant recomputation.
+///
+/// Ref: Abramowitz & Stegun (9.3.35–9.3.46), NIST DLMF (10.20). Originally part of Fortran `ZUNHJ` (`IPMTR = 1`).
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct AiryGeometry<T: BesselFloat> {
+    /// Leading prefactor $\Phi = \left(\frac{4\zeta}{1 - (z/\nu)^2}\right)^{1/4} \nu^{-1/3}$.
     pub phi: Complex<T>,
-    pub arg: Complex<T>, // Argument to the Airy function: ζ · ν^(2/3)
+    /// Scaled argument to the Airy function: $\arg = \zeta \nu^{2/3}$.
+    pub arg: Complex<T>,
+    /// Logarithmic scaling exponent $\zeta_1 = \nu \ln\left(\frac{1 + \sqrt{1 - (z/\nu)^2}}{z/\nu}\right)$.
     pub zeta1: Complex<T>,
+    /// Radical scaling exponent $\zeta_2 = \nu \sqrt{1 - (z/\nu)^2}$.
     pub zeta2: Complex<T>,
 
+    /// Intermediate regime state passed to [`AiryParams`].
     state: AiryState<T>,
 }
 
 impl<T: BesselFloat> AiryGeometry<T> {
-    const ONE_THIRD: f64 = 3.333_333_333_333_333e-1;
-    const TWO_THIRDS: f64 = 6.666_666_666_666_666e-1;
-    const THREE_PI_BY_2: f64 = 4.712_388_980_384_69;
+    const THREE_PI_BY_2: f64 = 3.0 * FRAC_PI_2;
 
+    /// Computes the Airy geometry and scaling parameters for a given complex argument $z$ and order $\nu$.
     pub fn compute(z: Complex<T>, order: T) -> Self {
         if geom_underflow(z, order) {
             let (zeta1, zeta2) = underflow_zetas(order);
@@ -200,47 +239,45 @@ impl<T: BesselFloat> AiryGeometry<T> {
             };
         }
         let reciprocal_order = T::ONE / order;
-        let z_over_order = z * reciprocal_order;
+        let z_over_order = z * reciprocal_order; // t = z / nu
         let recip_order_sqr = reciprocal_order * reciprocal_order;
-        //-----------------------------------------------------------------------
-        //     COMPUTE IN THE FOURTH QUADRANT
-        //-----------------------------------------------------------------------
-        let fn13 = order.powf(T::from_f64(Self::ONE_THIRD));
-        let fn23 = fn13 * fn13;
-        let rfn13 = T::one() / fn13;
 
-        let w2 = T::C_ONE - z_over_order.powi(2);
-        let aw2 = w2.abs();
+        let order_one_third = order.powf(T::from_f64(1.0 / 3.0)); // nu^(1/3)
+        let order_two_thirds = order_one_third * order_one_third; // nu^(2/3)
+        let recip_order_one_third = T::one() / order_one_third; // nu^(-1/3)
 
-        let power_series = aw2 <= T::from_f64(0.25);
+        let w_sqr = T::C_ONE - z_over_order.powi(2); // w^2 = 1 - (z/nu)^2
+        let abs_w_sqr = w_sqr.abs();
+
+        let power_series = abs_w_sqr <= T::from_f64(0.25);
         if power_series {
-            //-----------------------------------------------------------------------
-            //     POWER SERIES FOR CABS(W2) <= 0.25
-            //-----------------------------------------------------------------------
+            // Power series in w^2 near turning point (|w^2| <= 0.25, z ≈ nu)
             let mut k_max = 1;
             let mut p = [T::C_ZERO; 30];
             let mut abs_p = [T::zero(); 30];
             p[0] = T::C_ONE;
-            let mut suma = Complex::<T>::new(T::from_f64(TURNING_POINT_ZETA_COEFFS[0]), T::zero());
+            let mut zeta_sum =
+                Complex::<T>::new(T::from_f64(TURNING_POINT_ZETA_COEFFS[0]), T::zero());
             abs_p[0] = T::one();
-            if aw2 >= T::MACHINE_CONSTANTS.abs_error_tolerance {
+            if abs_w_sqr >= T::MACHINE_CONSTANTS.abs_error_tolerance {
                 for k in 1..30 {
                     k_max = k + 1;
-                    p[k] = p[k - 1] * w2;
-                    suma += p[k] * T::from_f64(TURNING_POINT_ZETA_COEFFS[k]);
-                    abs_p[k] = abs_p[k - 1] * aw2;
+                    p[k] = p[k - 1] * w_sqr; // p[k] = (w^2)^k
+                    zeta_sum += p[k] * T::from_f64(TURNING_POINT_ZETA_COEFFS[k]); // zeta / w^2 = sum c_k (w^2)^k
+                    abs_p[k] = abs_p[k - 1] * abs_w_sqr;
                     if abs_p[k] < T::MACHINE_CONSTANTS.abs_error_tolerance {
                         break;
                     }
                 }
             }
-            let zeta = w2 * suma;
-            let arg = zeta * fn23;
-            let mut za = suma.sqrt();
-            let zeta2 = w2.sqrt() * order;
-            let zeta1 = (T::C_ONE + T::from_f64(Self::TWO_THIRDS) * zeta * za) * zeta2;
-            za *= T::two();
-            let phi = za.sqrt() * rfn13;
+            let zeta = w_sqr * zeta_sum; // zeta = w^2 * (zeta / w^2)
+            let arg = zeta * order_two_thirds; // Airy argument: arg = zeta * nu^(2/3)
+            let sqrt_zeta_over_w = zeta_sum.sqrt(); // sqrt(zeta / w^2) = sqrt(zeta) / w
+            let w = w_sqr.sqrt();
+            let zeta2 = w * order; // zeta2 = nu * w
+            let zeta1 = (T::C_ONE + T::TWO_THIRDS * zeta * sqrt_zeta_over_w) * zeta2; // zeta1 = zeta2 + (2/3)*nu*zeta^(3/2)
+            let phi_base = (T::two() * sqrt_zeta_over_w).sqrt(); // phi_base = (4*zeta / (1 - t^2))^(1/4)
+            let phi = phi_base * recip_order_one_third; // Phi = phi_base * nu^(-1/3)
             Self {
                 phi,
                 arg,
@@ -252,14 +289,12 @@ impl<T: BesselFloat> AiryGeometry<T> {
                     k_max,
                     recip_order_sqr,
                     reciprocal_order,
-                    rfn13,
+                    recip_order_one_third,
                 },
             }
         } else {
-            //-----------------------------------------------------------------------
-            //     CABS(W2) > 0.25
-            //-----------------------------------------------------------------------
-            let mut w = w2.sqrt();
+            // Asymptotic expansion away from turning point (|w^2| > 0.25)
+            let mut w = w_sqr.sqrt(); // w = sqrt(1 - (z/nu)^2)
             if w.re < T::zero() {
                 w.re = T::zero()
             };
@@ -267,29 +302,31 @@ impl<T: BesselFloat> AiryGeometry<T> {
                 w.im = T::zero()
             };
 
-            let za = (T::C_ONE + w) / z_over_order;
-            let mut zc = za.ln();
-            zc.im = zc.im.clamp(T::zero(), T::from_f64(FRAC_PI_2));
-            if zc.re < T::zero() {
-                zc.re = T::zero()
+            let log_arg = (T::C_ONE + w) / z_over_order; // (1 + w) / (z/nu)
+            let mut log_term = log_arg.ln(); // ln((1 + w)/t) = zeta1 / nu
+            log_term.im = log_term.im.clamp(T::zero(), T::from_f64(FRAC_PI_2));
+            if log_term.re < T::zero() {
+                log_term.re = T::zero()
             };
-            let zth = (zc - w) * T::from_f64(1.5);
-            let zeta1 = zc * order;
-            let zeta2 = w * order;
-            let azth = zth.abs();
-            let mut ang = zth.parg();
+            let zeta_3_2 = (log_term - w) * T::from_f64(1.5); // zeta^(3/2) = (3/2) * (zeta1 - zeta2)/nu
+            let zeta1 = log_term * order; // zeta1 = nu * ln((1 + w)/t)
+            let zeta2 = w * order; // zeta2 = nu * w
+            let abs_zeta_3_2 = zeta_3_2.abs();
+            let mut ang = zeta_3_2.parg();
             ang = ang.clamp(T::zero(), T::from_f64(Self::THREE_PI_BY_2));
-            let pp = azth.powf(T::from_f64(Self::TWO_THIRDS));
-            ang *= T::from_f64(Self::TWO_THIRDS);
-            let mut zeta = Complex::<T>::cis(ang) * pp;
+
+            // Recover zeta = (zeta^(3/2))^(2/3) via polar form:
+            let abs_zeta = abs_zeta_3_2.powf(T::TWO_THIRDS); // |zeta| = |zeta^(3/2)|^(2/3)
+            ang *= T::TWO_THIRDS; // arg(zeta) = (2/3) * arg(zeta^(3/2))
+            let mut zeta = Complex::<T>::cis(ang) * abs_zeta;
             if zeta.im < T::zero() {
                 zeta.im = T::zero()
             };
-            let arg = zeta * fn23;
-            let rtzt = zth / zeta;
-            let za = rtzt / w;
-            let tazr = za + za;
-            let phi = tazr.sqrt() * rfn13;
+            let arg = zeta * order_two_thirds; // Airy argument: arg = zeta * nu^(2/3)
+            let sqrt_zeta = zeta_3_2 / zeta; // sqrt(zeta) = zeta^(3/2) / zeta
+            let sqrt_zeta_over_w = sqrt_zeta / w; // sqrt(zeta) / w
+            let phi_base = (T::two() * sqrt_zeta_over_w).sqrt(); // phi_base = (4*zeta / (1 - t^2))^(1/4)
+            let phi = phi_base * recip_order_one_third; // Phi = phi_base * nu^(-1/3)
 
             Self {
                 phi,
@@ -297,87 +334,95 @@ impl<T: BesselFloat> AiryGeometry<T> {
                 zeta1,
                 zeta2,
                 state: AiryState::Asymptotic {
-                    w2,
-                    aw2,
+                    w_sqr,
+                    abs_w_sqr,
                     w,
-                    zth,
-                    azth,
-                    rtzt,
+                    zeta_3_2,
+                    abs_zeta_3_2,
+                    sqrt_zeta,
                     reciprocal_order,
                     recip_order_sqr,
-                    rfn13,
+                    recip_order_one_third,
                 },
             }
         }
     }
 }
 
-// ***BEGIN PROLOGUE  ZUNHJ
-// ***REFER TO  ZBESI,ZBESK
-//
-//     REFERENCES
-//         HANDBOOK OF MATHEMATICAL FUNCTIONS BY M. ABRAMOWITZ AND I.A.
-//         STEGUN, AMS55, NATIONAL BUREAU OF STANDARDS, 1965, CHAPTER 9.
-//
-//         ASYMPTOTICS AND SPECIAL FUNCTIONS BY F.W.J. OLVER, ACADEMIC
-//         PRESS, N.Y., 1974, PAGE 420
-//
-//     ABSTRACT
-//         ZUNHJ COMPUTES PARAMETERS FOR BESSEL FUNCTIONS C(FNU,Z) =
-//         J(FNU,Z), Y(FNU,Z) OR H(I,FNU,Z) I=1,2 FOR LARGE ORDERS FNU
-//         BY MEANS OF THE UNIFORM ASYMPTOTIC EXPANSION
-//
-//         C(FNU,Z)=C1*PHI*( ASUM*AIRY(ARG) + C2*BSUM*DAIRY(ARG) )
-//
-//         FOR PROPER CHOICES OF C1, C2, AIRY AND DAIRY WHERE AIRY IS
-//         AN AIRY FUNCTION AND DAIRY IS ITS DERIVATIVE.
-//
-//               (2/3)*FNU*ZETA**1.5 = ZETA1-ZETA2,
-//
-//         ZETA1=0.5*FNU*CLOG((1+W)/(1-W)), ZETA2=FNU*W FOR SCALING
-//         PURPOSES IN AIRY FUNCTIONS FROM CAIRY OR CBIRY.
-//
-//         MCONJ=SIGN OF AIMAG(Z), BUT IS AMBIGUOUS WHEN Z IS REAL AND
-//         MUST BE SPECIFIED. IPMTR=0 RETURNS ALL PARAMETERS. IPMTR=
-//         1 COMPUTES ALL EXCEPT ASUM AND BSUM.
-//
-// ***ROUTINES CALLED  ZABS,ZDIV,ZLOG,ZSQRT,d1mach
-// ***END PROLOGUE  ZUNHJ
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct AiryParams<T: BesselFloat> {
-    pub phi: Complex<T>,
-    pub arg: Complex<T>,
-    pub zeta1: Complex<T>,
-    pub zeta2: Complex<T>,
-    pub asum: Complex<T>, // Olver A(ζ) series
-    pub bsum: Complex<T>, // Olver B(ζ) series
-}
-
+/// Regime-specific intermediate scratch state preserved across Airy geometry and parameter evaluation.
+///
+/// Distinguishes between:
+/// - [`AiryState::Transition`]: Near the turning point ($|1 - (z/\nu)^2| \le 0.25$), where power series in $w^2 = 1 - (z/\nu)^2$ are used.
+/// - [`AiryState::Asymptotic`]: Away from the turning point ($|1 - (z/\nu)^2| > 0.25$), where asymptotic expansions of the Airy parameters are used.
+/// - [`AiryState::Underflow`]: Extreme underflow conditions.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum AiryState<T: BesselFloat> {
+    /// Underflow fallback condition.
     Underflow,
+    /// Turning-point transition regime ($|w^2| \le 0.25$).
     Transition {
+        /// Powers of $w^2$: $p[k] = w^{2k}$.
         p: [Complex<T>; 30],
+        /// Magnitudes $|p[k]| = |w^2|^k$ for convergence monitoring.
         abs_p: [T; 30],
+        /// Number of valid populated terms in `p` and `abs_p`.
         k_max: usize,
+        /// Reciprocal order $1 / \nu$.
         reciprocal_order: T,
+        /// Squared reciprocal order $1 / \nu^2$.
         recip_order_sqr: T,
-        rfn13: T,
+        /// Order power $\nu^{-1/3}$.
+        recip_order_one_third: T,
     },
+    /// Asymptotic regime away from the turning point ($|w^2| > 0.25$).
     Asymptotic {
-        w2: Complex<T>,
-        aw2: T,
+        /// Distance from turning point $w^2 = 1 - (z/\nu)^2$.
+        w_sqr: Complex<T>,
+        /// Magnitude $|w^2|$.
+        abs_w_sqr: T,
+        /// Radical $w = \sqrt{1 - (z/\nu)^2}$.
         w: Complex<T>,
-        zth: Complex<T>,
-        azth: T,
-        rtzt: Complex<T>,
+        /// Scaled exponent $\zeta^{3/2} = \frac{3}{2}(\zeta_1 - \zeta_2) / \nu$.
+        zeta_3_2: Complex<T>,
+        /// Magnitude $|\zeta^{3/2}|$.
+        abs_zeta_3_2: T,
+        /// Radical $\sqrt{\zeta} = \zeta^{3/2} / \zeta$.
+        sqrt_zeta: Complex<T>,
+        /// Reciprocal order $1 / \nu$.
         reciprocal_order: T,
+        /// Squared reciprocal order $1 / \nu^2$.
         recip_order_sqr: T,
-        rfn13: T,
+        /// Order power $\nu^{-1/3}$.
+        recip_order_one_third: T,
     },
 }
+
+/// Full parameters for the Airy-type uniform asymptotic expansion of $J_\nu, Y_\nu, H^{(1)}_\nu, H^{(2)}_\nu$.
+///
+/// Encapsulates the geometry ($\Phi, \arg, \zeta_1, \zeta_2$) and the Olver asymptotic series sums $A(\zeta)$ and $B(\zeta)$:
+/// $$C_\nu(z) \sim C_1 \Phi \left[ A(\zeta) \text{Ai}(\text{arg}) + \frac{C_2}{\nu^{2/3}} B(\zeta) \text{Ai}'(\text{arg}) \right]$$
+///
+/// where $\text{arg} = \zeta \nu^{2/3}$, $A(\zeta) = \sum_{s=0}^\infty \frac{A_s(\zeta)}{\nu^{2s}}$, and $B(\zeta) = \sum_{s=0}^\infty \frac{B_s(\zeta)}{\nu^{2s}}$.
+///
+/// Ref: Abramowitz & Stegun (9.3.35–9.3.46), NIST DLMF (10.20). Originally Fortran `ZUNHJ` (`IPMTR = 0`).
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct AiryParams<T: BesselFloat> {
+    /// Leading prefactor $\Phi = \left(\frac{4\zeta}{1 - (z/\nu)^2}\right)^{1/4} \nu^{-1/3}$.
+    pub phi: Complex<T>,
+    /// Scaled argument to the Airy function: $\arg = \zeta \nu^{2/3}$.
+    pub arg: Complex<T>,
+    /// Logarithmic scaling exponent $\zeta_1 = \nu \ln\left(\frac{1 + \sqrt{1 - (z/\nu)^2}}{z/\nu}\right)$.
+    pub zeta1: Complex<T>,
+    /// Radical scaling exponent $\zeta_2 = \nu \sqrt{1 - (z/\nu)^2}$.
+    pub zeta2: Complex<T>,
+    /// Olver asymptotic series sum $A(\zeta)$ associated with the Airy function $\text{Ai}(\text{arg})$.
+    pub asum: Complex<T>,
+    /// Olver asymptotic series sum $B(\zeta)$ associated with the Airy derivative $\text{Ai}'(\text{arg})$.
+    pub bsum: Complex<T>,
+}
+
 impl<T: BesselFloat> AiryParams<T> {
+    /// Computes the complete Airy uniform asymptotic parameters and Olver series sums for $z$ and order $\nu$.
     pub fn compute(z: Complex<T>, order: T) -> Self {
         let geom = AiryGeometry::compute(z, order);
         let phi = geom.phi;
@@ -390,14 +435,14 @@ impl<T: BesselFloat> AiryParams<T> {
                 let (zeta1, zeta2) = underflow_zetas(order);
                 let phi = T::C_ONE;
                 let arg = T::C_ONE;
-                return Self {
+                Self {
                     phi,
                     arg,
                     zeta1,
                     zeta2,
                     asum: T::C_ZERO,
                     bsum: T::C_ZERO,
-                };
+                }
             }
             AiryState::Transition {
                 p,
@@ -405,63 +450,58 @@ impl<T: BesselFloat> AiryParams<T> {
                 k_max,
                 recip_order_sqr,
                 reciprocal_order,
-                rfn13,
+                recip_order_one_third,
             } => {
-                let sumb: Complex<T> = p[..k_max]
+                // Transition regime (|1 - (z/nu)^2| <= 0.25): Power series in w^2 (NIST DLMF §10.20.7)
+                // A(zeta) = 1 + sum_{s=1}^6 A_s(w^2) / nu^(2s)
+                // B(zeta) = B_0(w^2) + sum_{s=1}^6 B_s(w^2) / nu^(2s)
+                let b_first_term: Complex<T> = p[..k_max]
                     .iter()
-                    .zip(TRANSITION_AIRY_B_COEFFS)
+                    .zip(TRANSITION_AIRY_B0_COEFFS)
                     .map(|(p, b)| p * T::from_f64(b))
                     .sum();
-                let mut asum = T::C_ZERO;
-                let mut bsum = sumb;
-                let mut l1 = 0;
-                let mut l2 = 30;
-                let btol =
-                    T::MACHINE_CONSTANTS.abs_error_tolerance * (bsum.re.abs() + bsum.im.abs());
-                let mut atol = T::MACHINE_CONSTANTS.abs_error_tolerance;
-                let mut pp = T::one();
-                let mut a_converged = false;
-                let mut b_converged = false;
+                let a_first_term = T::C_ONE;
+
+                let mut asum = a_first_term;
+                let mut bsum = b_first_term;
+
                 if recip_order_sqr >= T::MACHINE_CONSTANTS.abs_error_tolerance {
-                    for _ in 1..7 {
-                        atol /= recip_order_sqr;
-                        pp *= recip_order_sqr;
+                    let btol = T::MACHINE_CONSTANTS.abs_error_tolerance * (b_first_term.l1_norm());
+                    let mut poly_tol = T::MACHINE_CONSTANTS.abs_error_tolerance;
+
+                    let mut a_converged = false;
+                    let mut b_converged = false;
+                    let mut recip_order_power = T::one();
+
+                    for (a_block, b_block) in TRANSITION_AIRY_A_COEFFS
+                        .iter()
+                        .zip(&TRANSITION_AIRY_B_COEFFS)
+                    {
+                        poly_tol /= recip_order_sqr;
+                        recip_order_power *= recip_order_sqr;
                         if !a_converged {
-                            let mut suma = T::C_ZERO;
-                            for k in 0..k_max {
-                                suma += p[k] * T::from_f64(TRANSITION_AIRY_A_COEFFS[l1 + k]);
-                                if abs_p[k] < atol {
-                                    break;
-                                }
-                            }
-                            asum += suma * pp;
-                            if pp < T::MACHINE_CONSTANTS.abs_error_tolerance {
+                            let a_poly =
+                                evaluate_transition_poly(&p, &abs_p, a_block, k_max, poly_tol);
+                            asum += a_poly * recip_order_power;
+                            if recip_order_power < T::MACHINE_CONSTANTS.abs_error_tolerance {
                                 a_converged = true
                             };
                         }
                         if !b_converged {
-                            let mut sumb = T::C_ZERO;
-                            for k in 0..k_max {
-                                sumb += p[k] * T::from_f64(TRANSITION_AIRY_B_COEFFS[l2 + k]);
-                                if abs_p[k] < atol {
-                                    break;
-                                }
-                            }
-                            bsum += sumb * pp;
-                            if pp < btol {
+                            let b_poly =
+                                evaluate_transition_poly(&p, &abs_p, b_block, k_max, poly_tol);
+                            bsum += b_poly * recip_order_power;
+                            if recip_order_power < btol {
                                 b_converged = true;
                             }
                         }
                         if a_converged && b_converged {
                             break;
                         }
-                        l1 += 30;
-                        l2 += 30;
                     }
                 }
-                asum += T::one();
-                pp = reciprocal_order * rfn13;
-                bsum *= pp;
+                bsum *= reciprocal_order * recip_order_one_third;
+
                 Self {
                     phi,
                     arg,
@@ -472,103 +512,98 @@ impl<T: BesselFloat> AiryParams<T> {
                 }
             }
             AiryState::Asymptotic {
-                w2,
-                aw2,
+                w_sqr,
+                abs_w_sqr,
                 w,
-                zth,
-                azth,
-                rtzt,
+                zeta_3_2,
+                abs_zeta_3_2,
+                sqrt_zeta,
                 reciprocal_order,
                 recip_order_sqr,
-                rfn13,
+                recip_order_one_third,
             } => {
-                let raw = T::one() / aw2.sqrt();
-                let tfn = w.conj() * raw * raw * reciprocal_order;
-                let razth = T::one() / azth;
-                let rzth = zth.conj() * razth * razth * reciprocal_order;
-                let zc = rzth * T::from_f64(AIRY_ASYMP_COEFFS_A[1]);
-                let raw2 = T::one() / aw2;
-                let t2 = w2.conj() * raw2 * raw2;
-                let mut up = T::c_zeros(14);
-                up[1] = (t2 * T::from_f64(AIRY_HJ_POLYNOMIAL_COEFFS[1])
-                    + T::from_f64(AIRY_HJ_POLYNOMIAL_COEFFS[2]))
-                    * tfn;
-                let mut bsum = up[1] + zc;
-                let mut asum = T::C_ZERO;
+                // Asymptotic regime (|1 - (z/nu)^2| > 0.25): Olver Debye-Airy expansion (NIST DLMF §10.20(iii))
+                // A(zeta) = sum_{s=0}^6 A_s / nu^(2s),  B(zeta) = sum_{s=0}^6 B_s / nu^(2s)
+                // where A_s and B_s are discrete convolutions of Debye polynomials u_k(p) and Airy coefficients.
+
+                let recip_abs_w_sqr = T::one() / abs_w_sqr;
+                let recip_w_sqr = w_sqr.conj() * recip_abs_w_sqr * recip_abs_w_sqr;
+                let recip_nu_w = w.conj() * recip_abs_w_sqr * reciprocal_order;
+
+                let recip_abs_zeta_3_2 = T::one() / abs_zeta_3_2;
+                let recip_nu_zeta_3_2 =
+                    zeta_3_2.conj() * recip_abs_zeta_3_2 * recip_abs_zeta_3_2 * reciprocal_order;
+
+                let airy_a1_term = recip_nu_zeta_3_2 * T::from_f64(AIRY_ASYMP_COEFFS_A[1]);
+                let mut u_polys = [T::C_ZERO; 14];
+                u_polys[1] =
+                    evaluate_horner(AIRY_HJ_POLYNOMIAL_COEFFS[1], recip_w_sqr) * recip_nu_w;
+
+                let first_b_term = u_polys[1] + airy_a1_term;
+                let first_a_term = T::C_ONE;
+
+                let mut asum = first_a_term;
+                let mut bsum = first_b_term;
+
                 if reciprocal_order >= T::MACHINE_CONSTANTS.abs_error_tolerance {
-                    let mut przth = rzth;
-                    let mut ptfn = tfn;
-                    up[0] = T::C_ONE;
-                    let mut pp = T::one();
-                    let btol =
-                        T::MACHINE_CONSTANTS.abs_error_tolerance * (bsum.re.abs() + bsum.im.abs());
-                    let mut ks = 0;
-                    let mut kp1 = 2;
-                    let mut l = 2; //3;
+                    let mut recip_nu_zeta_3_2_power = recip_nu_zeta_3_2;
+                    let mut recip_nu_w_power = recip_nu_w;
+                    u_polys[0] = T::C_ONE;
+                    let mut recip_order_power = T::one();
+                    let btol = T::MACHINE_CONSTANTS.abs_error_tolerance * (bsum.l1_norm());
+
                     let mut a_converged = false;
                     let mut b_converged = false;
-                    let mut cr = T::c_zeros(14);
-                    let mut dr = T::c_zeros(14);
+                    let mut a_coeffs = [T::C_ZERO; 12];
+                    let mut b_coeffs = [T::C_ZERO; 12];
                     for lr in (2..=12).step_by(2) {
-                        let lrp1 = lr + 1;
-                        //-----------------------------------------------------------------------
-                        //     COMPUTE TWO ADDITIONAL CR, DR, AND UP FOR TWO MORE TERMS IN
-                        //     NEXT SUMA AND SUMB
-                        //-----------------------------------------------------------------------
-                        for _k in lr..=lrp1 {
-                            ks += 1;
-                            kp1 += 1;
-                            l += 1;
-                            let mut za = Complex::<T>::new(
-                                T::from_f64(AIRY_HJ_POLYNOMIAL_COEFFS[l]),
-                                T::zero(),
-                            );
-                            for _ in 1..kp1 {
-                                l += 1;
-                                za = za * t2 + T::from_f64(AIRY_HJ_POLYNOMIAL_COEFFS[l]);
-                            }
-                            ptfn *= tfn;
-                            up[kp1 - 1] = ptfn * za;
-                            cr[ks - 1] = przth * T::from_f64(AIRY_ASYMP_COEFFS_B[ks]);
-                            przth *= rzth;
-                            dr[ks - 1] = przth * T::from_f64(AIRY_ASYMP_COEFFS_A[ks + 1]);
+                        // Step s = lr / 2: compute 2 new polynomial terms u_{2s}, u_{2s+1} and Airy scaling factors
+                        for k in lr..=lr + 1 {
+                            // Horner's method on polynomial u_k(1/w^2)
+                            let poly_val =
+                                evaluate_horner(AIRY_HJ_POLYNOMIAL_COEFFS[k], recip_w_sqr);
+                            recip_nu_w_power *= recip_nu_w;
+                            u_polys[k] = recip_nu_w_power * poly_val;
+
+                            // Airy derivative coefficient v_{k-1} / (nu * zeta^(3/2))^(k-1)
+                            a_coeffs[k - 2] =
+                                recip_nu_zeta_3_2_power * T::from_f64(AIRY_ASYMP_COEFFS_B[k - 1]);
+                            recip_nu_zeta_3_2_power *= recip_nu_zeta_3_2;
+                            // Airy function coefficient u_k / (nu * zeta^(3/2))^k
+                            b_coeffs[k - 2] =
+                                recip_nu_zeta_3_2_power * T::from_f64(AIRY_ASYMP_COEFFS_A[k]);
                         }
-                        pp *= recip_order_sqr;
+                        recip_order_power *= recip_order_sqr;
+
+                        // A_s = u_{2s} + sum_{j=1}^{2s} v_j * u_{2s - j}
                         if !a_converged {
-                            let mut suma = up[lrp1 - 1];
-                            let mut ju = lrp1;
-                            for cr_i in cr.iter().take(lr) {
-                                ju -= 1;
-                                suma += cr_i * up[ju - 1];
-                            }
-                            asum += suma;
-                            let test = suma.re.abs() + suma.im.abs();
-                            if pp < T::MACHINE_CONSTANTS.abs_error_tolerance
-                                && test < T::MACHINE_CONSTANTS.abs_error_tolerance
+                            let a_term =
+                                u_polys[lr] + convolve_asymptotic_series(&a_coeffs, &u_polys, lr);
+                            asum += a_term;
+                            if recip_order_power < T::MACHINE_CONSTANTS.abs_error_tolerance
+                                && a_term.l1_norm() < T::MACHINE_CONSTANTS.abs_error_tolerance
                             {
                                 a_converged = true
-                            };
-                        }
-                        if !b_converged {
-                            let mut sumb = up[lr + 1] + up[lrp1 - 1] * zc;
-                            let mut ju = lrp1;
-                            for jr_i in dr.iter().take(lr) {
-                                ju -= 1;
-                                sumb += jr_i * up[ju - 1];
                             }
-                            bsum += sumb;
-                            let test = sumb.re.abs() + sumb.im.abs();
-                            if pp < btol && test < btol {
-                                b_converged = true
-                            };
+                        }
+
+                        // B_s = u_{2s+1} + u_{2s} * a_1 + sum_{j=1}^{2s} u_{j+1} * u_{2s - j}
+                        if !b_converged {
+                            let b_term = u_polys[lr + 1]
+                                + u_polys[lr] * airy_a1_term
+                                + convolve_asymptotic_series(&b_coeffs, &u_polys, lr);
+                            bsum += b_term;
+                            if recip_order_power < btol && b_term.l1_norm() < btol {
+                                b_converged = true;
+                            }
                         }
                         if a_converged && b_converged {
                             break;
                         }
                     }
                 }
-                asum += T::C_ONE;
-                bsum = (-bsum * rfn13) / rtzt;
+
+                bsum = (-bsum * recip_order_one_third) / sqrt_zeta;
 
                 Self {
                     phi,
@@ -581,4 +616,55 @@ impl<T: BesselFloat> AiryParams<T> {
             }
         }
     }
+}
+
+/// Evaluates a transition polynomial $P(w^2) = \sum_{k=0}^{k_{\max}-1} c_k (w^2)^k$
+/// using precomputed powers $p[k] = (w^2)^k$, with early exit on convergence.
+///
+/// Ref: NIST DLMF §10.20.7.
+#[inline]
+fn evaluate_transition_poly<T: BesselFloat>(
+    p: &[Complex<T>; 30],
+    abs_p: &[T; 30],
+    coeffs: &[f64; 30],
+    k_max: usize,
+    tolerance: T,
+) -> Complex<T> {
+    let mut value = T::C_ZERO;
+    for k in 0..k_max {
+        value += p[k] * T::from_f64(coeffs[k]);
+        if abs_p[k] < tolerance {
+            break;
+        }
+    }
+    value
+}
+
+/// Evaluates a polynomial $P(x) = \sum_{j=0}^n c_j x^{n-j}$ with real coefficients
+/// using Horner's method: $P(x) = (\dots((c_0 x + c_1) x + c_2) \dots) x + c_n$.
+#[inline]
+fn evaluate_horner<T: BesselFloat>(coeffs: &[f64], x: Complex<T>) -> Complex<T> {
+    let mut val = Complex::<T>::new(T::from_f64(coeffs[0]), T::zero());
+    for &c in &coeffs[1..] {
+        val = val * x + T::from_f64(c);
+    }
+    val
+}
+
+/// Computes the discrete convolution between Airy asymptotic scaling coefficients $c_j$
+/// and the Olver polynomials $u_k(p)$:
+/// $$\sum_{j=1}^{\text{len}} c_j \cdot u_{\text{len} - j}(p)$$
+///
+/// Ref: NIST DLMF §10.20(iii).
+#[inline]
+fn convolve_asymptotic_series<T: BesselFloat>(
+    coeffs: &[Complex<T>],
+    u_polys: &[Complex<T>],
+    len: usize,
+) -> Complex<T> {
+    coeffs[..len]
+        .iter()
+        .zip(u_polys[..len].iter().rev())
+        .map(|(&c, &u)| c * u)
+        .sum()
 }

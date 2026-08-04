@@ -3,7 +3,7 @@ use num::{Complex, Integer, complex::ComplexFloat};
 use crate::{
     BesselError, Scaling,
     amos::{
-        IKType, RotationDirection,
+        ComplexExt, IKType, RotationDirection,
         airy::airy_pair,
         asymptotics::{
             AiryGeometry, DebyeGeometry,
@@ -11,7 +11,6 @@ use crate::{
         },
         i_pow,
         limits::{OverflowState, check_underflow_uniform_asymp_params, underflow_add_i_k},
-        max_abs_component,
         recurrence::scale_controlled_recurrence,
         utils::{AIC, two_over_z_safe, will_underflow},
     },
@@ -583,7 +582,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
             if i_overflow_state == OverflowState::NearOver {
                 continue;
             }
-            if max_abs_component(unscaled_s2) <= absolute_approximation_limit {
+            if unscaled_s2.linf_norm() <= absolute_approximation_limit {
                 continue;
             }
             i_overflow_state.increment();

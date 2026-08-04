@@ -1,4 +1,4 @@
-use num::{Complex, Float, complex::ComplexFloat};
+use num::{Complex, complex::ComplexFloat};
 use std::{f64::consts::PI, ops::Neg};
 
 pub use entry_points::*;
@@ -128,20 +128,26 @@ impl Neg for RotationDirection {
     }
 }
 
-pub(crate) fn max_abs_component<T: Float>(c: Complex<T>) -> T {
-    c.re.abs().max(c.im.abs())
-}
-
-pub(crate) trait PositiveArg<T> {
+pub(crate) trait ComplexExt<T> {
+    /// Phase angle normalized to $[0, 2\pi)$.
     fn parg(&self) -> T;
+
+    /// $\infty$-norm (Chebyshev norm): $\max(|\text{Re}(z)|, |\text{Im}(z)|)$
+    fn linf_norm(&self) -> T;
 }
 
-impl<T: BesselFloat> PositiveArg<T> for Complex<T> {
+impl<T: BesselFloat> ComplexExt<T> for Complex<T> {
+    #[inline]
     fn parg(&self) -> T {
         let mut ang = self.arg();
         if ang < T::zero() {
             ang += T::from_f64(PI * 2.0);
         }
         ang
+    }
+
+    #[inline]
+    fn linf_norm(&self) -> T {
+        self.re.abs().max(self.im.abs())
     }
 }

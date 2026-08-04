@@ -1,17 +1,15 @@
 use num::{Complex, Integer, complex::ComplexFloat};
 
 use crate::{
-    BesselError,
-    BesselError::*,
+    BesselError::{self, *},
     BesselFloat, Scaling,
     amos::{
-        HankelKind, IKType, RotationDirection,
+        ComplexExt, HankelKind, IKType, RotationDirection,
         airy::airy_power_series,
         analytic_continuation::{airy_analytic_continuation, analytic_continuation},
         asymptotics::k_asymp_large_order,
         i_pow,
         limits::check_underflow_uniform_asymp_params,
-        max_abs_component,
         right_half_plane::{i_right_half_plane, k_right_half_plane},
         utils::{is_significance_lost, sanitise_inputs},
     },
@@ -161,13 +159,12 @@ pub fn complex_bessel_h<T: BesselFloat>(
     }
 
     for element in cy.iter_mut() {
-        let scaling =
-            if max_abs_component(*element) < T::MACHINE_CONSTANTS.absolute_approximation_limit {
-                *element *= T::MACHINE_CONSTANTS.rtol;
-                T::MACHINE_CONSTANTS.abs_error_tolerance
-            } else {
-                T::one()
-            };
+        let scaling = if element.linf_norm() < T::MACHINE_CONSTANTS.absolute_approximation_limit {
+            *element *= T::MACHINE_CONSTANTS.rtol;
+            T::MACHINE_CONSTANTS.abs_error_tolerance
+        } else {
+            T::one()
+        };
         *element *= phase_multiplier * scaling;
         phase_multiplier *= T::I * -rotation_float;
     }
@@ -283,13 +280,13 @@ pub fn complex_bessel_i<T: BesselFloat>(
         //     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE
         //-----------------------------------------------------------------------
         for yi in y.iter_mut().take(remaining_n) {
-            let correction =
-                if max_abs_component(*yi) <= T::MACHINE_CONSTANTS.absolute_approximation_limit {
-                    *yi *= T::MACHINE_CONSTANTS.rtol;
-                    T::MACHINE_CONSTANTS.abs_error_tolerance
-                } else {
-                    T::one()
-                };
+            let correction = if yi.linf_norm() <= T::MACHINE_CONSTANTS.absolute_approximation_limit
+            {
+                *yi *= T::MACHINE_CONSTANTS.rtol;
+                T::MACHINE_CONSTANTS.abs_error_tolerance
+            } else {
+                T::one()
+            };
             *yi *= csgn;
             *yi *= correction;
             csgn = -csgn;
@@ -369,7 +366,7 @@ pub fn complex_bessel_j<T: BesselFloat>(
     for cyi in cy.iter_mut().take(n - n_zeros) {
         let mut scaling = T::one();
         // TODO is the below a pattern?
-        if (max_abs_component(*cyi)) <= T::MACHINE_CONSTANTS.absolute_approximation_limit {
+        if cyi.linf_norm() <= T::MACHINE_CONSTANTS.absolute_approximation_limit {
             *cyi *= T::MACHINE_CONSTANTS.rtol;
             scaling = T::MACHINE_CONSTANTS.abs_error_tolerance;
         }
@@ -638,8 +635,7 @@ fn scaled_multiply<T: BesselFloat>(
     match scaling {
         Scaling::Unscaled => z * coeff,
         Scaling::Scaled => {
-            let atol = if max_abs_component(z) <= T::MACHINE_CONSTANTS.absolute_approximation_limit
-            {
+            let atol = if z.linf_norm() <= T::MACHINE_CONSTANTS.absolute_approximation_limit {
                 z *= T::MACHINE_CONSTANTS.rtol;
                 T::MACHINE_CONSTANTS.abs_error_tolerance
             } else {
