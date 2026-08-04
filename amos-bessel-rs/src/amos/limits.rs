@@ -3,7 +3,7 @@ use num::complex::ComplexFloat;
 
 use crate::amos::{
     IKType,
-    asymptotics::{DebyeGeometry, hj_uniform_asymp_params},
+    asymptotics::{AiryGeometry, DebyeGeometry},
     utils::{AIC, imaginary_dominant, will_underflow},
 };
 use crate::{BesselError, BesselFloat, Scaling};
@@ -188,7 +188,13 @@ pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
     // based on whether z is imaginary dominant or real dominant
     let get_parameters = |modified_order: T| {
         let (mut cz, phi, arg, abs_arg) = if imaginary_dominant {
-            let (phi, arg, zeta1, zeta2, _, _) = hj_uniform_asymp_params(zn, modified_order, true);
+            let AiryGeometry {
+                phi,
+                arg,
+                zeta1,
+                zeta2,
+                ..
+            } = AiryGeometry::compute(zn, modified_order);
             (-zeta1 + zeta2, phi, arg, arg.abs())
         } else {
             let DebyeGeometry {

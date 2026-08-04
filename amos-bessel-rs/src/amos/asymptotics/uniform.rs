@@ -21,6 +21,20 @@ use crate::{
     types::{BesselFloat, BesselResult},
 };
 
+fn geom_underflow<T: BesselFloat>(z: Complex<T>, order: T) -> bool {
+    let test = order * T::MACHINE_CONSTANTS.underflow_limit;
+    z.re.abs() <= test && z.im.abs() <= test
+}
+
+fn underflow_zetas<T: BesselFloat>(order: T) -> (Complex<T>, Complex<T>) {
+    let zeta1 = Complex::<T>::new(
+        T::two() * T::MACHINE_CONSTANTS.underflow_limit.ln().abs() + order,
+        T::zero(),
+    );
+    let zeta2 = Complex::<T>::new(order, T::zero());
+    (zeta1, zeta2)
+}
+
 // ***BEGIN PROLOGUE  ZUNIK
 // ***REFER TO  ZBESI,ZBESK
 //
@@ -51,21 +65,16 @@ pub(crate) struct DebyeGeometry<T: BesselFloat> {
     pub zeta1: Complex<T>,
     pub zeta2: Complex<T>,
 
-    pub(crate) s: Complex<T>,
-    pub(crate) sr: Complex<T>,
-    pub(crate) reciprocal_order: T,
-    pub(crate) is_underflow: bool,
+    s: Complex<T>,
+    sr: Complex<T>,
+    reciprocal_order: T,
+    is_underflow: bool,
 }
 
 impl<T: BesselFloat> DebyeGeometry<T> {
     pub fn compute(z: Complex<T>, order: T) -> Self {
-        let uflow_test = order * T::MACHINE_CONSTANTS.underflow_limit;
-        if z.re.abs() < uflow_test && z.im.abs() < uflow_test {
-            let zeta1 = Complex::<T>::new(
-                T::two() * T::MACHINE_CONSTANTS.underflow_limit.ln().abs() + order,
-                T::zero(),
-            );
-            let zeta2 = Complex::<T>::new(order, T::zero());
+        if geom_underflow(z, order) {
+            let (zeta1, zeta2) = underflow_zetas(order);
 
             return Self {
                 phi_i: T::C_ONE,
@@ -169,24 +178,180 @@ impl<T: BesselFloat> DebyeParams<T> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct AiryGeometry<T: BesselFloat> {
     pub phi: Complex<T>,
     pub arg: Complex<T>, // Argument to the Airy function: ζ · ν^(2/3)
     pub zeta1: Complex<T>,
     pub zeta2: Complex<T>,
+
+    state: AiryState<T>,
 }
 
 impl<T: BesselFloat> AiryGeometry<T> {
+    const ONE_THIRD: f64 = 3.333_333_333_333_333e-1;
+    const TWO_THIRDS: f64 = 6.666_666_666_666_666e-1;
+    const THREE_PI_BY_2: f64 = 4.712_388_980_384_69;
+
     pub fn compute(z: Complex<T>, order: T) -> Self {
-        Self {
-            phi: Complex::ZERO,
-            arg: Complex::ZERO,
-            zeta1: Complex::ZERO,
-            zeta2: Complex::ZERO,
+        if geom_underflow(z, order) {
+            let (zeta1, zeta2) = underflow_zetas(order);
+            let phi = T::C_ONE;
+            let arg = T::C_ONE;
+            return Self {
+                phi,
+                arg,
+                zeta1,
+                zeta2,
+                state: AiryState::Underflow,
+            };
+        }
+        let reciprocal_order = T::ONE / order;
+        let z_over_order = z * reciprocal_order;
+        let recip_order_sqr = reciprocal_order * reciprocal_order;
+        //-----------------------------------------------------------------------
+        //     COMPUTE IN THE FOURTH QUADRANT
+        //-----------------------------------------------------------------------
+        let fn13 = order.powf(T::from_f64(Self::ONE_THIRD));
+        let fn23 = fn13 * fn13;
+        let rfn13 = T::one() / fn13;
+
+        let w2 = T::C_ONE - z_over_order.powi(2);
+        let aw2 = w2.abs();
+
+        let power_series = aw2 <= T::from_f64(0.25);
+        if power_series {
+            //-----------------------------------------------------------------------
+            //     POWER SERIES FOR CABS(W2) <= 0.25
+            //-----------------------------------------------------------------------
+            let mut k_max = 1;
+            let mut p = [T::C_ZERO; 30];
+            let mut abs_p = [T::zero(); 30];
+            p[0] = T::C_ONE;
+            let mut suma = Complex::<T>::new(T::from_f64(TURNING_POINT_ZETA_COEFFS[0]), T::zero());
+            abs_p[0] = T::one();
+            if aw2 >= T::MACHINE_CONSTANTS.abs_error_tolerance {
+                for k in 1..30 {
+                    k_max = k + 1;
+                    p[k] = p[k - 1] * w2;
+                    suma += p[k] * T::from_f64(TURNING_POINT_ZETA_COEFFS[k]);
+                    abs_p[k] = abs_p[k - 1] * aw2;
+                    if abs_p[k] < T::MACHINE_CONSTANTS.abs_error_tolerance {
+                        break;
+                    }
+                }
+            }
+            let zeta = w2 * suma;
+            let arg = zeta * fn23;
+            let mut za = suma.sqrt();
+            let zeta2 = w2.sqrt() * order;
+            let zeta1 = (T::C_ONE + T::from_f64(Self::TWO_THIRDS) * zeta * za) * zeta2;
+            za *= T::two();
+            let phi = za.sqrt() * rfn13;
+            Self {
+                phi,
+                arg,
+                zeta1,
+                zeta2,
+                state: AiryState::Transition {
+                    p,
+                    abs_p,
+                    k_max,
+                    recip_order_sqr,
+                    reciprocal_order,
+                    rfn13,
+                },
+            }
+        } else {
+            //-----------------------------------------------------------------------
+            //     CABS(W2) > 0.25
+            //-----------------------------------------------------------------------
+            let mut w = w2.sqrt();
+            if w.re < T::zero() {
+                w.re = T::zero()
+            };
+            if w.im < T::zero() {
+                w.im = T::zero()
+            };
+
+            let za = (T::C_ONE + w) / z_over_order;
+            let mut zc = za.ln();
+            zc.im = zc.im.clamp(T::zero(), T::from_f64(FRAC_PI_2));
+            if zc.re < T::zero() {
+                zc.re = T::zero()
+            };
+            let zth = (zc - w) * T::from_f64(1.5);
+            let zeta1 = zc * order;
+            let zeta2 = w * order;
+            let azth = zth.abs();
+            let mut ang = zth.parg();
+            ang = ang.clamp(T::zero(), T::from_f64(Self::THREE_PI_BY_2));
+            let pp = azth.powf(T::from_f64(Self::TWO_THIRDS));
+            ang *= T::from_f64(Self::TWO_THIRDS);
+            let mut zeta = Complex::<T>::cis(ang) * pp;
+            if zeta.im < T::zero() {
+                zeta.im = T::zero()
+            };
+            let arg = zeta * fn23;
+            let rtzt = zth / zeta;
+            let za = rtzt / w;
+            let tazr = za + za;
+            let phi = tazr.sqrt() * rfn13;
+
+            Self {
+                phi,
+                arg,
+                zeta1,
+                zeta2,
+                state: AiryState::Asymptotic {
+                    w2,
+                    aw2,
+                    w,
+                    zth,
+                    azth,
+                    rtzt,
+                    reciprocal_order,
+                    recip_order_sqr,
+                    rfn13,
+                },
+            }
         }
     }
 }
 
+// ***BEGIN PROLOGUE  ZUNHJ
+// ***REFER TO  ZBESI,ZBESK
+//
+//     REFERENCES
+//         HANDBOOK OF MATHEMATICAL FUNCTIONS BY M. ABRAMOWITZ AND I.A.
+//         STEGUN, AMS55, NATIONAL BUREAU OF STANDARDS, 1965, CHAPTER 9.
+//
+//         ASYMPTOTICS AND SPECIAL FUNCTIONS BY F.W.J. OLVER, ACADEMIC
+//         PRESS, N.Y., 1974, PAGE 420
+//
+//     ABSTRACT
+//         ZUNHJ COMPUTES PARAMETERS FOR BESSEL FUNCTIONS C(FNU,Z) =
+//         J(FNU,Z), Y(FNU,Z) OR H(I,FNU,Z) I=1,2 FOR LARGE ORDERS FNU
+//         BY MEANS OF THE UNIFORM ASYMPTOTIC EXPANSION
+//
+//         C(FNU,Z)=C1*PHI*( ASUM*AIRY(ARG) + C2*BSUM*DAIRY(ARG) )
+//
+//         FOR PROPER CHOICES OF C1, C2, AIRY AND DAIRY WHERE AIRY IS
+//         AN AIRY FUNCTION AND DAIRY IS ITS DERIVATIVE.
+//
+//               (2/3)*FNU*ZETA**1.5 = ZETA1-ZETA2,
+//
+//         ZETA1=0.5*FNU*CLOG((1+W)/(1-W)), ZETA2=FNU*W FOR SCALING
+//         PURPOSES IN AIRY FUNCTIONS FROM CAIRY OR CBIRY.
+//
+//         MCONJ=SIGN OF AIMAG(Z), BUT IS AMBIGUOUS WHEN Z IS REAL AND
+//         MUST BE SPECIFIED. IPMTR=0 RETURNS ALL PARAMETERS. IPMTR=
+//         1 COMPUTES ALL EXCEPT ASUM AND BSUM.
+//
+// ***ROUTINES CALLED  ZABS,ZDIV,ZLOG,ZSQRT,d1mach
+// ***END PROLOGUE  ZUNHJ
+
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct AiryParams<T: BesselFloat> {
     pub phi: Complex<T>,
     pub arg: Complex<T>,
@@ -196,305 +361,232 @@ pub(crate) struct AiryParams<T: BesselFloat> {
     pub bsum: Complex<T>, // Olver B(ζ) series
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum AiryState<T: BesselFloat> {
+    Underflow,
+    Transition {
+        p: [Complex<T>; 30],
+        abs_p: [T; 30],
+        k_max: usize,
+        reciprocal_order: T,
+        recip_order_sqr: T,
+        rfn13: T,
+    },
+    Asymptotic {
+        w2: Complex<T>,
+        aw2: T,
+        w: Complex<T>,
+        zth: Complex<T>,
+        azth: T,
+        rtzt: Complex<T>,
+        reciprocal_order: T,
+        recip_order_sqr: T,
+        rfn13: T,
+    },
+}
 impl<T: BesselFloat> AiryParams<T> {
     pub fn compute(z: Complex<T>, order: T) -> Self {
-        Self {
-            phi: Complex::ZERO,
-            arg: Complex::ZERO,
-            zeta1: Complex::ZERO,
-            zeta2: Complex::ZERO,
-            asum: todo!(),
-            bsum: todo!(),
-        }
-    }
-}
+        let geom = AiryGeometry::compute(z, order);
+        let phi = geom.phi;
+        let arg = geom.arg;
+        let zeta1 = geom.zeta1;
+        let zeta2 = geom.zeta2;
 
-#[allow(clippy::type_complexity)]
-pub(crate) fn hj_uniform_asymp_params<T: BesselFloat>(
-    z: Complex<T>,
-    order: T,
-    only_phi_zeta: bool,
-) -> (
-    Complex<T>,
-    Complex<T>,
-    Complex<T>,
-    Complex<T>,
-    Option<Complex<T>>,
-    Option<Complex<T>>,
-) {
-    // ***BEGIN PROLOGUE  ZUNHJ
-    // ***REFER TO  ZBESI,ZBESK
-    //
-    //     REFERENCES
-    //         HANDBOOK OF MATHEMATICAL FUNCTIONS BY M. ABRAMOWITZ AND I.A.
-    //         STEGUN, AMS55, NATIONAL BUREAU OF STANDARDS, 1965, CHAPTER 9.
-    //
-    //         ASYMPTOTICS AND SPECIAL FUNCTIONS BY F.W.J. OLVER, ACADEMIC
-    //         PRESS, N.Y., 1974, PAGE 420
-    //
-    //     ABSTRACT
-    //         ZUNHJ COMPUTES PARAMETERS FOR BESSEL FUNCTIONS C(FNU,Z) =
-    //         J(FNU,Z), Y(FNU,Z) OR H(I,FNU,Z) I=1,2 FOR LARGE ORDERS FNU
-    //         BY MEANS OF THE UNIFORM ASYMPTOTIC EXPANSION
-    //
-    //         C(FNU,Z)=C1*PHI*( ASUM*AIRY(ARG) + C2*BSUM*DAIRY(ARG) )
-    //
-    //         FOR PROPER CHOICES OF C1, C2, AIRY AND DAIRY WHERE AIRY IS
-    //         AN AIRY FUNCTION AND DAIRY IS ITS DERIVATIVE.
-    //
-    //               (2/3)*FNU*ZETA**1.5 = ZETA1-ZETA2,
-    //
-    //         ZETA1=0.5*FNU*CLOG((1+W)/(1-W)), ZETA2=FNU*W FOR SCALING
-    //         PURPOSES IN AIRY FUNCTIONS FROM CAIRY OR CBIRY.
-    //
-    //         MCONJ=SIGN OF AIMAG(Z), BUT IS AMBIGUOUS WHEN Z IS REAL AND
-    //         MUST BE SPECIFIED. IPMTR=0 RETURNS ALL PARAMETERS. IPMTR=
-    //         1 COMPUTES ALL EXCEPT ASUM AND BSUM.
-    //
-    // ***ROUTINES CALLED  ZABS,ZDIV,ZLOG,ZSQRT,d1mach
-    // ***END PROLOGUE  ZUNHJ
-
-    const EX1: f64 = 3.333_333_333_333_333e-1;
-    const EX2: f64 = 6.666_666_666_666_666e-1;
-    const THREE_PI_BY_2: f64 = 4.712_388_980_384_69;
-    let reciprocal_order = T::one() / order;
-    //-----------------------------------------------------------------------
-    //     OVERFLOW TEST (Z/FNU TOO SMALL)
-    //-----------------------------------------------------------------------
-    let test = T::MACHINE_CONSTANTS.underflow_limit;
-    let ac = order * test;
-    if !((z.re).abs() > ac || (z.im).abs() > ac) {
-        let zeta1 = Complex::<T>::new(T::two() * test.ln().abs() + order, T::zero());
-        let zeta2 = Complex::<T>::new(order, T::zero());
-        let phi = T::C_ONE;
-        let arg = T::C_ONE;
-        return (phi, arg, zeta1, zeta2, None, None);
-    }
-    let zb = z * reciprocal_order;
-    let rfnu2 = reciprocal_order * reciprocal_order;
-    //-----------------------------------------------------------------------
-    //     COMPUTE IN THE FOURTH QUADRANT
-    //-----------------------------------------------------------------------
-    let fn13 = order.powf(T::from_f64(EX1));
-    let fn23 = fn13 * fn13;
-    let rfn13 = T::one() / fn13;
-    let w2 = T::C_ONE - zb * zb;
-    let aw2 = w2.abs();
-
-    if aw2 <= T::from_f64(0.25) {
-        //-----------------------------------------------------------------------
-        //     POWER SERIES FOR CABS(W2) <= 0.25
-        //-----------------------------------------------------------------------
-        let mut k = 0;
-        let mut p = T::c_zeros(30);
-        let mut ap = [T::zero(); 30];
-        p[0] = T::C_ONE;
-        let mut suma = Complex::<T>::new(T::from_f64(TURNING_POINT_ZETA_COEFFS[0]), T::zero());
-        ap[0] = T::one();
-        if aw2 >= T::MACHINE_CONSTANTS.abs_error_tolerance {
-            for k_ in 1..30 {
-                k = k_;
-                p[k_] = p[k_ - 1] * w2;
-                suma += p[k_] * T::from_f64(TURNING_POINT_ZETA_COEFFS[k_]);
-                ap[k_] = ap[k_ - 1] * aw2;
-                if ap[k_] < T::MACHINE_CONSTANTS.abs_error_tolerance {
-                    break;
+        match geom.state {
+            AiryState::Underflow => {
+                let (zeta1, zeta2) = underflow_zetas(order);
+                let phi = T::C_ONE;
+                let arg = T::C_ONE;
+                return Self {
+                    phi,
+                    arg,
+                    zeta1,
+                    zeta2,
+                    asum: T::C_ZERO,
+                    bsum: T::C_ZERO,
+                };
+            }
+            AiryState::Transition {
+                p,
+                abs_p,
+                k_max,
+                recip_order_sqr,
+                reciprocal_order,
+                rfn13,
+            } => {
+                let sumb: Complex<T> = p[..k_max]
+                    .iter()
+                    .zip(TRANSITION_AIRY_B_COEFFS)
+                    .map(|(p, b)| p * T::from_f64(b))
+                    .sum();
+                let mut asum = T::C_ZERO;
+                let mut bsum = sumb;
+                let mut l1 = 0;
+                let mut l2 = 30;
+                let btol =
+                    T::MACHINE_CONSTANTS.abs_error_tolerance * (bsum.re.abs() + bsum.im.abs());
+                let mut atol = T::MACHINE_CONSTANTS.abs_error_tolerance;
+                let mut pp = T::one();
+                let mut a_converged = false;
+                let mut b_converged = false;
+                if recip_order_sqr >= T::MACHINE_CONSTANTS.abs_error_tolerance {
+                    for _ in 1..7 {
+                        atol /= recip_order_sqr;
+                        pp *= recip_order_sqr;
+                        if !a_converged {
+                            let mut suma = T::C_ZERO;
+                            for k in 0..k_max {
+                                suma += p[k] * T::from_f64(TRANSITION_AIRY_A_COEFFS[l1 + k]);
+                                if abs_p[k] < atol {
+                                    break;
+                                }
+                            }
+                            asum += suma * pp;
+                            if pp < T::MACHINE_CONSTANTS.abs_error_tolerance {
+                                a_converged = true
+                            };
+                        }
+                        if !b_converged {
+                            let mut sumb = T::C_ZERO;
+                            for k in 0..k_max {
+                                sumb += p[k] * T::from_f64(TRANSITION_AIRY_B_COEFFS[l2 + k]);
+                                if abs_p[k] < atol {
+                                    break;
+                                }
+                            }
+                            bsum += sumb * pp;
+                            if pp < btol {
+                                b_converged = true;
+                            }
+                        }
+                        if a_converged && b_converged {
+                            break;
+                        }
+                        l1 += 30;
+                        l2 += 30;
+                    }
+                }
+                asum += T::one();
+                pp = reciprocal_order * rfn13;
+                bsum *= pp;
+                Self {
+                    phi,
+                    arg,
+                    zeta1,
+                    zeta2,
+                    asum,
+                    bsum,
                 }
             }
-        }
-        let kmax = k;
-        let zeta = w2 * suma;
-        let arg = zeta * fn23;
-        let mut za = suma.sqrt();
-        let zeta2 = w2.sqrt() * order;
-        let zeta1 = (T::C_ONE + T::from_f64(EX2) * zeta * za) * zeta2;
-        za *= T::two();
-        let phi = za.sqrt() * rfn13;
-        if only_phi_zeta {
-            return (phi, arg, zeta1, zeta2, None, None);
-        }
-        //-----------------------------------------------------------------------
-        //     SUM SERIES FOR ASUM AND BSUM
-        //-----------------------------------------------------------------------
-        let sumb: Complex<T> = p[..kmax]
-            .iter()
-            .zip(TRANSITION_AIRY_B_COEFFS)
-            .map(|(p, b)| p * T::from_f64(b))
-            .sum();
-        let mut asum = T::C_ZERO;
-        let mut bsum = sumb;
-        let mut l1 = 0;
-        let mut l2 = 30;
-        let btol = T::MACHINE_CONSTANTS.abs_error_tolerance * (bsum.re.abs() + bsum.im.abs());
-        let mut atol = T::MACHINE_CONSTANTS.abs_error_tolerance;
-        let mut pp = T::one();
-        let mut a_converged = false;
-        let mut b_converged = false;
-        if rfnu2 >= T::MACHINE_CONSTANTS.abs_error_tolerance {
-            for _ in 1..7 {
-                atol /= rfnu2;
-                pp *= rfnu2;
-                if !a_converged {
-                    let mut suma = T::C_ZERO;
-                    for k in 0..kmax {
-                        suma += p[k] * T::from_f64(TRANSITION_AIRY_A_COEFFS[l1 + k]);
-                        if ap[k] < atol {
+            AiryState::Asymptotic {
+                w2,
+                aw2,
+                w,
+                zth,
+                azth,
+                rtzt,
+                reciprocal_order,
+                recip_order_sqr,
+                rfn13,
+            } => {
+                let raw = T::one() / aw2.sqrt();
+                let tfn = w.conj() * raw * raw * reciprocal_order;
+                let razth = T::one() / azth;
+                let rzth = zth.conj() * razth * razth * reciprocal_order;
+                let zc = rzth * T::from_f64(AIRY_ASYMP_COEFFS_A[1]);
+                let raw2 = T::one() / aw2;
+                let t2 = w2.conj() * raw2 * raw2;
+                let mut up = T::c_zeros(14);
+                up[1] = (t2 * T::from_f64(AIRY_HJ_POLYNOMIAL_COEFFS[1])
+                    + T::from_f64(AIRY_HJ_POLYNOMIAL_COEFFS[2]))
+                    * tfn;
+                let mut bsum = up[1] + zc;
+                let mut asum = T::C_ZERO;
+                if reciprocal_order >= T::MACHINE_CONSTANTS.abs_error_tolerance {
+                    let mut przth = rzth;
+                    let mut ptfn = tfn;
+                    up[0] = T::C_ONE;
+                    let mut pp = T::one();
+                    let btol =
+                        T::MACHINE_CONSTANTS.abs_error_tolerance * (bsum.re.abs() + bsum.im.abs());
+                    let mut ks = 0;
+                    let mut kp1 = 2;
+                    let mut l = 2; //3;
+                    let mut a_converged = false;
+                    let mut b_converged = false;
+                    let mut cr = T::c_zeros(14);
+                    let mut dr = T::c_zeros(14);
+                    for lr in (2..=12).step_by(2) {
+                        let lrp1 = lr + 1;
+                        //-----------------------------------------------------------------------
+                        //     COMPUTE TWO ADDITIONAL CR, DR, AND UP FOR TWO MORE TERMS IN
+                        //     NEXT SUMA AND SUMB
+                        //-----------------------------------------------------------------------
+                        for _k in lr..=lrp1 {
+                            ks += 1;
+                            kp1 += 1;
+                            l += 1;
+                            let mut za = Complex::<T>::new(
+                                T::from_f64(AIRY_HJ_POLYNOMIAL_COEFFS[l]),
+                                T::zero(),
+                            );
+                            for _ in 1..kp1 {
+                                l += 1;
+                                za = za * t2 + T::from_f64(AIRY_HJ_POLYNOMIAL_COEFFS[l]);
+                            }
+                            ptfn *= tfn;
+                            up[kp1 - 1] = ptfn * za;
+                            cr[ks - 1] = przth * T::from_f64(AIRY_ASYMP_COEFFS_B[ks]);
+                            przth *= rzth;
+                            dr[ks - 1] = przth * T::from_f64(AIRY_ASYMP_COEFFS_A[ks + 1]);
+                        }
+                        pp *= recip_order_sqr;
+                        if !a_converged {
+                            let mut suma = up[lrp1 - 1];
+                            let mut ju = lrp1;
+                            for cr_i in cr.iter().take(lr) {
+                                ju -= 1;
+                                suma += cr_i * up[ju - 1];
+                            }
+                            asum += suma;
+                            let test = suma.re.abs() + suma.im.abs();
+                            if pp < T::MACHINE_CONSTANTS.abs_error_tolerance
+                                && test < T::MACHINE_CONSTANTS.abs_error_tolerance
+                            {
+                                a_converged = true
+                            };
+                        }
+                        if !b_converged {
+                            let mut sumb = up[lr + 1] + up[lrp1 - 1] * zc;
+                            let mut ju = lrp1;
+                            for jr_i in dr.iter().take(lr) {
+                                ju -= 1;
+                                sumb += jr_i * up[ju - 1];
+                            }
+                            bsum += sumb;
+                            let test = sumb.re.abs() + sumb.im.abs();
+                            if pp < btol && test < btol {
+                                b_converged = true
+                            };
+                        }
+                        if a_converged && b_converged {
                             break;
                         }
                     }
-                    asum += suma * pp;
-                    if pp < T::MACHINE_CONSTANTS.abs_error_tolerance {
-                        a_converged = true
-                    };
                 }
-                if !b_converged {
-                    let mut sumb = T::C_ZERO;
-                    for k in 0..kmax {
-                        sumb += p[k] * T::from_f64(TRANSITION_AIRY_B_COEFFS[l2 + k]);
-                        if ap[k] < atol {
-                            break;
-                        }
-                    }
-                    bsum += sumb * pp;
-                    if pp < btol {
-                        b_converged = true;
-                    }
-                }
-                if a_converged && b_converged {
-                    break;
-                }
-                l1 += 30;
-                l2 += 30;
-            }
-        }
-        asum += T::one();
-        pp = reciprocal_order * rfn13;
-        bsum *= pp;
-        (phi, arg, zeta1, zeta2, Some(asum), Some(bsum))
-    } else {
-        //-----------------------------------------------------------------------
-        //     CABS(W2) > 0.25
-        //-----------------------------------------------------------------------
-        let mut w = w2.sqrt();
-        if w.re < T::zero() {
-            w.re = T::zero()
-        };
-        if w.im < T::zero() {
-            w.im = T::zero()
-        };
+                asum += T::C_ONE;
+                bsum = (-bsum * rfn13) / rtzt;
 
-        let za = (T::C_ONE + w) / zb;
-        let mut zc = za.ln();
-        zc.im = zc.im.clamp(T::zero(), T::from_f64(FRAC_PI_2));
-        if zc.re < T::zero() {
-            zc.re = T::zero()
-        };
-        let zth = (zc - w) * T::from_f64(1.5);
-        let zeta1 = zc * order;
-        let zeta2 = w * order;
-        let azth = zth.abs();
-        let mut ang = zth.parg();
-        ang = ang.clamp(T::zero(), T::from_f64(THREE_PI_BY_2));
-        let mut pp = azth.powf(T::from_f64(EX2));
-        ang *= T::from_f64(EX2);
-        let mut zeta = Complex::<T>::cis(ang) * pp;
-        if zeta.im < T::zero() {
-            zeta.im = T::zero()
-        };
-        let arg = zeta * fn23;
-        let rtzt = zth / zeta;
-        let za = rtzt / w;
-        let tazr = za + za;
-        let phi = tazr.sqrt() * rfn13;
-        if only_phi_zeta {
-            return (phi, arg, zeta1, zeta2, None, None);
-        }
-
-        let raw = T::one() / aw2.sqrt();
-        let tfn = w.conj() * raw * raw * reciprocal_order;
-        let razth = T::one() / azth;
-        let rzth = zth.conj() * razth * razth * reciprocal_order;
-        let zc = rzth * T::from_f64(AIRY_ASYMP_COEFFS_A[1]);
-        let raw2 = T::one() / aw2;
-        let t2 = w2.conj() * raw2 * raw2;
-        let mut up = T::c_zeros(14);
-        up[1] = (t2 * T::from_f64(AIRY_HJ_POLYNOMIAL_COEFFS[1])
-            + T::from_f64(AIRY_HJ_POLYNOMIAL_COEFFS[2]))
-            * tfn;
-        let mut bsum = up[1] + zc;
-        let mut asum = T::C_ZERO;
-        if reciprocal_order >= T::MACHINE_CONSTANTS.abs_error_tolerance {
-            let mut przth = rzth;
-            let mut ptfn = tfn;
-            up[0] = T::C_ONE;
-            pp = T::one();
-            let btol = T::MACHINE_CONSTANTS.abs_error_tolerance * (bsum.re.abs() + bsum.im.abs());
-            let mut ks = 0;
-            let mut kp1 = 2;
-            let mut l = 2; //3;
-            let mut a_converged = false;
-            let mut b_converged = false;
-            let mut cr = T::c_zeros(14);
-            let mut dr = T::c_zeros(14);
-            for lr in (2..=12).step_by(2) {
-                let lrp1 = lr + 1;
-                //-----------------------------------------------------------------------
-                //     COMPUTE TWO ADDITIONAL CR, DR, AND UP FOR TWO MORE TERMS IN
-                //     NEXT SUMA AND SUMB
-                //-----------------------------------------------------------------------
-                for _k in lr..=lrp1 {
-                    ks += 1;
-                    kp1 += 1;
-                    l += 1;
-                    let mut za =
-                        Complex::<T>::new(T::from_f64(AIRY_HJ_POLYNOMIAL_COEFFS[l]), T::zero());
-                    for _ in 1..kp1 {
-                        l += 1;
-                        za = za * t2 + T::from_f64(AIRY_HJ_POLYNOMIAL_COEFFS[l]);
-                    }
-                    ptfn *= tfn;
-                    up[kp1 - 1] = ptfn * za;
-                    cr[ks - 1] = przth * T::from_f64(AIRY_ASYMP_COEFFS_B[ks]);
-                    przth *= rzth;
-                    dr[ks - 1] = przth * T::from_f64(AIRY_ASYMP_COEFFS_A[ks + 1]);
-                }
-                pp *= rfnu2;
-                if !a_converged {
-                    let mut suma = up[lrp1 - 1];
-                    let mut ju = lrp1;
-                    for cr_i in cr.iter().take(lr) {
-                        ju -= 1;
-                        suma += cr_i * up[ju - 1];
-                    }
-                    asum += suma;
-                    let test = suma.re.abs() + suma.im.abs();
-                    if pp < T::MACHINE_CONSTANTS.abs_error_tolerance
-                        && test < T::MACHINE_CONSTANTS.abs_error_tolerance
-                    {
-                        a_converged = true
-                    };
-                }
-                if !b_converged {
-                    let mut sumb = up[lr + 1] + up[lrp1 - 1] * zc;
-                    let mut ju = lrp1;
-                    for jr_i in dr.iter().take(lr) {
-                        ju -= 1;
-                        sumb += jr_i * up[ju - 1];
-                    }
-                    bsum += sumb;
-                    let test = sumb.re.abs() + sumb.im.abs();
-                    if pp < btol && test < btol {
-                        b_converged = true
-                    };
-                }
-                if a_converged && b_converged {
-                    break;
+                Self {
+                    phi,
+                    arg,
+                    zeta1,
+                    zeta2,
+                    asum,
+                    bsum,
                 }
             }
         }
-        asum += T::C_ONE;
-        bsum = (-bsum * rfn13) / rtzt;
-        (phi, arg, zeta1, zeta2, Some(asum), Some(bsum))
     }
 }
 
@@ -567,11 +659,10 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
             modified_order = order + T::from_usize(n_remaining - (i + 1));
             let DebyeParams {
                 phi_i: phi,
-                phi_k: _,
                 zeta1,
                 zeta2,
                 sum_i: sum,
-                sum_k: _,
+                ..
             } = DebyeParams::compute(z, modified_order);
             // let (phi, zeta1, zeta2, sum) =
             //     ik_uniform_asymp_params(z, modified_order, IKType::I, false);
@@ -677,7 +768,7 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
     //     CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER
     //-----------------------------------------------------------------------
     let mut modified_order = order.max(T::one());
-    let (_, _, zeta1, zeta2, _, _) = hj_uniform_asymp_params(zn, modified_order, true);
+    let AiryGeometry { zeta1, zeta2, .. } = AiryGeometry::compute(zn, modified_order);
 
     let s1 = scaling.scale_zetas(zb, modified_order, zeta1, zeta2);
 
@@ -725,10 +816,20 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
     'outer: loop {
         for i in 0..2.min(n_remaining) {
             modified_order = order + T::from_usize(n_remaining - (i + 1));
-            let (phi, arg, zeta1, zeta2, asum, bsum) =
-                hj_uniform_asymp_params(zn, modified_order, false);
-            let asum = asum.unwrap();
-            let bsum = bsum.unwrap();
+            let AiryParams {
+                phi,
+                arg,
+                zeta1,
+                zeta2,
+                asum,
+                bsum,
+                ..
+            } = AiryParams::compute(zn, modified_order);
+
+            // let (phi, arg, zeta1, zeta2, asum, bsum) =
+            //     hj_uniform_asymp_params(zn, modified_order, false);
+            // let asum = asum.unwrap();
+            // let bsum = bsum.unwrap();
             let mut s1 = scaling.scale_zetas(zb, modified_order, zeta1, zeta2);
             if scaling == Scaling::Scaled {
                 s1 += T::I * z.im.abs();
@@ -827,7 +928,6 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
     let mut y = T::c_zeros(n);
     let mut k_overflow_state = OverflowState::NearUnder;
 
-    let mut j = 1;
     for i in 0..n {
         n_elements_set = i + 1;
         // j flip-flops between 0 and 1 using j = 1-j
@@ -897,7 +997,6 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         //-----------------------------------------------------------------------
         let max_order = order + T::from_usize(n - 1);
         let DebyeGeometry {
-            phi_i: _,
             phi_k: phi,
             zeta1: zet1d,
             zeta2: zet2d,
@@ -1116,8 +1215,8 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
     let mut arg = [T::C_ZERO; 2];
     let mut zeta1 = [T::C_ZERO; 2];
     let mut zeta2 = [T::C_ZERO; 2];
-    let mut asum = [None; 2];
-    let mut bsum = [None; 2];
+    let mut asum = [T::C_ZERO; 2];
+    let mut bsum = [T::C_ZERO; 2];
     let mut cy = [T::C_ZERO; 2];
     let mut j = 1;
     let mut k_overflow_state = OverflowState::None;
@@ -1128,8 +1227,23 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
         // j flip-flops between 0 and 1 using  = 1-j
         j = 1 - j;
         let current_order = order + T::from_usize(i);
-        (phi[j], arg[j], zeta1[j], zeta2[j], asum[j], bsum[j]) =
-            hj_uniform_asymp_params(zn, current_order, false);
+        let AiryParams {
+            phi: phi_,
+            arg: arg_,
+            zeta1: zeta1_,
+            zeta2: zeta2_,
+            asum: asum_,
+            bsum: bsum_,
+            ..
+        } = AiryParams::compute(zn, current_order);
+        phi[j] = phi_;
+        arg[j] = arg_;
+        zeta1[j] = zeta1_;
+        zeta2[j] = zeta2_;
+        asum[j] = asum_;
+        bsum[j] = bsum_;
+        // (phi[j], arg[j], zeta1[j], zeta2[j], asum[j], bsum[j]) =
+        //     hj_uniform_asymp_params(zn, current_order, false);
         let s1 = -scaling.scale_zetas(zb, current_order, zeta1[j], zeta2[j]);
         let of = OverflowState::check(
             s1.re,
@@ -1171,7 +1285,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
                 let c2 = cr2 * arg[j];
 
                 let (airy, d_airy) = airy_pair(c2);
-                let pt = ((d_airy * bsum[j].unwrap()) * cr2 + (airy * asum[j].unwrap())) * phi[j];
+                let pt = ((d_airy * bsum[j]) * cr2 + (airy * asum[j])) * phi[j];
                 let mut s2 = pt * cs;
                 let s1 = s1.exp() * k_overflow_state.scaling_factor::<T>();
                 s2 *= s1;
@@ -1197,8 +1311,8 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
     let mut argd = T::C_ZERO;
     let mut zeta1d = T::C_ZERO;
     let mut zeta2d = T::C_ZERO;
-    let mut asumd = None;
-    let mut bsumd = None;
+    let mut asumd = T::C_ZERO;
+    let mut bsumd = T::C_ZERO;
     let do_overflow_check = n_elements_set < n;
     if do_overflow_check {
         //-----------------------------------------------------------------------;
@@ -1206,8 +1320,17 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
         //     ON UNDERFLOW.;
         //-----------------------------------------------------------------------;
         let max_order = order + T::from_usize(n - 1);
-        (phid, argd, zeta1d, zeta2d, asumd, bsumd) =
-            hj_uniform_asymp_params(zn, max_order, rotation == RotationDirection::None);
+        AiryParams {
+            phi: phid,
+            arg: argd,
+            zeta1: zeta1d,
+            zeta2: zeta2d,
+            asum: asumd,
+            bsum: bsumd,
+            ..
+        } = AiryParams::compute(zn, max_order);
+        // (phid, argd, zeta1d, zeta2d, asumd, bsumd) =
+        //     hj_uniform_asymp_params(zn, max_order, rotation == RotationDirection::None);
         let s1 = -scaling.scale_zetas(zb, max_order, zeta1d, zeta2d);
         match OverflowState::check(s1.re, phid, T::ZERO) {
             OverflowState::Over { .. } => return Err(BesselError::Overflow),
@@ -1288,8 +1411,15 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
             bsumd = bsum[j];
             j = 1 - j;
         } else if !(use_preset_overflow || in_last_two_set) {
-            (phid, argd, zeta1d, zeta2d, asumd, bsumd) =
-                hj_uniform_asymp_params(zn, current_order, false);
+            AiryParams {
+                phi: phid,
+                arg: argd,
+                zeta1: zeta1d,
+                zeta2: zeta2d,
+                asum: asumd,
+                bsum: bsumd,
+                ..
+            } = AiryParams::compute(zn, current_order);
         } else {
             // Case were overflow check has already set the ___d variables ?
         }
@@ -1312,7 +1442,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
             OverflowState::Under { .. } => T::C_ZERO,
             OverflowState::NearOver | OverflowState::None | OverflowState::NearUnder => {
                 let (airy, d_airy) = airy_pair(argd);
-                let pt = ((d_airy * bsumd.unwrap()) + (airy * asumd.unwrap())) * phid;
+                let pt = ((d_airy * bsumd) + (airy * asumd)) * phid;
                 let mut s2 = pt * cs;
                 s1 = s1.exp() * i_overflow_state.scaling_factor::<T>();
                 s2 *= s1;
