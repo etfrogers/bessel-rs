@@ -33,12 +33,12 @@ fn report_f32_vs_f64() {
     let group = "f32 vs f64 Performance";
 
     println!("Performance Comparison: f32 vs f64");
-    println!("{:-<60}", "");
+    println!("{:-<68}", "");
     println!(
-        "{:<10} | {:<12} | {:<10} | {:<10} | {}",
+        "{:<10} | {:<12} | {:<10} | {:<10} | {:<7}",
         "Function", "Dataset", "f32 (ns)", "f64 (ns)", "Speedup"
     );
-    println!("{:-<60}", "");
+    println!("{:-<68}", "");
 
     let mut total_speedup = 1.0;
     let mut count = 0;
@@ -61,7 +61,7 @@ fn report_f32_vs_f64() {
     }
 
     if count > 0 {
-        println!("{:-<60}", "");
+        println!("{:-<68}", "");
         let geom_mean = total_speedup.powf(1.0 / count as f64);
         println!(
             "Overall Geometric Mean Speedup (f32 over f64): {:.2}x\n",
@@ -82,7 +82,7 @@ fn report_rust_vs_fortran() {
     println!("Performance Comparison: Rust vs Fortran");
     println!("{:-<68}", "");
     println!(
-        "{:<10} | {:<12} | {:<10} | {:<14} | {}",
+        "{:<10} | {:<12} | {:<10} | {:<14} | {:<7}",
         "Function", "Dataset", "Rust (ns)", "Fortran (ns)", "Speedup"
     );
     println!("{:-<68}", "");

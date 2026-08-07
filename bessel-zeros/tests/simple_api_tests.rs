@@ -15,15 +15,12 @@ fn check_zeros_against_hard_coded(
 ) {
     for (order, expected) in (0_i32..).zip(expected_zeros) {
         let actual = get_zeros(order, expected.len());
-        expected
-            .into_iter()
-            .zip(actual)
-            .for_each(|(ev, av)| {
-                assert!(
-                    approx::relative_eq!(ev, av, epsilon = 5e-4),
-                    "{backend} backend: expected {ev}, got {av} (order={order})"
-                )
-            });
+        expected.into_iter().zip(actual).for_each(|(ev, av)| {
+            assert!(
+                approx::relative_eq!(ev, av, epsilon = 5e-4),
+                "{backend} backend: expected {ev}, got {av} (order={order})"
+            )
+        });
     }
 }
 
@@ -98,28 +95,28 @@ fn test_specialized_apis_basic() {
 #[rstest]
 fn test_j_zeros_against_hard_coded() {
     let zeros = parse_zeros_wa(J_ZEROS);
-    check_zeros_against_hard_coded(zeros.clone(), "amos", |order, n| bessel_zeros_j(order, n));
+    check_zeros_against_hard_coded(zeros.clone(), "amos", bessel_zeros_j);
     check_zeros_against_hard_coded(zeros, "fast", fast::bessel_zeros_j);
 }
 
 #[rstest]
 fn test_y_zeros_against_hard_coded() {
     let zeros = parse_zeros_python(Y_ZEROS);
-    check_zeros_against_hard_coded(zeros.clone(), "amos", |order, n| bessel_zeros_y(order, n));
+    check_zeros_against_hard_coded(zeros.clone(), "amos", bessel_zeros_y);
     check_zeros_against_hard_coded(zeros, "fast", fast::bessel_zeros_y);
 }
 
 #[rstest]
 fn test_jp_zeros_against_hard_coded() {
     let zeros = parse_zeros_wa(JP_ZEROS);
-    check_zeros_against_hard_coded(zeros.clone(), "amos", |order, n| bessel_zeros_jp(order, n));
+    check_zeros_against_hard_coded(zeros.clone(), "amos", bessel_zeros_jp);
     check_zeros_against_hard_coded(zeros, "fast", fast::bessel_zeros_jp);
 }
 
 #[rstest]
 fn test_yp_zeros_against_hard_coded() {
     let zeros = parse_zeros_python(YP_ZEROS);
-    check_zeros_against_hard_coded(zeros.clone(), "amos", |order, n| bessel_zeros_yp(order, n));
+    check_zeros_against_hard_coded(zeros.clone(), "amos", bessel_zeros_yp);
     check_zeros_against_hard_coded(zeros, "fast", fast::bessel_zeros_yp);
 }
 
@@ -151,7 +148,9 @@ fn test_evaluation_at_zero_jp_int() {
             (fast::bessel_zeros_jp(order, 50), "fast"),
         ] {
             for v in zeros {
-                if v == 0.0 { continue; } // J_0'(0) = 0 exactly; skip to avoid n/x term
+                if v == 0.0 {
+                    continue;
+                } // J_0'(0) = 0 exactly; skip to avoid n/x term
                 let val = bessel_j_prime(order, v);
                 assert!(
                     approx::relative_eq!(0.0, val, epsilon = 1e-6),

@@ -231,9 +231,9 @@ fn test_k_right_half_plane_underflow_offset_bug() {
     assert_eq!(n_zeros, 156);
 
     // Therefore, the first 156 elements MUST be exactly zero.
-    for i in 0..=n_zeros {
+    for (i, &res_val) in res.iter().enumerate().take(n_zeros + 1) {
         assert_eq!(
-            res[i],
+            res_val,
             Complex64::new(0.0, 0.0),
             "Index {} should have underflowed to 0",
             i
