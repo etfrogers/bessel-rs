@@ -416,5 +416,5 @@ pub fn print_complex_arrays<T: DiagnosticBesselFloat>(
 }
 
 fn to_str<T: Float + LowerExp>(c: &Complex<T>) -> String {
-    format!("{:>+1.5e} {:>+1.5e}i", c.re, c.im)
+    format!("{:+.5e} {:+.5e}i", c.re, c.im)
 }
