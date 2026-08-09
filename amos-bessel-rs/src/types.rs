@@ -12,6 +12,11 @@ use num::{
 };
 use thiserror::Error;
 
+/// A trait defining the mathematical and floating-point constraints required to compute 
+/// Bessel and Airy functions.
+/// 
+/// This trait is implemented for `f32` and `f64`. Downstream users can use this trait 
+/// as a generic bound to write their own generic functions over real or complex Bessel evaluations.
 pub trait BesselFloat:
     Float
     + Debug
@@ -27,34 +32,55 @@ pub trait BesselFloat:
     + Div<Complex<Self>, Output = Complex<Self>>
     + PartialOrd
     + 'static
-// where Complex<Self>: MulAssign<Complex<Self>>
-// where Complex<Self>: Pow<Self, Output = Complex<Self>>
 {
+    /// The radix or base of the internal representation of this type.
     const RADIX: u32;
+    /// The number of significant digits in base-`RADIX` for this type.
     const MANTISSA_DIGITS: u32;
+    /// The lowest possible power of 2 exponent for a valid normalized float.
     const MIN_EXP: i32;
+    /// The highest possible power of 2 exponent for a valid normalized float.
     const MAX_EXP: i32;
+    /// The difference between `1.0` and the next larger representable number.
     const EPSILON: Self;
+    /// The smallest positive normal floating point number.
     const MIN_POSITIVE: Self;
+    /// Not a Number (NaN).
     const NAN: Self;
+    /// Pre-computed value of `2.0 / 3.0` in this precision.
     const TWO_THIRDS: Self;
+    /// The complex number `1.0 + 0.0i`.
     const C_ONE: Complex<Self> = Complex::<Self>::ONE;
+    /// The complex number `0.0 + 0.0i`.
     const C_ZERO: Complex<Self> = Complex::<Self>::ZERO;
+    /// The complex imaginary unit `0.0 + 1.0i`.
     const I: Complex<Self> = Complex::<Self>::I;
 
+    /// Casts an `f64` value to this type.
     fn from_f64(value: f64) -> Self;
+    /// Casts a `usize` value to this type.
     fn from_usize(value: usize) -> Self;
+    /// Casts an `isize` value to this type.
     fn from_isize(value: isize) -> Self;
+    /// Casts a `Complex<f64>` value to a `Complex` of this type.
     fn from_cpx64(value: Complex<f64>) -> Complex<Self>;
+    
+    /// Pre-computed value of `0.5` in this precision.
     fn half() -> Self;
+    /// Pre-computed value of `2.0` in this precision.
     fn two() -> Self;
+    
+    /// Returns the raw bitwise representation of this float.
     fn to_bits(self) -> u64;
 
+    /// Creates a vector of length `n` containing complex zeros.
     #[inline]
     fn c_zeros(n: usize) -> Vec<Complex<Self>> {
         vec![Complex::<Self>::ZERO; n]
     }
 
+    /// Environmental machine constants used for scaling, underflow detection, and iteration bounds 
+    /// specific to the AMOS algorithms for this precision.
     const MACHINE_CONSTANTS: &'static LazyLock<MachineConsts<Self>>;
 }
 
