@@ -4,7 +4,7 @@ use crate::{
     BesselError::{self, *},
     BesselFloat, Scaling,
     amos::{
-        ComplexExt, HankelKind, IKType, RotationDirection,
+        ComplexExt, HankelKind, IKType, MachineConsts, RotationDirection,
         airy::airy_power_series,
         analytic_continuation::{airy_analytic_continuation, analytic_continuation},
         asymptotics::k_asymp_large_order,
@@ -58,6 +58,7 @@ pub fn complex_bessel_h<T: BesselFloat>(
     n: usize,
 ) -> BesselResult<T> {
     sanitise_inputs(z, order, n, true)?;
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let mut n_zeros = 0;
 
     let max_order = order + T::from_usize(n - 1);
@@ -69,14 +70,14 @@ pub fn complex_bessel_h<T: BesselFloat>(
     //     TEST FOR PROPER RANGE
     //-----------------------------------------------------------------------
     let abs_z = z.abs();
-    let partial_loss_of_significance = is_significance_lost(abs_z, max_order, false)?;
+    let partial_loss_of_significance = is_significance_lost(abs_z, max_order, false, mc)?;
     //-----------------------------------------------------------------------
     //     OVERFLOW TEST ON THE LAST MEMBER OF THE SEQUENCE
     //-----------------------------------------------------------------------
-    if abs_z < T::MACHINE_CONSTANTS.underflow_limit {
+    if abs_z < mc.underflow_limit {
         return Err(Overflow);
     }
-    let (mut cy, n_zeros) = if order < T::MACHINE_CONSTANTS.asymptotic_order_limit {
+    let (mut cy, n_zeros) = if order < mc.asymptotic_order_limit {
         if max_order > T::one() {
             if max_order > T::two() {
                 let mut cy = T::c_zeros(n);
@@ -105,8 +106,8 @@ pub fn complex_bessel_h<T: BesselFloat>(
                     };
                 }
             }
-            if abs_z <= T::MACHINE_CONSTANTS.abs_error_tolerance
-                && -max_order * (T::half() * abs_z).ln() > T::MACHINE_CONSTANTS.exponent_limit
+            if abs_z <= mc.abs_error_tolerance
+                && -max_order * (T::half() * abs_z).ln() > mc.exponent_limit
             {
                 return Err(Overflow);
             }
@@ -159,9 +160,9 @@ pub fn complex_bessel_h<T: BesselFloat>(
     }
 
     for element in cy.iter_mut() {
-        let scaling = if element.linf_norm() < T::MACHINE_CONSTANTS.absolute_approximation_limit {
-            *element *= T::MACHINE_CONSTANTS.rtol;
-            T::MACHINE_CONSTANTS.abs_error_tolerance
+        let scaling = if element.linf_norm() < mc.absolute_approximation_limit {
+            *element *= mc.rtol;
+            mc.abs_error_tolerance
         } else {
             T::one()
         };
@@ -247,10 +248,11 @@ pub fn complex_bessel_i<T: BesselFloat>(
     n: usize,
 ) -> BesselResult<T, usize> {
     sanitise_inputs(z, order, n, false)?;
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
 
     let abs_z = z.abs();
     let max_order = order + T::from_usize(n - 1);
-    let partial_significance_loss = is_significance_lost(abs_z, max_order, false)?;
+    let partial_significance_loss = is_significance_lost(abs_z, max_order, false, mc)?;
 
     let (zn, mut csgn) = if z.re >= T::zero() {
         (z, T::C_ONE)
@@ -280,10 +282,9 @@ pub fn complex_bessel_i<T: BesselFloat>(
         //     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE
         //-----------------------------------------------------------------------
         for yi in y.iter_mut().take(remaining_n) {
-            let correction = if yi.linf_norm() <= T::MACHINE_CONSTANTS.absolute_approximation_limit
-            {
-                *yi *= T::MACHINE_CONSTANTS.rtol;
-                T::MACHINE_CONSTANTS.abs_error_tolerance
+            let correction = if yi.linf_norm() <= mc.absolute_approximation_limit {
+                *yi *= mc.rtol;
+                mc.abs_error_tolerance
             } else {
                 T::one()
             };
@@ -340,9 +341,10 @@ pub fn complex_bessel_j<T: BesselFloat>(
     n: usize,
 ) -> BesselResult<T> {
     sanitise_inputs(z, order, n, false)?;
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
 
     let partial_significance_loss =
-        is_significance_lost(z.abs(), order + T::from_usize(n - 1), false)?;
+        is_significance_lost(z.abs(), order + T::from_usize(n - 1), false, mc)?;
     //-----------------------------------------------------------------------
     //     CALCULATE CSGN=EXP(order*FRAC_PI_2*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
     //     WHEN order IS LARGE
@@ -366,9 +368,9 @@ pub fn complex_bessel_j<T: BesselFloat>(
     for cyi in cy.iter_mut().take(n - n_zeros) {
         let mut scaling = T::one();
         // TODO is the below a pattern?
-        if cyi.linf_norm() <= T::MACHINE_CONSTANTS.absolute_approximation_limit {
-            *cyi *= T::MACHINE_CONSTANTS.rtol;
-            scaling = T::MACHINE_CONSTANTS.abs_error_tolerance;
+        if cyi.linf_norm() <= mc.absolute_approximation_limit {
+            *cyi *= mc.rtol;
+            scaling = mc.abs_error_tolerance;
         }
         *cyi *= phase_multiplier * scaling;
         phase_multiplier *= T::I * sign_selector;
@@ -426,22 +428,23 @@ pub fn complex_bessel_k<T: BesselFloat>(
     n: usize,
 ) -> BesselResult<T> {
     sanitise_inputs(z, order, n, true)?;
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     //-----------------------------------------------------------------------------;
     //     TEST FOR PROPER RANGE;
     //-----------------------------------------------------------------------;
     let abs_z = z.abs();
     let max_order = order + T::from_usize(n - 1);
-    let partial_significance_loss = is_significance_lost(abs_z, max_order, false)?;
+    let partial_significance_loss = is_significance_lost(abs_z, max_order, false, mc)?;
 
     //-----------------------------------------------------------------------;
     //     OVERFLOW TEST ON THE LAST MEMBER OF THE SEQUENCE;
     //-----------------------------------------------------------------------;
-    if abs_z < T::MACHINE_CONSTANTS.underflow_limit {
+    if abs_z < mc.underflow_limit {
         return Err(Overflow);
     }
 
     let mut n_zeros = 0;
-    if order > T::MACHINE_CONSTANTS.asymptotic_order_limit {
+    if order > mc.asymptotic_order_limit {
         //-----------------------------------------------------------------------
         //     UNIFORM ASYMPTOTIC EXPANSIONS FOR order > asymptotic_order_limit
         //-----------------------------------------------------------------------
@@ -481,9 +484,9 @@ pub fn complex_bessel_k<T: BesselFloat>(
             };
         }
     }
-    if (max_order > T::one()) && abs_z <= T::MACHINE_CONSTANTS.abs_error_tolerance {
+    if (max_order > T::one()) && abs_z <= mc.abs_error_tolerance {
         let half_abs_z = T::half() * abs_z;
-        if -max_order * half_abs_z.ln() > T::MACHINE_CONSTANTS.exponent_limit {
+        if -max_order * half_abs_z.ln() > mc.exponent_limit {
             return Err(Overflow);
         }
     }
@@ -557,6 +560,7 @@ pub fn complex_bessel_y<T: BesselFloat>(
     n: usize,
 ) -> BesselResult<T> {
     sanitise_inputs(z, order, n, true)?;
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let zz = if z.im < T::zero() { z.conj() } else { z };
     let zn = -T::I * zz;
     let mut partial_loss_of_significance = false;
@@ -588,7 +592,7 @@ pub fn complex_bessel_y<T: BesselFloat>(
     if scaling == Scaling::Scaled {
         let ex = Complex::<T>::cis(z.re);
         let two_abs_z = T::two() * z.im.abs();
-        ey = if two_abs_z < T::MACHINE_CONSTANTS.exponent_limit {
+        ey = if two_abs_z < mc.exponent_limit {
             (-two_abs_z).exp()
         } else {
             T::zero()
@@ -605,8 +609,8 @@ pub fn complex_bessel_y<T: BesselFloat>(
             //       SCALED MODE if cy(I) OR CWRK(I) ARE CLOSE TO UNDERFLOW TO;
             //       PREVENT UNDERFLOW IN AN INTERMEDIATE COMPUTATION.;
             //----------------------------------------------------------------------;
-            let z_k = scaled_multiply(z_k, k_coeff, scaling);
-            let z_i = scaled_multiply(z_i, i_coeff, scaling);
+            let z_k = scaled_multiply(z_k, k_coeff, scaling, mc);
+            let z_i = scaled_multiply(z_i, i_coeff, scaling, mc);
             let val = z_i - z_k;
             if scaling == Scaling::Scaled && val == T::C_ZERO && ey == T::zero() {
                 n_zeros += 1;
@@ -631,13 +635,14 @@ fn scaled_multiply<T: BesselFloat>(
     mut z: Complex<T>,
     coeff: Complex<T>,
     scaling: Scaling,
+    mc: &MachineConsts<T>,
 ) -> Complex<T> {
     match scaling {
         Scaling::Unscaled => z * coeff,
         Scaling::Scaled => {
-            let atol = if z.linf_norm() <= T::MACHINE_CONSTANTS.absolute_approximation_limit {
-                z *= T::MACHINE_CONSTANTS.rtol;
-                T::MACHINE_CONSTANTS.abs_error_tolerance
+            let atol = if z.linf_norm() <= mc.absolute_approximation_limit {
+                z *= mc.rtol;
+                mc.abs_error_tolerance
             } else {
                 T::one()
             };
@@ -689,13 +694,14 @@ pub fn complex_airy<T: BesselFloat>(
 ) -> Result<(Complex<T>, usize), BesselError<T>> {
     const POWER_SERIES_COEFFS: (f64, f64) = (3.550_280_538_878_172e-1, 2.588_194_037_928_068e-1);
     const COEFF: f64 = 1.837_762_984_739_306_8e-1;
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
 
     let abs_z = z.abs();
     //--------------------------------------------------------------------------
     //     TEST FOR PROPER RANGE
     //-----------------------------------------------------------------------
     // significance loss only tested against z, not order, so 0.0 is used to never cause significance loss
-    let partial_loss_of_significance = is_significance_lost(abs_z, T::zero(), true)?;
+    let partial_loss_of_significance = is_significance_lost(abs_z, T::zero(), true, mc)?;
 
     let retval = if abs_z <= T::one() {
         //-----------------------------------------------------------------------
@@ -737,10 +743,9 @@ pub fn complex_airy<T: BesselFloat>(
             //-----------------------------------------------------------------------
             //     OVERFLOW TEST
             //-----------------------------------------------------------------------
-            if scaling == Scaling::Unscaled && re_zeta <= -T::MACHINE_CONSTANTS.approximation_limit
-            {
-                scale_factor = T::MACHINE_CONSTANTS.abs_error_tolerance;
-                if (-re_zeta + T::from_f64(0.25) * ln_abs_z) > T::MACHINE_CONSTANTS.exponent_limit {
+            if scaling == Scaling::Unscaled && re_zeta <= -mc.approximation_limit {
+                scale_factor = mc.abs_error_tolerance;
+                if (-re_zeta + T::from_f64(0.25) * ln_abs_z) > mc.exponent_limit {
                     return Err(Overflow);
                 }
             }
@@ -758,10 +763,9 @@ pub fn complex_airy<T: BesselFloat>(
             //     UNDERFLOW TEST
             //-----------------------------------------------------------------------
             let mut retval = None;
-            if scaling == Scaling::Unscaled && re_zeta > T::MACHINE_CONSTANTS.approximation_limit {
-                scale_factor = T::one() / T::MACHINE_CONSTANTS.abs_error_tolerance;
-                if (-re_zeta - T::from_f64(0.25) * ln_abs_z) < -T::MACHINE_CONSTANTS.exponent_limit
-                {
+            if scaling == Scaling::Unscaled && re_zeta > mc.approximation_limit {
+                scale_factor = T::one() / mc.abs_error_tolerance;
+                if (-re_zeta - T::from_f64(0.25) * ln_abs_z) < -mc.exponent_limit {
                     retval = Some(Ok((T::c_zeros(1), 1)));
                 }
             }
@@ -819,6 +823,7 @@ pub fn complex_airy_b<T: BesselFloat>(
 ) -> Result<Complex<T>, BesselError<T>> {
     const POWER_SERIES_COEFFS: (f64, f64) = (6.149_266_274_460_007e-1, -4.482_883_573_538_264e-1);
     const COEF: f64 = 5.773_502_691_896_257e-1;
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
 
     let (order1, order2) = if return_derivative {
         (T::two() / T::from_f64(3.0), T::one() / T::from_f64(3.0))
@@ -850,7 +855,7 @@ pub fn complex_airy_b<T: BesselFloat>(
         //     TEST FOR RANGE;
         //-----------------------------------------------------------------------;
         // significance loss only tested against z, not order, so 0.0 is used to never cause significance loss
-        partial_loss_of_significance = is_significance_lost(abs_z, T::zero(), true)?;
+        partial_loss_of_significance = is_significance_lost(abs_z, T::zero(), true, mc)?;
         let mut scale_factor = T::one();
         let mut zeta = T::TWO_THIRDS * (z * z.sqrt());
 
@@ -868,9 +873,9 @@ pub fn complex_airy_b<T: BesselFloat>(
             //     OVERFLOW TEST;
             //-----------------------------------------------------------------------;
             let re_zeta = zeta.re.abs();
-            if re_zeta > T::MACHINE_CONSTANTS.approximation_limit {
-                scale_factor = T::MACHINE_CONSTANTS.abs_error_tolerance;
-                if re_zeta + T::from_f64(0.25) * abs_z.ln() > T::MACHINE_CONSTANTS.exponent_limit {
+            if re_zeta > mc.approximation_limit {
+                scale_factor = mc.abs_error_tolerance;
+                if re_zeta + T::from_f64(0.25) * abs_z.ln() > mc.exponent_limit {
                     return Err(Overflow);
                 }
             }

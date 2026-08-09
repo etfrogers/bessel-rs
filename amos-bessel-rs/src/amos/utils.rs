@@ -1,6 +1,6 @@
 use num::complex::{Complex, ComplexFloat};
 
-use crate::{BesselError, BesselFloat};
+use crate::{BesselError, BesselFloat, amos::MachineConsts};
 
 /// $1/(2\pi) \approx 0.159154943...$, used in asymptotic prefactors $\sqrt{1/(2\pi z)}$.
 pub const RECIP_TWO_PI: f64 = 0.159_154_943_091_895_35;
@@ -35,16 +35,16 @@ pub(crate) fn imaginary_dominant<T: BesselFloat>(z: Complex<T>) -> bool {
 /// if the underflow is at least one precision below the magnitude
 /// of the largest component; otherwise the phase angle does not have
 /// absolute accuracy and an underflow is assumed
-pub(crate) fn will_underflow<T: BesselFloat>(y: Complex<T>) -> bool {
+pub(crate) fn will_underflow<T: BesselFloat>(y: Complex<T>, mc: &MachineConsts<T>) -> bool {
     let re_abs = y.re.abs();
     let im_abs = y.im.abs();
     let min_abs_component = re_abs.min(im_abs);
-    if min_abs_component > T::MACHINE_CONSTANTS.absolute_approximation_limit {
+    if min_abs_component > mc.absolute_approximation_limit {
         false
     } else {
         let max_abs_component = re_abs.max(im_abs);
         // Accepted if the smaller component is within tolerance of the larger: min / max > tol
-        max_abs_component < min_abs_component / T::MACHINE_CONSTANTS.abs_error_tolerance
+        max_abs_component < min_abs_component / mc.abs_error_tolerance
     }
 }
 
@@ -57,8 +57,9 @@ pub fn is_significance_lost<T: BesselFloat>(
     abs_z: T,
     modified_order: T,
     modify_threshold: bool,
+    mc: &MachineConsts<T>,
 ) -> Result<bool, BesselError<T>> {
-    let f64_precision_limit = T::half() / T::MACHINE_CONSTANTS.abs_error_tolerance;
+    let f64_precision_limit = T::half() / mc.abs_error_tolerance;
     // TODO the below is limited to i32: could push to 64 later, but would change compare to fortran
     let integer_size_limit = T::from_f64((i32::MAX as f64) * 0.5);
     let mut upper_size_limit = f64_precision_limit.min(integer_size_limit);

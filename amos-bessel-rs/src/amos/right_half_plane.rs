@@ -3,7 +3,7 @@ use num::{Complex, ToPrimitive, Zero, complex::ComplexFloat};
 use crate::{
     BesselError, Scaling,
     amos::{
-        IKType,
+        IKType, MachineConsts,
         asymptotics::{i_asymp_large_order, i_asymptotic},
         gamma_ln,
         limits::{OverflowState, check_underflow_uniform_asymp_params},
@@ -72,6 +72,7 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
     scaling: Scaling,
     n: usize,
 ) -> BesselResult<T, usize> {
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let mut n_zeros = 0;
     let abs_z = z.abs();
     let mut remaining_n: usize = n;
@@ -97,7 +98,7 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
         max_order = order + (T::from_usize(remaining_n) - T::ONE);
     }
 
-    if (abs_z >= T::MACHINE_CONSTANTS.asymptotic_z_limit)
+    if (abs_z >= mc.asymptotic_z_limit)
         && ((max_order <= T::ONE) || (max_order.powi(2) <= abs_z + abs_z))
     {
         // Large Argument Asymptotics (Large z, Small order)
@@ -124,9 +125,7 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
         max_order = order + T::from_usize(remaining_n - 1);
     }
 
-    if (max_order > T::MACHINE_CONSTANTS.asymptotic_order_limit)
-        || (abs_z > T::MACHINE_CONSTANTS.asymptotic_order_limit)
-    {
+    if (max_order > mc.asymptotic_order_limit) || (abs_z > mc.asymptotic_order_limit) {
         let (n_zeros_asymp_lo, remaining_n) =
             i_asymp_large_order(z, order, scaling, remaining_n, &mut y)?;
         n_zeros += n_zeros_asymp_lo;
@@ -135,7 +134,7 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
         }
     }
 
-    if max_order <= T::ONE && abs_z <= T::MACHINE_CONSTANTS.asymptotic_z_limit {
+    if max_order <= T::ONE && abs_z <= mc.asymptotic_z_limit {
         // Miller algorithm with series normalization
         let y = i_miller(z, order, scaling, remaining_n)?;
         return Ok((y, n_zeros));
@@ -166,6 +165,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
     scaling: Scaling,
     n: usize,
 ) -> Result<BesselValues<T, usize>, BesselError<T>> {
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let sqrt_pi_over_2: T = T::from_f64(1.253_314_137_315_500_3);
 
     let abs_z = z.abs();
@@ -177,79 +177,76 @@ pub fn k_right_half_plane<T: BesselFloat>(
     let small_order_n_eq_1 = integer_order == 0 && n == 1;
 
     let signed_fractional_order = order - T::from_f64(integer_order as f64); // signed fractional part (-0.5 <= x <= 0.5)
-    let frac_order_sqr = if signed_fractional_order.abs() > T::MACHINE_CONSTANTS.abs_error_tolerance
-    {
+    let frac_order_sqr = if signed_fractional_order.abs() > mc.abs_error_tolerance {
         signed_fractional_order.powi(2)
     } else {
         T::ZERO
     };
 
-    let (mut k_v_minus_1, mut k_v) = if (signed_fractional_order.abs() != T::half())
-        && (abs_z <= T::two())
-    {
-        // Small |z| <= 2.0 (and non-half-integer order): compute seed values K_nu and K_{nu+1}
-        // using Temme's power series expansion.
-        let (mut s1, mut s2, shinc_mu) =
-            compute_small_z_power_series(z, frac_order_sqr, signed_fractional_order);
+    let (mut k_v_minus_1, mut k_v) =
+        if (signed_fractional_order.abs() != T::half()) && (abs_z <= T::two()) {
+            // Small |z| <= 2.0 (and non-half-integer order): compute seed values K_nu and K_{nu+1}
+            // using Temme's power series expansion.
+            let (mut s1, mut s2, shinc_mu) =
+                compute_small_z_power_series(z, frac_order_sqr, signed_fractional_order);
 
-        if small_order_n_eq_1 {
-            // Fast exit: order is small (integer_order == 0) and only n = 1 value was requested,
-            // so we can return K_nu directly without running forward recurrence.
-            let mut y = s1;
-            if scaling == Scaling::Scaled {
-                y *= z.exp();
+            if small_order_n_eq_1 {
+                // Fast exit: order is small (integer_order == 0) and only n = 1 value was requested,
+                // so we can return K_nu directly without running forward recurrence.
+                let mut y = s1;
+                if scaling == Scaling::Scaled {
+                    y *= z.exp();
+                }
+                return Ok((vec![y], 0));
             }
-            return Ok((vec![y], 0));
-        }
 
-        overflow_state =
-            if (order + T::ONE) * shinc_mu.re.abs() > T::MACHINE_CONSTANTS.approximation_limit {
+            overflow_state = if (order + T::ONE) * shinc_mu.re.abs() > mc.approximation_limit {
                 OverflowState::NearOver
             } else {
                 OverflowState::None
             };
-        s2 *= overflow_state.scaling_factor::<T>() * two_over_z;
-        s1 *= overflow_state.scaling_factor::<T>();
-        if scaling == Scaling::Scaled {
-            let z_exp = z.exp();
-            s1 *= z_exp;
-            s2 *= z_exp;
-        }
-        (s1, s2)
-    } else {
-        // Large |z| > 2.0 or half-integer orders: compute starting seeds via Miller's algorithm
-        // or the exact asymptotic coefficient.
-        // If Re(z) is large, enable scaled computation to prevent premature underflow.
-        let mut coeff = Complex::<T>::new(sqrt_pi_over_2, T::ZERO) / z.sqrt();
-        overflow_state = OverflowState::None;
-        if scaling == Scaling::Unscaled {
-            if z.re > T::MACHINE_CONSTANTS.approximation_limit {
-                underflow_occurred = true;
-                overflow_state = OverflowState::NearUnder;
-            } else {
-                coeff *= overflow_state.scaling_factor::<T>() * (-z).exp();
+            s2 *= overflow_state.scaling_factor::<T>(mc) * two_over_z;
+            s1 *= overflow_state.scaling_factor::<T>(mc);
+            if scaling == Scaling::Scaled {
+                let z_exp = z.exp();
+                s1 *= z_exp;
+                s2 *= z_exp;
             }
-        }
-        let order_rotation = (signed_fractional_order * T::PI()).cos().abs();
-        let quarter_minus_nu_sqr = (T::from_f64(0.25) - frac_order_sqr).abs();
-
-        if signed_fractional_order.abs() == T::half()
-            || order_rotation == T::ZERO
-            || quarter_minus_nu_sqr == T::ZERO
-        {
-            (coeff, coeff)
+            (s1, s2)
         } else {
-            compute_large_z_miller_seeds(
-                z,
-                signed_fractional_order,
-                frac_order_sqr,
-                order_rotation,
-                quarter_minus_nu_sqr,
-                coeff,
-                small_order_n_eq_1,
-            )?
-        }
-    };
+            // Large |z| > 2.0 or half-integer orders: compute starting seeds via Miller's algorithm
+            // or the exact asymptotic coefficient.
+            // If Re(z) is large, enable scaled computation to prevent premature underflow.
+            let mut coeff = Complex::<T>::new(sqrt_pi_over_2, T::ZERO) / z.sqrt();
+            overflow_state = OverflowState::None;
+            if scaling == Scaling::Unscaled {
+                if z.re > mc.approximation_limit {
+                    underflow_occurred = true;
+                    overflow_state = OverflowState::NearUnder;
+                } else {
+                    coeff *= overflow_state.scaling_factor::<T>(mc) * (-z).exp();
+                }
+            }
+            let order_rotation = (signed_fractional_order * T::PI()).cos().abs();
+            let quarter_minus_nu_sqr = (T::from_f64(0.25) - frac_order_sqr).abs();
+
+            if signed_fractional_order.abs() == T::half()
+                || order_rotation == T::ZERO
+                || quarter_minus_nu_sqr == T::ZERO
+            {
+                (coeff, coeff)
+            } else {
+                compute_large_z_miller_seeds(
+                    z,
+                    signed_fractional_order,
+                    frac_order_sqr,
+                    order_rotation,
+                    quarter_minus_nu_sqr,
+                    coeff,
+                    small_order_n_eq_1,
+                )?
+            }
+        };
 
     // Starting seeds k_v_minus_1 (K_nu) and k_v (K_{nu+1}) are ready; proceed to recurrence.
     if n == 1 {
@@ -265,9 +262,9 @@ pub fn k_right_half_plane<T: BesselFloat>(
                 // standard recurrence can safely resume.
                 underflow_occurred = false;
                 let mut recovery_buffer = [T::C_ZERO; 2];
-                let half_exponent_limit = T::half() * T::MACHINE_CONSTANTS.exponent_limit;
+                let half_exponent_limit = T::half() * mc.exponent_limit;
 
-                let abs_limit = (-T::MACHINE_CONSTANTS.exponent_limit).exp();
+                let abs_limit = (-mc.exponent_limit).exp();
 
                 let mut z_shift = z;
                 // Tracks the index of the previous non-underflowing value to ensure two in a row
@@ -286,10 +283,9 @@ pub fn k_right_half_plane<T: BesselFloat>(
                         (signed_fractional_order + T::from_isize(offset - 1)) * two_over_z;
                     (k_v_minus_1, k_v) = (k_v, k_v * recurrence_factor + k_v_minus_1);
                     let ln_abs_k_v = k_v.abs().ln();
-                    if -z_shift.re + ln_abs_k_v >= -T::MACHINE_CONSTANTS.exponent_limit {
-                        let trial_k_v =
-                            (-z_shift + k_v.ln()).exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
-                        if !will_underflow(trial_k_v) {
+                    if -z_shift.re + ln_abs_k_v >= -mc.exponent_limit {
+                        let trial_k_v = (-z_shift + k_v.ln()).exp() / mc.abs_error_tolerance;
+                        if !will_underflow(trial_k_v, mc) {
                             buf_idx = 1 - buf_idx;
                             recovery_buffer[buf_idx] = trial_k_v;
                             // Two consecutive non-underflowing values found
@@ -303,7 +299,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
                         if ln_abs_k_v < half_exponent_limit {
                             continue;
                         }
-                        z_shift.re -= T::MACHINE_CONSTANTS.exponent_limit;
+                        z_shift.re -= mc.exponent_limit;
                         k_v_minus_1 *= abs_limit;
                         k_v *= abs_limit;
                     }
@@ -328,6 +324,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
                 k_v_minus_1,
                 k_v,
                 overflow_state,
+                mc,
             );
         }
         if n == 1 {
@@ -354,11 +351,11 @@ pub fn k_right_half_plane<T: BesselFloat>(
         // Unscale the first two valid values by multiplying by abs_error_tolerance
         let mut working_index = n_zeros;
         k_v_minus_1 = y[working_index];
-        y[working_index] *= T::MACHINE_CONSTANTS.abs_error_tolerance;
+        y[working_index] *= mc.abs_error_tolerance;
         if n_non_zero > 1 {
             working_index += 1;
             k_v = y[working_index];
-            y[working_index] *= T::MACHINE_CONSTANTS.abs_error_tolerance;
+            y[working_index] *= mc.abs_error_tolerance;
         }
         if n_non_zero > 2 {
             // If some values underflowed, the first non-zero values are near the underflow boundary
@@ -371,11 +368,11 @@ pub fn k_right_half_plane<T: BesselFloat>(
         working_index + 1
     } else {
         // No underflow occurred: unscale and fill output array
-        y[0] = k_v_minus_1 * overflow_state.reciprocal_scaling_factor::<T>();
+        y[0] = k_v_minus_1 * overflow_state.reciprocal_scaling_factor::<T>(mc);
         if n == 1 {
             return Ok((y, n_zeros));
         }
-        y[1] = k_v * overflow_state.reciprocal_scaling_factor::<T>();
+        y[1] = k_v * overflow_state.reciprocal_scaling_factor::<T>(mc);
         if n == 2 {
             return Ok((y, n_zeros));
         }
@@ -393,6 +390,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
         k_v_minus_1,
         k_v,
         overflow_state,
+        mc,
     );
     Ok((y, n_zeros))
 }
@@ -404,6 +402,7 @@ fn compute_small_z_power_series<T: BesselFloat>(
     frac_order_sqr: T,
     signed_fractional_order: T,
 ) -> (Complex<T>, Complex<T>, Complex<T>) {
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     const MAX_ITERATIONS: usize = 1000;
     let gamma_difference_taylor_coeffs: [T; 8] = [
         T::from_f64(5.772_156_649_015_329e-1),
@@ -441,7 +440,7 @@ fn compute_small_z_power_series<T: BesselFloat>(
         for (i, cc) in gamma_difference_taylor_coeffs.iter().enumerate() {
             let term = *cc * frac_order_sqr.powi(i as i32);
             sum += term;
-            if term.abs() < T::MACHINE_CONSTANTS.abs_error_tolerance {
+            if term.abs() < mc.abs_error_tolerance {
                 break;
             }
         }
@@ -468,7 +467,7 @@ fn compute_small_z_power_series<T: BesselFloat>(
 
     let mut sum_k_nu = temme_coeff;
     let mut sum_k_nu_plus_1 = neg_order_term;
-    if abs_z >= T::MACHINE_CONSTANTS.abs_error_tolerance {
+    if abs_z >= mc.abs_error_tolerance {
         for step in 1..MAX_ITERATIONS {
             let k = T::from_usize(step);
             let k_sqr_minus_nu_sqr = k.powi(2) - frac_order_sqr;
@@ -480,7 +479,7 @@ fn compute_small_z_power_series<T: BesselFloat>(
             sum_k_nu_plus_1 += taylor_factor * (neg_order_term - k * temme_coeff);
             term_magnitude *= abs_z_sqr_over_4 / k;
 
-            if term_magnitude <= T::MACHINE_CONSTANTS.abs_error_tolerance {
+            if term_magnitude <= mc.abs_error_tolerance {
                 break;
             }
         }
@@ -499,11 +498,12 @@ fn compute_large_z_miller_seeds<T: BesselFloat>(
     coeff: Complex<T>,
     small_order_n_eq_1: bool,
 ) -> Result<(Complex<T>, Complex<T>), BesselError<T>> {
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let starting_k = determine_miller_starting_k(z, frac_order_sqr, order_rotation)?;
     // Now we have starting_k, run the backward recurrence loop
     // to determine the normalization factor and find K_nu, K_{nu+1}
     let mut unnormalized_k_plus_1 = Complex::<T>::zero();
-    let mut unnormalized_k = Complex::<T>::new(T::MACHINE_CONSTANTS.abs_error_tolerance, T::ZERO);
+    let mut unnormalized_k = Complex::<T>::new(mc.abs_error_tolerance, T::ZERO);
     let mut normalization_sum = unnormalized_k;
     for k_int in (1..=starting_k).rev() {
         let k = T::from_usize(k_int);
@@ -539,6 +539,7 @@ fn determine_miller_starting_k<T: BesselFloat>(
     frac_order_sqr: T,
     order_rotation: T,
 ) -> Result<usize, BesselError<T>> {
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let abs_z = z.abs();
     const K_MAX: usize = 30;
     let miller_truncation_heuristic_1: T = T::from_f64(1.909_859_317_102_744);
@@ -556,8 +557,7 @@ fn determine_miller_starting_k<T: BesselFloat>(
     // (that is, equals zero to within machine precision)
     let starting_k = if abs_z > recurrence_threshold {
         // Forward recurrence loop to determine starting_k when z.abs() >= recurrence_threshold
-        let convergence_test =
-            order_rotation / (T::PI() * abs_z * T::MACHINE_CONSTANTS.abs_error_tolerance);
+        let convergence_test = order_rotation / (T::PI() * abs_z * mc.abs_error_tolerance);
         if convergence_test <= T::ONE {
             // skip the loop and just return trial index as 1
             1
@@ -590,7 +590,7 @@ fn determine_miller_starting_k<T: BesselFloat>(
         // For small z.abs() (< recurrence threshold), we don't bother running the loop above;
         // instead, we use a heuristic equation to calculate the K value directly.
         let precision_factor = order_rotation * miller_truncation_heuristic_2
-            / (T::MACHINE_CONSTANTS.abs_error_tolerance * abs_z.sqrt().sqrt());
+            / (mc.abs_error_tolerance * abs_z.sqrt().sqrt());
         let angle_correction_a = T::from_f64(3.0) * arg_z / (T::ONE + abs_z);
         let angle_correction_b = T::from_f64(14.7) * arg_z / (T::from_f64(28.0) + abs_z);
         let heuristic_curve_factor = (precision_factor.ln()

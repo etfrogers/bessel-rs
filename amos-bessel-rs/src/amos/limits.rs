@@ -21,25 +21,30 @@ pub enum OverflowState {
 }
 
 impl OverflowState {
-    pub fn check<T: BesselFloat>(rs1: T, phi: Complex<T>, extra_refinement: T) -> Self {
+    pub fn check<T: BesselFloat>(
+        rs1: T,
+        phi: Complex<T>,
+        extra_refinement: T,
+        mc: &MachineConsts<T>,
+    ) -> Self {
         //-----------------------------------------------------------------------
         //     TEST FOR UNDERFLOW AND OVERFLOW
         //-----------------------------------------------------------------------
-        if rs1.abs() > T::MACHINE_CONSTANTS.exponent_limit {
+        if rs1.abs() > mc.exponent_limit {
             return if rs1 > T::zero() {
                 Self::Over { was_refined: false }
             } else {
                 Self::Under { was_refined: false }
             };
         }
-        if rs1.abs() < T::MACHINE_CONSTANTS.approximation_limit {
+        if rs1.abs() < mc.approximation_limit {
             return Self::None;
         }
         //-----------------------------------------------------------------------
         //     REFINE  TEST AND SCALE
         //-----------------------------------------------------------------------
         let refined_rs1 = rs1 + phi.abs().ln() + extra_refinement;
-        if refined_rs1.abs() > T::MACHINE_CONSTANTS.exponent_limit {
+        if refined_rs1.abs() > mc.exponent_limit {
             return if refined_rs1 > T::zero() {
                 Self::Over { was_refined: true }
             } else {
@@ -66,31 +71,31 @@ impl OverflowState {
         }
     }
 
-    // Originally T::MACHINE_CONSTANTS.scaling_factors[overflow_state]
-    pub fn scaling_factor<T: BesselFloat>(&self) -> T {
+    // Originally mc.scaling_factors[overflow_state]
+    pub fn scaling_factor<T: BesselFloat>(&self, mc: &MachineConsts<T>) -> T {
         match self {
-            OverflowState::NearUnder => T::MACHINE_CONSTANTS.rtol,
+            OverflowState::NearUnder => mc.rtol,
             OverflowState::None => T::one(),
-            OverflowState::NearOver => T::MACHINE_CONSTANTS.abs_error_tolerance,
+            OverflowState::NearOver => mc.abs_error_tolerance,
             _ => panic!("Cannot get scaling factor for fatal overflow/underflow"),
         }
     }
 
-    // Originally T::MACHINE_CONSTANTS.reciprocal_scaling_factors[overflow_state]
-    pub fn reciprocal_scaling_factor<T: BesselFloat>(&self) -> T {
+    // Originally mc.reciprocal_scaling_factors[overflow_state]
+    pub fn reciprocal_scaling_factor<T: BesselFloat>(&self, mc: &MachineConsts<T>) -> T {
         match self {
-            OverflowState::NearUnder => T::MACHINE_CONSTANTS.abs_error_tolerance,
+            OverflowState::NearUnder => mc.abs_error_tolerance,
             OverflowState::None => T::one(),
-            OverflowState::NearOver => T::MACHINE_CONSTANTS.rtol,
+            OverflowState::NearOver => mc.rtol,
             _ => panic!("Cannot get reciprocal scaling factor for fatal overflow/underflow"),
         }
     }
 
-    // Originally T::MACHINE_CONSTANTS.overflow_boundary[overflow_state]
-    pub fn boundary<T: BesselFloat>(&self) -> T {
+    // Originally mc.overflow_boundary[overflow_state]
+    pub fn boundary<T: BesselFloat>(&self, mc: &MachineConsts<T>) -> T {
         match self {
-            OverflowState::NearUnder => T::MACHINE_CONSTANTS.absolute_approximation_limit,
-            OverflowState::None => T::one() / T::MACHINE_CONSTANTS.absolute_approximation_limit,
+            OverflowState::NearUnder => mc.absolute_approximation_limit,
+            OverflowState::None => T::one() / mc.absolute_approximation_limit,
             OverflowState::NearOver => T::max_value() / T::two(),
             _ => panic!("Cannot get boundary for fatal overflow/underflow"),
         }
@@ -114,16 +119,17 @@ impl OverflowState {
         unscaled_s2: Complex<T>,
         boundary: &mut T,
         recip_scaling_factor: &mut T,
+        mc: &MachineConsts<T>,
     ) {
         if *self != OverflowState::NearOver && unscaled_s2.linf_norm() > *boundary {
             self.increment();
-            *boundary = self.boundary::<T>();
+            *boundary = self.boundary::<T>(mc);
             *s1 *= *recip_scaling_factor;
             *s2 = unscaled_s2;
-            let sf = self.scaling_factor::<T>();
+            let sf = self.scaling_factor::<T>(mc);
             *s1 *= sf;
             *s2 *= sf;
-            *recip_scaling_factor = self.reciprocal_scaling_factor::<T>();
+            *recip_scaling_factor = self.reciprocal_scaling_factor::<T>(mc);
         }
     }
 }
@@ -167,6 +173,7 @@ pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
     n_to_test: usize,
     y: &mut [Complex<T>],
 ) -> Result<usize, BesselError<T>> {
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let mut n_underflow = 0;
     let zr = if z.re < T::zero() { -z } else { z };
     let zn = if z.im <= T::zero() {
@@ -236,7 +243,7 @@ pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
     //-----------------------------------------------------------------------
     //     OVERFLOW TEST
     //-----------------------------------------------------------------------
-    match OverflowState::check(cz.re, phi, extra_refinement) {
+    match OverflowState::check(cz.re, phi, extra_refinement, mc) {
         OverflowState::Over { .. } => return Err(BesselError::Overflow),
         OverflowState::Under { was_refined } => {
             if !was_refined {
@@ -249,8 +256,8 @@ pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
             if imaginary_dominant {
                 cz -= T::from_f64(0.25) * arg.ln() + T::from_f64(AIC);
             }
-            cz = cz.exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
-            if will_underflow(cz) {
+            cz = cz.exp() / mc.abs_error_tolerance;
+            if will_underflow(cz, mc) {
                 y[0..n_to_test].fill(T::C_ZERO);
                 return Ok(n_to_test);
             }
@@ -269,7 +276,7 @@ pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
         let current_order = order + T::from_usize(i);
         let (mut cz, phi, _arg, extra_refinement) = get_parameters(current_order);
         // Match below says that first time we get here and no underflow is found, we immediately return
-        match OverflowState::check(cz.re, phi, extra_refinement) {
+        match OverflowState::check(cz.re, phi, extra_refinement, mc) {
             OverflowState::Under { was_refined } => {
                 if was_refined {
                     // Now do a similar overflow check, but on complex values, rather
@@ -278,8 +285,8 @@ pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
                     if imaginary_dominant {
                         cz -= arg.ln() * T::from_f64(0.25) + T::from_f64(AIC)
                     }
-                    cz = cz.exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
-                    if !will_underflow(cz) {
+                    cz = cz.exp() / mc.abs_error_tolerance;
+                    if !will_underflow(cz, mc) {
                         return Ok(n_underflow);
                     }
                 }
@@ -318,18 +325,19 @@ pub(crate) fn underflow_add_i_k<T: BesselFloat>(
     s_k: &mut Complex<T>,
     s_i: &mut Complex<T>,
     n_good: &mut isize,
+    mc: &MachineConsts<T>,
 ) -> bool {
     let abs_s_k = s_k.abs();
     if abs_s_k != T::zero() {
         let test = (-T::two() * zr.re) + abs_s_k.ln();
-        if test >= (-T::MACHINE_CONSTANTS.approximation_limit) {
+        if test >= (-mc.approximation_limit) {
             *s_k = (s_k.ln() - zr * T::two()).exp();
             *n_good += 1;
         } else {
             *s_k = T::C_ZERO;
         }
     }
-    if s_k.abs().max(s_i.abs()) > T::MACHINE_CONSTANTS.absolute_approximation_limit {
+    if s_k.abs().max(s_i.abs()) > mc.absolute_approximation_limit {
         false
     } else {
         *s_k = T::C_ZERO;

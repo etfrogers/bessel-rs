@@ -2,7 +2,7 @@ use super::Scaling;
 use crate::{
     BesselError, BesselFloat,
     amos::{
-        IKType, limits::check_underflow_uniform_asymp_params, recurrence::i_ratios,
+        IKType, MachineConsts, limits::check_underflow_uniform_asymp_params, recurrence::i_ratios,
         right_half_plane::k_right_half_plane,
     },
 };
@@ -20,6 +20,7 @@ pub(crate) fn i_wronskian<T: BesselFloat>(
     n: usize,
     y: &mut [Complex<T>],
 ) -> Result<usize, BesselError<T>> {
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     match check_underflow_uniform_asymp_params(z, order, scaling, IKType::K, 2, &mut [T::C_ONE; 2])
     {
         Ok(n_underflow) => {
@@ -48,10 +49,10 @@ pub(crate) fn i_wronskian<T: BesselFloat>(
     // On low-exponent machines, K values can be close to under/overflow limits.
     // Scale K_nu and K_{nu+1} to keep intermediate products well on scale.
     let abs_k_nu_plus_1 = k_values[1].abs();
-    let k_scale_factor = if abs_k_nu_plus_1 <= T::MACHINE_CONSTANTS.absolute_approximation_limit {
-        T::one() / T::MACHINE_CONSTANTS.abs_error_tolerance
-    } else if abs_k_nu_plus_1 >= T::one() / T::MACHINE_CONSTANTS.absolute_approximation_limit {
-        T::MACHINE_CONSTANTS.abs_error_tolerance
+    let k_scale_factor = if abs_k_nu_plus_1 <= mc.absolute_approximation_limit {
+        T::one() / mc.abs_error_tolerance
+    } else if abs_k_nu_plus_1 >= T::one() / mc.absolute_approximation_limit {
+        mc.abs_error_tolerance
     } else {
         T::one()
     };

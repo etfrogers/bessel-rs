@@ -3,7 +3,7 @@ use num::complex::{Complex, ComplexFloat};
 use crate::{
     BesselFloat, Scaling,
     amos::{
-        gamma_ln,
+        MachineConsts, gamma_ln,
         utils::{two_over_z_safe, will_underflow},
     },
     types::BesselResult,
@@ -24,11 +24,12 @@ pub fn i_power_series<T: BesselFloat>(
     scaling: Scaling,
     n: usize,
 ) -> BesselResult<T, isize> {
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let mut n_zeros = 0;
     let abs_z = z.abs();
     let mut y = T::c_zeros(n);
 
-    if abs_z < T::MACHINE_CONSTANTS.underflow_limit {
+    if abs_z < mc.underflow_limit {
         // If z is zero or very small, can return straight away.
         // If it's zero, then n_zeros = 0 (as y==0), but if its very small but non_zero, then
         // we underflowed, so set n_zeros = n. This is then adjusted for order = 0,
@@ -49,7 +50,7 @@ pub fn i_power_series<T: BesselFloat>(
     let mut near_underflow = false;
     let mut num_seeded = 0;
     let half_z = z * T::half();
-    let half_z_sq = if abs_z > T::MACHINE_CONSTANTS.underflow_limit.sqrt() {
+    let half_z_sq = if abs_z > mc.underflow_limit.sqrt() {
         half_z.powi(2)
     } else {
         T::C_ZERO
@@ -73,7 +74,7 @@ pub fn i_power_series<T: BesselFloat>(
             if scaling == Scaling::Scaled {
                 ln_leading_term.re -= z.re;
             }
-            if ln_leading_term.re <= -T::MACHINE_CONSTANTS.exponent_limit {
+            if ln_leading_term.re <= -mc.exponent_limit {
                 n_zeros += 1;
                 y[k] = T::C_ZERO;
                 if abs_half_z_sq > current_order {
@@ -85,18 +86,18 @@ pub fn i_power_series<T: BesselFloat>(
             // Now do a more refined underflow test.
             // Note that near_undeflow latches: it does not reset to false on
             // a second pass through this block, only later is it explicitly reset
-            if ln_leading_term.re <= (-T::MACHINE_CONSTANTS.approximation_limit) {
+            if ln_leading_term.re <= (-mc.approximation_limit) {
                 near_underflow = true;
-                scale_factor = T::MACHINE_CONSTANTS.abs_error_tolerance;
+                scale_factor = mc.abs_error_tolerance;
             }
 
             let mut coeff = ln_leading_term.exp();
             if near_underflow {
-                coeff *= T::MACHINE_CONSTANTS.rtol
+                coeff *= mc.rtol
             };
-            let s1 = single_n_iteration(current_order, half_z_sq);
+            let s1 = single_n_iteration(current_order, half_z_sq, mc);
             let s2 = s1 * coeff;
-            if near_underflow && will_underflow(s2) {
+            if near_underflow && will_underflow(s2, mc) {
                 n_zeros += 1;
                 y[k] = T::C_ZERO;
                 continue;
@@ -120,7 +121,7 @@ pub fn i_power_series<T: BesselFloat>(
                     (two_over_z * y_k_plus_1) * modified_order + y_k_plus_2,
                 );
                 y[k] = y_k_plus_1 * scale_factor;
-                if y[k].abs() > T::MACHINE_CONSTANTS.absolute_approximation_limit {
+                if y[k].abs() > mc.absolute_approximation_limit {
                     near_underflow = false;
                 }
             } else {
@@ -132,13 +133,17 @@ pub fn i_power_series<T: BesselFloat>(
     Ok((y, n_zeros))
 }
 
-fn single_n_iteration<T: BesselFloat>(current_order: T, half_z_sq: Complex<T>) -> Complex<T> {
+fn single_n_iteration<T: BesselFloat>(
+    current_order: T,
+    half_z_sq: Complex<T>,
+    mc: &MachineConsts<T>,
+) -> Complex<T> {
     let order_plus_one = current_order + T::one();
     let abs_half_z_sq = half_z_sq.abs();
-    let tolerance = T::MACHINE_CONSTANTS.abs_error_tolerance * abs_half_z_sq / order_plus_one;
+    let tolerance = mc.abs_error_tolerance * abs_half_z_sq / order_plus_one;
 
     let mut series_sum = T::C_ONE;
-    if abs_half_z_sq >= T::MACHINE_CONSTANTS.abs_error_tolerance * order_plus_one {
+    if abs_half_z_sq >= mc.abs_error_tolerance * order_plus_one {
         let mut current_term = T::C_ONE;
         let mut denominator_step = order_plus_one + T::two();
         let mut term_denominator = order_plus_one;

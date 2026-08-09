@@ -26,7 +26,8 @@ impl Tolerances {
         reference: Option<&Complex<f64>>,
         margin: f64,
     ) -> Self {
-        let max_relative = T::MACHINE_CONSTANTS.abs_error_tolerance.to_f64().unwrap();
+        let mc = &**T::MACHINE_CONSTANTS;
+        let max_relative = mc.abs_error_tolerance.to_f64().unwrap();
 
         let max_im = actual.im.abs().to_f64().unwrap().max(expected.im.abs());
         let max_re = actual.re.abs().to_f64().unwrap().max(expected.re.abs());
@@ -179,6 +180,7 @@ pub fn assert_results_are_equal_floats<T: DiagnosticBesselFloat>(
     expected: &Result<BesselValues<f64>, BesselError<f64>>,
     margin: f64,
 ) {
+    let mc = &**T::MACHINE_CONSTANTS;
     match (actual, expected) {
         (Ok(actual_vals), Ok(expected_vals)) => {
             if actual_vals.1 > 0 || expected_vals.1 > 0 {
@@ -220,7 +222,7 @@ pub fn assert_results_are_equal_floats<T: DiagnosticBesselFloat>(
             // margin is used as err < margin * abs_error_tolerance
             // therefore margin to make an order-of-magnitude check
             println!("Both lost significance: \n{:?}\n {:?}", actual, expected);
-            let oom_margin = 1.0 / T::MACHINE_CONSTANTS.abs_error_tolerance.to_f64().unwrap();
+            let oom_margin = 1.0 / mc.abs_error_tolerance.to_f64().unwrap();
             assert_complex_arrays_equal(actual_y, expected_y, &vec![], oom_margin);
         }
         (
@@ -233,7 +235,7 @@ pub fn assert_results_are_equal_floats<T: DiagnosticBesselFloat>(
             // In this case f32 has lost significance, but f64 hasn't. Again, check that answers are within
             // an order of magnitude
             println!("One lost significance: \n{:?}\n {:?}", actual, expected);
-            let oom_margin = 1.0 / T::MACHINE_CONSTANTS.abs_error_tolerance.to_f64().unwrap();
+            let oom_margin = 1.0 / mc.abs_error_tolerance.to_f64().unwrap();
             assert_complex_arrays_equal(actual_y, &expected_vals.0, &vec![], oom_margin);
         }
 

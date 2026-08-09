@@ -7,7 +7,7 @@ use crate::{
     BesselError::{self, DidNotConverge},
     Scaling,
     amos::{
-        gamma_ln,
+        MachineConsts, gamma_ln,
         limits::OverflowState,
         utils::{two_over_z_safe, will_underflow},
     },
@@ -39,7 +39,8 @@ pub(crate) fn i_miller<T: BesselFloat>(
     scaling: Scaling,
     n: usize,
 ) -> Result<Vec<Complex<T>>, BesselError<T>> {
-    let scale: T = T::two() * T::MIN_POSITIVE / T::MACHINE_CONSTANTS.abs_error_tolerance;
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
+    let scale: T = T::two() * T::MIN_POSITIVE / mc.abs_error_tolerance;
     let abs_z = z.abs();
     let int_abs_z = abs_z.to_usize().unwrap();
     let int_order = order.to_usize().unwrap();
@@ -54,7 +55,7 @@ pub(crate) fn i_miller<T: BesselFloat>(
         abs_recurrence_factor + (abs_recurrence_factor * abs_recurrence_factor - T::one()).sqrt();
     let rho_sq = rho * rho;
     let mut convergence_test = (rho_sq + rho_sq) / ((rho_sq - T::one()) * (rho - T::one()));
-    convergence_test /= T::MACHINE_CONSTANTS.abs_error_tolerance;
+    convergence_test /= mc.abs_error_tolerance;
     // Phase 1: Forward Sequence Truncation Bound
     // Run the recurrence forward. The sequence diverges, representing the rapidly growing K_nu(z).
     // We run it until the sequence exceeds a convergence threshold, which tells us how high
@@ -84,8 +85,7 @@ pub(crate) fn i_miller<T: BesselFloat>(
         fwd_k_minus_1 = T::C_ZERO;
         fwd_k = T::C_ONE;
         let starting_order = T::from_f64(modified_int_order as f64) + T::one();
-        convergence_test =
-            (starting_order * reciprocal_abs_z / T::MACHINE_CONSTANTS.abs_error_tolerance).sqrt();
+        convergence_test = (starting_order * reciprocal_abs_z / mc.abs_error_tolerance).sqrt();
         let mut hit_loop_end = false;
         converged = false;
         for k in 0..80 {
@@ -203,6 +203,7 @@ pub(crate) fn i_miller<T: BesselFloat>(
 ///
 /// Originally ZRATI
 pub(crate) fn i_ratios<T: BesselFloat>(z: Complex<T>, order: T, n: usize) -> Vec<Complex<T>> {
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let abs_z = z.abs();
     let integer_order = order.to_isize().unwrap();
     let modified_int_order = integer_order + n as isize - 1;
@@ -242,8 +243,8 @@ pub(crate) fn i_ratios<T: BesselFloat>(z: Complex<T>, order: T, n: usize) -> Vec
         let mut abs_fwd_k_minus_1 = fwd_k_minus_1.abs();
         // Scale base_convergence_test and all subsequent fwd_k values by
         // abs_fwd_k_minus_1 to ensure that an overflow does not occur prematurely
-        let initial_test_arg = (abs_fwd_k + abs_fwd_k)
-            / (abs_fwd_k_minus_1 * T::MACHINE_CONSTANTS.abs_error_tolerance);
+        let initial_test_arg =
+            (abs_fwd_k + abs_fwd_k) / (abs_fwd_k_minus_1 * mc.abs_error_tolerance);
         let base_convergence_test = initial_test_arg.sqrt();
         let mut convergence_test = base_convergence_test;
         fwd_k_minus_1 /= abs_fwd_k_minus_1;
@@ -297,10 +298,7 @@ pub(crate) fn i_ratios<T: BesselFloat>(z: Complex<T>, order: T, n: usize) -> Vec
             );
         }
         if val_k.re == T::ZERO && val_k.im == T::ZERO {
-            val_k = Complex::<T>::new(
-                T::MACHINE_CONSTANTS.abs_error_tolerance,
-                T::MACHINE_CONSTANTS.abs_error_tolerance,
-            );
+            val_k = Complex::<T>::new(mc.abs_error_tolerance, mc.abs_error_tolerance);
         }
     }
     let mut ratios = T::c_zeros(n);
@@ -315,10 +313,8 @@ pub(crate) fn i_ratios<T: BesselFloat>(z: Complex<T>, order: T, n: usize) -> Vec
                 base_order_term + T::from_usize(k) * two_over_z + ratios[k];
             let mut abs_pt = fraction_denominator.abs();
             if abs_pt == T::ZERO {
-                fraction_denominator = Complex::<T>::new(
-                    T::MACHINE_CONSTANTS.abs_error_tolerance,
-                    T::MACHINE_CONSTANTS.abs_error_tolerance,
-                );
+                fraction_denominator =
+                    Complex::<T>::new(mc.abs_error_tolerance, mc.abs_error_tolerance);
                 abs_pt = fraction_denominator.abs();
             }
             ratios[k - 1] = fraction_denominator.conj() / abs_pt.powi(2);
@@ -342,6 +338,7 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
     n_zeros: &mut usize,
     two_over_z: Complex<T>,
 ) {
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     *n_zeros = 0;
     let mut i_completed = 0;
 
@@ -357,16 +354,15 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
         // Assumption: the value is too small (will underflow)
         *n_zeros += 1;
         *yi = T::C_ZERO;
-        if -z.re + current_val.abs().ln() < -T::MACHINE_CONSTANTS.exponent_limit {
+        if -z.re + current_val.abs().ln() < -mc.exponent_limit {
             // if the scaling would put the (negative) exponent below the (negative)
             // limit, the the value was too small (assumption true)
             continue;
         }
         // note: this is unscaled by the standard scaling, but is still a factor of
         // abs_error_tolerance smaller than the final answer
-        let unscaled_value =
-            (current_val.ln() - z).exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
-        if will_underflow(unscaled_value) {
+        let unscaled_value = (current_val.ln() - z).exp() / mc.abs_error_tolerance;
+        if will_underflow(unscaled_value, mc) {
             // if the scaled value would underflow when (later) put back on scale by multiplying
             // by abs_error_tolerance, then the value is still too small, and would underflow
             // so assumption above is true
@@ -388,8 +384,8 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
 
     let mut scaled_k_minus_1 = original_scaled_0;
     let mut scaled_k = original_scaled_1;
-    let half_exponent_limit = T::half() * T::MACHINE_CONSTANTS.exponent_limit;
-    let internal_scaling_factor = (-T::MACHINE_CONSTANTS.exponent_limit).exp();
+    let half_exponent_limit = T::half() * mc.exponent_limit;
+    let internal_scaling_factor = (-mc.exponent_limit).exp();
     let mut effective_z = z;
     // Run the recurrence forward on the scaled values until two consecutive values come
     // on scale. If the scaled sequence grows too large (exceeding e^(limit/2)), we dynamically
@@ -404,12 +400,11 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
         // Assumption: the value is too small (will underflow)
         *n_zeros += 1;
         *yi = T::C_ZERO;
-        if -effective_z.re + scaled_k.abs().ln() >= -T::MACHINE_CONSTANTS.exponent_limit {
+        if -effective_z.re + scaled_k.abs().ln() >= -mc.exponent_limit {
             // note: the value below is unscaled by the standard scaling, but is still a factor of
             // abs_error_tolerance smaller than the final answer
-            let unscaled_value =
-                (scaled_k.ln() - effective_z).exp() / T::MACHINE_CONSTANTS.abs_error_tolerance;
-            if !will_underflow(unscaled_value) {
+            let unscaled_value = (scaled_k.ln() - effective_z).exp() / mc.abs_error_tolerance;
+            if !will_underflow(unscaled_value, mc) {
                 // by this point, we know the assumption was false, so set the value,
                 // and undo the increment we did above
                 *yi = unscaled_value;
@@ -427,7 +422,7 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
         }
 
         if scaled_k.abs().ln() > half_exponent_limit {
-            effective_z -= T::MACHINE_CONSTANTS.exponent_limit;
+            effective_z -= mc.exponent_limit;
             scaled_k_minus_1 *= internal_scaling_factor;
             scaled_k *= internal_scaling_factor;
         }
@@ -479,6 +474,7 @@ pub(crate) fn scale_controlled_recurrence<T: BesselFloat>(
     mut s1: Complex<T>,
     mut s2: Complex<T>,
     mut overflow_state: OverflowState,
+    mc: &MachineConsts<T>,
 ) -> (Complex<T>, Complex<T>, OverflowState) {
     let two_over_z = two_over_z_safe(z);
 
@@ -490,8 +486,8 @@ pub(crate) fn scale_controlled_recurrence<T: BesselFloat>(
     };
     let index_adjustment = if forward { -T::one() } else { T::one() };
 
-    let mut recip_scale_factor = overflow_state.reciprocal_scaling_factor::<T>();
-    let mut boundary = overflow_state.boundary::<T>();
+    let mut recip_scale_factor = overflow_state.reciprocal_scaling_factor::<T>(mc);
+    let mut boundary = overflow_state.boundary::<T>(mc);
 
     for i in iterator {
         let recurrence_factor = two_over_z * (order + T::from_usize(i) + index_adjustment);
@@ -506,6 +502,7 @@ pub(crate) fn scale_controlled_recurrence<T: BesselFloat>(
             yi,
             &mut boundary,
             &mut recip_scale_factor,
+            mc,
         );
     }
     (s1, s2, overflow_state)

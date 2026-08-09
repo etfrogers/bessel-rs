@@ -12,10 +12,10 @@ use num::{
 };
 use thiserror::Error;
 
-/// A trait defining the mathematical and floating-point constraints required to compute 
+/// A trait defining the mathematical and floating-point constraints required to compute
 /// Bessel and Airy functions.
-/// 
-/// This trait is implemented for `f32` and `f64`. Downstream users can use this trait 
+///
+/// This trait is implemented for `f32` and `f64`. Downstream users can use this trait
 /// as a generic bound to write their own generic functions over real or complex Bessel evaluations.
 pub trait BesselFloat:
     Float
@@ -64,12 +64,12 @@ pub trait BesselFloat:
     fn from_isize(value: isize) -> Self;
     /// Casts a `Complex<f64>` value to a `Complex` of this type.
     fn from_cpx64(value: Complex<f64>) -> Complex<Self>;
-    
+
     /// Pre-computed value of `0.5` in this precision.
     fn half() -> Self;
     /// Pre-computed value of `2.0` in this precision.
     fn two() -> Self;
-    
+
     /// Returns the raw bitwise representation of this float.
     fn to_bits(self) -> u64;
 
@@ -79,7 +79,7 @@ pub trait BesselFloat:
         vec![Complex::<Self>::ZERO; n]
     }
 
-    /// Environmental machine constants used for scaling, underflow detection, and iteration bounds 
+    /// Environmental machine constants used for scaling, underflow detection, and iteration bounds
     /// specific to the AMOS algorithms for this precision.
     const MACHINE_CONSTANTS: &'static LazyLock<MachineConsts<Self>>;
 }
@@ -214,8 +214,9 @@ impl<T: BesselFloat> BackFrom<T, T> for T {
 impl<T: BesselFloat> BackFrom<Complex<T>, T> for T {
     #[inline]
     fn back_from(val: &Complex<T>) -> Result<T, BesselError<T>> {
+        let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
         let margin = T::from_f64(1000.0);
-        let tol = margin * T::MACHINE_CONSTANTS.abs_error_tolerance;
+        let tol = margin * mc.abs_error_tolerance;
         // if the imainary part is small, pass the value on
         // if the imaginary part is small compared to the real part, pass the value on
         // if the real part is small, the imaginary part is likely inaccurate, so pass the value on

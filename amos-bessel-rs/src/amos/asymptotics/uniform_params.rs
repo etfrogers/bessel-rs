@@ -18,7 +18,7 @@ use num::{Complex, complex::ComplexFloat};
 
 use crate::{
     amos::{
-        ComplexExt,
+        ComplexExt, MachineConsts,
         asymptotics::consts::{
             AIRY_ASYMP_COEFFS_A, AIRY_ASYMP_COEFFS_B, AIRY_HJ_POLYNOMIAL_COEFFS,
             DEBYE_IK_POLYNOMIAL_COEFFS, IK_NORMALIZATION_FACTORS, TRANSITION_AIRY_A_COEFFS,
@@ -31,16 +31,17 @@ use crate::{
 /// Determines whether $|z|$ is sufficiently small relative to $\nu$ to trigger an underflow condition
 /// in the geometric parameters.
 fn geom_underflow<T: BesselFloat>(z: Complex<T>, order: T) -> bool {
-    let test = order * T::MACHINE_CONSTANTS.underflow_limit;
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
+
+    let test = order * mc.underflow_limit;
     z.re.abs() <= test && z.im.abs() <= test
 }
 
 /// Generates fallback $(\zeta_1, \zeta_2)$ scaling parameters when an underflow condition occurs.
 fn underflow_zetas<T: BesselFloat>(order: T) -> (Complex<T>, Complex<T>) {
-    let zeta1 = Complex::<T>::new(
-        T::two() * T::MACHINE_CONSTANTS.underflow_limit.ln().abs() + order,
-        T::zero(),
-    );
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
+
+    let zeta1 = Complex::<T>::new(T::two() * mc.underflow_limit.ln().abs() + order, T::zero());
     let zeta2 = Complex::<T>::new(order, T::zero());
     (zeta1, zeta2)
 }
@@ -159,6 +160,8 @@ impl<T: BesselFloat> DebyeParams<T> {
                 sum_k: T::C_ZERO,
             }
         } else {
+            let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
+
             let poly_arg = T::C_ONE / geom.s; // 1 / (1 + t^2), argument for Olver polynomials
             let mut sum_i = T::C_ONE;
             let mut sum_k = T::C_ONE;
@@ -178,9 +181,7 @@ impl<T: BesselFloat> DebyeParams<T> {
                 recip_order_pow *= geom.reciprocal_order;
                 let test = term.l1_norm();
                 // Early exit if term magnitude and (1/nu)^k drop below machine tolerance
-                if recip_order_pow < T::MACHINE_CONSTANTS.abs_error_tolerance
-                    && test < T::MACHINE_CONSTANTS.abs_error_tolerance
-                {
+                if recip_order_pow < mc.abs_error_tolerance && test < mc.abs_error_tolerance {
                     break;
                 }
             }
@@ -238,6 +239,8 @@ impl<T: BesselFloat> AiryGeometry<T> {
                 state: AiryState::Underflow,
             };
         }
+        let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
+
         let reciprocal_order = T::ONE / order;
         let z_over_order = z * reciprocal_order; // t = z / nu
         let recip_order_sqr = reciprocal_order * reciprocal_order;
@@ -259,13 +262,13 @@ impl<T: BesselFloat> AiryGeometry<T> {
             let mut zeta_sum =
                 Complex::<T>::new(T::from_f64(TURNING_POINT_ZETA_COEFFS[0]), T::zero());
             abs_p[0] = T::one();
-            if abs_w_sqr >= T::MACHINE_CONSTANTS.abs_error_tolerance {
+            if abs_w_sqr >= mc.abs_error_tolerance {
                 for k in 1..30 {
                     k_max = k + 1;
                     p[k] = p[k - 1] * w_sqr; // p[k] = (w^2)^k
                     zeta_sum += p[k] * T::from_f64(TURNING_POINT_ZETA_COEFFS[k]); // zeta / w^2 = sum c_k (w^2)^k
                     abs_p[k] = abs_p[k - 1] * abs_w_sqr;
-                    if abs_p[k] < T::MACHINE_CONSTANTS.abs_error_tolerance {
+                    if abs_p[k] < mc.abs_error_tolerance {
                         break;
                     }
                 }
@@ -429,6 +432,7 @@ impl<T: BesselFloat> AiryParams<T> {
         let arg = geom.arg;
         let zeta1 = geom.zeta1;
         let zeta2 = geom.zeta2;
+        let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
 
         match geom.state {
             AiryState::Underflow => {
@@ -465,9 +469,9 @@ impl<T: BesselFloat> AiryParams<T> {
                 let mut asum = a_first_term;
                 let mut bsum = b_first_term;
 
-                if recip_order_sqr >= T::MACHINE_CONSTANTS.abs_error_tolerance {
-                    let btol = T::MACHINE_CONSTANTS.abs_error_tolerance * (b_first_term.l1_norm());
-                    let mut poly_tol = T::MACHINE_CONSTANTS.abs_error_tolerance;
+                if recip_order_sqr >= mc.abs_error_tolerance {
+                    let btol = mc.abs_error_tolerance * (b_first_term.l1_norm());
+                    let mut poly_tol = mc.abs_error_tolerance;
 
                     let mut a_converged = false;
                     let mut b_converged = false;
@@ -483,7 +487,7 @@ impl<T: BesselFloat> AiryParams<T> {
                             let a_poly =
                                 evaluate_transition_poly(&p, &abs_p, a_block, k_max, poly_tol);
                             asum += a_poly * recip_order_power;
-                            if recip_order_power < T::MACHINE_CONSTANTS.abs_error_tolerance {
+                            if recip_order_power < mc.abs_error_tolerance {
                                 a_converged = true
                             };
                         }
@@ -545,12 +549,12 @@ impl<T: BesselFloat> AiryParams<T> {
                 let mut asum = first_a_term;
                 let mut bsum = first_b_term;
 
-                if reciprocal_order >= T::MACHINE_CONSTANTS.abs_error_tolerance {
+                if reciprocal_order >= mc.abs_error_tolerance {
                     let mut recip_nu_zeta_3_2_power = recip_nu_zeta_3_2;
                     let mut recip_nu_w_power = recip_nu_w;
                     u_polys[0] = T::C_ONE;
                     let mut recip_order_power = T::one();
-                    let btol = T::MACHINE_CONSTANTS.abs_error_tolerance * (bsum.l1_norm());
+                    let btol = mc.abs_error_tolerance * (bsum.l1_norm());
 
                     let mut a_converged = false;
                     let mut b_converged = false;
@@ -580,8 +584,8 @@ impl<T: BesselFloat> AiryParams<T> {
                             let a_term =
                                 u_polys[lr] + convolve_asymptotic_series(&a_coeffs, &u_polys, lr);
                             asum += a_term;
-                            if recip_order_power < T::MACHINE_CONSTANTS.abs_error_tolerance
-                                && a_term.l1_norm() < T::MACHINE_CONSTANTS.abs_error_tolerance
+                            if recip_order_power < mc.abs_error_tolerance
+                                && a_term.l1_norm() < mc.abs_error_tolerance
                             {
                                 a_converged = true
                             }

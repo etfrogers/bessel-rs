@@ -3,7 +3,7 @@ use num::{Complex, Integer, complex::ComplexFloat};
 use crate::{
     BesselError, BesselFloat, Scaling,
     amos::{
-        RotationDirection,
+        MachineConsts, RotationDirection,
         asymptotics::i_asymptotic,
         limits::{OverflowState, underflow_add_i_k},
         power_series::i_power_series,
@@ -28,6 +28,7 @@ pub fn analytic_continuation<T: BesselFloat>(
     rotation: RotationDirection,
     n: usize,
 ) -> Result<BesselValues<T>, BesselError<T>> {
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let mut n_zeros = 0;
     let negative_z = -z;
     let (i_values, _) = i_right_half_plane(negative_z, order, scaling, n)?;
@@ -59,7 +60,13 @@ pub fn analytic_continuation<T: BesselFloat>(
     let mut k_component = k_prev;
     let mut i_component = i_values[0];
     if scaling == Scaling::Scaled
-        && underflow_add_i_k(negative_z, &mut k_component, &mut i_component, &mut n_good)
+        && underflow_add_i_k(
+            negative_z,
+            &mut k_component,
+            &mut i_component,
+            &mut n_good,
+            mc,
+        )
     {
         n_zeros += 1;
     }
@@ -75,7 +82,13 @@ pub fn analytic_continuation<T: BesselFloat>(
     k_component = k_curr;
     i_component = i_values[1];
     let mut scaled_k_component = if scaling == Scaling::Scaled {
-        if underflow_add_i_k(negative_z, &mut k_component, &mut i_component, &mut n_good) {
+        if underflow_add_i_k(
+            negative_z,
+            &mut k_component,
+            &mut i_component,
+            &mut n_good,
+            mc,
+        ) {
             n_zeros += 1;
         }
         Some(k_component)
@@ -95,17 +108,17 @@ pub fn analytic_continuation<T: BesselFloat>(
     //     SCALE NEAR EXPONENT EXTREMES DURING RECURRENCE ON K FUNCTIONS
     //-----------------------------------------------------------------------
     let abs_s2 = k_curr.abs();
-    let mut overflow_state = if abs_s2 <= OverflowState::boundary(&OverflowState::NearUnder) {
+    let mut overflow_state = if abs_s2 <= OverflowState::boundary(&OverflowState::NearUnder, mc) {
         OverflowState::NearUnder
-    } else if abs_s2 > OverflowState::boundary(&OverflowState::None) {
+    } else if abs_s2 > OverflowState::boundary(&OverflowState::None, mc) {
         OverflowState::NearOver
     } else {
         OverflowState::None
     };
-    let mut boundary = overflow_state.boundary::<T>();
-    k_prev *= overflow_state.scaling_factor::<T>();
-    k_curr *= overflow_state.scaling_factor::<T>();
-    let mut recip_scaling_factor = overflow_state.reciprocal_scaling_factor::<T>();
+    let mut boundary = overflow_state.boundary::<T>(mc);
+    k_prev *= overflow_state.scaling_factor::<T>(mc);
+    k_curr *= overflow_state.scaling_factor::<T>(mc);
+    let mut recip_scaling_factor = overflow_state.reciprocal_scaling_factor::<T>(mc);
     for (i, (yi, ii)) in y.iter_mut().zip(i_values).enumerate().skip(2) {
         //TODO common pattern below
         let recurrence_factor = (order + T::from_usize(i - 1)) * two_over_z;
@@ -114,15 +127,21 @@ pub fn analytic_continuation<T: BesselFloat>(
         let mut unscaled_k_curr = k_component;
         i_component = ii;
         if scaling == Scaling::Scaled && n_good >= 0 {
-            if underflow_add_i_k(negative_z, &mut k_component, &mut i_component, &mut n_good) {
+            if underflow_add_i_k(
+                negative_z,
+                &mut k_component,
+                &mut i_component,
+                &mut n_good,
+                mc,
+            ) {
                 n_zeros += 1;
             }
             let saved_k_component = scaled_k_component.unwrap();
             scaled_k_component = Some(k_component);
             if n_good == 3 {
                 n_good = -4;
-                k_prev = saved_k_component * overflow_state.scaling_factor::<T>();
-                k_curr = k_component * overflow_state.scaling_factor::<T>();
+                k_prev = saved_k_component * overflow_state.scaling_factor::<T>(mc);
+                k_curr = k_component * overflow_state.scaling_factor::<T>(mc);
                 unscaled_k_curr = k_component;
             }
         }
@@ -134,6 +153,7 @@ pub fn analytic_continuation<T: BesselFloat>(
             unscaled_k_curr,
             &mut boundary,
             &mut recip_scaling_factor,
+            mc,
         );
     }
     Ok((y, n_zeros))
@@ -157,6 +177,7 @@ pub fn airy_analytic_continuation<T: BesselFloat>(
     scaling: Scaling,
     rotation: RotationDirection,
 ) -> BesselResult<T> {
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let mut n_zeros = 0;
     let negative_z = -z;
     let abs_z = z.abs();
@@ -171,7 +192,7 @@ pub fn airy_analytic_continuation<T: BesselFloat>(
             // the call here should not
             debug_assert!(n_zeros_inner_signed >= 0);
             (y, n_zeros_inner_signed.unsigned_abs())
-        } else if abs_z >= T::MACHINE_CONSTANTS.asymptotic_z_limit {
+        } else if abs_z >= mc.asymptotic_z_limit {
             //-----------------------------------------------------------------------
             //     ASYMPTOTIC EXPANSION FOR LARGE Z FOR THE I FUNCTION
             //-----------------------------------------------------------------------
@@ -208,7 +229,13 @@ pub fn airy_analytic_continuation<T: BesselFloat>(
     let mut i_value = i_value[0];
     if scaling == Scaling::Scaled {
         let mut n_good_dummy = 0;
-        if underflow_add_i_k(negative_z, &mut k_value, &mut i_value, &mut n_good_dummy) {
+        if underflow_add_i_k(
+            negative_z,
+            &mut k_value,
+            &mut i_value,
+            &mut n_good_dummy,
+            mc,
+        ) {
             n_zeros += 1;
         }
     }

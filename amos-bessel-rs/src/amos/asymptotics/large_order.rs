@@ -23,7 +23,7 @@ use num::{Complex, complex::ComplexFloat};
 use crate::{
     BesselError, Scaling,
     amos::{
-        RotationDirection,
+        MachineConsts, RotationDirection,
         asymptotics::{i_uniform_asymp1, i_uniform_asymp2, k_uniform_asymp1, k_uniform_asymp2},
         limits::OverflowState,
         recurrence::scale_controlled_recurrence,
@@ -61,16 +61,16 @@ pub(crate) fn i_asymp_large_order<T: BesselFloat>(
     n: usize,
     y: &mut [Complex<T>],
 ) -> Result<(usize, usize), BesselError<T>> {
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     // To evaluate the uniform asymptotic expansions accurately, the order must be >= asymptotic_order_limit.
     // If it isn't, we increment it up to that limit, evaluate the seeds, then recur backward to find
     // the values at the requested orders.
     let max_order = order + T::from_usize(n - 1);
 
-    let steps_to_asymptotic_limit =
-        ((T::MACHINE_CONSTANTS.asymptotic_order_limit - max_order).trunc() + T::one())
-            .max(T::zero())
-            .to_usize()
-            .unwrap();
+    let steps_to_asymptotic_limit = ((mc.asymptotic_order_limit - max_order).trunc() + T::one())
+        .max(T::zero())
+        .to_usize()
+        .unwrap();
 
     let imaginary_dominant = imaginary_dominant(z);
 
@@ -98,15 +98,15 @@ pub(crate) fn i_asymp_large_order<T: BesselFloat>(
     }
 
     // Pre-scale seeds if they are near underflow/overflow thresholds to protect the recurrence
-    let overflow_state = if seeds[0].abs() <= T::MACHINE_CONSTANTS.absolute_approximation_limit {
+    let overflow_state = if seeds[0].abs() <= mc.absolute_approximation_limit {
         OverflowState::NearUnder
-    } else if seeds[0].abs() >= T::ONE / T::MACHINE_CONSTANTS.absolute_approximation_limit {
+    } else if seeds[0].abs() >= T::ONE / mc.absolute_approximation_limit {
         OverflowState::NearOver
     } else {
         OverflowState::None
     };
 
-    let scaling_factor = overflow_state.scaling_factor::<T>();
+    let scaling_factor = overflow_state.scaling_factor::<T>(mc);
     // In backward recurrence: s1 corresponds to order + 1, s2 corresponds to order
     let s1 = seeds[1] * scaling_factor;
     let s2 = seeds[0] * scaling_factor;
@@ -122,15 +122,27 @@ pub(crate) fn i_asymp_large_order<T: BesselFloat>(
         s1,
         s2,
         overflow_state,
+        mc,
     );
 
-    y[n - 1] = s2 * overflow_state.reciprocal_scaling_factor::<T>();
+    y[n - 1] = s2 * overflow_state.reciprocal_scaling_factor::<T>(mc);
     if n == 1 {
         return Ok((0, n_last));
     }
 
     // Stage 2: Step backward from ν_max down to ν (buffered into y)
-    scale_controlled_recurrence(false, order, z, Some(y), n - 1, n, s1, s2, overflow_state);
+    scale_controlled_recurrence(
+        false,
+        order,
+        z,
+        Some(y),
+        n - 1,
+        n,
+        s1,
+        s2,
+        overflow_state,
+        mc,
+    );
 
     Ok((0, n_last))
 }

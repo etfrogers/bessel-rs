@@ -5,7 +5,10 @@ use num::{
 
 use crate::{
     BesselError, BesselFloat, Scaling,
-    amos::utils::{RECIP_TWO_PI, two_over_z_safe},
+    amos::{
+        MachineConsts,
+        utils::{RECIP_TWO_PI, two_over_z_safe},
+    },
     types::BesselResult,
 };
 
@@ -34,6 +37,7 @@ pub fn i_asymptotic<T: BesselFloat>(
     scaling: Scaling,
     n: usize,
 ) -> BesselResult<T, usize> {
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let mut y = T::c_zeros(n);
     let abs_z = z.abs();
     let recip_abs_z = T::one() / abs_z;
@@ -43,10 +47,10 @@ pub fn i_asymptotic<T: BesselFloat>(
         Scaling::Unscaled => z,
         Scaling::Scaled => Complex::<T>::new(T::zero(), z.im),
     };
-    if exponent_arg.re.abs() > T::MACHINE_CONSTANTS.exponent_limit {
+    if exponent_arg.re.abs() > mc.exponent_limit {
         return Err(BesselError::Overflow);
     }
-    let scaled_calculations = exponent_arg.re.abs() > T::MACHINE_CONSTANTS.approximation_limit;
+    let scaled_calculations = exponent_arg.re.abs() > mc.approximation_limit;
 
     let mut prefactor = (T::from_f64(RECIP_TWO_PI) * z.conj() * recip_abs_z.powi(2)).sqrt();
     if !scaled_calculations {
@@ -58,11 +62,8 @@ pub fn i_asymptotic<T: BesselFloat>(
     // When z is imaginary, the error test must be made relative to the
     // first reciprocal power since this is the leading term of the
     // expansion for the imaginary part.
-    let rel_tol_scale = T::MACHINE_CONSTANTS.abs_error_tolerance / abs_eight_z;
-    let max_iterations = (T::MACHINE_CONSTANTS.asymptotic_z_limit * T::two())
-        .to_usize()
-        .unwrap()
-        + 2;
+    let rel_tol_scale = mc.abs_error_tolerance / abs_eight_z;
+    let max_iterations = (mc.asymptotic_z_limit * T::two()).to_usize().unwrap() + 2;
     let mut phase_factor = if z.im == T::zero() {
         T::C_ZERO
     } else {
@@ -114,7 +115,7 @@ pub fn i_asymptotic<T: BesselFloat>(
             }
             (sum_alternating, sum_direct)
         };
-        if z.re * T::two() < T::MACHINE_CONSTANTS.exponent_limit {
+        if z.re * T::two() < mc.exponent_limit {
             sum_dominant += (-z * T::two()).exp() * phase_factor * sum_subdominant;
         }
         phase_factor = -phase_factor;
