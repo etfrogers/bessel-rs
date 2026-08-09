@@ -1,24 +1,32 @@
-use super::bessel_cases;
+extern crate fortran_amos_testing;
+mod common;
+use amos_bessel_rs::{BesselError, BesselFloat};
+use common::parametrisation::bessel_cases;
+use common::{
+    BesselSig, BesselValues, ComplexConversions, airy_ref, assert_results_are_equal, bessel_h_ref,
+    biry_ref, sig_airy, sig_airyp, sig_biry, sig_biryp, zeros_are_not_equivalent,
+};
 
 use complex_bessel_rs::bessel_i::bessel_i as bessel_i_ref;
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_ref;
 use complex_bessel_rs::bessel_k::bessel_k as bessel_k_ref;
 use complex_bessel_rs::bessel_y::bessel_y as bessel_y_ref;
+// use fortran_amos_testing::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
 
-use crate::{
-    BesselError, HankelKind, Scaling, airy, airy_b, airy_bp, airyp,
-    amos::{complex_bessel_i, complex_bessel_j, complex_bessel_k, complex_bessel_y},
-    bessel_i, bessel_j, bessel_k, bessel_y, complex_hankel1, complex_hankel2, hankel,
-    test_utils::{
-        BesselSig, ComplexConversions, DiagnosticBesselFloat, airy_ref, assert_results_are_equal,
-        assert_results_are_equal_floats, bessel_h_ref, biry_ref, sig_airy, sig_airyp, sig_biry,
-        sig_biryp, zeros_are_not_equivalent,
+use amos_bessel_rs::{
+    HankelKind, Scaling, airy, airy_b, airy_bp, airyp,
+    amos::{
+        complex_bessel_i, complex_bessel_j, complex_bessel_k, complex_bessel_y, complex_hankel1,
+        complex_hankel2,
     },
-    types::{BesselFloat, BesselValues},
+    bessel_i, bessel_j, bessel_k, bessel_y, hankel,
 };
-use num::{Complex, complex::Complex64};
+use num::Complex;
+use num::complex::Complex64;
 use rstest::rstest;
 use rstest_reuse::apply;
+
+use crate::common::{DiagnosticBesselFloat, assert_results_are_equal_floats};
 
 fn single_to_bessel_values<T: BesselFloat>(val: Complex<T>) -> BesselValues<T> {
     (vec![val], 0)

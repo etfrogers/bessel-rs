@@ -10,7 +10,6 @@ keywords = ["bessel-functions"]
 [features]
 # default = ["random_tests"]
 random_tests = []
-test-utils = ["rstest", "rstest_reuse", "fortran-amos-testing"]
 
 [build-dependencies]
 cc = { version = "1.2", optional = true }
@@ -21,10 +20,6 @@ itertools = "0.14.0"
 num = "0.4.3"
 paste = "1.0.15"
 thiserror = "2.0.17"
-approx = { version = "0.5.1", features = ["num-complex"] }
-rstest = { version = "0.26.1", optional = true }
-rstest_reuse = { version = "0.7.0", optional = true }
-fortran-amos-testing = { path = "../fortran-amos-testing", optional = true, version = "0.1.0" }
 
 
 [dev-dependencies]
@@ -36,7 +31,9 @@ rstest_reuse = "0.7.0"
 criterion = "0.7.0"
 complex-bessel = "0.2.0"
 pymath = "0.2.0"
-fortran-amos-testing = { path = "../fortran-amos-testing" }
+fortran-amos-testing = { path = "../fortran-amos-testing", version = "0.1.0" }
+approx = { version = "0.5.1", features = ["num-complex"] }
+
 
 [[bench]]
 name = "bessel_bench"
@@ -45,24 +42,3 @@ harness = false
 [[bench]]
 name = "precision_bench"
 harness = false
-
-
-[[test]]
-name = "grid_tests"
-path = "tests/grid_tests.rs"
-required-features = ["test-utils"]
-
-[[test]]
-name = "random_tests"
-path = "tests/random_tests.rs"
-required-features = ["test-utils"]
-
-[[test]]
-name = "test_bessel_funcs"
-path = "tests/test_bessel_funcs.rs"
-required-features = ["test-utils"]
-
-[[test]]
-name = "test_large_n"
-path = "tests/test_large_n.rs"
-required-features = ["test-utils"]

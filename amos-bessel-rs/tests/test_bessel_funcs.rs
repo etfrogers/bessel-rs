@@ -1,11 +1,11 @@
 extern crate fortran_amos_testing;
 mod common;
-use amos_bessel_rs::test_utils::{
+use common::parametrisation::bessel_cases;
+use common::{
     BesselFortranSig, BesselSig, airy_ref, assert_results_are_equal, bessel_h_ref, biry_ref,
     check_against_fortran, sig_airy, sig_airy_fortran, sig_airyp, sig_airyp_fortran, sig_biry,
     sig_biry_fortran, sig_biryp, sig_biryp_fortran, zbesh_fortran_first, zbesh_fortran_second,
 };
-use common::parametrisation::bessel_cases;
 
 use complex_bessel_rs::bessel_i::bessel_i as bessel_i_ref;
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_ref;

@@ -5,11 +5,8 @@ use std::{
     vec,
 };
 
-use super::DiagnosticBesselFloat;
-use crate::{
-    BesselError,
-    types::{BesselFloat, BesselValues},
-};
+use super::{BesselValues, DiagnosticBesselFloat};
+use amos_bessel_rs::{BesselError, BesselFloat};
 
 pub(crate) struct Tolerances {
     pub max_relative: f64,

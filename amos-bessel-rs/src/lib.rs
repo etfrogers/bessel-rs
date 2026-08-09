@@ -111,13 +111,12 @@ use crate::{
         as_integer, integer_sign, reflect_h_element, reflect_i_element, reflect_j_element,
         reflect_y_element,
     },
-    types::BesselFloat,
 };
 pub use amos::{HankelKind, Scaling};
 
 use num::Complex;
 use types::simple_bessel_wrapper;
-pub use types::{BackFrom, BesselError};
+pub use types::{BackFrom, BesselError, BesselFloat};
 
 // TODO work with abritrary bit-depth floats
 // TODO bessel derivatives
@@ -297,7 +296,3 @@ simple_bessel_wrapper!(hankel2);
 
 #[cfg(test)]
 mod tests;
-
-#[cfg(any(test, feature = "test-utils"))]
-#[doc(hidden)]
-pub mod test_utils;

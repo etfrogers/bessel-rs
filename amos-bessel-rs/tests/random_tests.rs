@@ -1,6 +1,6 @@
-// #[cfg(feature = "random_tests")]
-
+#![cfg(feature = "random_tests")]
 extern crate fortran_amos_testing;
+mod common;
 
 use complex_bessel_rs::{
     bessel_i::bessel_i as bessel_i_ref, bessel_j::bessel_j as bessel_j_ref,
@@ -23,12 +23,12 @@ use amos_bessel_rs::{
         complex_hankel2,
     },
     bessel_i, bessel_j, bessel_k, bessel_y, hankel,
-    test_utils::{
-        BesselFortranSig, BesselSig, airy_ref, assert_results_are_equal, bessel_h_ref, biry_ref,
-        check_against_fortran, fortran_bess_loop, sig_airy, sig_airy_fortran, sig_airyp,
-        sig_airyp_fortran, sig_biry, sig_biry_fortran, sig_biryp, sig_biryp_fortran,
-        zbesh_fortran_first, zbesh_fortran_second,
-    },
+};
+use common::{
+    BesselFortranSig, BesselSig, airy_ref, assert_results_are_equal, bessel_h_ref, biry_ref,
+    check_against_fortran, fortran_bess_loop, sig_airy, sig_airy_fortran, sig_airyp,
+    sig_airyp_fortran, sig_biry, sig_biry_fortran, sig_biryp, sig_biryp_fortran,
+    zbesh_fortran_first, zbesh_fortran_second,
 };
 
 const RANDOM_LIMIT: f64 = 10_000.0;
