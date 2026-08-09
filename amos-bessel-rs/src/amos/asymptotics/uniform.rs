@@ -21,11 +21,13 @@ use crate::{
 /// expansion for I(fnu,z) in -pi/3 <= arg z <= pi/3.
 ///
 /// asymptotic_order_limit is the smallest order permitted for the asymptotic
-/// expansion. nlast=0 means all of the y values were set.
-/// nlast != 0 is the number left to be computed by another
-/// formula for orders fnu to fnu+nlast-1 because
-/// fnu+nlast-1 < asymptotic_order_limit.
-/// y(i)=czero for i = nlast+1,n
+/// expansion.
+///
+/// nlast=0 means all of the y values were set.
+/// nlast != 0 is the number left to be computed by another formula for orders `order..order+nlast-1`
+/// because `fnu+nlast-1 < asymptotic_order_limit`.
+///
+/// y[i] = zero for i = nlast+1,n
 ///
 /// Originally ZUNI1
 pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
@@ -38,101 +40,119 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let mut n_zeros = 0;
     let mut n_remaining = n;
-    //-----------------------------------------------------------------------
-    //     CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER
-    //-----------------------------------------------------------------------
-    let mut modified_order = order.max(T::one());
 
-    let DebyeGeometry { zeta1, zeta2, .. } = DebyeGeometry::compute(z, modified_order);
+    // First check for complete underflow and overflow on the first member (n=1)
+    let limited_order = order.max(T::one());
+    let DebyeGeometry { zeta1, zeta2, .. } = DebyeGeometry::compute(z, limited_order);
+    let exponent = scaling.scale_zetas(z, limited_order, zeta1, zeta2);
 
-    // let (_, zeta1, zeta2, _) = ik_uniform_asymp_params(z, modified_order, IKType::I, true);
-    let s1 = scaling.scale_zetas(z, modified_order, zeta1, zeta2);
-    // phi is chosen here for refined tests to equal the original tests
-    // which don't test refinement
-    match OverflowState::check(s1.re, T::C_ONE, T::ZERO, mc) {
-        OverflowState::Over { .. } => return Err(BesselError::Overflow),
-        OverflowState::Under { .. } => return Ok((n, 0)),
+    // phi = 1 is chosen here for refined tests to equal the original tests.
+    // However, the was_refined flag is never checked, so the value used for
+    // refinement has no effect anyway
+    match OverflowState::check(exponent.re, T::C_ONE, T::ZERO, mc) {
+        OverflowState::Over { was_refined: _ } => return Err(BesselError::Overflow),
+        OverflowState::Under { was_refined: _ } => return Ok((n, 0)),
         _ => (),
     }
     let mut overflow_state = OverflowState::None; // this value should never be used
-    let mut cy = [T::C_ZERO; 2];
-    let mut handle_underflow = |n_remaining: &mut usize,
-                                y: &mut [Complex<T>]|
-     -> Result<bool, BesselError<T>> {
-        //-----------------------------------------------------------------------
-        //     SET UNDERFLOW AND UPDATE PARAMETERS
-        //-----------------------------------------------------------------------
-        y[*n_remaining - 1] = T::C_ZERO;
-        n_zeros += 1;
-        *n_remaining -= 1;
-        if *n_remaining == 0 {
-            return Ok(true);
-        }
-        let n_underflow =
-            check_underflow_uniform_asymp_params(z, order, scaling, IKType::I, *n_remaining, y)?;
-        *n_remaining -= n_underflow;
-        n_zeros += n_underflow;
-        if *n_remaining == 0 {
-            return Ok(true);
-        }
-        let modified_order = order + T::from_usize(*n_remaining - 1);
-        if modified_order < mc.asymptotic_order_limit {
-            return Ok(true);
-        }
-        Ok(false)
-    };
+    let mut recurrence_seeds = [T::C_ZERO; 2];
 
-    'outer: loop {
+    // If handle_underflow returns true, either the search has failed (all elements zero)
+    // or the order has dropped below the assymptotic limit.
+    // Either way the outer function should return.
+    // If the closure returns false, the search can continue.
+    let mut handle_underflow =
+        |n_remaining: &mut usize, y: &mut [Complex<T>]| -> Result<bool, BesselError<T>> {
+            // Set the y value to zero, and inc/decrement counters.
+            y[*n_remaining - 1] = T::C_ZERO;
+            n_zeros += 1;
+            *n_remaining -= 1;
+
+            // If we have no more valuse to test, tell the outer function to return
+            if *n_remaining == 0 {
+                return Ok(true);
+            }
+
+            // The line below lets us test for underflow on many elements in one go.
+            let n_underflow = check_underflow_uniform_asymp_params(
+                z,
+                order,
+                scaling,
+                IKType::I,
+                *n_remaining,
+                y,
+                mc,
+            )?;
+
+            // Again, inc/decrement and return if we ran out of values to test
+            *n_remaining -= n_underflow;
+            n_zeros += n_underflow;
+            if *n_remaining == 0 {
+                return Ok(true);
+            }
+
+            // Now check whether the decremented effective order has dropped
+            // below the assymptotic limit
+            let effective_order = order + T::from_usize(*n_remaining - 1);
+            if effective_order < mc.asymptotic_order_limit {
+                return Ok(true);
+            }
+            Ok(false)
+        };
+
+    // As the high-order I values can underflow to zero easily (and break the backward recurrence)
+    // This outer loop is retrying the inner loop until it succeds in finding two non-zero
+    // seeds for recurrence
+    'retry_find_seeds: loop {
         for i in 0..2.min(n_remaining) {
-            modified_order = order + T::from_usize(n_remaining - (i + 1));
+            let effective_order = order + T::from_usize(n_remaining - (i + 1));
             let DebyeParams {
                 phi_i: phi,
                 zeta1,
                 zeta2,
                 sum_i: sum,
                 ..
-            } = DebyeParams::compute(z, modified_order);
-            // let (phi, zeta1, zeta2, sum) =
-            //     ik_uniform_asymp_params(z, modified_order, IKType::I, false);
-            // let sum = sum.unwrap();
-            let mut s1 = scaling.scale_zetas(z, modified_order, zeta1, zeta2);
+            } = DebyeParams::compute(z, effective_order);
+
+            let mut exponent = scaling.scale_zetas(z, effective_order, zeta1, zeta2);
             if scaling == Scaling::Scaled {
-                s1 += Complex::<T>::new(T::ZERO, z.im);
+                exponent += Complex::<T>::new(T::ZERO, z.im);
             }
 
-            let of = OverflowState::check(s1.re, phi, T::ZERO, mc);
+            let overflow = OverflowState::check(exponent.re, phi, T::ZERO, mc);
             if i == 0 {
-                overflow_state = of;
+                overflow_state = overflow;
             }
-            match of {
+            match overflow {
                 OverflowState::Over { .. } => return Err(BesselError::Overflow),
                 OverflowState::Under { .. } => {
                     if handle_underflow(&mut n_remaining, y)? {
                         return Ok((n_zeros, n_remaining));
                     }
-                    continue 'outer;
+                    continue 'retry_find_seeds;
                 }
                 _ => (),
             }
-            //-----------------------------------------------------------------------
-            //     SCALE S1 if CABS(S1) < ASCLE
-            //-----------------------------------------------------------------------
-            let mut s2 = phi * sum;
-            s1 = overflow_state.scaling_factor::<T>(mc) * s1.exp();
-            s2 *= s1;
-            if overflow_state == OverflowState::NearUnder && will_underflow(s2, mc) {
+
+            let amplitude = phi * sum;
+            let exp_factor = overflow_state.scaling_factor::<T>(mc) * exponent.exp();
+            let bessel_value = amplitude * exp_factor;
+            if overflow_state == OverflowState::NearUnder && will_underflow(bessel_value, mc) {
                 if handle_underflow(&mut n_remaining, y)? {
                     return Ok((n_zeros, n_remaining));
                 }
-                continue 'outer;
+                continue 'retry_find_seeds;
             }
-            cy[i] = s2;
-            y[n_remaining - i - 1] = s2 * overflow_state.reciprocal_scaling_factor::<T>(mc);
+            recurrence_seeds[i] = bessel_value;
+            y[n_remaining - i - 1] =
+                bessel_value * overflow_state.reciprocal_scaling_factor::<T>(mc);
         }
-        break 'outer;
+        // if the loop above completed sucessfully, we found two non-zero seeds
+        break 'retry_find_seeds;
     }
+
     if n_remaining > 2 {
-        let [s1, s2] = cy;
+        let [rec_prev, rec_curr] = recurrence_seeds;
         scale_controlled_recurrence(
             false,
             order,
@@ -140,24 +160,32 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
             Some(y),
             n_remaining - 2,
             n,
-            s1,
-            s2,
+            rec_prev,
+            rec_curr,
             overflow_state,
             mc,
         );
     }
+
     Ok((n_zeros, 0))
 }
 
-/// i_uniform_asymp2 computes I(fnu,z) in the right half plane by means of
-/// uniform asymptotic expansion for J(fnu,zn) where zn is z*i
+/// i_uniform_asymp2 computes I(fnu, z) in the right half plane by means of
+/// uniform asymptotic expansion for J(fnu, zn) where zn is z*i
 /// or -z*i and zn is in the right half plane also.
 ///
 /// asymptotic_order_limit is the smallest order permitted for the asymptotic
-/// expansion. nlast=0 means all of the y values were set.
+/// expansion.
+///
+/// nlast=0 means all of the y values were set.
 /// nlast != 0 is the number left to be computed by another
-/// formula for orders fnu to fnu+nlast-1 because fnu+nlast-1 < asymptotic_order_limit.
-/// y(i)=czero for i=nlast+1,n
+/// formula for orders `order..order+nlast-1` because
+/// `order+nlast-1 < asymptotic_order_limit`.
+///
+/// y[i] = czero for i in nlast+1..n
+///
+/// The logic is very similar to i_uniform_asymp2 and the flow control comments from that
+/// function apply here too.
 ///
 /// Originally ZUNI2
 pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
@@ -227,8 +255,15 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
         if *n_remaining == 0 {
             return Ok(true);
         }
-        let n_underflow =
-            check_underflow_uniform_asymp_params(z, order, scaling, IKType::I, *n_remaining, y)?;
+        let n_underflow = check_underflow_uniform_asymp_params(
+            z,
+            order,
+            scaling,
+            IKType::I,
+            *n_remaining,
+            y,
+            mc,
+        )?;
         *n_remaining -= n_underflow;
         n_zeros += n_underflow;
         if *n_remaining == 0 {
@@ -328,9 +363,9 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
     Ok((n_zeros, 0))
 }
 
-/// zunk1 computes K(fnu,z) and its analytic continuation from the
-/// right half plane to the left half plane by means of the
-/// uniform asymptotic expansion.
+/// k_uniform_asymp1 computes K(order, z) and its analytic continuation from the
+/// right half plane to the left half plane by means of the  uniform asymptotic expansion.
+///
 /// `rotation` indicates the direction of rotation for analytic continuation.
 ///
 /// Originally ZUNK1
@@ -343,31 +378,26 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
 ) -> BesselResult<T> {
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
 
-    let mut found_one_good_entry = false;
+    let mut found_one_good_seed = false;
     let mut n_zeros = 0;
-    //-----------------------------------------------------------------------
-    //     EXP(-ALIM)=EXP(-ELIM)/TOL=APPROX. ONE PRECISION GREATER THAN
-    //     THE UNDERFLOW LIMIT
-    //-----------------------------------------------------------------------
-    let modified_z = if z.re < T::ZERO { -z } else { z };
-    // let mut phi = [T::C_ZERO; 2];
-    // let mut zeta1 = [T::C_ZERO; 2];
-    // let mut zeta2 = [T::C_ZERO; 2];
-    // let mut sum = [T::C_ZERO; 2];
+    let (z_right_half, z_was_flipped) = if z.re < T::ZERO {
+        (-z, true)
+    } else {
+        (z, false)
+    };
     let mut debye_seeds: [Option<DebyeParams<T>>; 2] = [None, None];
-    let mut cy = [T::C_ZERO; 2];
+    let mut recurrence_seeds = [T::C_ZERO; 2];
+
     let mut n_elements_set = 0;
     let mut y = T::c_zeros(n);
     let mut k_overflow_state = OverflowState::NearUnder;
 
     for i in 0..n {
         n_elements_set = i + 1;
-        // j flip-flops between 0 and 1 using j = 1-j
-        // j = 1 - j;
         let modified_order = order + T::from_usize(i);
 
-        // Note: use modified_z so Re(z) >= 0
-        let params = DebyeParams::compute(modified_z, modified_order);
+        // Note: use z_right_half so Re(z) >= 0
+        let params = DebyeParams::compute(z_right_half, modified_order);
         if i < 2 {
             debye_seeds[i] = Some(params);
         }
@@ -375,39 +405,36 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         // Use the K fields:
         let phi = params.phi_k;
         let sum = params.sum_k;
-        let mut s1 = -scaling.scale_zetas(modified_z, modified_order, params.zeta1, params.zeta2);
-        let of = OverflowState::check(s1.re, phi, T::ZERO, mc);
-        if !found_one_good_entry {
-            k_overflow_state = of;
+        let mut s1 = -scaling.scale_zetas(z_right_half, modified_order, params.zeta1, params.zeta2);
+        let overflow = OverflowState::check(s1.re, phi, T::ZERO, mc);
+        if !found_one_good_seed {
+            k_overflow_state = overflow;
         }
-        match of {
+        match overflow {
             OverflowState::Over { .. } => return Err(BesselError::Overflow),
             OverflowState::Under { .. } => {
-                if z.re < T::ZERO {
+                if z_was_flipped {
                     return Err(BesselError::Overflow);
                 }
-                found_one_good_entry = false;
+                found_one_good_seed = false;
                 y[i] = T::C_ZERO;
                 n_zeros += 1;
             }
             OverflowState::None | OverflowState::NearOver | OverflowState::NearUnder => {
-                //-----------------------------------------------------------------------
-                //     SCALE S1 TO KEEP INTERMEDIATE ARITHMETIC ON SCALE NEAR
-                //     EXPONENT EXTREMES
-                //-----------------------------------------------------------------------
                 let mut s2 = phi * sum;
                 s1 = k_overflow_state.scaling_factor::<T>(mc) * s1.exp();
                 s2 *= s1;
                 let will_underflow = will_underflow(s2, mc);
                 if k_overflow_state != OverflowState::NearUnder || !will_underflow {
-                    cy[found_one_good_entry as usize] = s2;
+                    recurrence_seeds[found_one_good_seed as usize] = s2;
                     y[i] = s2 * k_overflow_state.reciprocal_scaling_factor::<T>(mc);
-                    if found_one_good_entry {
+                    if found_one_good_seed {
+                        // if we already found one, we've now found another so break out of the loop
                         break;
                     }
-                    found_one_good_entry = true;
+                    found_one_good_seed = true;
                 } else if will_underflow {
-                    if z.re < T::ZERO {
+                    if z_was_flipped {
                         return Err(BesselError::Overflow);
                     }
                     y[i] = T::C_ZERO;
@@ -421,7 +448,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         };
     }
 
-    let two_over_z = two_over_z_safe(modified_z);
+    let two_over_z = two_over_z_safe(z_right_half);
     if n_elements_set < n {
         //-----------------------------------------------------------------------
         //     TEST LAST MEMBER FOR UNDERFLOW AND OVERFLOW. SET SEQUENCE TO ZERO
@@ -433,19 +460,13 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
             zeta1: zet1d,
             zeta2: zet2d,
             ..
-        } = DebyeGeometry::compute(modified_z, max_order);
-        // let (phi, zet1d, zet2d, _sumd) = ik_uniform_asymp_params(
-        //     modified_z,
-        //     max_order,
-        //     IKType::K,
-        //     rotation == RotationDirection::None,
-        // );
-        let overflow_test = -scaling.scale_zetas(modified_z, max_order, zet1d, zet2d);
+        } = DebyeGeometry::compute(z_right_half, max_order);
+        let overflow_test = -scaling.scale_zetas(z_right_half, max_order, zet1d, zet2d);
 
         match OverflowState::check(overflow_test.re.abs(), phi, T::ZERO, mc) {
             OverflowState::Over { .. } => return Err(BesselError::Overflow),
             OverflowState::Under { .. } => {
-                return if z.re < T::ZERO {
+                return if z_was_flipped {
                     Err(BesselError::Overflow)
                 } else {
                     Ok((vec![T::C_ZERO; n], n))
@@ -456,11 +477,11 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         //---------------------------------------------------------------------------
         //     FORWARD RECUR FOR REMAINDER OF THE SEQUENCE
         //----------------------------------------------------------------------------
-        let [s1, s2] = cy;
+        let [s1, s2] = recurrence_seeds;
         scale_controlled_recurrence(
             true,
             order,
-            modified_z,
+            z_right_half,
             Some(&mut y),
             n_elements_set,
             n,
@@ -489,7 +510,6 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
     if (modified_int_order % 2) != 0 {
         cspn = -cspn;
     }
-    let mut dummy_n_good = 0;
     let mut found_one_good_entry = false;
     let mut i_overflow_state = OverflowState::None;
     let mut remaining_n = n;
@@ -499,9 +519,9 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
 
         // Reuse from stack if i is 0 or 1, otherwise compute fresh:
         let params = if i < 2 {
-            debye_seeds[i].unwrap_or_else(|| DebyeParams::compute(modified_z, current_order))
+            debye_seeds[i].unwrap_or_else(|| DebyeParams::compute(z_right_half, current_order))
         } else {
-            DebyeParams::compute(modified_z, current_order)
+            DebyeParams::compute(z_right_half, current_order)
         };
 
         // Use the I fields:
@@ -515,7 +535,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         // let (phid, zet1d, zet2d, sumd) =
         //     ik_uniform_asymp_params(modified_z, current_order, IKType::I, false); //, &mut INITD);
         // let sumd = sumd.unwrap();
-        let mut s1 = scaling.scale_zetas(modified_z, current_order, params.zeta1, params.zeta2);
+        let mut s1 = scaling.scale_zetas(z_right_half, current_order, params.zeta1, params.zeta2);
         //-----------------------------------------------------------------------
         //     TEST FOR UNDERFLOW AND OVERFLOW
         //-----------------------------------------------------------------------
@@ -539,15 +559,16 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
                 s2
             }
         };
-        cy[found_one_good_entry as usize] = s2;
+        recurrence_seeds[found_one_good_entry as usize] = s2;
         let c2 = s2;
         s2 *= i_overflow_state.reciprocal_scaling_factor::<T>(mc);
         //-----------------------------------------------------------------------
         //     ADD I AND K FUNCTIONS, K SEQUENCE IN Y(I), I=1,N
         //-----------------------------------------------------------------------
         s1 = *yi;
+        let mut dummy_n_good = 0;
         if scaling == Scaling::Scaled
-            && underflow_add_i_k(modified_z, &mut s1, &mut s2, &mut dummy_n_good, mc)
+            && underflow_add_i_k(z_right_half, &mut s1, &mut s2, &mut dummy_n_good, mc)
         {
             n_zeros += 1;
         }
@@ -568,7 +589,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         //     K FUNCTIONS, SCALING THE I SEQUENCE DURING RECURRENCE TO KEEP
         //     INTERMEDIATE ARITHMETIC ON SCALE NEAR EXPONENT EXTREMES.
         //-----------------------------------------------------------------------
-        let [mut s1, mut s2] = cy;
+        let [mut s1, mut s2] = recurrence_seeds;
         let mut reciprocal_scale_factor = i_overflow_state.reciprocal_scaling_factor::<T>(mc);
         let mut absolute_approximation_limit = i_overflow_state.boundary::<T>(mc);
         for (i, yi) in y.iter_mut().enumerate().take(remaining_n).rev() {
@@ -578,8 +599,16 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
             let ck = unscaled_s2;
 
             let mut c1 = *yi;
+
+            let mut dummy_n_good = 0;
             if scaling == Scaling::Scaled
-                && underflow_add_i_k(modified_z, &mut c1, &mut unscaled_s2, &mut dummy_n_good, mc)
+                && underflow_add_i_k(
+                    z_right_half,
+                    &mut c1,
+                    &mut unscaled_s2,
+                    &mut dummy_n_good,
+                    mc,
+                )
             {
                 n_zeros += 1;
             }

@@ -172,8 +172,8 @@ pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
     ik_type: IKType,
     n_to_test: usize,
     y: &mut [Complex<T>],
+    mc: &MachineConsts<T>,
 ) -> Result<usize, BesselError<T>> {
-    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let mut n_underflow = 0;
     let zr = if z.re < T::zero() { -z } else { z };
     let zn = if z.im <= T::zero() {

@@ -88,6 +88,7 @@ pub fn complex_bessel_h<T: BesselFloat>(
                     IKType::K,
                     n,
                     &mut cy,
+                    mc,
                 )?;
 
                 n_zeros += n_underflow;
@@ -467,7 +468,7 @@ pub fn complex_bessel_k<T: BesselFloat>(
     if max_order > T::two() {
         let mut y = T::c_zeros(n);
         let n_underflow =
-            check_underflow_uniform_asymp_params(z, order, scaling, IKType::K, n, &mut y)?;
+            check_underflow_uniform_asymp_params(z, order, scaling, IKType::K, n, &mut y, mc)?;
         n_zeros += n_underflow;
 
         //-----------------------------------------------------------------------;

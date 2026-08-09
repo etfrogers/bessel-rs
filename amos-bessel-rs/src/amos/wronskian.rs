@@ -21,8 +21,15 @@ pub(crate) fn i_wronskian<T: BesselFloat>(
     y: &mut [Complex<T>],
 ) -> Result<usize, BesselError<T>> {
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
-    match check_underflow_uniform_asymp_params(z, order, scaling, IKType::K, 2, &mut [T::C_ONE; 2])
-    {
+    match check_underflow_uniform_asymp_params(
+        z,
+        order,
+        scaling,
+        IKType::K,
+        2,
+        &mut [T::C_ONE; 2],
+        mc,
+    ) {
         Ok(n_underflow) => {
             if n_underflow > 0 {
                 return Err(BesselError::Overflow);
