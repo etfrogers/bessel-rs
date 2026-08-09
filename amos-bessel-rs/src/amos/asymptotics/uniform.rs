@@ -18,7 +18,7 @@ use crate::{
 };
 
 /// i_uniform_asymp1 computes I(fnu,z)  by means of the uniform asymptotic
-/// expansion for I(fnu,z) in -pi/3 <= arg z <= pi/3.
+/// expansion for I(fnu,z) in -pi/3 <= arg(z) <= pi/3.
 ///
 /// asymptotic_order_limit is the smallest order permitted for the asymptotic
 /// expansion.
@@ -68,7 +68,7 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
             n_zeros += 1;
             *n_remaining -= 1;
 
-            // If we have no more valuse to test, tell the outer function to return
+            // If we have no more values to test, tell the outer function to return
             if *n_remaining == 0 {
                 return Ok(true);
             }
@@ -105,16 +105,16 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
     // seeds for recurrence
     'retry_find_seeds: loop {
         for i in 0..2.min(n_remaining) {
-            let effective_order = order + T::from_usize(n_remaining - (i + 1));
+            let current_order = order + T::from_usize(n_remaining - (i + 1));
             let DebyeParams {
                 phi_i: phi,
                 zeta1,
                 zeta2,
                 sum_i: sum,
                 ..
-            } = DebyeParams::compute(z, effective_order);
+            } = DebyeParams::compute(z, current_order);
 
-            let mut exponent = scaling.scale_zetas(z, effective_order, zeta1, zeta2);
+            let mut exponent = scaling.scale_zetas(z, current_order, zeta1, zeta2);
             if scaling == Scaling::Scaled {
                 exponent += Complex::<T>::new(T::ZERO, z.im);
             }
@@ -199,59 +199,60 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
     let mut n_zeros = 0;
     let mut n_remaining = n;
 
-    //-----------------------------------------------------------------------
-    //     ZN IS IN THE RIGHT HALF PLANE AFTER ROTATION BY CI OR -CI
-    //-----------------------------------------------------------------------
-    let mut zn = Complex::<T>::new(z.im, -z.re);
-    let mut zb = z;
+    // We force z into the upper half plane to calculate, and then conjugate the answer
+    // back down at the very end if necessary.
+    // z_uppper is always in the upper half plane (z_upper.im > 0)
+    // z_rotated is in the right half plane after rotation by I or -I
+    let (sign_of_i, z_was_flipped, z_upper) = if z.im <= T::ZERO {
+        (T::ONE, true, z.conj())
+    } else {
+        (-T::ONE, false, z)
+    };
+    let z_rotated = -T::I * z_upper;
     let integer_order = order.to_usize().unwrap();
 
-    let build_c2 = |effective_n: usize| {
-        let mut c2 = Complex::<T>::cis(T::FRAC_PI_2() * order.fract())
+    // Computes i^order by separating integer/fractional parts to avoid precision loss in trig functions
+    let calculate_rotation_factor = |effective_n: usize| {
+        let r = Complex::<T>::cis(T::FRAC_PI_2() * order.fract())
             * i_pow(integer_order + effective_n - 1);
-        if z.im <= T::zero() {
-            c2 = c2.conj();
-        }
-        c2
+        if z_was_flipped { r.conj() } else { r }
     };
-    let mut c2 = build_c2(n);
-    let sign_of_i = if z.im <= T::zero() {
-        zn.re = -zn.re;
-        zb.im = -zb.im;
-        T::one()
-    } else {
-        -T::one()
-    };
-    //-----------------------------------------------------------------------
-    //     CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER
-    //-----------------------------------------------------------------------
-    let mut modified_order = order.max(T::one());
-    let AiryGeometry { zeta1, zeta2, .. } = AiryGeometry::compute(zn, modified_order);
 
-    let s1 = scaling.scale_zetas(zb, modified_order, zeta1, zeta2);
+    let mut rotation_factor = calculate_rotation_factor(n);
 
-    // phi is chosen here for refined tests to equal the original tests
-    // which don't test refinement
-    match OverflowState::check(s1.re, T::C_ONE, T::zero(), mc) {
+    // First check for complete underflow and overflow on the first member (n=1)
+    let limited_order = order.max(T::one());
+    let AiryGeometry { zeta1, zeta2, .. } = AiryGeometry::compute(z_rotated, limited_order);
+
+    // 1. Calculate the exponent
+    let exponent = scaling.scale_zetas(z_upper, limited_order, zeta1, zeta2);
+
+    // phi = 1 is chosen here for refined tests to equal the original tests.
+    // However, the was_refined flag is never checked, so the value used for
+    // refinement has no effect anyway
+    match OverflowState::check(exponent.re, T::C_ONE, T::zero(), mc) {
         OverflowState::Over { .. } => return Err(BesselError::Overflow),
         OverflowState::Under { .. } => return Ok((n, 0)),
         _ => (),
     }
 
-    debug_assert!(modified_order + T::from_usize(n - 1) > mc.asymptotic_order_limit);
+    debug_assert!(limited_order + T::from_usize(n - 1) > mc.asymptotic_order_limit);
 
-    let mut overflow_state = OverflowState::NearUnder;
-    let mut cy = [T::C_ZERO; 2];
+    // If handle_underflow returns true, either the search has failed (all elements zero)
+    // or the order has dropped below the assymptotic limit.
+    // Either way the outer function should return.
+    // If the closure returns false, the search can continue.
+    //
+    // The underflow handling and retry loop below is identical in structure to i_uniform_asymp1.
+    // See the comments in that function for a detailed explanation of the recurrence seeding logic.
     let mut handle_underflow = |n_remaining: &mut usize,
-                                c2: &mut Complex<T>,
+                                rotation_factor: &mut Complex<T>,
                                 y: &mut [Complex<T>]|
      -> Result<bool, BesselError<T>> {
-        //-----------------------------------------------------------------------
-        //     SET UNDERFLOW AND UPDATE PARAMETERS
-        //-----------------------------------------------------------------------
         y[*n_remaining - 1] = T::C_ZERO;
         n_zeros += 1;
         *n_remaining -= 1;
+
         if *n_remaining == 0 {
             return Ok(true);
         }
@@ -273,12 +274,17 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
         if modified_order < mc.asymptotic_order_limit {
             return Ok(true);
         }
-        *c2 = build_c2(*n_remaining);
+        *rotation_factor = calculate_rotation_factor(*n_remaining);
         Ok(false)
     };
-    'outer: loop {
+
+    let mut overflow_state = OverflowState::NearUnder;
+    let mut recurrence_seeds = [T::C_ZERO; 2];
+    // This outer loop says: keep looping until you found two non-zero seeds for the recurrence
+    // formula
+    'retry_find_seeds: loop {
         for i in 0..2.min(n_remaining) {
-            modified_order = order + T::from_usize(n_remaining - (i + 1));
+            let current_order = order + T::from_usize(n_remaining - (i + 1));
             let AiryParams {
                 phi,
                 arg,
@@ -287,22 +293,15 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
                 asum,
                 bsum,
                 ..
-            } = AiryParams::compute(zn, modified_order);
+            } = AiryParams::compute(z_rotated, current_order);
 
-            // let (phi, arg, zeta1, zeta2, asum, bsum) =
-            //     hj_uniform_asymp_params(zn, modified_order, false);
-            // let asum = asum.unwrap();
-            // let bsum = bsum.unwrap();
-            let mut s1 = scaling.scale_zetas(zb, modified_order, zeta1, zeta2);
+            let mut exponent = scaling.scale_zetas(z_upper, current_order, zeta1, zeta2);
             if scaling == Scaling::Scaled {
-                s1 += T::I * z.im.abs();
+                exponent += T::I * z.im.abs();
             }
 
-            //-----------------------------------------------------------------------
-            //     TEST FOR UNDERFLOW AND OVERFLOW
-            //-----------------------------------------------------------------------
             let of = OverflowState::check(
-                s1.re,
+                exponent.re,
                 phi,
                 T::from_f64(-0.25) * arg.abs().ln() - T::from_f64(AIC),
                 mc,
@@ -313,40 +312,52 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
             match of {
                 OverflowState::Over { .. } => return Err(BesselError::Overflow),
                 OverflowState::Under { .. } => {
-                    if handle_underflow(&mut n_remaining, &mut c2, y)? {
+                    if handle_underflow(&mut n_remaining, &mut rotation_factor, y)? {
                         return Ok((n_zeros, n_remaining));
                     }
-                    continue 'outer;
+                    continue 'retry_find_seeds;
                 }
                 _ => (),
             }
-            //-----------------------------------------------------------------------
-            //     SCALE S1 TO KEEP INTERMEDIATE ARITHMETIC ON SCALE NEAR
-            //     EXPONENT EXTREMES
-            //-----------------------------------------------------------------------
             let (a_airy, d_airy) = airy_pair(arg);
 
-            let mut s2 = phi * (d_airy * bsum + a_airy * asum);
-            let s1 = overflow_state.scaling_factor::<T>(mc) * s1.exp();
-            s2 *= s1;
-            if overflow_state == OverflowState::NearUnder && will_underflow(s2, mc) {
-                if handle_underflow(&mut n_remaining, &mut c2, y)? {
+            // 2. Combine the Airy functions, Debye sums, and phi into the amplitude
+            let airy_sum = a_airy * asum + d_airy * bsum;
+            let amplitude = phi * airy_sum;
+
+            // 3. Exponentiate the exponent
+            let exp_factor = overflow_state.scaling_factor::<T>(mc) * exponent.exp();
+
+            // 4. Combine them to get the un-rotated Bessel evaluation
+            let mut bessel_value = amplitude * exp_factor;
+
+            if overflow_state == OverflowState::NearUnder && will_underflow(bessel_value, mc) {
+                if handle_underflow(&mut n_remaining, &mut rotation_factor, y)? {
                     return Ok((n_zeros, n_remaining));
                 }
-                continue 'outer;
+                continue 'retry_find_seeds;
             }
-            if z.im <= T::ZERO {
-                s2 = s2.conj();
+
+            // 5. Finally, rotate the value from the J domain back into the I domain
+            if z_was_flipped {
+                bessel_value = bessel_value.conj();
             }
-            s2 *= c2;
-            cy[i] = s2;
-            y[n_remaining - i - 1] = s2 * overflow_state.reciprocal_scaling_factor::<T>(mc);
-            c2 *= sign_of_i * T::I;
+            bessel_value *= rotation_factor;
+
+            recurrence_seeds[i] = bessel_value;
+            y[n_remaining - i - 1] =
+                bessel_value * overflow_state.reciprocal_scaling_factor::<T>(mc);
+
+            // Step the rotation factor backwards for the next order (n - 1)
+            rotation_factor *= sign_of_i * T::I;
         }
-        break 'outer;
+        break 'retry_find_seeds;
     }
+
+    // If we found two seeds, and still have come n to calculate, then do it
+    // with backward recurrence
     if n_remaining > 2 {
-        let [s1, s2] = cy;
+        let [s1, s2] = recurrence_seeds;
         scale_controlled_recurrence(
             false,
             order,
@@ -632,7 +643,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
     Ok((y, n_zeros))
 }
 
-/// zunk2 computes K(fnu,z) and its analytic continuation from the
+/// k_uniform_asymp2 computes K(fnu,z) and its analytic continuation from the
 /// right half plane to the left half plane by means of the
 /// uniform asymptotic expansions for H(kind,fnu,zn) and J(fnu,zn)
 /// where zn is in the right half plane, kind=(3-mr)/2, mr=+1 or
