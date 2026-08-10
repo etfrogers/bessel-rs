@@ -126,9 +126,9 @@ impl OverflowState {
             *boundary = self.boundary::<T>(mc);
             *s1 *= *recip_scaling_factor;
             *s2 = unscaled_s2;
-            let sf = self.scaling_factor::<T>(mc);
-            *s1 *= sf;
-            *s2 *= sf;
+            let scaling = self.scaling_factor::<T>(mc);
+            *s1 *= scaling;
+            *s2 *= scaling;
             *recip_scaling_factor = self.reciprocal_scaling_factor::<T>(mc);
         }
     }
