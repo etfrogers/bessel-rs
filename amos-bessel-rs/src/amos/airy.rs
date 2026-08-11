@@ -8,7 +8,19 @@ use crate::{
 
 const MAX_AIRY_ITERATIONS: usize = 25;
 
-pub fn airy_power_series<T: BesselFloat>(
+/// Evaluates the Airy function (or its derivative) via its Maclaurin power series.
+///
+/// The Airy function Ai(z) is given by:
+///     Ai(z)  = c1 * f(z) - c2 * g(z)
+///     Ai'(z) = c1 * f'(z) - c2 * g'(z)
+///
+/// Where:
+///     f(z) = 1 + 1/3! z^3 + (1*4)/6! z^6 + ...
+///     g(z) = z * (1 + 2/4! z^3 + (2*5)/7! z^6 + ...)
+///
+/// When `return_derivative` is true, it evaluates the series for f'(z) and g'(z).
+/// The loop computes the terms for the two series simultaneously (`sum1` and `sum2`).
+pub(crate) fn airy_power_series<T: BesselFloat>(
     z: Complex<T>,
     return_derivative: bool,
     coeffs: (f64, f64),
@@ -18,75 +30,66 @@ pub fn airy_power_series<T: BesselFloat>(
     let c2 = T::from_f64(coeffs.1);
 
     let abs_z = z.abs();
+
+    let (sum1, sum2) = if abs_z < mc.abs_error_tolerance {
+        (T::C_ONE, T::C_ONE)
+    } else {
+        let abs_z_sq = abs_z.powi(2);
+        let mut sum1 = T::C_ONE;
+        let mut sum2 = T::C_ONE;
+
+        if abs_z_sq >= mc.abs_error_tolerance / abs_z {
+            let mut term1 = T::C_ONE;
+            let mut term2 = T::C_ONE;
+            let mut convergence_term = T::ONE;
+            let z_cubed = z.powi(3);
+            let abs_z_3_over_2 = abs_z * abs_z_sq;
+
+            // The initial denominator multipliers for the power series terms (k=1).
+            // For f(z), the first multiplier is 3 * 2 = 6.0
+            // For g(z), the first multiplier is 4 * 3 = 12.0
+            // For f'(z) and g'(z), the multipliers shift to 5 * 3 = 15.0 and 3 * 1 = 3.0
+            let mut denom1 = T::from_f64(if return_derivative { 15.0 } else { 6.0 });
+            let mut denom2 = T::from_f64(if return_derivative { 3.0 } else { 12.0 });
+            let mut min_denom = denom1.min(denom2);
+
+            // `step1` and `step2` are the amounts added to the denominators on each iteration.
+            let mut step1 = T::from_f64(if return_derivative { 33.0 } else { 24.0 });
+            let mut step2 = T::from_f64(if return_derivative { 21.0 } else { 30.0 });
+
+            for _ in 0..MAX_AIRY_ITERATIONS {
+                term1 = term1 * z_cubed / denom1;
+                sum1 += term1;
+                term2 = term2 * z_cubed / denom2;
+                sum2 += term2;
+                convergence_term = convergence_term * abs_z_3_over_2 / min_denom;
+                denom1 += step1;
+                denom2 += step2;
+                min_denom = denom1.min(denom2);
+                if convergence_term < mc.abs_error_tolerance * min_denom {
+                    break;
+                }
+                step1 += T::from_f64(18.0);
+                step2 += T::from_f64(18.0);
+            }
+        }
+        (sum1, sum2)
+    };
+
     let z_floor = if abs_z < mc.underflow_limit {
         T::C_ZERO
     } else {
         z
     };
-    let (s1, s2) = if abs_z < mc.abs_error_tolerance {
-        (T::C_ONE, T::C_ONE)
-    } else {
-        let abs_z_sq = abs_z * abs_z;
-        let mut s1 = T::C_ONE;
-        let mut s2 = T::C_ONE;
-
-        if abs_z_sq >= mc.abs_error_tolerance / abs_z {
-            let mut term1 = T::C_ONE;
-            let mut term2 = T::C_ONE;
-            let mut a_term = T::ONE;
-            let z_cubed = z.powi(3);
-            let abs_z_3_over_2 = abs_z * abs_z_sq;
-            let (ak, bk, ck, dk) = if return_derivative {
-                (T::from_f64(3.0), T::ONE, T::from_f64(3.0), T::from_f64(5.0))
-            } else {
-                (
-                    T::from_f64(2.0),
-                    T::from_f64(3.0),
-                    T::from_f64(4.0),
-                    T::from_f64(3.0),
-                )
-            };
-
-            let mut d1: T = ak * dk;
-            let mut d2 = bk * ck;
-            let mut min_d = d1.min(d2);
-            let mut ak = if return_derivative {
-                T::from_f64(33.0)
-            } else {
-                T::from_f64(24.0)
-            };
-            let mut bk = if return_derivative {
-                T::from_f64(21.0)
-            } else {
-                T::from_f64(30.0)
-            };
-            for _ in 0..MAX_AIRY_ITERATIONS {
-                term1 = term1 * z_cubed / d1;
-                s1 += term1;
-                term2 = term2 * z_cubed / d2;
-                s2 += term2;
-                a_term = a_term * abs_z_3_over_2 / min_d;
-                d1 += ak;
-                d2 += bk;
-                min_d = d1.min(d2);
-                if a_term < mc.abs_error_tolerance * min_d {
-                    break;
-                }
-                ak += T::from_f64(18.0);
-                bk += T::from_f64(18.0);
-            }
-        }
-        (s1, s2)
-    };
 
     if return_derivative {
-        z_floor.powi(2) * s1 * (c1 / T::two()) - s2 * c2
+        z_floor.powi(2) * sum1 * (c1 / T::two()) - sum2 * c2
     } else {
-        s1 * c1 - c2 * z_floor * s2
+        sum1 * c1 - c2 * z_floor * sum2
     }
 }
 
-pub fn airy_pair<T: BesselFloat>(z: Complex<T>) -> (Complex<T>, Complex<T>) {
+pub(crate) fn airy_pair<T: BesselFloat>(z: Complex<T>) -> (Complex<T>, Complex<T>) {
     //note that ZAIRY calls in fortran code ignore IERR (using IDUM)
     let evaluate_airy_and_unwrap =
         |is_derivative| match complex_airy(z, is_derivative, Scaling::Scaled) {
