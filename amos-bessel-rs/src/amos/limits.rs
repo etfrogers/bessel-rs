@@ -324,7 +324,6 @@ pub(crate) fn underflow_add_i_k<T: BesselFloat>(
     zr: Complex<T>,
     s_k: &mut Complex<T>,
     s_i: &mut Complex<T>,
-    n_good: &mut isize,
     mc: &MachineConsts<T>,
 ) -> bool {
     let abs_s_k = s_k.abs();
@@ -332,7 +331,6 @@ pub(crate) fn underflow_add_i_k<T: BesselFloat>(
         let test = (-T::two() * zr.re) + abs_s_k.ln();
         if test >= (-mc.approximation_limit) {
             *s_k = (s_k.ln() - zr * T::two()).exp();
-            *n_good += 1;
         } else {
             *s_k = T::C_ZERO;
         }
@@ -342,7 +340,6 @@ pub(crate) fn underflow_add_i_k<T: BesselFloat>(
     } else {
         *s_k = T::C_ZERO;
         *s_i = T::C_ZERO;
-        *n_good = 0;
         true
     }
 }

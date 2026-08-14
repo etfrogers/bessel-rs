@@ -269,3 +269,20 @@ fn test_k_right_half_plane_underflow_offset_bug() {
         1e6,
     );
 }
+
+#[rstest]
+fn test_analytic_continuation_underflow_bug() {
+    let z = Complex64::new(-400.0, 1.0);
+    let order = 1.0;
+    let n = 600;
+
+    check_against_fortran(
+        order,
+        z,
+        Scaling::Scaled,
+        n,
+        complex_bessel_k,
+        zbesk_fortran,
+        1e6,
+    );
+}

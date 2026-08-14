@@ -65,17 +65,10 @@ pub fn analytic_continuation<T: BesselFloat>(
         k_continuation_coeff = -k_continuation_coeff;
     }
 
-    let mut n_good = 0;
     let mut k_component = k_seeds[0];
     let mut i_component = i_values[0];
     if scaling == Scaling::Scaled
-        && underflow_add_i_k(
-            negative_z,
-            &mut k_component,
-            &mut i_component,
-            &mut n_good,
-            mc,
-        )
+        && underflow_add_i_k(negative_z, &mut k_component, &mut i_component, mc)
     {
         n_zeros += 1;
     }
@@ -94,13 +87,7 @@ pub fn analytic_continuation<T: BesselFloat>(
     k_component = k_curr;
     i_component = y[1]; // y = i_values here
     let mut scaled_k_component = if scaling == Scaling::Scaled {
-        if underflow_add_i_k(
-            negative_z,
-            &mut k_component,
-            &mut i_component,
-            &mut n_good,
-            mc,
-        ) {
+        if underflow_add_i_k(negative_z, &mut k_component, &mut i_component, mc) {
             n_zeros += 1;
         }
         Some(k_component)
@@ -132,29 +119,34 @@ pub fn analytic_continuation<T: BesselFloat>(
     k_prev *= overflow_state.scaling_factor::<T>(mc);
     k_curr *= overflow_state.scaling_factor::<T>(mc);
     let mut recip_scaling_factor = overflow_state.reciprocal_scaling_factor::<T>(mc);
-    let mut scaled_calculations_only = false;
+    let mut out_of_underflow_regime = false;
     // y contains the I values. The K values are computed and combined with I,
     // then assigned back to y in place below.
+    let mut n_without_underflow = 0;
     for (i, y_val) in y.iter_mut().enumerate().skip(2) {
         let recurrence_factor = (order + T::from_usize(i - 1)) * two_over_z;
         (k_prev, k_curr) = (k_curr, recurrence_factor * k_curr + k_prev);
         k_component = k_curr * recip_scaling_factor;
         let mut unscaled_k_curr = k_component;
         i_component = *y_val;
-        if scaling == Scaling::Scaled && !scaled_calculations_only {
-            if underflow_add_i_k(
-                negative_z,
-                &mut k_component,
-                &mut i_component,
-                &mut n_good,
-                mc,
-            ) {
+        if scaling == Scaling::Scaled && !out_of_underflow_regime {
+            let full_underflow =
+                underflow_add_i_k(negative_z, &mut k_component, &mut i_component, mc);
+            let partial_underflow = k_component == T::C_ZERO;
+
+            if full_underflow {
                 n_zeros += 1;
             }
+            if full_underflow || partial_underflow {
+                n_without_underflow = 0; // either full underflow or K was squashed to zero, reset the counter
+            } else {
+                n_without_underflow += 1; // Only increment if K actually survived scaling!
+            }
+
             let saved_k_component = scaled_k_component.unwrap();
             scaled_k_component = Some(k_component);
-            if n_good == 3 {
-                scaled_calculations_only = true;
+            if n_without_underflow == 3 {
+                out_of_underflow_regime = true;
                 k_prev = saved_k_component * overflow_state.scaling_factor::<T>(mc);
                 k_curr = k_component * overflow_state.scaling_factor::<T>(mc);
                 unscaled_k_curr = k_component;
@@ -259,17 +251,8 @@ pub fn airy_analytic_continuation<T: BesselFloat>(
     }
     let mut k_value = k_value[0];
     let mut i_value = i_value;
-    if scaling == Scaling::Scaled {
-        let mut n_good_dummy = 0;
-        if underflow_add_i_k(
-            negative_z,
-            &mut k_value,
-            &mut i_value,
-            &mut n_good_dummy,
-            mc,
-        ) {
-            n_zeros += 1;
-        }
+    if scaling == Scaling::Scaled && underflow_add_i_k(negative_z, &mut k_value, &mut i_value, mc) {
+        n_zeros += 1;
     }
     let y = vec![k_coeff * k_value + i_coeff * i_value];
     Ok((y, n_zeros))

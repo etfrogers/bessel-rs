@@ -570,15 +570,8 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         i_bessel_value *= i_overflow_state.reciprocal_scaling_factor::<T>(mc);
         // Handle the underflow of I + K and combine them for the continuation
         let mut k_bessel_value = *yi;
-        let mut dummy_n_good = 0;
         if scaling == Scaling::Scaled
-            && underflow_add_i_k(
-                z_right_half,
-                &mut k_bessel_value,
-                &mut i_bessel_value,
-                &mut dummy_n_good,
-                mc,
-            )
+            && underflow_add_i_k(z_right_half, &mut k_bessel_value, &mut i_bessel_value, mc)
         {
             n_zeros += 1;
         }
@@ -817,7 +810,6 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
     let cos_sin = Complex::<T>::cis(angle);
     let mut j_to_continuation_i_factor = signed_pi * Complex::<T>::new(cos_sin.im, cos_sin.re);
     j_to_continuation_i_factor *= i_pow(modified_integer_order);
-    let mut n_good_dummy = 0;
 
     found_one_good_entry = false;
     let mut i_overflow_state = OverflowState::None;
@@ -892,13 +884,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
 
         let mut k_bessel_value = *yi;
         if scaling == Scaling::Scaled
-            && underflow_add_i_k(
-                z_right_half,
-                &mut k_bessel_value,
-                &mut i_bessel_value,
-                &mut n_good_dummy,
-                mc,
-            )
+            && underflow_add_i_k(z_right_half, &mut k_bessel_value, &mut i_bessel_value, mc)
         {
             n_zeros += 1;
         }
@@ -971,15 +957,8 @@ fn i_k_mixing_recurrence<T: BesselFloat>(
         let mut i_bessel_value = i_rec_curr * recip_scale_factor;
         let i_bessel_value_unscaled = i_bessel_value;
         let mut k_bessel_value = *yi;
-        let mut n_good_dummy = 0;
         if scaling == Scaling::Scaled
-            && underflow_add_i_k(
-                z_right_half,
-                &mut k_bessel_value,
-                &mut i_bessel_value,
-                &mut n_good_dummy,
-                mc,
-            )
+            && underflow_add_i_k(z_right_half, &mut k_bessel_value, &mut i_bessel_value, mc)
         {
             n_zeros += 1;
         }
