@@ -30,7 +30,7 @@ pub(crate) enum IKType {
     K = 2,
 }
 
-pub(crate) fn i_pow<T: BesselFloat>(n: usize) -> Complex<T> {
+pub(crate) fn i_pow_n<T: BesselFloat>(n: usize) -> Complex<T> {
     match n % 4 {
         0 => Complex::new(T::one(), T::zero()),
         1 => Complex::new(T::zero(), T::one()),

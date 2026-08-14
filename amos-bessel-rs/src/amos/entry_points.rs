@@ -8,7 +8,7 @@ use crate::{
         airy::airy_power_series,
         analytic_continuation::{airy_analytic_continuation, analytic_continuation},
         asymptotics::k_asymp_large_order,
-        i_pow,
+        i_pow_n,
         limits::check_underflow_uniform_asymp_params,
         right_half_plane::{i_right_half_plane, k_right_half_plane},
         utils::{is_significance_lost, sanitise_inputs},
@@ -585,7 +585,7 @@ pub fn complex_bessel_y<T: BesselFloat>(
     let frac_order = order.fract();
     let integer_order = order.to_usize().unwrap();
     let mut i_coeff = Complex::<T>::cis(T::FRAC_PI_2() * frac_order);
-    i_coeff *= i_pow(integer_order);
+    i_coeff *= i_pow_n(integer_order);
     let mut k_coeff = i_coeff.conj() * T::FRAC_2_PI();
     i_coeff *= T::I;
 

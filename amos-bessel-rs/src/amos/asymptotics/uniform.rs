@@ -9,7 +9,7 @@ use crate::{
             AiryGeometry, DebyeGeometry,
             uniform_params::{AiryParams, DebyeParams},
         },
-        i_pow,
+        i_pow_n,
         limits::{OverflowState, check_underflow_uniform_asymp_params, underflow_add_i_k},
         recurrence::scale_controlled_recurrence,
         utils::{AIC, two_over_z_safe, will_underflow},
@@ -214,7 +214,7 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
     // Computes i^order by separating integer/fractional parts to avoid precision loss in trig functions
     let calculate_rotation_factor = |effective_n: usize| {
         let r = Complex::<T>::cis(T::FRAC_PI_2() * order.fract())
-            * i_pow(integer_order + effective_n - 1);
+            * i_pow_n(integer_order + effective_n - 1);
         if z_was_flipped { r.conj() } else { r }
     };
 
@@ -633,7 +633,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
     let angle = -T::FRAC_PI_2() * order_fract;
     let conversion_phase_fract = -T::I * Complex::<T>::from_polar(T::FRAC_PI_2(), angle);
     let mut h2_to_k_factor =
-        h1_airy_rotation * conversion_phase_fract * i_pow(integer_order).conj();
+        h1_airy_rotation * conversion_phase_fract * i_pow_n(integer_order).conj();
 
     let (z_right_half, z_was_flipped_into_right_half) = if z.re < T::ZERO {
         (-z, true)
@@ -809,7 +809,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
     // the un-rotated J_v(-iz) Airy sum directly into the final ±iπ I_v(z) term.
     let cos_sin = Complex::<T>::cis(angle);
     let mut j_to_continuation_i_factor = signed_pi * Complex::<T>::new(cos_sin.im, cos_sin.re);
-    j_to_continuation_i_factor *= i_pow(modified_integer_order);
+    j_to_continuation_i_factor *= i_pow_n(modified_integer_order);
 
     found_one_good_entry = false;
     let mut i_overflow_state = OverflowState::None;
