@@ -5,9 +5,9 @@ use crate::{
     amos::{
         MachineConsts, RotationDirection,
         asymptotics::i_asymptotic,
+        i_computation::i_miller,
         limits::{OverflowState, underflow_add_i_k},
         power_series::i_power_series,
-        recurrence::i_miller,
         right_half_plane::{i_right_half_plane, k_right_half_plane},
         utils::two_over_z_safe,
     },

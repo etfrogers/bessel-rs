@@ -15,13 +15,13 @@ mod analytic_continuation;
 mod asymptotics;
 mod entry_points;
 mod gamma_ln;
+mod i_computation;
 mod limits;
 mod machine;
 mod power_series;
 mod recurrence;
 mod right_half_plane;
 mod utils;
-mod wronskian;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(usize)]
