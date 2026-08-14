@@ -397,7 +397,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         (z, false)
     };
     let mut param_seeds: [Option<DebyeParams<T>>; 2] = [None, None];
-    let mut recurrence_seeds = [T::C_ZERO; 2];
+    let mut i_recurrence_seeds = [T::C_ZERO; 2];
 
     let mut n_elements_set = 0;
     let mut y = T::c_zeros(n);
@@ -438,7 +438,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
 
                 let will_underflow = will_underflow(bessel_value, mc);
                 if k_overflow_state != OverflowState::NearUnder || !will_underflow {
-                    recurrence_seeds[found_one_good_seed as usize] = bessel_value;
+                    i_recurrence_seeds[found_one_good_seed as usize] = bessel_value;
                     y[i] = bessel_value * k_overflow_state.reciprocal_scaling_factor::<T>(mc);
                     if found_one_good_seed {
                         // if we already found one, we've now found another so break out of the loop
@@ -485,7 +485,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
             _ => (),
         }
         // Forward recurse to populate the remainder of the K sequence.
-        let [rec_prev, rec_curr] = recurrence_seeds;
+        let [rec_prev, rec_curr] = i_recurrence_seeds;
         scale_controlled_recurrence(
             true,
             order,
@@ -565,7 +565,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
                 i_bessel_value
             }
         };
-        recurrence_seeds[found_one_good_entry as usize] = i_bessel_value;
+        i_recurrence_seeds[found_one_good_entry as usize] = i_bessel_value;
         let underflowed = i_bessel_value == T::C_ZERO;
         i_bessel_value *= i_overflow_state.reciprocal_scaling_factor::<T>(mc);
         // Handle the underflow of I + K and combine them for the continuation
@@ -593,47 +593,20 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
             found_one_good_entry = true;
         }
     }
-    if remaining_n > 0 {
-        // Recurse backward to populate the remainder of the I sequence, adding it to the
-        // existing K sequence. The recurrence is dynamically scaled to prevent overflow.
-        let [mut rec_prev, mut rec_curr] = recurrence_seeds;
-        let mut reciprocal_scale_factor = i_overflow_state.reciprocal_scaling_factor::<T>(mc);
-        let mut boundary = i_overflow_state.boundary::<T>(mc);
-        for (i, yi) in y.iter_mut().enumerate().take(remaining_n).rev() {
-            let current_order = order + T::from_usize(i + 1);
-            // 1. Calculate the next terms in the sequence
-            (rec_prev, rec_curr) = (rec_curr, rec_prev + current_order * (two_over_z * rec_curr));
 
-            // 2. Prepare the I and K values
-            let mut i_bessel_value = rec_curr * reciprocal_scale_factor;
-            let mut k_bessel_value = *yi;
-
-            let mut dummy_n_good = 0;
-            if scaling == Scaling::Scaled
-                && underflow_add_i_k(
-                    z_right_half,
-                    &mut k_bessel_value,
-                    &mut i_bessel_value,
-                    &mut dummy_n_good,
-                    mc,
-                )
-            {
-                n_zeros += 1;
-            }
-            // 3. Combine them using the analytic continuation formula!
-            *yi = k_bessel_value * continuation_phase + i_bessel_value;
-            continuation_phase = -continuation_phase;
-            i_overflow_state.scale_recurrence(
-                &mut rec_prev,
-                &mut rec_curr,
-                i_bessel_value,
-                &mut boundary,
-                &mut reciprocal_scale_factor,
-                mc,
-            );
-        }
-    }
-    Ok((y, n_zeros))
+    Ok(i_k_mixing_recurrence(
+        order,
+        z_right_half,
+        scaling,
+        two_over_z,
+        i_recurrence_seeds,
+        y,
+        continuation_phase,
+        i_overflow_state,
+        n_zeros,
+        remaining_n,
+        mc,
+    ))
 }
 
 /// k_uniform_asymp2 computes K(order, z) and its analytic continuation from the
@@ -693,7 +666,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
     // - h2_airy_rotation: (e^(-i * 2*pi/3)), the rotation applied to the inner Airy function arguments.
     // - conversion_phase_fract: The fractional order part of the (-i * (pi/2) * e^(-i * v * pi/2)) term.
     // - h2_to_k_factor: The baked-in proportionality constant that maps the raw Airy sum directly into K_v.
-    let mut recurrence_seeds = [T::C_ZERO; 2];
+    let mut i_recurrence_seeds = [T::C_ZERO; 2];
     let mut param_seeds: [Option<AiryParams<T>>; 2] = [None, None];
     let mut k_overflow_state = OverflowState::None;
     let mut n_elements_set = 0;
@@ -771,7 +744,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
                 if z_was_flipped_up {
                     k_bessel_value = k_bessel_value.conj();
                 }
-                recurrence_seeds[found_one_good_entry as usize] = k_bessel_value;
+                i_recurrence_seeds[found_one_good_entry as usize] = k_bessel_value;
                 y[i] = k_bessel_value * k_overflow_state.reciprocal_scaling_factor::<T>(mc);
                 h2_to_k_factor = -T::I * h2_to_k_factor;
                 if found_one_good_entry {
@@ -806,7 +779,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
             }
             OverflowState::NearOver | OverflowState::None | OverflowState::NearUnder => (),
         }
-        let [rec_prev, rec_curr] = recurrence_seeds;
+        let [rec_prev, rec_curr] = i_recurrence_seeds;
         scale_controlled_recurrence(
             true,
             order,
@@ -912,7 +885,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
         if z_was_flipped_up {
             i_bessel_value = i_bessel_value.conj();
         }
-        recurrence_seeds[found_one_good_entry as usize] = i_bessel_value;
+        i_recurrence_seeds[found_one_good_entry as usize] = i_bessel_value;
 
         let underflowed = i_bessel_value == T::C_ZERO;
         i_bessel_value *= i_overflow_state.reciprocal_scaling_factor::<T>(mc);
@@ -942,46 +915,85 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
         }
     }
 
-    if remaining_n > 0 {
-        // Loop 3: Fill the rest of the array via backward recurrence.
-        // If Loop 2 stopped early because it found two valid non-underflowing seeds,
-        // we can compute the remainder of the I_v sequence much faster using the
-        // backward recurrence relation: I_{v-1}(z) = I_{v+1}(z) + (2v/z) * I_v(z).
-        // The I_v terms are dynamically scaled during recurrence to avoid overflow.
-        // As they are computed, they are combined with the K_v(z) values already in `y`.
-        let [mut rec_prev, mut rec_curr] = recurrence_seeds;
+    Ok(i_k_mixing_recurrence(
+        order,
+        z_right_half,
+        scaling,
+        two_over_z,
+        i_recurrence_seeds,
+        y,
+        continuation_phase,
+        i_overflow_state,
+        n_zeros,
+        remaining_n,
+        mc,
+    ))
+}
 
-        let mut recip_scale_factor = i_overflow_state.reciprocal_scaling_factor::<T>(mc);
-        let mut ascle = i_overflow_state.boundary::<T>(mc);
-        for (i, yi) in y.iter_mut().enumerate().take(remaining_n).rev() {
-            let current_order = order + T::from_usize(i + 1);
-            (rec_prev, rec_curr) = (rec_curr, rec_prev + (current_order * two_over_z) * rec_curr);
-
-            let mut i_bessel_value = rec_curr * recip_scale_factor;
-            let i_bessel_value_unscaled = i_bessel_value;
-            let mut k_bessel_value = *yi;
-            if scaling == Scaling::Scaled
-                && underflow_add_i_k(
-                    z_right_half,
-                    &mut k_bessel_value,
-                    &mut i_bessel_value,
-                    &mut n_good_dummy,
-                    mc,
-                )
-            {
-                n_zeros += 1;
-            }
-            *yi = k_bessel_value * continuation_phase + i_bessel_value;
-            continuation_phase = -continuation_phase;
-            i_overflow_state.scale_recurrence(
-                &mut rec_prev,
-                &mut rec_curr,
-                i_bessel_value_unscaled,
-                &mut ascle,
-                &mut recip_scale_factor,
-                mc,
-            );
-        }
+#[allow(clippy::too_many_arguments)]
+fn i_k_mixing_recurrence<T: BesselFloat>(
+    order: T,
+    z_right_half: Complex<T>,
+    scaling: Scaling,
+    two_over_z: Complex<T>,
+    i_recurrence_seeds: [Complex<T>; 2],
+    mut y: Vec<Complex<T>>,
+    mut continuation_phase: Complex<T>,
+    mut i_overflow_state: OverflowState,
+    mut n_zeros: usize,
+    remaining_n: usize,
+    mc: &MachineConsts<T>,
+) -> (Vec<Complex<T>>, usize) {
+    if remaining_n == 0 {
+        return (y, n_zeros);
     }
-    Ok((y, n_zeros))
+
+    // Loop 3: Fill the rest of the array via backward recurrence.
+    // If Loop 2 stopped early because it found two valid non-underflowing seeds,
+    // we can compute the remainder of the I_v sequence much faster using the
+    // backward recurrence relation: I_{v-1}(z) = I_{v+1}(z) + (2v/z) * I_v(z).
+    // The I_v terms are dynamically scaled during recurrence to avoid overflow.
+    // As they are computed, they are combined with the K_v(z) values already in `y`.
+
+    // 1. Calculate the next terms in the sequence
+    let [mut i_rec_prev, mut i_rec_curr] = i_recurrence_seeds;
+
+    let mut recip_scale_factor = i_overflow_state.reciprocal_scaling_factor::<T>(mc);
+    let mut ascle = i_overflow_state.boundary::<T>(mc);
+    for (i, yi) in y.iter_mut().enumerate().take(remaining_n).rev() {
+        let current_order = order + T::from_usize(i + 1);
+        (i_rec_prev, i_rec_curr) = (
+            i_rec_curr,
+            i_rec_prev + (current_order * two_over_z) * i_rec_curr,
+        );
+
+        // 2. Prepare the I and K values
+        let mut i_bessel_value = i_rec_curr * recip_scale_factor;
+        let i_bessel_value_unscaled = i_bessel_value;
+        let mut k_bessel_value = *yi;
+        let mut n_good_dummy = 0;
+        if scaling == Scaling::Scaled
+            && underflow_add_i_k(
+                z_right_half,
+                &mut k_bessel_value,
+                &mut i_bessel_value,
+                &mut n_good_dummy,
+                mc,
+            )
+        {
+            n_zeros += 1;
+        }
+        // 3. Combine them using the analytic continuation formula!
+        *yi = k_bessel_value * continuation_phase + i_bessel_value;
+        continuation_phase = -continuation_phase;
+        i_overflow_state.scale_recurrence(
+            &mut i_rec_prev,
+            &mut i_rec_curr,
+            i_bessel_value_unscaled,
+            &mut ascle,
+            &mut recip_scale_factor,
+            mc,
+        );
+    }
+    (y, n_zeros)
 }
