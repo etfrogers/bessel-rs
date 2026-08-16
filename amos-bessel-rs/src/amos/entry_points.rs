@@ -260,14 +260,7 @@ pub fn complex_bessel_i<T: BesselFloat>(
     if z.re < T::ZERO && remaining_n > 0 {
         // Left half plane: apply continuation I(ν,z) = exp(±iπν)·I(ν,-z)
         for yi in y.iter_mut().take(remaining_n) {
-            let correction = if yi.linf_norm() <= mc.absolute_approximation_limit {
-                *yi *= mc.rtol;
-                mc.abs_error_tolerance
-            } else {
-                T::ONE
-            };
-            *yi *= continuation_phase;
-            *yi *= correction;
+            *yi = safe_multiply(*yi, continuation_phase, mc);
             continuation_phase = -continuation_phase;
         }
     }
@@ -339,13 +332,7 @@ pub fn complex_bessel_j<T: BesselFloat>(
     }
     let (mut y, n_zeros) = i_right_half_plane(z_rotated, order, scaling, n)?;
     for yi in y.iter_mut().take(n - n_zeros) {
-        let mut scaling = T::ONE;
-        // TODO is the below a pattern?
-        if yi.linf_norm() <= mc.absolute_approximation_limit {
-            *yi *= mc.rtol;
-            scaling = mc.abs_error_tolerance;
-        }
-        *yi *= phase_multiplier * scaling;
+        *yi = safe_multiply(*yi, phase_multiplier, mc);
         phase_multiplier *= T::I * sign_selector;
     }
     if partial_significance_loss {
@@ -478,13 +465,13 @@ pub fn complex_bessel_k<T: BesselFloat>(
 
 /// Computes the Y-Bessel function of a complex argument.
 ///
-/// This function computes a sequence of complex Bessel functions `cy(j) = Y(order + j - 1, z)`
+/// This function computes a sequence of complex Bessel functions `y(j) = Y(order + j - 1, z)`
 /// for real, non-negative orders `order + j - 1` (`j = 1, ..., n`) and a complex argument `z`
 /// which is not equal to `(0.0, 0.0)`. The computation is valid in the cut plane
 /// `-PI < z.arg() <= PI`.
 ///
 /// When `scaling` is `Scaling::Scaled`, this function returns the scaled functions
-/// `cy(j) = (-(z.im.abs())).exp() * Y(order + j - 1, z)`, which remove the
+/// `y(j) = (-(z.im.abs())).exp() * Y(order + j - 1, z)`, which remove the
 /// exponential growth in both the upper and lower half-planes for `z` to infinity.
 ///
 /// The computation is carried out in terms of the I(order, z) and
@@ -502,16 +489,16 @@ pub fn complex_bessel_k<T: BesselFloat>(
 /// * `z` - Complex argument `z`, `z != (0.0, 0.0)`, `-PI < z.arg() <= PI`.
 /// * `order` - Order of the initial Y function, `order >= 0.0`.
 /// * `scaling` - A parameter to indicate the scaling option.
-///     * `Scaling::Unscaled`: returns `cy(j) = Y(order + j - 1, z)`.
-///     * `Scaling::Scaled`: returns `cy(j) = Y(order + j - 1, z) * (-(z.im.abs())).exp()`.
+///     * `Scaling::Unscaled`: returns `y(j) = Y(order + j - 1, z)`.
+///     * `Scaling::Scaled`: returns `y(j) = Y(order + j - 1, z) * (-(z.im.abs())).exp()`.
 /// * `n` - Number of members of the sequence, `n >= 1`.
 ///
 /// # Returns
 ///
 /// A tuple containing:
-/// * `cy`: A vector of complex numbers containing the values of the Bessel
+/// * `y`: A vector of complex numbers containing the values of the Bessel
 ///   functions for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `n_zeros`: The number of components in `cy` set to zero due to underflow.
+/// * `n_zeros`: The number of components in `y` set to zero due to underflow.
 pub fn complex_bessel_y<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -520,8 +507,9 @@ pub fn complex_bessel_y<T: BesselFloat>(
 ) -> BesselResult<T> {
     sanitise_inputs(z, order, n, true)?;
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
-    let zz = if z.im < T::zero() { z.conj() } else { z };
-    let zn = -T::I * zz;
+    // Use conjugate symmetry: Y(ν,z) = conj(Y(ν,conj(z))) for Im(z) < 0
+    let z_upper_half_plane = if z.im < T::ZERO { z.conj() } else { z };
+    let z_rotated = -T::I * z_upper_half_plane;
     let mut partial_loss_of_significance = false;
 
     let mut unwrap_psl = |result: BesselResult<T>| match result {
@@ -536,8 +524,8 @@ pub fn complex_bessel_y<T: BesselFloat>(
         err => err,
     };
 
-    let (bess_i, n_zeros_i) = unwrap_psl(complex_bessel_i(zn, order, scaling, n))?;
-    let (bess_k, n_zeros_k) = unwrap_psl(complex_bessel_k(zn, order, scaling, n))?;
+    let (bess_i, n_zeros_i) = unwrap_psl(complex_bessel_i(z_rotated, order, scaling, n))?;
+    let (bess_k, n_zeros_k) = unwrap_psl(complex_bessel_k(z_rotated, order, scaling, n))?;
 
     let mut n_zeros = n_zeros_i.min(n_zeros_k);
     let frac_order = order.fract();
@@ -547,31 +535,26 @@ pub fn complex_bessel_y<T: BesselFloat>(
     let mut k_coeff = i_coeff.conj() * T::FRAC_2_PI();
     i_coeff *= T::I;
 
-    let mut ey = T::one();
+    let mut exponential_correction = T::ONE;
     if scaling == Scaling::Scaled {
-        let ex = Complex::<T>::cis(z.re);
-        let two_abs_z = T::two() * z.im.abs();
-        ey = if two_abs_z < mc.exponent_limit {
+        let phase_correction = Complex::<T>::cis(z.re);
+        let two_abs_z = T::TWO * z.im.abs();
+        exponential_correction = if two_abs_z < mc.exponent_limit {
             (-two_abs_z).exp()
         } else {
-            T::zero()
+            T::ZERO
         };
-        k_coeff *= ex * ey;
+        k_coeff *= phase_correction * exponential_correction;
         n_zeros = 0;
     }
     let mut y: Vec<Complex<T>> = bess_i
         .iter()
         .zip(bess_k)
         .map(|(&z_i, z_k)| {
-            //----------------------------------------------------------------------;
-            //       cy(I) = CSGN*cy(I)-CSPN*CWRK(I): PRODUCTS ARE COMPUTED IN;
-            //       SCALED MODE if cy(I) OR CWRK(I) ARE CLOSE TO UNDERFLOW TO;
-            //       PREVENT UNDERFLOW IN AN INTERMEDIATE COMPUTATION.;
-            //----------------------------------------------------------------------;
             let z_k = scaled_multiply(z_k, k_coeff, scaling, mc);
             let z_i = scaled_multiply(z_i, i_coeff, scaling, mc);
             let val = z_i - z_k;
-            if scaling == Scaling::Scaled && val == T::C_ZERO && ey == T::zero() {
+            if scaling == Scaling::Scaled && val == T::C_ZERO && exponential_correction == T::ZERO {
                 n_zeros += 1;
             }
             i_coeff *= T::I;
@@ -580,7 +563,7 @@ pub fn complex_bessel_y<T: BesselFloat>(
         })
         .collect();
 
-    if z.im < T::zero() {
+    if z.im < T::ZERO {
         y.iter_mut().for_each(|v| *v = v.conj());
     }
     if partial_loss_of_significance {
@@ -590,23 +573,29 @@ pub fn complex_bessel_y<T: BesselFloat>(
     }
 }
 
+#[inline]
 fn scaled_multiply<T: BesselFloat>(
-    mut z: Complex<T>,
+    z: Complex<T>,
     coeff: Complex<T>,
     scaling: Scaling,
     mc: &MachineConsts<T>,
 ) -> Complex<T> {
     match scaling {
         Scaling::Unscaled => z * coeff,
-        Scaling::Scaled => {
-            let atol = if z.linf_norm() <= mc.absolute_approximation_limit {
-                z *= mc.rtol;
-                mc.abs_error_tolerance
-            } else {
-                T::one()
-            };
-            (z * coeff) * atol
-        }
+        Scaling::Scaled => safe_multiply(z, coeff, mc),
+    }
+}
+
+#[inline]
+fn safe_multiply<T: BesselFloat>(
+    z: Complex<T>,
+    coeff: Complex<T>,
+    mc: &MachineConsts<T>,
+) -> Complex<T> {
+    if z.linf_norm() <= mc.absolute_approximation_limit {
+        (z * mc.rtol) * mc.abs_error_tolerance
+    } else {
+        z * coeff
     }
 }
 
