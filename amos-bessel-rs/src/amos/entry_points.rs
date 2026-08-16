@@ -645,16 +645,11 @@ pub fn complex_airy<T: BesselFloat>(
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
 
     let abs_z = z.abs();
-    //--------------------------------------------------------------------------
-    //     TEST FOR PROPER RANGE
-    //-----------------------------------------------------------------------
     // significance loss only tested against z, not order, so 0.0 is used to never cause significance loss
-    let partial_loss_of_significance = is_significance_lost(abs_z, T::zero(), true, mc)?;
+    let partial_loss_of_significance = is_significance_lost(abs_z, T::ZERO, true, mc)?;
 
-    let retval = if abs_z <= T::one() {
-        //-----------------------------------------------------------------------
-        //     POWER SERIES FOR z.abs() <= 1.
-        //-----------------------------------------------------------------------
+    let return_values = if abs_z <= T::ONE {
+        // Power series for small |z|
         let ai = airy_power_series(z, return_derivative, POWER_SERIES_COEFFS);
         (
             match scaling {
@@ -664,55 +659,45 @@ pub fn complex_airy<T: BesselFloat>(
             0,
         )
     } else {
-        //-----------------------------------------------------------------------
-        //     CASE FOR CABS(z) > 1.0
-        //-----------------------------------------------------------------------
-        let order = (if return_derivative {
-            T::two()
+        // Large |z|: use K Bessel functions
+        let order = if return_derivative {
+            T::TWO_THIRDS
         } else {
-            T::one()
-        }) / T::from_f64(3.0);
+            T::from_f64(1.0 / 3.0)
+        };
         let ln_abs_z = abs_z.ln();
 
         let sqrt_z = z.sqrt();
         let mut zeta = T::TWO_THIRDS * z * sqrt_z;
-        //-----------------------------------------------------------------------
-        //     RE(zeta) <= 0 WHEN RE(z) < 0, ESPECIALLY WHEN IM(z) IS SMALL
-        //-----------------------------------------------------------------------
-        let mut scale_factor = T::one();
-        if z.re < T::zero() {
+        // Ensure Re(ζ) ≤ 0 when Re(z) < 0 (especially for small Im(z))
+        let mut scale_factor = T::ONE;
+        if z.re < T::ZERO {
             zeta.re = -zeta.re.abs();
         }
-        if z.im == T::zero() && z.re <= T::zero() {
-            zeta.re = T::zero();
+        if z.im == T::ZERO && z.re <= T::ZERO {
+            zeta.re = T::ZERO;
         }
         let re_zeta = zeta.re;
-        let (cy, n_zeros) = if re_zeta < T::zero() || z.re <= T::zero() {
-            //-----------------------------------------------------------------------
-            //     OVERFLOW TEST
-            //-----------------------------------------------------------------------
+        let (y, n_zeros) = if re_zeta < T::ZERO || z.re <= T::ZERO {
+            // Overflow test for unscaled mode
             if scaling == Scaling::Unscaled && re_zeta <= -mc.approximation_limit {
                 scale_factor = mc.abs_error_tolerance;
                 if (-re_zeta + T::from_f64(0.25) * ln_abs_z) > mc.exponent_limit {
                     return Err(Overflow);
                 }
             }
-            //-----------------------------------------------------------------------
-            //     CBKNU AND CACON RETURN EXP(zeta)*K(order,zeta) ON KODE=2
-            //-----------------------------------------------------------------------
-            let rotation = if z.im < T::zero() {
+            // In scaled mode, k_right_half_plane and analytic_continuation return exp(ζ)·K(ν,ζ)
+            let rotation = if z.im < T::ZERO {
                 RotationDirection::Left
             } else {
                 RotationDirection::Right
             };
             airy_analytic_continuation(zeta, order, scaling, rotation)?
         } else {
-            //-----------------------------------------------------------------------
-            //     UNDERFLOW TEST
-            //-----------------------------------------------------------------------
+            // Underflow test for unscaled mode
             let mut retval = None;
             if scaling == Scaling::Unscaled && re_zeta > mc.approximation_limit {
-                scale_factor = T::one() / mc.abs_error_tolerance;
+                scale_factor = T::ONE / mc.abs_error_tolerance;
                 if (-re_zeta - T::from_f64(0.25) * ln_abs_z) < -mc.exponent_limit {
                     retval = Some(Ok((T::c_zeros(1), 1)));
                 }
@@ -720,17 +705,18 @@ pub fn complex_airy<T: BesselFloat>(
             retval.unwrap_or_else(|| k_right_half_plane(zeta, order, scaling, 1))?
         };
 
-        let mut s1 = cy[0] * T::from_f64(COEFF) * scale_factor;
-        s1 *= if return_derivative { -z } else { sqrt_z };
-        (s1 / scale_factor, n_zeros)
+        let mut y = y[0] * T::from_f64(COEFF) * scale_factor;
+        y *= if return_derivative { -z } else { sqrt_z };
+        (y / scale_factor, n_zeros)
     };
+
     if partial_loss_of_significance {
         Err(PartialLossOfSignificance {
-            y: vec![retval.0],
-            n_zeros: retval.1,
+            y: vec![return_values.0],
+            n_zeros: return_values.1,
         })
     } else {
-        Ok(retval)
+        Ok(return_values)
     }
 }
 
