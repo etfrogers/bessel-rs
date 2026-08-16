@@ -193,12 +193,12 @@ pub fn complex_hankel2<T: BesselFloat>(
 
 /// Computes the I-Bessel function of a complex argument.
 ///
-/// This function computes a sequence of complex Bessel functions `cy(j) = I(order + j - 1, z)`
+/// This function computes a sequence of complex Bessel functions `y(j) = I(order + j - 1, z)`
 /// for real, non-negative orders `order + j - 1` (`j = 1, ..., n`) and a complex argument `z`
 /// in the cut plane `-PI < z.arg() <= PI`.
 ///
 /// When `scaling` is `Scaling::Scaled`, this function returns the scaled functions
-/// `cy(j) = (-(z.re.abs())).exp() * I(order + j - 1, z)` which remove the
+/// `y(j) = (-(z.re.abs())).exp() * I(order + j - 1, z)` which remove the
 /// exponential growth in both the left and right half-planes for `z` to infinity.
 ///
 /// The computation is carried out by the power series for small `z.abs()`,
@@ -220,16 +220,16 @@ pub fn complex_hankel2<T: BesselFloat>(
 /// * `z` - Complex argument `z`, `-PI < z.arg() <= PI`.
 /// * `order` - Order of the initial I function, `order >= 0.0`.
 /// * `scaling` - A parameter to indicate the scaling option.
-///     * `Scaling::Unscaled`: returns `cy(j) = I(order + j - 1, z)`.
-///     * `Scaling::Scaled`: returns `cy(j) = I(order + j - 1, z) * (-z.re().abs()).exp()`.
+///     * `Scaling::Unscaled`: returns `y(j) = I(order + j - 1, z)`.
+///     * `Scaling::Scaled`: returns `y(j) = I(order + j - 1, z) * (-z.re().abs()).exp()`.
 /// * `n` - Number of members of the sequence, `n >= 1`.
 ///
 /// # Returns
 ///
 /// A tuple containing:
-/// * `cy`: A vector of complex numbers containing the values of the Bessel
+/// * `y`: A vector of complex numbers containing the values of the Bessel
 ///   functions for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `n_zeros`: The number of components in `cy` set to zero due to underflow.
+/// * `n_zeros`: The number of components in `y` set to zero due to underflow.
 pub fn complex_bessel_i<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -243,43 +243,32 @@ pub fn complex_bessel_i<T: BesselFloat>(
     let max_order = order + T::from_usize(n - 1);
     let partial_significance_loss = is_significance_lost(abs_z, max_order, false, mc)?;
 
-    let (zn, mut csgn) = if z.re >= T::zero() {
+    let (z_right_half_plane, mut continuation_phase) = if z.re >= T::ZERO {
         (z, T::C_ONE)
     } else {
-        //-----------------------------------------------------------------------
-        //     CALCULATE CSGN=(order*PI*I).exp() TO MINIMIZE LOSSES OF SIGNIFICANCE
-        //     WHEN order IS LARGE
-        //-----------------------------------------------------------------------
+        // Compute exp(i·ν·π) via fractional part to avoid significance loss for large orders
         let integer_order = order.to_usize().unwrap();
-        let arg = order.fract()
-            * T::PI()
-            * if z.im < T::zero() {
-                -T::one()
-            } else {
-                T::one()
-            };
-        let mut csgn = Complex::<T>::cis(arg);
+        let arg = order.fract() * T::PI() * if z.im < T::ZERO { -T::ONE } else { T::ONE };
+        let mut continuation_phase = Complex::<T>::cis(arg);
         if !integer_order.is_even() {
-            csgn = -csgn;
+            continuation_phase = -continuation_phase;
         }
-        (-z, csgn)
+        (-z, continuation_phase)
     };
-    let (mut y, n_zeros) = i_right_half_plane(zn, order, scaling, n)?;
+    let (mut y, n_zeros) = i_right_half_plane(z_right_half_plane, order, scaling, n)?;
     let remaining_n = n - n_zeros;
-    if z.re < T::zero() && remaining_n > 0 {
-        //-----------------------------------------------------------------------
-        //     ANALYTIC CONTINUATION TO THE LEFT HALF PLANE
-        //-----------------------------------------------------------------------
+    if z.re < T::ZERO && remaining_n > 0 {
+        // Left half plane: apply continuation I(ν,z) = exp(±iπν)·I(ν,-z)
         for yi in y.iter_mut().take(remaining_n) {
             let correction = if yi.linf_norm() <= mc.absolute_approximation_limit {
                 *yi *= mc.rtol;
                 mc.abs_error_tolerance
             } else {
-                T::one()
+                T::ONE
             };
-            *yi *= csgn;
+            *yi *= continuation_phase;
             *yi *= correction;
-            csgn = -csgn;
+            continuation_phase = -continuation_phase;
         }
     }
 
