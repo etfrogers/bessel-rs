@@ -357,13 +357,13 @@ pub fn complex_bessel_j<T: BesselFloat>(
 
 /// Computes the K-Bessel function of a complex argument.
 ///
-/// This function computes a sequence of complex Bessel functions `cy(j) = K(order + j - 1, z)`
+/// This function computes a sequence of complex Bessel functions `y(j) = K(order + j - 1, z)`
 /// for real, non-negative orders `order + j - 1` (`j = 1, ..., n`) and a complex argument `z`
 /// which is not equal to `(0.0, 0.0)`. The computation is valid in the cut plane
 /// `-PI < z.arg() <= PI`.
 ///
 /// When `scaling` is `Scaling::Scaled`, this function returns the scaled K functions,
-/// `cy(j) = z.exp() * K(order + j - 1, z)`, which remove the exponential behavior in both
+/// `y(j) = z.exp() * K(order + j - 1, z)`, which remove the exponential behavior in both
 /// the left and right half-planes for `z` to infinity.
 ///
 /// EQUATIONS ARE IMPLEMENTED FOR SMALL ORDERS
@@ -384,16 +384,16 @@ pub fn complex_bessel_j<T: BesselFloat>(
 /// * `z` - Complex argument `z`, `z != (0.0, 0.0)`, `-PI < z.arg() <= PI`.
 /// * `order` - Order of the initial K function, `order >= 0.0`.
 /// * `scaling` - A parameter to indicate the scaling option.
-///     * `Scaling::Unscaled`: returns `cy(j) = K(order + j - 1, z)`.
-///     * `Scaling::Scaled`: returns `cy(j) = K(order + j - 1, z) * z.exp()`.
+///     * `Scaling::Unscaled`: returns `y(j) = K(order + j - 1, z)`.
+///     * `Scaling::Scaled`: returns `y(j) = K(order + j - 1, z) * z.exp()`.
 /// * `n` - Number of members of the sequence, `n >= 1`.
 ///
 /// # Returns
 ///
 /// A tuple containing:
-/// * `cy`: A vector of complex numbers containing the values of the Bessel
+/// * `y`: A vector of complex numbers containing the values of the Bessel
 ///   functions for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `n_zeros`: The number of components in `cy` set to zero due to underflow.
+/// * `n_zeros`: The number of components in `y` set to zero due to underflow.
 pub fn complex_bessel_k<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -402,28 +402,21 @@ pub fn complex_bessel_k<T: BesselFloat>(
 ) -> BesselResult<T> {
     sanitise_inputs(z, order, n, true)?;
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
-    //-----------------------------------------------------------------------------;
-    //     TEST FOR PROPER RANGE;
-    //-----------------------------------------------------------------------;
     let abs_z = z.abs();
     let max_order = order + T::from_usize(n - 1);
     let partial_significance_loss = is_significance_lost(abs_z, max_order, false, mc)?;
 
-    //-----------------------------------------------------------------------;
-    //     OVERFLOW TEST ON THE LAST MEMBER OF THE SEQUENCE;
-    //-----------------------------------------------------------------------;
+    // Overflow: K diverges as z → 0
     if abs_z < mc.underflow_limit {
         return Err(Overflow);
     }
 
     let mut n_zeros = 0;
     if order > mc.asymptotic_order_limit {
-        //-----------------------------------------------------------------------
-        //     UNIFORM ASYMPTOTIC EXPANSIONS FOR order > asymptotic_order_limit
-        //-----------------------------------------------------------------------
-        let rotation = if z.re >= T::zero() {
+        // Large order: use uniform asymptotic expansion
+        let rotation = if z.re >= T::ZERO {
             RotationDirection::None
-        } else if z.im < T::zero() {
+        } else if z.im < T::ZERO {
             RotationDirection::Left
         } else {
             RotationDirection::Right
@@ -437,18 +430,14 @@ pub fn complex_bessel_k<T: BesselFloat>(
         };
     }
 
-    if max_order > T::two() {
+    if max_order > T::TWO {
         let mut y = T::c_zeros(n);
         let n_underflow =
             check_underflow_uniform_asymp_params(z, order, scaling, IKType::K, n, &mut y, mc)?;
         n_zeros += n_underflow;
 
-        //-----------------------------------------------------------------------;
-        //     HERE NN=n OR NN=0 SINCE NUF=0,NN, OR -1 ON RETURN FROM CUOIK;
-        //     if NUF=NN, THEN cy(I)=CZERO FOR ALL I;
-        //-----------------------------------------------------------------------;
         if n_underflow == n {
-            return if z.re < T::zero() {
+            return if z.re < T::ZERO {
                 Err(Overflow)
             } else if partial_significance_loss {
                 Err(PartialLossOfSignificance { y, n_zeros })
@@ -457,26 +446,23 @@ pub fn complex_bessel_k<T: BesselFloat>(
             };
         }
     }
-    if (max_order > T::one()) && abs_z <= mc.abs_error_tolerance {
-        let half_abs_z = T::half() * abs_z;
+    // For very small |z| and large order, K grows as (z/2)^{-ν}, check this doesn't overflow
+    if (max_order > T::ONE) && abs_z <= mc.abs_error_tolerance {
+        let half_abs_z = T::HALF * abs_z;
         if -max_order * half_abs_z.ln() > mc.exponent_limit {
             return Err(Overflow);
         }
     }
-    let (y, n_zeros) = if z.re >= T::zero() {
-        //-----------------------------------------------------------------------;
-        //     RIGHT HALF PLANE COMPUTATION, REAL(z) >= 0.;
-        //-----------------------------------------------------------------------;
+    let (y, n_zeros) = if z.re >= T::ZERO {
+        // Right half plane
         k_right_half_plane(z, order, scaling, n)?
     } else {
-        //-----------------------------------------------------------------------;
-        //     LEFT HALF PLANE COMPUTATION;
-        //     PI/2 < z.arg() <= PI AND -PI < z.arg() < -PI/2.;
-        //-----------------------------------------------------------------------;
+        // Left half plane: use analytic continuation
+        // If any orders already underflowed, the continuation will overflow
         if n_zeros != 0 {
             return Err(Overflow);
         }
-        let rotation = if z.im < T::zero() {
+        let rotation = if z.im < T::ZERO {
             RotationDirection::Left
         } else {
             RotationDirection::Right
