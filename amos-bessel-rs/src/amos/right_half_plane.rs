@@ -78,7 +78,7 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
     let mut remaining_n: usize = n;
     let mut max_order = order + T::from_usize(n - 1);
     let mut y = T::c_zeros(n);
-    if abs_z <= T::two() || abs_z.powi(2) * T::from_f64(0.25) <= max_order + T::ONE {
+    if abs_z <= T::TWO || abs_z.powi(2) * T::from_f64(0.25) <= max_order + T::ONE {
         // Power series for small z
         let n_zeros_inner;
         // i_power_series return *signed* n_zeros. As per the docs
@@ -185,7 +185,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
     };
 
     let (mut k_v_minus_1, mut k_v) =
-        if (signed_fractional_order.abs() != T::half()) && (abs_z <= T::two()) {
+        if (signed_fractional_order.abs() != T::HALF) && (abs_z <= T::TWO) {
             // Small |z| <= 2.0 (and non-half-integer order): compute seed values K_nu and K_{nu+1}
             // using Temme's power series expansion.
             let (mut s1, mut s2, shinc_mu) =
@@ -231,7 +231,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
             let order_rotation = (signed_fractional_order * T::PI()).cos().abs();
             let quarter_minus_nu_sqr = (T::from_f64(0.25) - frac_order_sqr).abs();
 
-            if signed_fractional_order.abs() == T::half()
+            if signed_fractional_order.abs() == T::HALF
                 || order_rotation == T::ZERO
                 || quarter_minus_nu_sqr == T::ZERO
             {
@@ -263,7 +263,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
                 // standard recurrence can safely resume.
                 underflow_occurred = false;
                 let mut recovery_buffer = [T::C_ZERO; 2];
-                let half_exponent_limit = T::half() * mc.exponent_limit;
+                let half_exponent_limit = T::HALF * mc.exponent_limit;
 
                 let abs_limit = (-mc.exponent_limit).exp();
 
@@ -447,9 +447,9 @@ fn compute_small_z_power_series<T: BesselFloat>(
         }
         -sum
     } else {
-        (recip_gamma_one_minus_nu - recip_gamma_one_plus_nu) / (T::two() * signed_fractional_order)
+        (recip_gamma_one_minus_nu - recip_gamma_one_plus_nu) / (T::TWO * signed_fractional_order)
     };
-    let mean_gamma = (recip_gamma_one_minus_nu + recip_gamma_one_plus_nu) * T::half();
+    let mean_gamma = (recip_gamma_one_minus_nu + recip_gamma_one_plus_nu) * T::HALF;
 
     // Initial terms of Temme's series at k=0:
     // temme_coeff = f_0 = cancellation-free combination of (z/2)^-nu and (z/2)^+nu
@@ -457,8 +457,8 @@ fn compute_small_z_power_series<T: BesselFloat>(
     // pos_order_term = q_0 = 0.5 * (z/2)^+nu / Gamma(1-nu)
     let mut temme_coeff =
         one_over_sinc_nu * (gamma_diff_over_2nu * cosh_mu + mean_gamma * shinc_mu);
-    let mut neg_order_term = T::half() * mu.exp() / recip_gamma_one_plus_nu;
-    let mut pos_order_term = (T::half() / mu.exp()) / recip_gamma_one_minus_nu;
+    let mut neg_order_term = T::HALF * mu.exp() / recip_gamma_one_plus_nu;
+    let mut pos_order_term = (T::HALF / mu.exp()) / recip_gamma_one_minus_nu;
 
     let mut taylor_factor = T::C_ONE;
     let mut term_magnitude = T::ONE;
@@ -509,7 +509,7 @@ fn compute_large_z_miller_seeds<T: BesselFloat>(
     for k_int in (1..=starting_k).rev() {
         let k = T::from_usize(k_int);
         let k_sqr = k.powi(2);
-        let backward_recurrence_factor = (z + k) * T::two() / (k + T::ONE);
+        let backward_recurrence_factor = (z + k) * T::TWO / (k + T::ONE);
         (unnormalized_k_plus_1, unnormalized_k) = (
             unnormalized_k,
             (unnormalized_k * backward_recurrence_factor - unnormalized_k_plus_1) * (k_sqr + k)
@@ -528,7 +528,7 @@ fn compute_large_z_miller_seeds<T: BesselFloat>(
         // Numerically stable ratio (P_1 / P_0)
         unnormalized_k_plus_1 /= unnormalized_k.abs();
         unnormalized_k = unnormalized_k.conj() / unnormalized_k.abs();
-        (((-(unnormalized_k_plus_1 * unnormalized_k) + signed_fractional_order + T::half()) / z)
+        (((-(unnormalized_k_plus_1 * unnormalized_k) + signed_fractional_order + T::HALF) / z)
             + T::ONE)
             * k_nu
     };
@@ -570,9 +570,9 @@ fn determine_miller_starting_k<T: BesselFloat>(
             for i in 1..=K_MAX {
                 let i_plus_1 = T::from_usize(i + 1);
                 let i_float = T::from_usize(i);
-                let p_coeff_a = ((i_float - T::half()).powi(2) - frac_order_sqr)
-                    / (i_float * (i_float + T::ONE));
-                let p_coeff_b = (T::two() * abs_z + T::from_usize(2 * i)) / i_plus_1;
+                let p_coeff_a =
+                    ((i_float - T::HALF).powi(2) - frac_order_sqr) / (i_float * (i_float + T::ONE));
+                let p_coeff_b = (T::TWO * abs_z + T::from_usize(2 * i)) / i_plus_1;
                 (p_prev, p_curr) = (p_curr, p_coeff_b * p_curr - p_coeff_a * p_prev);
                 trial_index = i + 1;
                 if convergence_test < p_curr.abs() * i_plus_1 {

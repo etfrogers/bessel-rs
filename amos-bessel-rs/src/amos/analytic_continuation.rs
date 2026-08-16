@@ -196,8 +196,7 @@ pub fn airy_analytic_continuation<T: BesselFloat>(
     let negative_z = -z;
     let abs_z = z.abs();
 
-    let i_value = if (abs_z * abs_z * T::from_f64(0.25) <= order + T::one()) || (abs_z <= T::two())
-    {
+    let i_value = if (abs_z * abs_z * T::from_f64(0.25) <= order + T::one()) || (abs_z <= T::TWO) {
         //-----------------------------------------------------------------------
         // Power series for the I function
         //-----------------------------------------------------------------------

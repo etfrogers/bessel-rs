@@ -42,7 +42,7 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
     let mut n_remaining = n;
 
     // First check for complete underflow and overflow on the first member (n=1)
-    let limited_order = order.max(T::one());
+    let limited_order = order.max(T::ONE);
     let DebyeGeometry { zeta1, zeta2, .. } = DebyeGeometry::compute(z, limited_order);
     let exponent = scaling.scale_zetas(z, limited_order, zeta1, zeta2);
 
@@ -221,7 +221,7 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
     let mut rotation_factor = calculate_rotation_factor(n);
 
     // First check for complete underflow and overflow on the first member (n=1)
-    let limited_order = order.max(T::one());
+    let limited_order = order.max(T::ONE);
     let AiryGeometry { zeta1, zeta2, .. } = AiryGeometry::compute(z_rotated, limited_order);
 
     // 1. Calculate the exponent
@@ -621,9 +621,9 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
 ) -> BesselResult<T> {
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let h1_airy_rotation: Complex<T> =
-        Complex::<T>::new(T::one(), T::from_f64(1.732_050_807_568_877_2));
+        Complex::<T>::new(T::ONE, T::from_f64(1.732_050_807_568_877_2));
     let h2_airy_rotation: Complex<T> =
-        Complex::<T>::new(-T::half(), -T::from_f64(8.660_254_037_844_386e-1));
+        Complex::<T>::new(-T::HALF, -T::from_f64(8.660_254_037_844_386e-1));
 
     let mut n_zeros = 0;
     let mut y = T::c_zeros(n);

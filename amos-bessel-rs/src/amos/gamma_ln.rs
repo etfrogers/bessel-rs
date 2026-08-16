@@ -34,11 +34,11 @@ pub(crate) enum GammaError {
 /// * **Date Written:** May 1, 1983
 /// * **Reference:** Computation of Bessel Functions of Complex Argument by D.E. Amos, SAND83-0083, May, 1983.
 pub(crate) fn gamma_ln<T: BesselFloat>(z: T) -> Result<T, GammaError> {
-    if z <= T::zero() {
+    if z <= T::ZERO {
         return Err(GammaError::ZLessThanZero);
     }
 
-    if z <= T::from_f64(100.1) && z.fract() == T::zero() {
+    if z <= T::from_f64(100.1) && z.fract() == T::ZERO {
         return Ok(T::from_f64(INT_GAMMA_LOG_DATA[z.to_usize().unwrap()]));
     }
 
@@ -73,7 +73,7 @@ pub(crate) fn gamma_ln<T: BesselFloat>(z: T) -> Result<T, GammaError> {
 
     let tlg = z_modified.ln();
     let mut return_value =
-        z_modified * (tlg - T::one()) + T::half() * (T::from_f64(LN_2_PI) - tlg) + s;
+        z_modified * (tlg - T::one()) + T::HALF * (T::from_f64(LN_2_PI) - tlg) + s;
 
     if z_increment != 0 {
         let mut zp = T::one();

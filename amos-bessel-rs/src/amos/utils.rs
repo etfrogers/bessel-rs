@@ -15,7 +15,7 @@ pub const AIC: f64 = 1.265_512_123_484_645_4;
 /// Normalizing by $|z|$ in two stages computes a unit vector $\bar{z}/|z|$ first, avoiding
 /// intermediate overflow or underflow of $|z|^2$ when $|z|$ is near machine boundaries.
 pub(crate) fn two_over_z_safe<T: BesselFloat>(z: Complex<T>) -> Complex<T> {
-    let r_abs_z = T::one() / z.abs();
+    let r_abs_z = T::ONE / z.abs();
     let intermediate = z.conj() * r_abs_z;
     (intermediate + intermediate) * r_abs_z
 }
@@ -59,7 +59,7 @@ pub fn is_significance_lost<T: BesselFloat>(
     modify_threshold: bool,
     mc: &MachineConsts<T>,
 ) -> Result<bool, BesselError<T>> {
-    let f64_precision_limit = T::half() / mc.abs_error_tolerance;
+    let f64_precision_limit = T::HALF / mc.abs_error_tolerance;
     // TODO the below is limited to i32: could push to 64 later, but would change compare to fortran
     let integer_size_limit = T::from_f64((i32::MAX as f64) * 0.5);
     let mut upper_size_limit = f64_precision_limit.min(integer_size_limit);
@@ -81,10 +81,10 @@ pub(crate) fn sanitise_inputs<T: BesselFloat>(
     check_z_zero: bool,
 ) -> Result<(), BesselError<T>> {
     let mut err = None;
-    if check_z_zero && z.re == T::zero() && z.im == T::zero() {
+    if check_z_zero && z.re == T::ZERO && z.im == T::ZERO {
         err = Some("z must not be zero");
     }
-    if order < T::zero() {
+    if order < T::ZERO {
         err = Some("order must be positive");
     };
     if n < 1 {

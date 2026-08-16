@@ -68,7 +68,7 @@ pub(crate) fn i_asymp_large_order<T: BesselFloat>(
     let max_order = order + T::from_usize(n - 1);
 
     let steps_to_asymptotic_limit = ((mc.asymptotic_order_limit - max_order).trunc() + T::one())
-        .max(T::zero())
+        .max(T::ZERO)
         .to_usize()
         .unwrap();
 

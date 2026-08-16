@@ -34,12 +34,12 @@ pub fn i_power_series<T: BesselFloat>(
         // If it's zero, then n_zeros = 0 (as y==0), but if its very small but non_zero, then
         // we underflowed, so set n_zeros = n. This is then adjusted for order = 0,
         // as we can set y[0] to one, and return one less n_zeros.
-        if order == T::zero() {
+        if order == T::ZERO {
             y[0] = T::C_ONE;
         }
-        if abs_z != T::zero() {
+        if abs_z != T::ZERO {
             n_zeros = n.try_into().unwrap();
-            if order == T::zero() {
+            if order == T::ZERO {
                 n_zeros -= 1;
             }
         }
@@ -49,7 +49,7 @@ pub fn i_power_series<T: BesselFloat>(
     let mut scale_factor = T::one();
     let mut near_underflow = false;
     let mut num_seeded = 0;
-    let half_z = z * T::half();
+    let half_z = z * T::HALF;
     let half_z_sq = if abs_z > mc.underflow_limit.sqrt() {
         half_z.powi(2)
     } else {
@@ -145,14 +145,14 @@ fn single_n_iteration<T: BesselFloat>(
     let mut series_sum = T::C_ONE;
     if abs_half_z_sq >= mc.abs_error_tolerance * order_plus_one {
         let mut current_term = T::C_ONE;
-        let mut denominator_step = order_plus_one + T::two();
+        let mut denominator_step = order_plus_one + T::TWO;
         let mut term_denominator = order_plus_one;
-        let mut error_estimate = T::two();
+        let mut error_estimate = T::TWO;
         while error_estimate > tolerance {
             current_term *= half_z_sq / term_denominator;
             series_sum += current_term;
             term_denominator += denominator_step;
-            denominator_step += T::two();
+            denominator_step += T::TWO;
             error_estimate *= abs_half_z_sq / term_denominator;
         }
     }

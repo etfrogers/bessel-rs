@@ -151,7 +151,7 @@ pub fn bessel_j<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 ) -> Result<ZT, BesselError<FT>> {
     let order: FT = order.into();
     let z: Complex<FT> = z.into();
-    if order >= FT::zero() {
+    if order >= FT::ZERO {
         return ZT::back_from(&bessel_j_single(order, z));
     }
 
@@ -179,7 +179,7 @@ pub fn bessel_i<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 ) -> Result<ZT, BesselError<FT>> {
     let order = order.into();
     let z = z.into();
-    if order >= FT::zero() {
+    if order >= FT::ZERO {
         return ZT::back_from(&bessel_i_single(order, z));
     }
 
@@ -222,7 +222,7 @@ pub fn bessel_y<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 ) -> Result<ZT, BesselError<FT>> {
     let order = order.into();
     let z = z.into();
-    if order >= FT::zero() {
+    if order >= FT::ZERO {
         return ZT::back_from(&bessel_y_single(order, z));
     }
 
@@ -259,7 +259,7 @@ pub fn hankel<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
         HankelKind::Second => hankel2_single(abs_order, z.into())?,
     };
 
-    if order < FT::zero() {
+    if order < FT::ZERO {
         // Need to reflect the Hankel function for negative orders, but this is just a rotation, so no loss of significance.
         h = reflect_h_element(abs_order, kind, h);
     }

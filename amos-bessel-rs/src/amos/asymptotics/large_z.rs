@@ -45,7 +45,7 @@ pub fn i_asymptotic<T: BesselFloat>(
     // Overflow / Exponent Range Test
     let exponent_arg = match scaling {
         Scaling::Unscaled => z,
-        Scaling::Scaled => Complex::<T>::new(T::zero(), z.im),
+        Scaling::Scaled => Complex::<T>::new(T::ZERO, z.im),
     };
     if exponent_arg.re.abs() > mc.exponent_limit {
         return Err(BesselError::Overflow);
@@ -63,8 +63,8 @@ pub fn i_asymptotic<T: BesselFloat>(
     // first reciprocal power since this is the leading term of the
     // expansion for the imaginary part.
     let rel_tol_scale = mc.abs_error_tolerance / abs_eight_z;
-    let max_iterations = (mc.asymptotic_z_limit * T::two()).to_usize().unwrap() + 2;
-    let mut phase_factor = if z.im == T::zero() {
+    let max_iterations = (mc.asymptotic_z_limit * T::TWO).to_usize().unwrap() + 2;
+    let mut phase_factor = if z.im == T::ZERO {
         T::C_ZERO
     } else {
         // Compute the Stokes phase factor exp(i*pi*(0.5 + order + k) * sgn(Im(z)))
@@ -72,7 +72,7 @@ pub fn i_asymptotic<T: BesselFloat>(
         let arg = order.fract() * T::PI();
         let phase_re = -arg.sin();
         let mut phase_im = arg.cos();
-        if z.im < T::zero() {
+        if z.im < T::ZERO {
             phase_im = -phase_im;
         };
         let phase_factor = Complex::<T>::new(phase_re, phase_im);
@@ -87,7 +87,7 @@ pub fn i_asymptotic<T: BesselFloat>(
         let (mut sum_dominant, sum_subdominant) = {
             // this block is just to contain the large number of mutable variables in a small space
             let modified_order = order + T::from_usize(k);
-            let four_order_sqr = (T::two() * modified_order).powf(T::two());
+            let four_order_sqr = (T::TWO * modified_order).powf(T::TWO);
             let atol = rel_tol_scale * (four_order_sqr - T::one()).abs();
             let mut sign = T::one();
             let mut sum_alternating = T::C_ONE;
@@ -115,8 +115,8 @@ pub fn i_asymptotic<T: BesselFloat>(
             }
             (sum_alternating, sum_direct)
         };
-        if z.re * T::two() < mc.exponent_limit {
-            sum_dominant += (-z * T::two()).exp() * phase_factor * sum_subdominant;
+        if z.re * T::TWO < mc.exponent_limit {
+            sum_dominant += (-z * T::TWO).exp() * phase_factor * sum_subdominant;
         }
         phase_factor = -phase_factor;
         *elem = sum_dominant * prefactor;

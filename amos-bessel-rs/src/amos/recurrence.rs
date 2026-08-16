@@ -73,7 +73,7 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
 
     let mut scaled_k_minus_1 = original_scaled_0;
     let mut scaled_k = original_scaled_1;
-    let half_exponent_limit = T::half() * mc.exponent_limit;
+    let half_exponent_limit = T::HALF * mc.exponent_limit;
     let internal_scaling_factor = (-mc.exponent_limit).exp();
     let mut effective_z = z;
     // Run the recurrence forward on the scaled values until two consecutive values come
@@ -173,7 +173,7 @@ pub(crate) fn scale_controlled_recurrence<T: BesselFloat>(
     } else {
         Either::Left(base_iterator.take(n_offset).rev())
     };
-    let index_adjustment = if forward { -T::one() } else { T::one() };
+    let index_adjustment = if forward { -T::ONE } else { T::ONE };
 
     let mut recip_scale_factor = overflow_state.reciprocal_scaling_factor::<T>(mc);
     let mut boundary = overflow_state.boundary::<T>(mc);

@@ -41,8 +41,8 @@ fn geom_underflow<T: BesselFloat>(z: Complex<T>, order: T) -> bool {
 fn underflow_zetas<T: BesselFloat>(order: T) -> (Complex<T>, Complex<T>) {
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
 
-    let zeta1 = Complex::<T>::new(T::two() * mc.underflow_limit.ln().abs() + order, T::zero());
-    let zeta2 = Complex::<T>::new(order, T::zero());
+    let zeta1 = Complex::<T>::new(T::TWO * mc.underflow_limit.ln().abs() + order, T::ZERO);
+    let zeta2 = Complex::<T>::new(order, T::ZERO);
     (zeta1, zeta2)
 }
 
@@ -257,10 +257,10 @@ impl<T: BesselFloat> AiryGeometry<T> {
             // Power series in w^2 near turning point (|w^2| <= 0.25, z ≈ nu)
             let mut k_max = 1;
             let mut p = [T::C_ZERO; 30];
-            let mut abs_p = [T::zero(); 30];
+            let mut abs_p = [T::ZERO; 30];
             p[0] = T::C_ONE;
             let mut zeta_sum =
-                Complex::<T>::new(T::from_f64(TURNING_POINT_ZETA_COEFFS[0]), T::zero());
+                Complex::<T>::new(T::from_f64(TURNING_POINT_ZETA_COEFFS[0]), T::ZERO);
             abs_p[0] = T::one();
             if abs_w_sqr >= mc.abs_error_tolerance {
                 for k in 1..30 {
@@ -279,7 +279,7 @@ impl<T: BesselFloat> AiryGeometry<T> {
             let w = w_sqr.sqrt();
             let zeta2 = w * order; // zeta2 = nu * w
             let zeta1 = (T::C_ONE + T::TWO_THIRDS * zeta * sqrt_zeta_over_w) * zeta2; // zeta1 = zeta2 + (2/3)*nu*zeta^(3/2)
-            let phi_base = (T::two() * sqrt_zeta_over_w).sqrt(); // phi_base = (4*zeta / (1 - t^2))^(1/4)
+            let phi_base = (T::TWO * sqrt_zeta_over_w).sqrt(); // phi_base = (4*zeta / (1 - t^2))^(1/4)
             let phi = phi_base * recip_order_one_third; // Phi = phi_base * nu^(-1/3)
             Self {
                 phi,
@@ -298,37 +298,37 @@ impl<T: BesselFloat> AiryGeometry<T> {
         } else {
             // Asymptotic expansion away from turning point (|w^2| > 0.25)
             let mut w = w_sqr.sqrt(); // w = sqrt(1 - (z/nu)^2)
-            if w.re < T::zero() {
-                w.re = T::zero()
+            if w.re < T::ZERO {
+                w.re = T::ZERO
             };
-            if w.im < T::zero() {
-                w.im = T::zero()
+            if w.im < T::ZERO {
+                w.im = T::ZERO
             };
 
             let log_arg = (T::C_ONE + w) / z_over_order; // (1 + w) / (z/nu)
             let mut log_term = log_arg.ln(); // ln((1 + w)/t) = zeta1 / nu
-            log_term.im = log_term.im.clamp(T::zero(), T::from_f64(FRAC_PI_2));
-            if log_term.re < T::zero() {
-                log_term.re = T::zero()
+            log_term.im = log_term.im.clamp(T::ZERO, T::from_f64(FRAC_PI_2));
+            if log_term.re < T::ZERO {
+                log_term.re = T::ZERO
             };
             let zeta_3_2 = (log_term - w) * T::from_f64(1.5); // zeta^(3/2) = (3/2) * (zeta1 - zeta2)/nu
             let zeta1 = log_term * order; // zeta1 = nu * ln((1 + w)/t)
             let zeta2 = w * order; // zeta2 = nu * w
             let abs_zeta_3_2 = zeta_3_2.abs();
             let mut ang = zeta_3_2.parg();
-            ang = ang.clamp(T::zero(), T::from_f64(Self::THREE_PI_BY_2));
+            ang = ang.clamp(T::ZERO, T::from_f64(Self::THREE_PI_BY_2));
 
             // Recover zeta = (zeta^(3/2))^(2/3) via polar form:
             let abs_zeta = abs_zeta_3_2.powf(T::TWO_THIRDS); // |zeta| = |zeta^(3/2)|^(2/3)
             ang *= T::TWO_THIRDS; // arg(zeta) = (2/3) * arg(zeta^(3/2))
             let mut zeta = Complex::<T>::cis(ang) * abs_zeta;
-            if zeta.im < T::zero() {
-                zeta.im = T::zero()
+            if zeta.im < T::ZERO {
+                zeta.im = T::ZERO
             };
             let arg = zeta * order_two_thirds; // Airy argument: arg = zeta * nu^(2/3)
             let sqrt_zeta = zeta_3_2 / zeta; // sqrt(zeta) = zeta^(3/2) / zeta
             let sqrt_zeta_over_w = sqrt_zeta / w; // sqrt(zeta) / w
-            let phi_base = (T::two() * sqrt_zeta_over_w).sqrt(); // phi_base = (4*zeta / (1 - t^2))^(1/4)
+            let phi_base = (T::TWO * sqrt_zeta_over_w).sqrt(); // phi_base = (4*zeta / (1 - t^2))^(1/4)
             let phi = phi_base * recip_order_one_third; // Phi = phi_base * nu^(-1/3)
 
             Self {
@@ -648,7 +648,7 @@ fn evaluate_transition_poly<T: BesselFloat>(
 /// using Horner's method: $P(x) = (\dots((c_0 x + c_1) x + c_2) \dots) x + c_n$.
 #[inline]
 fn evaluate_horner<T: BesselFloat>(coeffs: &[f64], x: Complex<T>) -> Complex<T> {
-    let mut val = Complex::<T>::new(T::from_f64(coeffs[0]), T::zero());
+    let mut val = Complex::<T>::new(T::from_f64(coeffs[0]), T::ZERO);
     for &c in &coeffs[1..] {
         val = val * x + T::from_f64(c);
     }

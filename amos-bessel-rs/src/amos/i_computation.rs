@@ -36,21 +36,21 @@ pub(crate) fn i_miller<T: BesselFloat>(
     n: usize,
 ) -> Result<Vec<Complex<T>>, BesselError<T>> {
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
-    let scale: T = T::two() * T::MIN_POSITIVE / mc.abs_error_tolerance;
+    let scale: T = T::TWO * T::MIN_POSITIVE / mc.abs_error_tolerance;
     let abs_z = z.abs();
     let int_abs_z = abs_z.to_usize().unwrap();
     let int_order = order.to_usize().unwrap();
     let modified_int_order = int_order + n - 1;
     let abs_z_plus_one = T::from_usize(int_abs_z + 1);
-    let reciprocal_abs_z = T::one() / abs_z;
+    let reciprocal_abs_z = T::ONE / abs_z;
     let two_over_z = two_over_z_safe(z);
     let mut fwd_k_minus_1 = T::C_ZERO;
     let mut fwd_k = T::C_ONE;
-    let mut abs_recurrence_factor = (abs_z_plus_one + T::one()) * reciprocal_abs_z;
+    let mut abs_recurrence_factor = (abs_z_plus_one + T::ONE) * reciprocal_abs_z;
     let rho =
-        abs_recurrence_factor + (abs_recurrence_factor * abs_recurrence_factor - T::one()).sqrt();
+        abs_recurrence_factor + (abs_recurrence_factor * abs_recurrence_factor - T::ONE).sqrt();
     let rho_sq = rho * rho;
-    let mut convergence_test = (rho_sq + rho_sq) / ((rho_sq - T::one()) * (rho - T::one()));
+    let mut convergence_test = (rho_sq + rho_sq) / ((rho_sq - T::ONE) * (rho - T::ONE));
     convergence_test /= mc.abs_error_tolerance;
     // Phase 1: Forward Sequence Truncation Bound
     // Run the recurrence forward. The sequence diverges, representing the rapidly growing K_nu(z).
@@ -62,7 +62,7 @@ pub(crate) fn i_miller<T: BesselFloat>(
     for i in 0..80 {
         series_trunctation_index = i + 2;
         let current_index_magnitude = abs_z_plus_one + T::from_usize(i);
-        let recurrence_factor = two_over_z * ((abs_z_plus_one + T::from_usize(i * 2)) / T::two());
+        let recurrence_factor = two_over_z * ((abs_z_plus_one + T::from_usize(i * 2)) / T::TWO);
         (fwd_k_minus_1, fwd_k) = (fwd_k, fwd_k_minus_1 - recurrence_factor * fwd_k);
         if fwd_k.abs() > convergence_test * current_index_magnitude * current_index_magnitude {
             converged = true;
@@ -80,14 +80,13 @@ pub(crate) fn i_miller<T: BesselFloat>(
         // for the Neumann normalisation sum (which requires more terms to converge).
         fwd_k_minus_1 = T::C_ZERO;
         fwd_k = T::C_ONE;
-        let starting_order = T::from_f64(modified_int_order as f64) + T::one();
+        let starting_order = T::from_f64(modified_int_order as f64) + T::ONE;
         convergence_test = (starting_order * reciprocal_abs_z / mc.abs_error_tolerance).sqrt();
         let mut hit_loop_end = false;
         converged = false;
         for k in 0..80 {
             ratio_truncation_index = k + 1;
-            let recurrence_factor =
-                two_over_z * ((starting_order + T::from_usize(k * 2)) / T::two());
+            let recurrence_factor = two_over_z * ((starting_order + T::from_usize(k * 2)) / T::TWO);
             (fwd_k_minus_1, fwd_k) = (fwd_k, fwd_k_minus_1 - recurrence_factor * fwd_k);
             let abs_fwd_k = fwd_k.abs();
             if abs_fwd_k < convergence_test {
@@ -99,10 +98,10 @@ pub(crate) fn i_miller<T: BesselFloat>(
             }
             abs_recurrence_factor = recurrence_factor.abs();
             let lambda = abs_recurrence_factor
-                + (abs_recurrence_factor * abs_recurrence_factor - T::one()).sqrt();
+                + (abs_recurrence_factor * abs_recurrence_factor - T::ONE).sqrt();
             let kappa = abs_fwd_k / fwd_k_minus_1.abs();
             let rho = lambda.min(kappa);
-            convergence_test *= (rho / (rho * rho - T::one())).sqrt();
+            convergence_test *= (rho / (rho * rho - T::ONE)).sqrt();
             hit_loop_end = true;
         }
         if !converged {
@@ -121,9 +120,9 @@ pub(crate) fn i_miller<T: BesselFloat>(
     let mut val_k = Complex::<T>::new(scale, T::ZERO);
     let fractional_order = order.fract();
     let twice_fractional_order = fractional_order + fractional_order;
-    let mut binomial_coeff = (gamma_ln(kk_float + twice_fractional_order + T::one()).unwrap()
-        - gamma_ln(kk_float + T::one()).unwrap()
-        - gamma_ln(twice_fractional_order + T::one()).unwrap())
+    let mut binomial_coeff = (gamma_ln(kk_float + twice_fractional_order + T::ONE).unwrap()
+        - gamma_ln(kk_float + T::ONE).unwrap()
+        - gamma_ln(twice_fractional_order + T::ONE).unwrap())
     .exp();
     let mut normalisation_sum = T::C_ZERO;
     // Neumann normalisation loop
@@ -131,12 +130,11 @@ pub(crate) fn i_miller<T: BesselFloat>(
         let pt = val_k;
         val_k = val_k_plus_one + (kk_float + fractional_order) * (two_over_z * val_k);
         val_k_plus_one = pt;
-        let binomial_ratio =
-            T::one() - twice_fractional_order / (kk_float + twice_fractional_order);
+        let binomial_ratio = T::ONE - twice_fractional_order / (kk_float + twice_fractional_order);
         let next_binomial_coeff = binomial_coeff * binomial_ratio;
         normalisation_sum += (next_binomial_coeff + binomial_coeff) * val_k_plus_one;
         binomial_coeff = next_binomial_coeff;
-        kk_float -= T::one();
+        kk_float -= T::ONE;
     }
     let mut y = T::c_zeros(n);
     y[n - 1] = val_k;
@@ -146,11 +144,11 @@ pub(crate) fn i_miller<T: BesselFloat>(
             val_k = val_k_plus_one + (kk_float + fractional_order) * (two_over_z * pt);
             val_k_plus_one = pt;
             let binomial_ratio =
-                T::one() - twice_fractional_order / (kk_float + twice_fractional_order);
+                T::ONE - twice_fractional_order / (kk_float + twice_fractional_order);
             let next_binomial_coeff = binomial_coeff * binomial_ratio;
             normalisation_sum += (next_binomial_coeff + binomial_coeff) * val_k_plus_one;
             binomial_coeff = next_binomial_coeff;
-            kk_float -= T::one();
+            kk_float -= T::ONE;
             y[n - (i + 1)] = val_k;
         }
     }
@@ -161,11 +159,11 @@ pub(crate) fn i_miller<T: BesselFloat>(
                 val_k_plus_one + (kk_float + fractional_order) * (two_over_z * val_k),
             );
             let binomial_ratio =
-                T::one() - twice_fractional_order / (kk_float + twice_fractional_order);
+                T::ONE - twice_fractional_order / (kk_float + twice_fractional_order);
             let next_binomial_coeff = binomial_coeff * binomial_ratio;
             normalisation_sum += (next_binomial_coeff + binomial_coeff) * val_k_plus_one;
             binomial_coeff = next_binomial_coeff;
-            kk_float -= T::one();
+            kk_float -= T::ONE;
         }
     }
 
@@ -174,7 +172,7 @@ pub(crate) fn i_miller<T: BesselFloat>(
         scaled_z.re = T::ZERO;
     }
     let mut ln_leading_term = -fractional_order * two_over_z.ln() + scaled_z;
-    let gamma_term = gamma_ln(T::one() + fractional_order).unwrap();
+    let gamma_term = gamma_ln(T::ONE + fractional_order).unwrap();
     ln_leading_term -= gamma_term;
     // Calculate the final normalisation constant.
     // The complex division exp(ln_leading_term) / (normalisation_sum + val_k) is performed
@@ -269,15 +267,15 @@ pub(crate) fn i_ratios<T: BesselFloat>(z: Complex<T>, order: T, n: usize) -> Vec
             }
             rough_check = false;
 
-            let abs_next_recurrence_factor = (recurrence_factor + two_over_z).abs() / T::two();
+            let abs_next_recurrence_factor = (recurrence_factor + two_over_z).abs() / T::TWO;
             let lambda =
-                abs_next_recurrence_factor + (abs_next_recurrence_factor.powi(2) - T::one()).sqrt();
+                abs_next_recurrence_factor + (abs_next_recurrence_factor.powi(2) - T::ONE).sqrt();
             let rho = abs_fwd_k / abs_fwd_k_minus_1.min(lambda);
-            convergence_test = base_convergence_test * (rho / (rho.powi(2) - T::one())).sqrt();
+            convergence_test = base_convergence_test * (rho / (rho.powi(2) - T::ONE)).sqrt();
         }
     }
 
-    let mut val_k = Complex::<T>::new(T::one() / abs_fwd_k, T::ZERO);
+    let mut val_k = Complex::<T>::new(T::ONE / abs_fwd_k, T::ZERO);
     let mut val_k_plus_1 = T::C_ZERO;
 
     {
@@ -367,11 +365,11 @@ pub(crate) fn i_wronskian<T: BesselFloat>(
     // Scale K_nu and K_{nu+1} to keep intermediate products well on scale.
     let abs_k_nu_plus_1 = k_values[1].abs();
     let k_scale_factor = if abs_k_nu_plus_1 <= mc.absolute_approximation_limit {
-        T::one() / mc.abs_error_tolerance
-    } else if abs_k_nu_plus_1 >= T::one() / mc.absolute_approximation_limit {
+        T::ONE / mc.abs_error_tolerance
+    } else if abs_k_nu_plus_1 >= T::ONE / mc.absolute_approximation_limit {
         mc.abs_error_tolerance
     } else {
-        T::one()
+        T::ONE
     };
     let scaled_k_nu = k_values[0] * k_scale_factor;
     let scaled_k_nu_plus_1 = k_values[1] * k_scale_factor;

@@ -83,7 +83,7 @@ pub(crate) fn airy_power_series<T: BesselFloat>(
     };
 
     if return_derivative {
-        z_floor.powi(2) * sum1 * (c1 / T::two()) - sum2 * c2
+        z_floor.powi(2) * sum1 * (c1 / T::TWO) - sum2 * c2
     } else {
         sum1 * c1 - c2 * z_floor * sum2
     }

@@ -66,9 +66,9 @@ pub trait BesselFloat:
     fn from_cpx64(value: Complex<f64>) -> Complex<Self>;
 
     /// Pre-computed value of `0.5` in this precision.
-    fn half() -> Self;
+    const HALF: Self;
     /// Pre-computed value of `2.0` in this precision.
-    fn two() -> Self;
+    const TWO: Self;
 
     /// Returns the raw bitwise representation of this float.
     fn to_bits(self) -> u64;
@@ -93,22 +93,14 @@ impl BesselFloat for f64 {
     const MIN_POSITIVE: Self = f64::MIN_POSITIVE;
     const NAN: Self = f64::NAN;
     const TWO_THIRDS: Self = 2.0 / 3.0;
+    const HALF: Self = 0.5;
+    const TWO: Self = 2.0;
 
     const MACHINE_CONSTANTS: &'static LazyLock<MachineConsts<Self>> = &MACHINE_CONSTANTS_64;
 
     #[inline]
     fn from_f64(value: f64) -> Self {
         value
-    }
-
-    #[inline]
-    fn half() -> Self {
-        0.5
-    }
-
-    #[inline]
-    fn two() -> Self {
-        2.0
     }
 
     #[inline]
@@ -141,22 +133,14 @@ impl BesselFloat for f32 {
     const MIN_POSITIVE: Self = f32::MIN_POSITIVE;
     const NAN: Self = f32::NAN;
     const TWO_THIRDS: Self = 2.0 / 3.0;
+    const HALF: Self = 0.5;
+    const TWO: Self = 2.0;
 
     const MACHINE_CONSTANTS: &'static LazyLock<MachineConsts<Self>> = &MACHINE_CONSTANTS_32;
 
     #[inline]
     fn from_f64(value: f64) -> Self {
         value as f32
-    }
-
-    #[inline]
-    fn half() -> Self {
-        0.5
-    }
-
-    #[inline]
-    fn two() -> Self {
-        2.0
     }
 
     #[inline]

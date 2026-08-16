@@ -32,10 +32,10 @@ pub(crate) enum IKType {
 
 pub(crate) fn i_pow_n<T: BesselFloat>(n: usize) -> Complex<T> {
     match n % 4 {
-        0 => Complex::new(T::one(), T::zero()),
-        1 => Complex::new(T::zero(), T::one()),
-        2 => Complex::new(-T::one(), T::zero()),
-        3 => Complex::new(T::zero(), -T::one()),
+        0 => Complex::new(T::one(), T::ZERO),
+        1 => Complex::new(T::ZERO, T::one()),
+        2 => Complex::new(-T::one(), T::ZERO),
+        3 => Complex::new(T::ZERO, -T::one()),
         _ => unreachable!(),
     }
 }
@@ -140,7 +140,7 @@ impl<T: BesselFloat> ComplexExt<T> for Complex<T> {
     #[inline]
     fn parg(&self) -> T {
         let mut ang = self.arg();
-        if ang < T::zero() {
+        if ang < T::ZERO {
             ang += T::from_f64(PI * 2.0);
         }
         ang
