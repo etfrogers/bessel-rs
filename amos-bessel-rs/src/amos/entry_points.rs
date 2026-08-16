@@ -281,12 +281,12 @@ pub fn complex_bessel_i<T: BesselFloat>(
 
 /// Computes the J-Bessel function of a complex argument.
 ///
-/// This function computes a sequence of complex Bessel functions `cy(j) = J(order + j - 1, z)`
+/// This function computes a sequence of complex Bessel functions `y(j) = J(order + j - 1, z)`
 /// for real, non-negative orders `order + j - 1` (`j = 1, ..., n`) and a complex argument `z`
 /// in the cut plane `-PI < z.arg() <= PI`.
 ///
 /// When `scaling` is `Scaling::Scaled`, this function returns the scaled functions
-/// `cy(j) = (-(z.im.abs())).exp() * J(order + j - 1, z)`, which removes the
+/// `y(j) = (-(z.im.abs())).exp() * J(order + j - 1, z)`, which removes the
 /// exponential growth in both the upper and lower half-planes for `z` to infinity.
 ///
 /// The computation is carried out by the formula
@@ -302,16 +302,16 @@ pub fn complex_bessel_i<T: BesselFloat>(
 /// * `z` - Complex argument `z`, `-PI < z.arg() <= PI`.
 /// * `order` - Order of the initial J function, `order >= 0.0`.
 /// * `scaling` - A parameter to indicate the scaling option.
-///     * `Scaling::Unscaled`: returns `cy(j) = J(order + j - 1, z)`.
-///     * `Scaling::Scaled`: returns `cy(j) = J(order + j - 1, z) * (-(z.im.abs())).exp()`.
+///     * `Scaling::Unscaled`: returns `y(j) = J(order + j - 1, z)`.
+///     * `Scaling::Scaled`: returns `y(j) = J(order + j - 1, z) * (-(z.im.abs())).exp()`.
 /// * `n` - Number of members of the sequence, `n >= 1`.
 ///
 /// # Returns
 ///
 /// A tuple containing:
-/// * `cy`: A vector of complex numbers containing the values of the Bessel
+/// * `y`: A vector of complex numbers containing the values of the Bessel
 ///   functions for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `n_zeros`: The number of components in `cy` set to zero due to underflow.
+/// * `n_zeros`: The number of components in `y` set to zero due to underflow.
 pub fn complex_bessel_j<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -323,40 +323,35 @@ pub fn complex_bessel_j<T: BesselFloat>(
 
     let partial_significance_loss =
         is_significance_lost(z.abs(), order + T::from_usize(n - 1), false, mc)?;
-    //-----------------------------------------------------------------------
-    //     CALCULATE CSGN=EXP(order*FRAC_PI_2*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
-    //     WHEN order IS LARGE
-    //-----------------------------------------------------------------------
-    let arg = (order % T::two()) * T::FRAC_PI_2();
+    // Compute exp(i·ν·π/2) via order mod 2 to avoid significance loss for large orders
+    let arg = (order % T::TWO) * T::FRAC_PI_2();
     let mut phase_multiplier = Complex::<T>::cis(arg);
     if (order.to_i64().unwrap() / 2).is_odd() {
         phase_multiplier = -phase_multiplier;
     }
-    //-----------------------------------------------------------------------
-    //     ZN IS IN THE RIGHT HALF PLANE
-    //-----------------------------------------------------------------------
-    let mut sign_selector = T::one();
-    let mut zn = -T::I * z;
-    if z.im < T::zero() {
-        zn = -zn;
+    // J(ν,z) = exp(iνπ/2)·I(ν,-iz) for Im(z) ≥ 0; conjugate symmetry handles Im(z) < 0
+    let mut sign_selector = T::ONE;
+    let mut z_rotated = -T::I * z;
+    if z.im < T::ZERO {
+        z_rotated = -z_rotated;
         phase_multiplier.im = -phase_multiplier.im;
         sign_selector = -sign_selector;
     }
-    let (mut cy, n_zeros) = i_right_half_plane(zn, order, scaling, n)?;
-    for cyi in cy.iter_mut().take(n - n_zeros) {
-        let mut scaling = T::one();
+    let (mut y, n_zeros) = i_right_half_plane(z_rotated, order, scaling, n)?;
+    for yi in y.iter_mut().take(n - n_zeros) {
+        let mut scaling = T::ONE;
         // TODO is the below a pattern?
-        if cyi.linf_norm() <= mc.absolute_approximation_limit {
-            *cyi *= mc.rtol;
+        if yi.linf_norm() <= mc.absolute_approximation_limit {
+            *yi *= mc.rtol;
             scaling = mc.abs_error_tolerance;
         }
-        *cyi *= phase_multiplier * scaling;
+        *yi *= phase_multiplier * scaling;
         phase_multiplier *= T::I * sign_selector;
     }
     if partial_significance_loss {
-        Err(PartialLossOfSignificance { y: cy, n_zeros })
+        Err(PartialLossOfSignificance { y, n_zeros })
     } else {
-        Ok((cy, n_zeros))
+        Ok((y, n_zeros))
     }
 }
 
