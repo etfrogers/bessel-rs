@@ -19,7 +19,7 @@ use crate::{
 /// Computes the H-Bessel functions (Hankel functions) of a complex argument.
 ///
 /// This function computes a sequence of complex Hankel (Bessel) functions
-/// `cy[j] = H(order + j - 1, z)` real, non-negative
+/// `y[j] = H(order + j - 1, z)` real, non-negative
 /// orders `order + j - 1` (`j = 1, ..., n`), and a complex argument `z` which is
 /// not equal to `(0.0, 0.0)`. The computation is valid in the cut plane
 /// `-PI < z.arg() <= PI`.
@@ -30,7 +30,7 @@ use crate::{
 /// When `scaling` is `Scaling::Scaled`, this function returns the scaled Hankel
 /// functions, which remove the exponential behavior in both the upper and
 /// lower half-planes.
-/// `cy(j) = (-(3 - 2 * m)*z*i).exp() * H(order + j - 1, z)` where `m` depends
+/// `y(j) = (-(3 - 2 * m)*z*i).exp() * H(order + j - 1, z)` where `m` depends
 /// on the kind of Hankel function (1 for First, 2 for second).
 ///
 /// # Arguments
@@ -38,8 +38,8 @@ use crate::{
 /// * `z` - Complex argument `z`, `z != (0.0, 0.0)`, `-PI < z.arg() <= PI`.
 /// * `order` - Order of the initial H function, `order >= 0.0`.
 /// * `scaling` - A parameter to indicate the scaling option.
-///     * `Scaling::Unscaled`: returns `cy(j) = H(order + j - 1, z)`.
-///     * `Scaling::Scaled`: returns `cy(j) = H(m, order + j - 1, z) * (-i * z * (3 - 2*m)).exp()`
+///     * `Scaling::Unscaled`: returns `y(j) = H(order + j - 1, z)`.
+///     * `Scaling::Scaled`: returns `y(j) = H(m, order + j - 1, z) * (-i * z * (3 - 2*m)).exp()`
 ///       where `m` is determined by the kind of Hankel function (1 for First, 2 for second).
 /// * `hankel_kind` - Kind of Hankel function.
 /// * `n` - Number of members in the sequence, `n >= 1`.
@@ -47,9 +47,9 @@ use crate::{
 /// # Returns
 ///
 /// A tuple containing:
-/// * `cy`: A vector of complex numbers containing the values of the Hankel
+/// * `y`: A vector of complex numbers containing the values of the Hankel
 ///   functions for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `n_zeros`: The number of components in `cy` set to zero due to underflow.
+/// * `n_zeros`: The number of components in `y` set to zero due to underflow.
 pub fn complex_bessel_h<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -64,116 +64,104 @@ pub fn complex_bessel_h<T: BesselFloat>(
     let max_order = order + T::from_usize(n - 1);
 
     let rotation = hankel_kind.get_rotation();
-    let rotation_float: T = rotation.to_float();
-    let mut zn = -T::I * rotation_float * z;
-    //-----------------------------------------------------------------------
-    //     TEST FOR PROPER RANGE
-    //-----------------------------------------------------------------------
+    let rotation_factor = -T::I * rotation.to_float::<T>();
+    let mut z_rotated = rotation_factor * z;
     let abs_z = z.abs();
     let partial_loss_of_significance = is_significance_lost(abs_z, max_order, false, mc)?;
-    //-----------------------------------------------------------------------
-    //     OVERFLOW TEST ON THE LAST MEMBER OF THE SEQUENCE
-    //-----------------------------------------------------------------------
+
+    // Test for overflow on the maximum order
     if abs_z < mc.underflow_limit {
         return Err(Overflow);
     }
-    let (mut cy, n_zeros) = if order < mc.asymptotic_order_limit {
-        if max_order > T::one() {
-            if max_order > T::two() {
-                let mut cy = T::c_zeros(n);
+    let (mut y, n_zeros) = if order < mc.asymptotic_order_limit {
+        if max_order > T::ONE {
+            if max_order > T::TWO {
+                let mut y = T::c_zeros(n);
                 let n_underflow = check_underflow_uniform_asymp_params(
-                    zn,
+                    z_rotated,
                     order,
                     scaling,
                     IKType::K,
                     n,
-                    &mut cy,
+                    &mut y,
                     mc,
                 )?;
 
                 n_zeros += n_underflow;
 
-                // Here nn=n or nn=0 since n_underflow=(0 or nn) on return from
-                // check_underflow_uniform_asymp_params (for ik_type = k)
-                //
-                // if nuf=nn, then cy[i]=c_zero() for all i
                 if n == n_underflow {
-                    return if zn.re < T::zero() {
+                    return if z_rotated.re < T::ZERO {
                         Err(Overflow)
                     } else if partial_loss_of_significance {
-                        Err(PartialLossOfSignificance { y: cy, n_zeros })
+                        Err(PartialLossOfSignificance { y, n_zeros })
                     } else {
-                        Ok((cy, n_zeros))
+                        Ok((y, n_zeros))
                     };
                 }
             }
             if abs_z <= mc.abs_error_tolerance
-                && -max_order * (T::half() * abs_z).ln() > mc.exponent_limit
+                && -max_order * (T::HALF * abs_z).ln() > mc.exponent_limit
             {
                 return Err(Overflow);
             }
         }
-        if !((zn.re < T::zero())
-            || (zn.re == T::zero() && zn.im < T::zero() && hankel_kind == HankelKind::Second))
+        // z_rotated is in the right half plane (or on the positive imaginary axis for H1)
+        if z_rotated.re > T::ZERO
+            || (z_rotated.re == T::ZERO
+                && z_rotated.im > T::ZERO
+                && hankel_kind == HankelKind::First)
         {
-            //-----------------------------------------------------------------------
-            //     RIGHT HALF PLANE COMPUTATION, XN >= 0. && (XN != 0. ||
-            //     YN >= 0. || M=1)
-            //-----------------------------------------------------------------------
-            k_right_half_plane(zn, order, scaling, n)?
+            // Right half plane: compute K directly
+            k_right_half_plane(z_rotated, order, scaling, n)?
         } else {
-            //-----------------------------------------------------------------------
-            //     LEFT HALF PLANE COMPUTATION
-            //-----------------------------------------------------------------------
-            analytic_continuation(zn, order, scaling, -rotation, n)?
+            // Left half plane: use analytic continuation
+            analytic_continuation(z_rotated, order, scaling, -rotation, n)?
         }
     } else {
-        //-----------------------------------------------------------------------
-        //     UNIFORM ASYMPTOTIC EXPANSIONS FOR order > asymptotic_order_limit
-        //-----------------------------------------------------------------------
+        // Large order: use uniform asymptotic expansion.
+        // If z_rotated is in the left half plane, negate it and set a rotation
+        // so the asymptotic expansion can work in the right half plane.
         let mut asymptotic_rotation = RotationDirection::None;
-        if !((zn.re >= T::zero())
-            && (zn.re != T::zero() || zn.im >= T::zero() || hankel_kind != HankelKind::Second))
+        if (z_rotated.re < T::ZERO)
+            || (z_rotated.re == T::ZERO
+                && z_rotated.im < T::ZERO
+                && hankel_kind == HankelKind::Second)
         {
             asymptotic_rotation = -rotation;
-            if !(zn.re != T::zero() || zn.im >= T::zero()) {
-                zn = -zn;
+            if !(z_rotated.re != T::ZERO || z_rotated.im >= T::ZERO) {
+                z_rotated = -z_rotated;
             }
         }
-        let (cy, n_zeros_k) = k_asymp_large_order(zn, order, scaling, asymptotic_rotation, n)?;
+        let (y, n_zeros_k) =
+            k_asymp_large_order(z_rotated, order, scaling, asymptotic_rotation, n)?;
         n_zeros += n_zeros_k;
-        (cy, n_zeros)
+        (y, n_zeros)
     };
-    //-----------------------------------------------------------------------
-    //     H(M,order,z) = -FMM*(I/FRAC_PI_2)*(ZT**order)*K(order,-z*ZT)
-    //
-    //     ZT=(-FMM*FRAC_PI_2*I).exp() = CMPLX(0.0,-FMM), FMM=3-2*M, M=1,2
-    //-----------------------------------------------------------------------
+
+    // Convert K results to H via: H_m(ν,z) = -fmm·(i/(π/2))·zₜᵛ·K(ν, -z·zₜ)
+    // where zₜ = exp(-i·fmm·π/2) = -i·fmm, fmm = 3 - 2m
     let sign = -T::FRAC_PI_2() * T::from_f64(rotation.signum());
-    //-----------------------------------------------------------------------
-    //     CALCULATE (order*FRAC_PI_2*I).exp() TO MINIMIZE LOSSES OF SIGNIFICANCE
-    //     WHEN order IS LARGE
-    //-----------------------------------------------------------------------
-    let arg = (order % T::two()) * sign;
-    let mut phase_multiplier = (T::one() / sign) * T::I * Complex::<T>::cis(arg);
+    // Compute exp(i·ν·π/2) via order mod 2 to avoid significance loss for large orders
+    let arg = (order % T::TWO) * sign;
+    let mut phase_multiplier = (T::ONE / sign) * T::I * Complex::<T>::cis(arg);
     if (order.to_i64().unwrap() / 2).is_odd() {
         phase_multiplier = -phase_multiplier;
     }
 
-    for element in cy.iter_mut() {
+    for element in y.iter_mut() {
         let scaling = if element.linf_norm() < mc.absolute_approximation_limit {
             *element *= mc.rtol;
             mc.abs_error_tolerance
         } else {
-            T::one()
+            T::ONE
         };
         *element *= phase_multiplier * scaling;
-        phase_multiplier *= T::I * -rotation_float;
+        phase_multiplier *= rotation_factor;
     }
     if partial_loss_of_significance {
-        Err(PartialLossOfSignificance { y: cy, n_zeros })
+        Err(PartialLossOfSignificance { y, n_zeros })
     } else {
-        Ok((cy, n_zeros))
+        Ok((y, n_zeros))
     }
 }
 
