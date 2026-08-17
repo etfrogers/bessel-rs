@@ -245,7 +245,7 @@ impl<T: BesselFloat> AiryGeometry<T> {
         let z_over_order = z * reciprocal_order; // t = z / nu
         let recip_order_sqr = reciprocal_order * reciprocal_order;
 
-        let order_one_third = order.powf(T::from_f64(1.0 / 3.0)); // nu^(1/3)
+        let order_one_third = order.powf(T::ONE_THIRD); // nu^(1/3)
         let order_two_thirds = order_one_third * order_one_third; // nu^(2/3)
         let recip_order_one_third = T::one() / order_one_third; // nu^(-1/3)
 

@@ -47,8 +47,16 @@ pub trait BesselFloat:
     const MIN_POSITIVE: Self;
     /// Not a Number (NaN).
     const NAN: Self;
+
+    /// Pre-computed value of `1.0 / 3.0` in this precision.
+    const ONE_THIRD: Self;
     /// Pre-computed value of `2.0 / 3.0` in this precision.
     const TWO_THIRDS: Self;
+    /// Pre-computed value of `0.5` in this precision.
+    const HALF: Self;
+    /// Pre-computed value of `2.0` in this precision.
+    const TWO: Self;
+
     /// The complex number `1.0 + 0.0i`.
     const C_ONE: Complex<Self> = Complex::<Self>::ONE;
     /// The complex number `0.0 + 0.0i`.
@@ -64,11 +72,6 @@ pub trait BesselFloat:
     fn from_isize(value: isize) -> Self;
     /// Casts a `Complex<f64>` value to a `Complex` of this type.
     fn from_cpx64(value: Complex<f64>) -> Complex<Self>;
-
-    /// Pre-computed value of `0.5` in this precision.
-    const HALF: Self;
-    /// Pre-computed value of `2.0` in this precision.
-    const TWO: Self;
 
     /// Returns the raw bitwise representation of this float.
     fn to_bits(self) -> u64;
@@ -92,6 +95,8 @@ impl BesselFloat for f64 {
     const EPSILON: Self = f64::EPSILON;
     const MIN_POSITIVE: Self = f64::MIN_POSITIVE;
     const NAN: Self = f64::NAN;
+
+    const ONE_THIRD: Self = 1.0 / 3.0;
     const TWO_THIRDS: Self = 2.0 / 3.0;
     const HALF: Self = 0.5;
     const TWO: Self = 2.0;
@@ -132,6 +137,8 @@ impl BesselFloat for f32 {
     const EPSILON: Self = f32::EPSILON;
     const MIN_POSITIVE: Self = f32::MIN_POSITIVE;
     const NAN: Self = f32::NAN;
+
+    const ONE_THIRD: Self = 1.0 / 3.0;
     const TWO_THIRDS: Self = 2.0 / 3.0;
     const HALF: Self = 0.5;
     const TWO: Self = 2.0;

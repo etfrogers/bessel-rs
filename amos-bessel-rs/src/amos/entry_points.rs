@@ -641,7 +641,7 @@ pub fn complex_airy<T: BesselFloat>(
     scaling: Scaling,
 ) -> Result<(Complex<T>, usize), BesselError<T>> {
     const POWER_SERIES_COEFFS: (f64, f64) = (3.550_280_538_878_172e-1, 2.588_194_037_928_068e-1);
-    const COEFF: f64 = 1.837_762_984_739_306_8e-1;
+    const FRAC_1_PI_SQRT_3: f64 = 1.837_762_984_739_306_8e-1;
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
 
     let abs_z = z.abs();
@@ -663,7 +663,7 @@ pub fn complex_airy<T: BesselFloat>(
         let order = if return_derivative {
             T::TWO_THIRDS
         } else {
-            T::from_f64(1.0 / 3.0)
+            T::ONE_THIRD
         };
         let ln_abs_z = abs_z.ln();
 
@@ -705,7 +705,7 @@ pub fn complex_airy<T: BesselFloat>(
             retval.unwrap_or_else(|| k_right_half_plane(zeta, order, scaling, 1))?
         };
 
-        let mut y = y[0] * T::from_f64(COEFF) * scale_factor;
+        let mut y = y[0] * T::from_f64(FRAC_1_PI_SQRT_3) * scale_factor;
         y *= if return_derivative { -z } else { sqrt_z };
         (y / scale_factor, n_zeros)
     };
@@ -756,56 +756,45 @@ pub fn complex_airy_b<T: BesselFloat>(
     scaling: Scaling,
 ) -> Result<Complex<T>, BesselError<T>> {
     const POWER_SERIES_COEFFS: (f64, f64) = (6.149_266_274_460_007e-1, -4.482_883_573_538_264e-1);
-    const COEF: f64 = 5.773_502_691_896_257e-1;
+    const FRAC_1_SQRT_3: f64 = 5.773_502_691_896_257e-1;
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
 
     let (order1, order2) = if return_derivative {
-        (T::two() / T::from_f64(3.0), T::one() / T::from_f64(3.0))
+        (T::TWO_THIRDS, T::ONE_THIRD)
     } else {
-        (T::one() / T::from_f64(3.0), T::two() / T::from_f64(3.0))
+        (T::ONE_THIRD, T::TWO_THIRDS)
     };
 
     let abs_z = z.abs();
     let mut partial_loss_of_significance = false;
 
-    let bi = if abs_z <= T::one() {
-        //-----------------------------------------------------------------------
-        //     POWER SERIES FOR CABS(z) <= 1.
-        //-----------------------------------------------------------------------
-        let bi = airy_power_series(z, return_derivative, POWER_SERIES_COEFFS);
+    let y = if abs_z <= T::ONE {
+        // Power series for small |z|
+        let y = airy_power_series(z, return_derivative, POWER_SERIES_COEFFS);
         match scaling {
             Scaling::Scaled => {
                 //TODO zeta used many places with similar definition
                 let zeta = T::TWO_THIRDS * (z * z.sqrt());
-                bi * (-(zeta.re.abs())).exp()
+                y * (-(zeta.re.abs())).exp()
             }
-            Scaling::Unscaled => bi,
+            Scaling::Unscaled => y,
         }
     } else {
-        //-----------------------------------------------------------------------;
-        //     CASE FOR CABS(z) > 1.0;
-        //-----------------------------------------------------------------------;
-        //-----------------------------------------------------------------------;
-        //     TEST FOR RANGE;
-        //-----------------------------------------------------------------------;
+        // Large |z|: use I Bessel functions
         // significance loss only tested against z, not order, so 0.0 is used to never cause significance loss
-        partial_loss_of_significance = is_significance_lost(abs_z, T::zero(), true, mc)?;
-        let mut scale_factor = T::one();
+        partial_loss_of_significance = is_significance_lost(abs_z, T::ZERO, true, mc)?;
+        let mut scale_factor = T::ONE;
         let mut zeta = T::TWO_THIRDS * (z * z.sqrt());
 
-        //-----------------------------------------------------------------------;
-        //     RE(zeta) <= 0 WHEN RE(z) < 0, ESPECIALLY WHEN IM(z) IS SMALL;
-        //-----------------------------------------------------------------------;
-        if z.re < T::zero() {
+        // Ensure Re(ζ) ≤ 0 when Re(z) < 0 (especially for small Im(z))
+        if z.re < T::ZERO {
             zeta.re = -zeta.re.abs();
         }
-        if z.im == T::zero() && z.re < T::zero() {
-            zeta.re = T::zero();
+        if z.im == T::ZERO && z.re < T::ZERO {
+            zeta.re = T::ZERO;
         }
         if scaling == Scaling::Unscaled {
-            //-----------------------------------------------------------------------;
-            //     OVERFLOW TEST;
-            //-----------------------------------------------------------------------;
+            // Overflow test for unscaled mode
             let re_zeta = zeta.re.abs();
             if re_zeta > mc.approximation_limit {
                 scale_factor = mc.abs_error_tolerance;
@@ -814,39 +803,36 @@ pub fn complex_airy_b<T: BesselFloat>(
                 }
             }
         }
-        let mut rotation_angle = T::zero();
-        if zeta.re < T::zero() || z.re <= T::zero() {
+        let mut rotation_angle = T::ZERO;
+        if zeta.re < T::ZERO || z.re <= T::ZERO {
             rotation_angle = T::PI();
-            if z.im < T::zero() {
+            if z.im < T::ZERO {
                 rotation_angle = -T::PI();
             }
-            zeta *= -T::one();
+            zeta *= -T::ONE;
         }
-        //-----------------------------------------------------------------------;
-        //     AA=FACTOR FOR ANALYTIC CONTINUATION OF I(order,zeta);
-        //     KODE=2 RETURNS EXP(-ABS(Xzeta))*I(order,zeta) FROM ZBESI;
-        //-----------------------------------------------------------------------;
-        let (cy, _) = i_right_half_plane(zeta, order1, scaling, 1)?;
-        let mut s1 = Complex::<T>::cis(rotation_angle * order1) * cy[0] * scale_factor;
-        let (mut cy, _) = i_right_half_plane(zeta, order2, scaling, 2)?;
-        cy[0] *= scale_factor;
-        cy[1] *= scale_factor;
+        // Compute I(ν₁,ζ) and I(ν₂,ζ); in scaled mode these return exp(-|Re(ζ)|)·I(ν,ζ)
+        // rotation_angle provides the analytic continuation factor for left half plane
+        let (i1, _) = i_right_half_plane(zeta, order1, scaling, 1)?;
+        let i_pos_term = Complex::<T>::cis(rotation_angle * order1) * i1[0] * scale_factor;
+        let (mut i2, _) = i_right_half_plane(zeta, order2, scaling, 2)?;
+        i2[0] *= scale_factor;
+        i2[1] *= scale_factor;
 
-        //-----------------------------------------------------------------------;
-        //     BACKWARD RECUR ONE STEP FOR ORDERS -1/3 OR -2/3;
-        //-----------------------------------------------------------------------;
-        let s2 = (T::two() * order2) * (cy[0] / zeta) + cy[1];
-        s1 =
-            T::from_f64(COEF) * (s1 + s2 * Complex::<T>::cis(rotation_angle * (order2 - T::one())));
+        // Backward recurrence one step for negative order: I(-ν,ζ) = (2ν/ζ)·I(ν,ζ) + I(ν+1,ζ)
+        let i_neg_term = (T::TWO * order2) * (i2[0] / zeta) + i2[1];
+        let bi_unscaled = T::from_f64(FRAC_1_SQRT_3)
+            * (i_pos_term + i_neg_term * Complex::<T>::cis(rotation_angle * (order2 - T::ONE)));
         let z_factor = if return_derivative { z } else { z.sqrt() };
-        s1 * z_factor / scale_factor
+        bi_unscaled * z_factor / scale_factor
     };
+
     if partial_loss_of_significance {
         Err(PartialLossOfSignificance {
-            y: vec![bi],
+            y: vec![y],
             n_zeros: 0,
         })
     } else {
-        Ok(bi)
+        Ok(y)
     }
 }
