@@ -97,7 +97,7 @@
 /// for finer control of the calculation and results
 pub mod amos;
 
-mod reflections;
+pub mod reflections;
 mod types;
 
 use std::ops::Mul;
@@ -118,7 +118,6 @@ use num::Complex;
 use types::simple_bessel_wrapper;
 pub use types::{BackFrom, BesselError, BesselFloat};
 
-// TODO work with abritrary bit-depth floats
 // TODO bessel derivatives
 // TODO Overflow to positive or negative infinity, or zero?
 // TODO Handle Vectors/ndarrays for z
@@ -151,21 +150,7 @@ pub fn bessel_j<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 ) -> Result<ZT, BesselError<FT>> {
     let order: FT = order.into();
     let z: Complex<FT> = z.into();
-    if order >= FT::ZERO {
-        return ZT::back_from(&bessel_j_single(order, z));
-    }
-
-    // Special case for negative integer order: J(-n, z) = (-1)^n J(n, z)
-    let abs_order: FT = order.abs();
-    if let Some(n) = as_integer(abs_order) {
-        return ZT::back_from(&bessel_j_single(abs_order, z)).map(|x| x * integer_sign(n));
-    }
-
-    // General case: need both J and Y at positive |ν|
-    let j = bessel_j_single(abs_order, z)?;
-    let y = bessel_y_single(abs_order, z)?;
-
-    ZT::back_from(&reflect_j_element(abs_order, j, y))
+    ZT::back_from(&bessel_j_single(order, z))
 }
 
 /// Computes the modified Bessel function of the first kind Iv(z).
@@ -206,9 +191,7 @@ pub fn bessel_k<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
 ) -> Result<ZT, BesselError<FT>> {
-    // K_{-ν}(z) = K_ν(z) (DLMF 10.27.3)
-    let abs_order = order.into().abs();
-    ZT::back_from(&bessel_k_single(abs_order, z.into()))
+    ZT::back_from(&bessel_k_single(order.into(), z.into()))
 }
 
 /// Computes the Bessel function of the second kind Yv(z).
