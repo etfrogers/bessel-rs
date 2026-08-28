@@ -5,11 +5,8 @@ use std::{
     vec,
 };
 
-use super::DiagnosticBesselFloat;
-use crate::{
-    BesselError,
-    types::{BesselFloat, BesselValues},
-};
+use super::{BesselValues, DiagnosticBesselFloat};
+use amos_bessel_rs::{BesselError, BesselFloat};
 
 pub(crate) struct Tolerances {
     pub max_relative: f64,
@@ -29,7 +26,8 @@ impl Tolerances {
         reference: Option<&Complex<f64>>,
         margin: f64,
     ) -> Self {
-        let max_relative = T::MACHINE_CONSTANTS.abs_error_tolerance.to_f64().unwrap();
+        let mc = &**T::MACHINE_CONSTANTS;
+        let max_relative = mc.abs_error_tolerance.to_f64().unwrap();
 
         let max_im = actual.im.abs().to_f64().unwrap().max(expected.im.abs());
         let max_re = actual.re.abs().to_f64().unwrap().max(expected.re.abs());
@@ -83,9 +81,18 @@ fn errors_eq<T: DiagnosticBesselFloat>(
             BesselError::InvalidInput { details: r_details },
         ) => l_details == r_details,
         (
-            BesselError::PartialLossOfSignificance { y: l_y, nz: l_nz },
-            BesselError::PartialLossOfSignificance { y: r_y, nz: r_nz },
-        ) => check_complex_arrays_equal(l_y, r_y, &vec![], margin).is_none() && l_nz == r_nz,
+            BesselError::PartialLossOfSignificance {
+                y: l_y,
+                n_zeros: l_n_zeros,
+            },
+            BesselError::PartialLossOfSignificance {
+                y: r_y,
+                n_zeros: r_n_zeros,
+            },
+        ) => {
+            check_complex_arrays_equal(l_y, r_y, &vec![], margin).is_none()
+                && l_n_zeros == r_n_zeros
+        }
         (
             BesselError::ComplexOutputForRealInput { output: l_output },
             BesselError::ComplexOutputForRealInput { output: r_output },
@@ -173,10 +180,11 @@ pub fn assert_results_are_equal_floats<T: DiagnosticBesselFloat>(
     expected: &Result<BesselValues<f64>, BesselError<f64>>,
     margin: f64,
 ) {
+    let mc = &**T::MACHINE_CONSTANTS;
     match (actual, expected) {
         (Ok(actual_vals), Ok(expected_vals)) => {
             if actual_vals.1 > 0 || expected_vals.1 > 0 {
-                // If either calculation experienced an underflow (nz > 0),
+                // If either calculation experienced an underflow (n_zeros > 0),
                 // f32 and f64 will completely diverge. Skip comparison.
                 return;
             }
@@ -187,26 +195,26 @@ pub fn assert_results_are_equal_floats<T: DiagnosticBesselFloat>(
         }
         (Err(BesselError::Overflow), _) => {
             // Overflow for f32 does not imply overflow for f64
-            return;
         }
         (Err(BesselError::LossOfSignificance), Err(BesselError::Overflow)) => {
             // As the loss of significance check is early in the code path, it may prevent a later
             // Overflow form occurring.
-            return;
         }
 
         (
             Err(BesselError::LossOfSignificance),
-            Err(BesselError::PartialLossOfSignificance { y: _, nz: _ }),
+            Err(BesselError::PartialLossOfSignificance { y: _, n_zeros: _ }),
         ) => {
             // Possible for f32 to lose all siginifcance, and f64 to retain some. That's OK.
-            return;
         }
         (
-            Err(BesselError::PartialLossOfSignificance { y: actual_y, nz: _ }),
+            Err(BesselError::PartialLossOfSignificance {
+                y: actual_y,
+                n_zeros: _,
+            }),
             Err(BesselError::PartialLossOfSignificance {
                 y: expected_y,
-                nz: _,
+                n_zeros: _,
             }),
         ) => {
             // If they both lose significance, it is unlikley that the values in there will be the same, but that's ok.
@@ -214,14 +222,20 @@ pub fn assert_results_are_equal_floats<T: DiagnosticBesselFloat>(
             // margin is used as err < margin * abs_error_tolerance
             // therefore margin to make an order-of-magnitude check
             println!("Both lost significance: \n{:?}\n {:?}", actual, expected);
-            let oom_margin = 1.0 / T::MACHINE_CONSTANTS.abs_error_tolerance.to_f64().unwrap();
+            let oom_margin = 1.0 / mc.abs_error_tolerance.to_f64().unwrap();
             assert_complex_arrays_equal(actual_y, expected_y, &vec![], oom_margin);
         }
-        (Err(BesselError::PartialLossOfSignificance { y: actual_y, nz: _ }), Ok(expected_vals)) => {
+        (
+            Err(BesselError::PartialLossOfSignificance {
+                y: actual_y,
+                n_zeros: _,
+            }),
+            Ok(expected_vals),
+        ) => {
             // In this case f32 has lost significance, but f64 hasn't. Again, check that answers are within
             // an order of magnitude
             println!("One lost significance: \n{:?}\n {:?}", actual, expected);
-            let oom_margin = 1.0 / T::MACHINE_CONSTANTS.abs_error_tolerance.to_f64().unwrap();
+            let oom_margin = 1.0 / mc.abs_error_tolerance.to_f64().unwrap();
             assert_complex_arrays_equal(actual_y, &expected_vals.0, &vec![], oom_margin);
         }
 
@@ -402,5 +416,5 @@ pub fn print_complex_arrays<T: DiagnosticBesselFloat>(
 }
 
 fn to_str<T: Float + LowerExp>(c: &Complex<T>) -> String {
-    format!("{:>+1.5e} {:>+1.5e}i", c.re, c.im)
+    format!("{:+.5e} {:+.5e}i", c.re, c.im)
 }

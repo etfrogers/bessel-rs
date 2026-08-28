@@ -1,4 +1,4 @@
-use crate::HankelKind;
+use amos_bessel_rs::HankelKind;
 use num::complex::Complex64;
 
 use fortran_amos_testing::zbesh_fortran;

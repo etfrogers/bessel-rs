@@ -1,12 +1,8 @@
-use num::{
-    Complex, Float,
-    complex::{Complex64, ComplexFloat},
-};
+use num::{Complex, complex::ComplexFloat};
 use std::{f64::consts::PI, ops::Neg};
 
 pub use entry_points::*;
 pub(crate) use gamma_ln::gamma_ln;
-pub(crate) use i_power_series::i_power_series;
 pub(crate) use machine::{MACHINE_CONSTANTS_32, MACHINE_CONSTANTS_64, MachineConsts};
 
 #[cfg(test)]
@@ -14,13 +10,17 @@ pub(crate) use gamma_ln::GammaError;
 
 use crate::types::BesselFloat;
 
-mod asymptotic_i;
+mod airy;
+mod analytic_continuation;
+mod asymptotics;
 mod entry_points;
 mod gamma_ln;
-mod i_power_series;
+mod i_computation;
+mod limits;
 mod machine;
-mod overflow_checks;
-mod translator;
+mod power_series;
+mod recurrence;
+mod right_half_plane;
 mod utils;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -30,12 +30,15 @@ pub(crate) enum IKType {
     K = 2,
 }
 
-const CIP: [Complex64; 4] = [
-    Complex64::new(1.0, 0.0),
-    Complex64::new(0.0, 1.0),
-    Complex64::new(-1.0, 0.0),
-    Complex64::new(0.0, -1.0),
-];
+pub(crate) fn i_pow_n<T: BesselFloat>(n: usize) -> Complex<T> {
+    match n % 4 {
+        0 => Complex::new(T::one(), T::ZERO),
+        1 => Complex::new(T::ZERO, T::one()),
+        2 => Complex::new(-T::one(), T::ZERO),
+        3 => Complex::new(T::ZERO, -T::one()),
+        _ => unreachable!(),
+    }
+}
 
 /// Used to specify the kind of Hankel function in the [hankel](crate::hankel) and
 /// [complex_bessel_h] functions.
@@ -96,6 +99,13 @@ pub(crate) enum RotationDirection {
 }
 
 impl RotationDirection {
+    /// Returns the signum of the rotation direction as an `f64`.
+    ///
+    /// **WARNING:** In Rust, `0.0_f64.signum()` evaluates to `1.0`. So calling this on
+    /// `RotationDirection::None` will return `1.0`. Do not "optimize" this to return `0.0`
+    /// for `None`! This behavior perfectly mimics the legacy Fortran `SIGN(1.0, 0.0)` which
+    /// also evaluates to `1.0` by transferring the positive sign of zero. The codebase
+    /// relies on this Fortran quirk.
     pub fn signum(&self) -> f64 {
         (*self as i32 as f64).signum()
     }
@@ -118,20 +128,26 @@ impl Neg for RotationDirection {
     }
 }
 
-pub(crate) fn max_abs_component<T: Float>(c: Complex<T>) -> T {
-    c.re.abs().max(c.im.abs())
-}
-
-pub(crate) trait PositiveArg<T> {
+pub(crate) trait ComplexExt<T> {
+    /// Phase angle normalized to $[0, 2\pi)$.
     fn parg(&self) -> T;
+
+    /// $\infty$-norm (Chebyshev norm): $\max(|\text{Re}(z)|, |\text{Im}(z)|)$
+    fn linf_norm(&self) -> T;
 }
 
-impl<T: BesselFloat> PositiveArg<T> for Complex<T> {
+impl<T: BesselFloat> ComplexExt<T> for Complex<T> {
+    #[inline]
     fn parg(&self) -> T {
         let mut ang = self.arg();
-        if ang < T::zero() {
+        if ang < T::ZERO {
             ang += T::from_f64(PI * 2.0);
         }
         ang
+    }
+
+    #[inline]
+    fn linf_norm(&self) -> T {
+        self.re.abs().max(self.im.abs())
     }
 }

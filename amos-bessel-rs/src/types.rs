@@ -1,8 +1,7 @@
 use std::{
-    collections::HashMap,
     fmt::Debug,
     ops::{AddAssign, Div, DivAssign, Mul, MulAssign, RemAssign, SubAssign},
-    sync::{LazyLock, Mutex},
+    sync::LazyLock,
 };
 
 use crate::amos::{MACHINE_CONSTANTS_32, MACHINE_CONSTANTS_64, MachineConsts};
@@ -13,9 +12,13 @@ use num::{
 };
 use thiserror::Error;
 
+/// A trait defining the mathematical and floating-point constraints required to compute
+/// Bessel and Airy functions.
+///
+/// This trait is implemented for `f32` and `f64`. Downstream users can use this trait
+/// as a generic bound to write their own generic functions over real or complex Bessel evaluations.
 pub trait BesselFloat:
     Float
-    + CachableUAP<Self>
     + Debug
     + FloatConst
     + ConstZero
@@ -29,33 +32,58 @@ pub trait BesselFloat:
     + Div<Complex<Self>, Output = Complex<Self>>
     + PartialOrd
     + 'static
-// where Complex<Self>: MulAssign<Complex<Self>>
-// where Complex<Self>: Pow<Self, Output = Complex<Self>>
 {
+    /// The radix or base of the internal representation of this type.
     const RADIX: u32;
+    /// The number of significant digits in base-`RADIX` for this type.
     const MANTISSA_DIGITS: u32;
+    /// The lowest possible power of 2 exponent for a valid normalized float.
     const MIN_EXP: i32;
+    /// The highest possible power of 2 exponent for a valid normalized float.
     const MAX_EXP: i32;
+    /// The difference between `1.0` and the next larger representable number.
     const EPSILON: Self;
+    /// The smallest positive normal floating point number.
     const MIN_POSITIVE: Self;
+    /// Not a Number (NaN).
     const NAN: Self;
+
+    /// Pre-computed value of `1.0 / 3.0` in this precision.
+    const ONE_THIRD: Self;
+    /// Pre-computed value of `2.0 / 3.0` in this precision.
     const TWO_THIRDS: Self;
+    /// Pre-computed value of `0.5` in this precision.
+    const HALF: Self;
+    /// Pre-computed value of `2.0` in this precision.
+    const TWO: Self;
+
+    /// The complex number `1.0 + 0.0i`.
     const C_ONE: Complex<Self> = Complex::<Self>::ONE;
+    /// The complex number `0.0 + 0.0i`.
     const C_ZERO: Complex<Self> = Complex::<Self>::ZERO;
+    /// The complex imaginary unit `0.0 + 1.0i`.
     const I: Complex<Self> = Complex::<Self>::I;
 
+    /// Casts an `f64` value to this type.
     fn from_f64(value: f64) -> Self;
+    /// Casts a `usize` value to this type.
     fn from_usize(value: usize) -> Self;
+    /// Casts an `isize` value to this type.
+    fn from_isize(value: isize) -> Self;
+    /// Casts a `Complex<f64>` value to a `Complex` of this type.
     fn from_cpx64(value: Complex<f64>) -> Complex<Self>;
-    fn half() -> Self;
-    fn two() -> Self;
+
+    /// Returns the raw bitwise representation of this float.
     fn to_bits(self) -> u64;
 
+    /// Creates a vector of length `n` containing complex zeros.
     #[inline]
     fn c_zeros(n: usize) -> Vec<Complex<Self>> {
         vec![Complex::<Self>::ZERO; n]
     }
 
+    /// Environmental machine constants used for scaling, underflow detection, and iteration bounds
+    /// specific to the AMOS algorithms for this precision.
     const MACHINE_CONSTANTS: &'static LazyLock<MachineConsts<Self>>;
 }
 
@@ -67,23 +95,17 @@ impl BesselFloat for f64 {
     const EPSILON: Self = f64::EPSILON;
     const MIN_POSITIVE: Self = f64::MIN_POSITIVE;
     const NAN: Self = f64::NAN;
+
+    const ONE_THIRD: Self = 1.0 / 3.0;
     const TWO_THIRDS: Self = 2.0 / 3.0;
+    const HALF: Self = 0.5;
+    const TWO: Self = 2.0;
 
     const MACHINE_CONSTANTS: &'static LazyLock<MachineConsts<Self>> = &MACHINE_CONSTANTS_64;
 
     #[inline]
     fn from_f64(value: f64) -> Self {
         value
-    }
-
-    #[inline]
-    fn half() -> Self {
-        0.5
-    }
-
-    #[inline]
-    fn two() -> Self {
-        2.0
     }
 
     #[inline]
@@ -100,6 +122,11 @@ impl BesselFloat for f64 {
     fn from_usize(value: usize) -> Self {
         value as f64
     }
+
+    #[inline]
+    fn from_isize(value: isize) -> Self {
+        value as f64
+    }
 }
 
 impl BesselFloat for f32 {
@@ -110,23 +137,17 @@ impl BesselFloat for f32 {
     const EPSILON: Self = f32::EPSILON;
     const MIN_POSITIVE: Self = f32::MIN_POSITIVE;
     const NAN: Self = f32::NAN;
+
+    const ONE_THIRD: Self = 1.0 / 3.0;
     const TWO_THIRDS: Self = 2.0 / 3.0;
+    const HALF: Self = 0.5;
+    const TWO: Self = 2.0;
 
     const MACHINE_CONSTANTS: &'static LazyLock<MachineConsts<Self>> = &MACHINE_CONSTANTS_32;
 
     #[inline]
     fn from_f64(value: f64) -> Self {
         value as f32
-    }
-
-    #[inline]
-    fn half() -> Self {
-        0.5
-    }
-
-    #[inline]
-    fn two() -> Self {
-        2.0
     }
 
     #[inline]
@@ -143,48 +164,11 @@ impl BesselFloat for f32 {
     fn from_usize(value: usize) -> Self {
         value as f32
     }
-}
 
-pub trait CachableUAP<T: BesselFloat>: 'static {
-    const UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE: &'static LazyLock<
-        Mutex<HashMap<CacheKey, UniformAssymptoticParameters<T>>>,
-    >;
-}
-
-impl CachableUAP<f64> for f64 {
-    const UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE: &'static LazyLock<
-        Mutex<HashMap<CacheKey, UniformAssymptoticParameters<Self>>>,
-    > = &UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE_64;
-}
-
-impl CachableUAP<f32> for f32 {
-    const UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE: &'static LazyLock<
-        Mutex<HashMap<CacheKey, UniformAssymptoticParameters<Self>>>,
-    > = &UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE_32;
-}
-
-pub struct UniformAssymptoticParameters<T: BesselFloat> {
-    pub(crate) phi_i: Complex<T>,
-    pub(crate) phi_k: Complex<T>,
-    pub(crate) zeta1: Complex<T>,
-    pub(crate) zeta2: Complex<T>,
-    pub(crate) sum_i: Option<Complex<T>>,
-    pub(crate) sum_k: Option<Complex<T>>,
-    pub(crate) working: Option<Vec<Complex<T>>>,
-}
-
-pub(crate) type CacheKey = (u64, u64, u64);
-
-static UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE_64: LazyLock<
-    Mutex<HashMap<CacheKey, UniformAssymptoticParameters<f64>>>,
-> = LazyLock::new(|| Mutex::new(HashMap::new()));
-
-static UNIFORM_ASSYMPTOTIC_PARAMETERS_CACHE_32: LazyLock<
-    Mutex<HashMap<CacheKey, UniformAssymptoticParameters<f32>>>,
-> = LazyLock::new(|| Mutex::new(HashMap::new()));
-
-pub(crate) fn cache_key<T: BesselFloat>(z: Complex<T>, order: T) -> CacheKey {
-    (z.re.to_bits(), z.im.to_bits(), order.to_bits())
+    #[inline]
+    fn from_isize(value: isize) -> Self {
+        value as f32
+    }
 }
 
 #[allow(type_alias_bounds)]
@@ -221,8 +205,9 @@ impl<T: BesselFloat> BackFrom<T, T> for T {
 impl<T: BesselFloat> BackFrom<Complex<T>, T> for T {
     #[inline]
     fn back_from(val: &Complex<T>) -> Result<T, BesselError<T>> {
+        let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
         let margin = T::from_f64(1000.0);
-        let tol = margin * T::MACHINE_CONSTANTS.abs_error_tolerance;
+        let tol = margin * mc.abs_error_tolerance;
         // if the imainary part is small, pass the value on
         // if the imaginary part is small compared to the real part, pass the value on
         // if the real part is small, the imaginary part is likely inaccurate, so pass the value on
@@ -243,7 +228,7 @@ impl<T: BesselFloat> BackFrom<Result<Complex<T>, BesselError<T>>, T> for T {
             Ok(cpx) => T::back_from(cpx),
             // below we can assume that y has one element, as the input type is BesselResult<Complex<T>> not
             // BesselResult<Vec<Complex<T>>>
-            Err(BesselError::PartialLossOfSignificance { y, nz: _ }) => T::back_from(&y[0]),
+            Err(BesselError::PartialLossOfSignificance { y, n_zeros: _ }) => T::back_from(&y[0]),
             Err(err) => Err((*err).clone()),
         }
     }
@@ -256,7 +241,7 @@ impl<T: BesselFloat> BackFrom<Result<Self, BesselError<T>>, T> for Complex<T> {
             Ok(cpx) => Ok(*cpx),
             // below we can assume that y has one element, as the input type is BesselResult<Complex<T>> not
             // BesselResult<Vec<Complex<T>>>
-            Err(BesselError::PartialLossOfSignificance { y, nz: _ }) => Ok(y[0]),
+            Err(BesselError::PartialLossOfSignificance { y, n_zeros: _ }) => Ok(y[0]),
             Err(err) => Err((*err).clone()),
         }
     }
@@ -307,7 +292,7 @@ pub enum BesselError<T: BesselFloat = f64> {
         /// Value(s) of Bessel function (reduced accuracy)
         y: Vec<Complex<T>>,
         /// Number of entries in `y` explicitly set to zero (as per the `complex_bessel_...` docs`)
-        nz: usize,
+        n_zeros: usize,
     } = 3,
     #[error("Loss of too much significance in output")]
     /// Complete loss of significance in output. No value could be calculated
@@ -348,7 +333,10 @@ impl<T: BesselFloat> BesselError<T> {
                 details: "from i32".to_string(),
             }),
             2 => Some(BesselError::Overflow),
-            3 => Some(BesselError::PartialLossOfSignificance { y: vec![], nz: 0 }),
+            3 => Some(BesselError::PartialLossOfSignificance {
+                y: vec![],
+                n_zeros: 0,
+            }),
             4 => Some(BesselError::LossOfSignificance),
             5 => Some(BesselError::DidNotConverge),
             6 => Some(BesselError::ComplexOutputForRealInput {
@@ -365,12 +353,12 @@ impl<T: BesselFloat> BesselError<T> {
                 details: details.clone(),
             },
             BesselError::Overflow => BesselError::Overflow,
-            BesselError::PartialLossOfSignificance { y, nz } => {
+            BesselError::PartialLossOfSignificance { y, n_zeros } => {
                 BesselError::PartialLossOfSignificance {
                     y: y.iter()
                         .map(|c| Complex::new(c.re.to_f32().unwrap(), c.im.to_f32().unwrap()))
                         .collect(),
-                    nz: *nz,
+                    n_zeros: *n_zeros,
                 }
             }
             BesselError::LossOfSignificance => BesselError::LossOfSignificance,
@@ -395,7 +383,7 @@ macro_rules! simple_bessel_wrapper {
             // [<simple_ $base_func>] concatenates into simple_bessel_j
             #[inline]
             fn [<$base_func _single>]<T:BesselFloat>(order: T, z: Complex<T>) -> Result<Complex<T>, BesselError<T>> {
-                let (result_vec, _nz) = [<complex_$base_func>](z, order, Scaling::Unscaled, 1)?;
+                let (result_vec, _n_zeros) = [<complex_$base_func>](z, order, Scaling::Unscaled, 1)?;
                 Ok(result_vec[0])
             }
         }

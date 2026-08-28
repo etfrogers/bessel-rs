@@ -30,20 +30,20 @@ pub fn as_integer<T: BesselFloat>(nu: T) -> Option<i64> {
 #[inline]
 pub(crate) fn sinpi<T: BesselFloat>(x: T) -> T {
     // sinpi is odd: sinpi(-x) = -sinpi(x)
-    let (ax, sign) = if x < T::zero() {
+    let (ax, sign) = if x < T::ZERO {
         (-x, -T::one())
     } else {
         (x, T::one())
     };
 
     // Reduce to [0, 2): r = ax mod 2
-    let r = ax % T::two();
+    let r = ax % T::TWO;
 
     // Exact special values
-    if r == T::zero() || r == T::one() {
-        return T::zero();
+    if r == T::ZERO || r == T::one() {
+        return T::ZERO;
     }
-    if r == T::half() {
+    if r == T::HALF {
         return sign;
     }
     if r == T::from_f64(1.5) {
@@ -51,14 +51,14 @@ pub(crate) fn sinpi<T: BesselFloat>(x: T) -> T {
     }
 
     // Use symmetry to reduce to [0, 0.5]
-    let s = if r < T::half() {
+    let s = if r < T::HALF {
         (r * T::PI()).sin()
     } else if r < T::one() {
         ((T::one() - r) * T::PI()).sin()
     } else if r < T::from_f64(1.5) {
         -((r - T::one()) * T::PI()).sin()
     } else {
-        -((T::two() - r) * T::PI()).sin()
+        -((T::TWO - r) * T::PI()).sin()
     };
 
     sign * s
@@ -78,28 +78,28 @@ pub(crate) fn cospi<T: BesselFloat>(x: T) -> T {
     let ax = x.abs();
 
     // Reduce to [0, 2): r = ax mod 2
-    let r = ax % T::two();
+    let r = ax % T::TWO;
 
     // Exact special values
-    if r == T::zero() {
+    if r == T::ZERO {
         return T::one();
     }
-    if r == T::half() || r == T::from_f64(1.5) {
-        return T::zero();
+    if r == T::HALF || r == T::from_f64(1.5) {
+        return T::ZERO;
     }
     if r == T::one() {
         return -T::one();
     }
 
     // Use symmetry to reduce to [0, 0.5]
-    if r < T::half() {
+    if r < T::HALF {
         (r * T::PI()).cos()
     } else if r < T::one() {
         -((T::one() - r) * T::PI()).cos()
     } else if r < T::from_f64(1.5) {
         -((r - T::one()) * T::PI()).cos()
     } else {
-        ((T::two() - r) * T::PI()).cos()
+        ((T::TWO - r) * T::PI()).cos()
     }
 }
 
@@ -130,5 +130,5 @@ pub fn reflect_y_element<T: BesselFloat>(order: T, j: Complex<T>, y: Complex<T>)
 /// I_{-ν}(z) = I_ν(z) + (2/π)·sin(νπ)·K_ν(z)  (DLMF 10.27.2)
 #[inline]
 pub fn reflect_i_element<T: BesselFloat>(order: T, i: Complex<T>, k: Complex<T>) -> Complex<T> {
-    k * (T::two() / T::PI() * sinpi(order)) + i
+    k * (T::TWO / T::PI() * sinpi(order)) + i
 }

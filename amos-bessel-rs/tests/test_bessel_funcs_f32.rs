@@ -1,24 +1,32 @@
-use super::bessel_cases;
+extern crate fortran_amos_testing;
+mod common;
+use amos_bessel_rs::{BesselError, BesselFloat};
+use common::parametrisation::bessel_cases;
+use common::{
+    BesselSig, BesselValues, ComplexConversions, airy_ref, assert_results_are_equal, bessel_h_ref,
+    biry_ref, sig_airy, sig_airyp, sig_biry, sig_biryp, zeros_are_not_equivalent,
+};
 
 use complex_bessel_rs::bessel_i::bessel_i as bessel_i_ref;
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_ref;
 use complex_bessel_rs::bessel_k::bessel_k as bessel_k_ref;
 use complex_bessel_rs::bessel_y::bessel_y as bessel_y_ref;
+// use fortran_amos_testing::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
 
-use crate::{
-    BesselError, HankelKind, Scaling, airy, airy_b, airy_bp, airyp,
-    amos::{complex_bessel_i, complex_bessel_j, complex_bessel_k, complex_bessel_y},
-    bessel_i, bessel_j, bessel_k, bessel_y, complex_hankel1, complex_hankel2, hankel,
-    test_utils::{
-        BesselSig, ComplexConversions, DiagnosticBesselFloat, airy_ref, assert_results_are_equal,
-        assert_results_are_equal_floats, bessel_h_ref, biry_ref, sig_airy, sig_airyp, sig_biry,
-        sig_biryp, zeros_are_not_equivalent,
+use amos_bessel_rs::{
+    HankelKind, Scaling, airy, airy_b, airy_bp, airyp,
+    amos::{
+        complex_bessel_i, complex_bessel_j, complex_bessel_k, complex_bessel_y, complex_hankel1,
+        complex_hankel2,
     },
-    types::{BesselFloat, BesselValues},
+    bessel_i, bessel_j, bessel_k, bessel_y, hankel,
 };
-use num::{Complex, complex::Complex64};
+use num::Complex;
+use num::complex::Complex64;
 use rstest::rstest;
 use rstest_reuse::apply;
+
+use crate::common::{DiagnosticBesselFloat, assert_results_are_equal_floats};
 
 fn single_to_bessel_values<T: BesselFloat>(val: Complex<T>) -> BesselValues<T> {
     (vec![val], 0)
@@ -36,7 +44,7 @@ fn assert_results_are_equal_fotran<T: DiagnosticBesselFloat>(
     if actual.is_ok()
         && matches!(
             expected,
-            Err(BesselError::PartialLossOfSignificance { y: _, nz: _ })
+            Err(BesselError::PartialLossOfSignificance { y: _, n_zeros: _ })
         )
     {
         // the single output functions unwrap partial loss of significance, where
@@ -56,7 +64,7 @@ fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     }
     let actual = bessel_j(order as f32, z32);
 
-    let expected = bessel_j_ref(order, z64.into());
+    let expected = bessel_j_ref(order, z64);
     assert_results_are_equal_fotran(actual, expected, 1e6)
 }
 
@@ -70,7 +78,7 @@ fn test_bessel_i(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     }
     let actual = bessel_i(order as f32, z32);
 
-    let expected = bessel_i_ref(order, z64.into());
+    let expected = bessel_i_ref(order, z64);
     assert_results_are_equal_fotran(actual, expected, 1e6)
 }
 
@@ -80,7 +88,7 @@ fn test_bessel_k(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     let z = Complex64::new(zr, zi);
     let actual = bessel_k(order, z);
 
-    let expected = bessel_k_ref(order, z.into());
+    let expected = bessel_k_ref(order, z);
     assert_results_are_equal(&actual, &expected, &Vec::new(), 1e6);
 }
 
@@ -90,7 +98,7 @@ fn test_bessel_y(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     let z = Complex64::new(zr, zi);
     let actual = bessel_y(order, z);
 
-    let expected = bessel_y_ref(order, z.into());
+    let expected = bessel_y_ref(order, z);
     assert_results_are_equal(&actual, &expected, &Vec::new(), 1e6);
 }
 
@@ -105,7 +113,7 @@ fn test_bessel_h(
     let z = Complex64::new(zr, zi);
     let actual = hankel(order, z, kind);
     // dbg!(&actual);
-    let expected = bessel_h_ref(order, z.into(), kind);
+    let expected = bessel_h_ref(order, z, kind);
     // dbg!(&expected);
     assert_results_are_equal(&actual, &expected, &Vec::new(), 1e6);
 }

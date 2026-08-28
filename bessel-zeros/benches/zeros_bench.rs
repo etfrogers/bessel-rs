@@ -11,10 +11,7 @@ fn bench_zeros(c: &mut Criterion) {
         BesselFunType::YP,
     ];
 
-    let precisions: Vec<f64> = (4..=16)
-        .step_by(4)
-        .map(|i| 10.0f64.powi(-(i as i32)))
-        .collect();
+    let precisions: Vec<f64> = (4..=16).step_by(4).map(|i| 10.0f64.powi(-i)).collect();
 
     let order = 1.0;
 
