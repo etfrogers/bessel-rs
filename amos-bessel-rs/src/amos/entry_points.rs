@@ -193,37 +193,24 @@ pub fn complex_bessel_j<T: BesselFloat>(
         let min_order = (-int_order + n64).abs().min(0);
         let max_order = (n64 - (int_order + 1)).max(int_order);
         let n_positive = ((max_order - min_order) + 1) as usize;
-        let (pos_js, n_zeros) =
+        let (pos_js, n_zeros_positive) =
             complex_bessel_j(z, T::from_isize(min_order as isize), scaling, n_positive)?;
 
-        // let index_of_zero = int_order as usize; //index into answer of the zeroth order
-
         let mut answer = Vec::with_capacity(n);
-        // let starting_index = if n64 - (int_order + 1) > int_order {
-        //     (int_order + 1) as usize
-        // } else {
-        //     n_positive
-        // };
 
+        let mut n_zeros = 0;
         for i in 0..n {
             let current_order = order + T::from_usize(i);
+            let abs_order = current_order.abs().to_usize().unwrap();
+            if abs_order >= (n_positive - n_zeros_positive) {
+                n_zeros += 1;
+            }
             if current_order < T::ZERO {
-                let abs_k = (-current_order).to_usize().unwrap();
-                answer.push(pos_js[abs_k] * integer_sign::<T>(abs_k as i64));
+                answer.push(pos_js[abs_order] * integer_sign::<T>(abs_order as i64));
             } else {
-                answer.push(pos_js[current_order.to_usize().unwrap()]);
+                answer.push(pos_js[abs_order]);
             }
         }
-        // let n_negative = n.min(index_of_zero);
-        // let negative_entries = &pos_js[(starting_index - n_negative)..starting_index];
-        // for (i, entry) in negative_entries.iter().enumerate().rev() {
-        //     answer.push(*entry * integer_sign::<T>(int_order - i as i64));
-        // }
-
-        // if n > index_of_zero {
-        //     answer.extend(pos_js.drain(..n - index_of_zero));
-        // }
-        // debug_assert_eq!(answer.len(), n);
         return Ok((answer, n_zeros));
         // return complex_bessel_j(z, T::from_isize(int_order as isize), scaling, n).map(
         //     |(vals, n_zeros)| {

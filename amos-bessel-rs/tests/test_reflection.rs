@@ -20,31 +20,47 @@ const Z_PARTS: [f64; 37] = [
 
 #[rstest]
 fn test_reflection_n_vs_loop(
-    #[values(Scaling::Unscaled/* , Scaling::Scaled*/)] scaling: Scaling,
-    #[values(0.0, 5.0, -3.0 , -49.0, -51.0,-100.0, /*-10.763*/)] order: f64,
+    #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
+    #[values(0.0, 5.0, -3.0, -49.0, -51.0, -100.0, /*-10.763*/)] order: f64,
 ) {
     let n = 50;
     for re in Z_PARTS {
         for im in Z_PARTS {
             let z = Complex::new(re, im);
 
-            let (y, _) = complex_bessel_j(z, order, scaling, n).unwrap();
-            // let mut actual_zeros = 0;
+            let (y, n_zeros) = complex_bessel_j(z, order, scaling, n).unwrap();
+            let mut sum_looped_nz = 0;
+
             for (i, yi) in y.iter().enumerate() {
                 let current_order = order + i as f64;
-                let (looped_y, _) = complex_bessel_j(z, current_order, scaling, 1).unwrap();
-                // println!(
-                //     "i {i}: order {current_order}, {:?} vs {:?}",
-                //     yi, looped_y[0]
-                // );
+                let (looped_y, looped_nz) = complex_bessel_j(z, current_order, scaling, 1).unwrap();
                 assert_complex_arrays_equal(yi, &looped_y[0], &vec![], 1e6);
-                // println!("Test against looped passed");
+                sum_looped_nz += looped_nz;
+            }
 
-                // if scaling == Scaling::Unscaled {
-                //     // complex_bessel_rs ref function is only unscaled
-                //     let ref_y = bessel_j_ref(current_order, z).unwrap();
-                //     assert_complex_arrays_equal(yi, &ref_y, &vec![], 1e6);
-                // }
+            // 1. Total underflow count agreement with looped evaluation (allowing +/- 1 boundary tolerance)
+            let diff = (n_zeros as isize - sum_looped_nz as isize).abs();
+            assert!(
+                diff <= 1,
+                "n_zeros mismatch: seq n_zeros={n_zeros}, sum looped={sum_looped_nz}, diff={diff} for order={order}, z={z}"
+            );
+
+            // 3. Count of exact zeros upper bound
+            let count_exact_zeros = y.iter().filter(|&&v| v == Complex::ZERO).count();
+            if n_zeros > 0 {
+                assert!(
+                    count_exact_zeros + 1 >= n_zeros,
+                    "Vector has fewer exact zeros ({count_exact_zeros}) than n_zeros ({n_zeros}) for order={order}, z={z}"
+                );
+            }
+
+            // 4. Total underflow state check
+            if n_zeros == n {
+                assert!(
+                    y.iter().all(|&v| v == Complex::ZERO),
+                    "n_zeros == n, but not all elements in y are zero: {:?}",
+                    y
+                );
             }
         }
     }
