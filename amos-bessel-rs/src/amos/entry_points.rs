@@ -161,7 +161,7 @@ pub fn complex_bessel_i<T: BesselFloat>(
 /// * `y`: A vector of complex numbers containing the values of the Bessel
 ///   functions for orders `[order, order + 1, ..., order + n - 1]`.
 /// * `n_zeros`: The number of components in `y` set to zero due to underflow.
-///   For `complex_bessel_i`, the last `n_zeros` components are set to zero.
+///   For `complex_bessel_j`, the last `n_zeros` components are set to zero.
 ///
 pub fn complex_bessel_j<T: BesselFloat>(
     z: Complex<T>,
@@ -212,37 +212,50 @@ pub fn complex_bessel_j<T: BesselFloat>(
             }
         }
         return Ok((answer, n_zeros));
-        // return complex_bessel_j(z, T::from_isize(int_order as isize), scaling, n).map(
-        //     |(vals, n_zeros)| {
-        //         (
-        //             vals.iter()
-        //                 .enumerate()
-        //                 .map(|(i, x)| {
-        //                     // let current_order = ;
-        //                     if (order + T::from_usize(i)) < T::ZERO {
-        //                         *x * integer_sign::<T>(int_order + i as i64)
-        //                     } else {
-        //                         *x
-        //                     }
-        //                 })
-        //                 .collect(),
-        //             n_zeros,
-        //         )
-        //     },
-        // );
     }
 
     // General case: need both J and Y at positive |ν|
-    let j = complex_bessel_j(z, abs_order, scaling, n)?;
-    let y = complex_bessel_y(z, abs_order, scaling, n)?;
+    //
+    // say order = -2.7, then we need
+    // -2.7, -1.7, -0.7, 0.3, 1.3, 2.3, ...
 
-    let vals =
-        j.0.iter()
-            .zip(y.0.iter())
-            .map(|(j, y)| reflect_j_element(abs_order, *j, *y))
-            .collect();
-    let n_zeros = j.1.min(y.1);
-    Ok((vals, n_zeros))
+    let n_negative = order.abs().ceil().abs().to_usize().unwrap();
+    let first_negative = order.fract().abs();
+    let (j_negative, n_zeros_j_neg) = complex_bessel_j(z, first_negative, scaling, n_negative)?;
+    let (y_negative, n_zeros_y_neg) = complex_bessel_y(z, first_negative, scaling, n_negative)?;
+
+    let n_positive = n.saturating_sub(n_negative);
+
+    let first_positive = T::ONE + order.fract();
+    let (j_positive, n_zeros_j_pos) = if n_positive > 0 {
+        complex_bessel_j(z, first_positive, scaling, n_positive)?
+    } else {
+        (Vec::new(), 0)
+    };
+
+    let mut answer = Vec::with_capacity(n);
+    let mut n_zeros = 0;
+    for i in 0..n {
+        let current_order = order + T::from_usize(i);
+        if current_order < T::ZERO {
+            let index = n_negative - 1 - i;
+            answer.push(reflect_j_element(
+                current_order.abs(),
+                j_negative[index],
+                y_negative[index],
+            ));
+            if (index >= n_negative - n_zeros_j_neg) && index >= n_negative - n_zeros_y_neg {
+                n_zeros += 1;
+            }
+        } else {
+            let index = i - n_negative;
+            answer.push(j_positive[index]);
+            if index >= n_positive - n_zeros_j_pos {
+                n_zeros += 1;
+            }
+        }
+    }
+    Ok((answer, n_zeros))
 }
 
 /// Computes the K-Bessel function of a complex argument.
@@ -284,6 +297,7 @@ pub fn complex_bessel_j<T: BesselFloat>(
 /// * `y`: A vector of complex numbers containing the values of the Bessel
 ///   functions for orders `[order, order + 1, ..., order + n - 1]`.
 /// * `n_zeros`: The number of components in `y` set to zero due to underflow.
+///   For `complex_bessel_k`, the first `n_zeros` components are set to zero.
 pub fn complex_bessel_k<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -331,6 +345,7 @@ pub fn complex_bessel_k<T: BesselFloat>(
 /// * `y`: A vector of complex numbers containing the values of the Bessel
 ///   functions for orders `[order, order + 1, ..., order + n - 1]`.
 /// * `n_zeros`: The number of components in `y` set to zero due to underflow.
+///   For `complex_bessel_y`, the first `n_zeros` components are set to zero.
 pub fn complex_bessel_y<T: BesselFloat>(
     z: Complex<T>,
     order: T,

@@ -108,8 +108,7 @@ use crate::{
         complex_bessel_y, complex_hankel1, complex_hankel2,
     },
     reflections::{
-        as_integer, integer_sign, reflect_h_element, reflect_i_element, reflect_j_element,
-        reflect_y_element,
+        as_integer, integer_sign, reflect_h_element, reflect_i_element, reflect_y_element,
     },
 };
 pub use amos::{HankelKind, Scaling};

@@ -1,12 +1,19 @@
 use amos_bessel_rs::{
-    HankelKind, Scaling, amos::complex_bessel_j, bessel_i, bessel_j, bessel_k, bessel_y, hankel,
+    BesselError, HankelKind, Scaling,
+    amos::{
+        complex_bessel_i, complex_bessel_j, complex_bessel_k, complex_bessel_y, complex_hankel1,
+        complex_hankel2,
+    },
+    bessel_i, bessel_j, bessel_k, bessel_y, hankel,
 };
 use num::Complex;
 use rstest::rstest;
-use std::f64::consts::PI;
+use std::{assert_matches, f64::consts::PI};
 
 mod common;
 use common::assert_complex_arrays_equal;
+
+use crate::common::BesselSig;
 
 // const ORDER: [f64; 4] = [0.0, 5.0, -100.0, -10.0];
 
@@ -21,19 +28,36 @@ const Z_PARTS: [f64; 37] = [
 #[rstest]
 fn test_reflection_n_vs_loop(
     #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
-    #[values(0.0, 5.0, -3.0, -49.0, -51.0, -100.0, /*-10.763*/)] order: f64,
+    #[values(0.0, 5.0, -3.0, -49.0, -51.0, -100.0, -10.763, -51.1276, 34.23)] order: f64,
+    #[values(
+        complex_bessel_j as BesselSig,
+        // complex_bessel_i as BesselSig,
+        // complex_hankel1 as BesselSig,
+        // complex_hankel2 as BesselSig,
+        // complex_bessel_k as BesselSig,
+        // complex_bessel_y as BesselSig,
+    )]
+    fun: BesselSig,
 ) {
     let n = 50;
     for re in Z_PARTS {
         for im in Z_PARTS {
             let z = Complex::new(re, im);
 
-            let (y, n_zeros) = complex_bessel_j(z, order, scaling, n).unwrap();
+            let result = fun(z, order, scaling, n);
+            if matches!(result, Err(BesselError::Overflow)) {
+                continue;
+            }
+            if z == Complex::ZERO && order.fract() != 0.0 && order < 0.0 {
+                assert_matches!(result, Err(BesselError::InvalidInput { .. }));
+                continue;
+            }
+            let (y, n_zeros) = result.unwrap();
             let mut sum_looped_nz = 0;
 
             for (i, yi) in y.iter().enumerate() {
                 let current_order = order + i as f64;
-                let (looped_y, looped_nz) = complex_bessel_j(z, current_order, scaling, 1).unwrap();
+                let (looped_y, looped_nz) = fun(z, current_order, scaling, 1).unwrap();
                 assert_complex_arrays_equal(yi, &looped_y[0], &vec![], 1e6);
                 sum_looped_nz += looped_nz;
             }
