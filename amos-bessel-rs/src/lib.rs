@@ -234,17 +234,10 @@ pub fn hankel<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     z: ZT,
     kind: HankelKind,
 ) -> Result<ZT, BesselError<FT>> {
-    let order = order.into();
-    let abs_order = order.abs();
-    let mut h = match kind {
-        HankelKind::First => hankel1_single(abs_order, z.into())?,
-        HankelKind::Second => hankel2_single(abs_order, z.into())?,
+    let h = match kind {
+        HankelKind::First => hankel1_single(order.into(), z.into())?,
+        HankelKind::Second => hankel2_single(order.into(), z.into())?,
     };
-
-    if order < FT::ZERO {
-        // Need to reflect the Hankel function for negative orders, but this is just a rotation, so no loss of significance.
-        h = reflect_h_element(abs_order, kind, h);
-    }
     ZT::back_from(&h)
 }
 

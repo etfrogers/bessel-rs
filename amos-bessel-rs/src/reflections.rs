@@ -166,19 +166,30 @@ impl UnderflowLocation {
 pub(crate) type BesselSig<T: BesselFloat = f64> =
     fn(Complex<T>, T, Scaling, usize) -> Result<BesselValues<T>, BesselError<T>>;
 
-pub(crate) fn reflect_orders<T: BesselFloat, FReflectNonInt, FReflectInt>(
+pub(crate) fn no_secondary<T: BesselFloat>() -> Option<(BesselSig<T>, UnderflowLocation)> {
+    None
+}
+
+pub(crate) fn reflect_orders<
+    T: BesselFloat,
+    BesselSigPrim,
+    BesselSigSec,
+    FReflectNonInt,
+    FReflectInt,
+>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
     n: usize,
-    primary_fn: BesselSig<T>,
+    primary_fn: BesselSigPrim,
     primary_loc: UnderflowLocation,
-    negative_fn: Option<(BesselSig<T>, UnderflowLocation)>,
+    negative_fn: Option<(BesselSigSec, UnderflowLocation)>,
     reflect_non_int: FReflectNonInt,
     reflect_int: FReflectInt,
 ) -> BesselResult<T>
 where
-    T: BesselFloat,
+    BesselSigPrim: Fn(Complex<T>, T, Scaling, usize) -> Result<BesselValues<T>, BesselError<T>>,
+    BesselSigSec: Fn(Complex<T>, T, Scaling, usize) -> Result<BesselValues<T>, BesselError<T>>,
     FReflectNonInt: Fn(T, Complex<T>, Option<Complex<T>>) -> Complex<T>,
     FReflectInt: Fn(i64, Complex<T>) -> Complex<T>,
 {
@@ -210,7 +221,7 @@ where
         let n_negative = order.abs().ceil().abs().to_usize().unwrap();
         let first_negative = order.fract().abs();
         let primary_neg_result = primary_fn(z, first_negative, scaling, n_negative)?;
-        let secondary_neg_result = if let Some((negative_fn, _)) = negative_fn {
+        let secondary_neg_result = if let Some((ref negative_fn, _)) = negative_fn {
             Some(negative_fn(z, first_negative, scaling, n_negative)?)
         } else {
             None
@@ -270,7 +281,7 @@ where
                     y_negative.as_ref().map(|y| y[index]),
                 ));
                 if primary_loc.is_underflow(index, n_negative, n_zeros_j_neg)
-                    && negative_fn.is_some_and(|(_, loc)| {
+                    && negative_fn.as_ref().is_some_and(|(_, loc)| {
                         loc.is_underflow(index, n_negative, n_zeros_y_neg.unwrap())
                     })
                 {

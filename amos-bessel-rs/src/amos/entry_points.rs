@@ -5,7 +5,10 @@ pub use super::core::{complex_airy, complex_airy_b};
 use crate::{
     BesselFloat, Scaling,
     amos::HankelKind,
-    reflections::{UnderflowLocation, integer_sign, reflect_j_element, reflect_orders},
+    reflections::{
+        UnderflowLocation, integer_sign, no_secondary, reflect_h_element, reflect_j_element,
+        reflect_orders,
+    },
     types::BesselResult,
 };
 
@@ -43,7 +46,7 @@ use crate::{
 /// * `y`: A vector of complex numbers containing the values of the Hankel
 ///   functions for orders `[order, order + 1, ..., order + n - 1]`.
 /// * `n_zeros`: The number of components in `y` set to zero due to underflow.
-///   for TODO
+///   for complex_bessel_h the first `n_zeros` components are set to zero.
 pub fn complex_bessel_h<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -51,7 +54,21 @@ pub fn complex_bessel_h<T: BesselFloat>(
     hankel_kind: HankelKind,
     n: usize,
 ) -> BesselResult<T> {
-    super::core::complex_bessel_h(z, order, scaling, hankel_kind, n)
+    if order >= T::ZERO {
+        core::complex_bessel_h(z, order, scaling, hankel_kind, n)
+    } else {
+        reflect_orders(
+            z,
+            order,
+            scaling,
+            n,
+            |z, order, scaling, n| core::complex_bessel_h(z, order, scaling, hankel_kind, n),
+            UnderflowLocation::Start,
+            no_secondary(),
+            |order, z, _| reflect_h_element(order, hankel_kind, z),
+            |order, z| z * integer_sign::<T>(order),
+        )
+    }
 }
 
 /// Computes the Hankel function of the first kind H1v(z) for a complex argument.
@@ -246,7 +263,7 @@ pub fn complex_bessel_k<T: BesselFloat>(
             n,
             core::complex_bessel_k,
             UnderflowLocation::Start,
-            None,
+            no_secondary(),
             |_, z, _| z,
             |_, z| z,
         )
