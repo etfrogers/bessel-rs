@@ -1,6 +1,9 @@
 use num::Complex;
 
-use crate::{HankelKind, types::BesselFloat};
+use crate::{
+    BesselError, HankelKind, Scaling,
+    types::{BesselFloat, BesselResult, BesselValues},
+};
 
 /// (-1)^n sign factor for integer order reflection.
 #[inline]
@@ -131,4 +134,151 @@ pub fn reflect_y_element<T: BesselFloat>(order: T, j: Complex<T>, y: Complex<T>)
 #[inline]
 pub fn reflect_i_element<T: BesselFloat>(order: T, i: Complex<T>, k: Complex<T>) -> Complex<T> {
     k * (T::TWO / T::PI() * sinpi(order)) + i
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum UnderflowLocation {
+    Start,
+    End,
+}
+
+impl UnderflowLocation {
+    /// Check if the element at `index` in a buffer of `len` underflowed.
+    #[inline]
+    pub fn is_underflow(self, index: usize, len: usize, n_zeros: usize) -> bool {
+        match self {
+            UnderflowLocation::Start => index < n_zeros,
+            UnderflowLocation::End => index >= len.saturating_sub(n_zeros),
+        }
+    }
+
+    /// Calculate how many zeros remain when taking the first `n_remaining` elements.
+    #[inline]
+    pub fn positive_tail_zeros(self, len: usize, n_remaining: usize, n_zeros: usize) -> usize {
+        match self {
+            UnderflowLocation::Start => n_zeros.min(n_remaining),
+            UnderflowLocation::End => n_zeros.saturating_sub(len.saturating_sub(n_remaining)),
+        }
+    }
+}
+
+#[allow(type_alias_bounds)]
+pub(crate) type BesselSig<T: BesselFloat = f64> =
+    fn(Complex<T>, T, Scaling, usize) -> Result<BesselValues<T>, BesselError<T>>;
+
+pub(crate) fn reflect_orders<T: BesselFloat, FReflectNonInt, FReflectInt>(
+    z: Complex<T>,
+    order: T,
+    scaling: Scaling,
+    n: usize,
+    primary_fn: BesselSig<T>,
+    primary_loc: UnderflowLocation,
+    negative_fn: Option<(BesselSig<T>, UnderflowLocation)>,
+    reflect_non_int: FReflectNonInt,
+    reflect_int: FReflectInt,
+) -> BesselResult<T>
+where
+    T: BesselFloat,
+    FReflectNonInt: Fn(T, Complex<T>, Option<Complex<T>>) -> Complex<T>,
+    FReflectInt: Fn(i64, Complex<T>) -> Complex<T>,
+{
+    let abs_order: T = order.abs();
+    let (pos_result, negative_data) = if let Some(int_order) = as_integer(abs_order) {
+        // if we have a negative integer order, then orders are
+        // (if int_order is denoted by o)
+        // -o, -o+1, -o+2, ..., 0, 1, 2, ... n-(o+1)
+        // e.g for order = -3, int_order = 3, n = 5 orders are -3, -2, -1, 0, 1,
+        // of course, if n < int_order, then we never reach order 0
+        // -o, -o+1, -o+2, ..., -o+n
+        // e.g. if n = 2, int_order = 3, orders are -3, -2,
+
+        // now we need positive forms of all the orders we need in either
+        // negative or positive form.
+
+        let n64 = n as i64;
+        let min_order = (-int_order + n64).abs().min(0);
+        let max_order = (n64 - (int_order + 1)).max(int_order);
+        let n_positive = ((max_order - min_order) + 1) as usize;
+        let result = primary_fn(z, T::from_isize(min_order as isize), scaling, n_positive)?;
+        (result, None)
+    } else {
+        // General case: need both J and Y at positive |ν|
+        //
+        // say order = -2.7, then we need
+        // -2.7, -1.7, -0.7, 0.3, 1.3, 2.3, ...
+
+        let n_negative = order.abs().ceil().abs().to_usize().unwrap();
+        let first_negative = order.fract().abs();
+        let primary_neg_result = primary_fn(z, first_negative, scaling, n_negative)?;
+        let secondary_neg_result = if let Some((negative_fn, _)) = negative_fn {
+            Some(negative_fn(z, first_negative, scaling, n_negative)?)
+        } else {
+            None
+        };
+
+        let n_positive = n.saturating_sub(n_negative);
+
+        let first_positive = T::ONE + order.fract();
+        let pos_result = if n_positive > 0 {
+            primary_fn(z, first_positive, scaling, n_positive)?
+        } else {
+            (Vec::new(), 0)
+        };
+        (pos_result, Some((primary_neg_result, secondary_neg_result)))
+    };
+
+    let (j_positive, n_zeros_j_positive) = pos_result;
+    let n_positive = j_positive.len();
+    let mut answer = Vec::with_capacity(n);
+    let mut n_zeros = 0;
+
+    let n_remaining = if negative_data.is_none() {
+        // Special case for negative integer order: J(-n, z) = (-1)^n J(n, z)
+        let mut n_negative = 0;
+        for i in 0..n {
+            let current_order = order + T::from_usize(i);
+            let abs_order = current_order.abs().to_usize().unwrap();
+            if abs_order >= (n_positive - n_zeros_j_positive) {
+                n_zeros += 1;
+            }
+            if current_order < T::ZERO {
+                answer.push(reflect_int(abs_order as i64, j_positive[abs_order]));
+                n_negative += 1;
+            } else {
+                // abort on first positive order
+                break;
+            }
+        }
+        n - n_negative
+    } else {
+        let ((j_negative, n_zeros_j_neg), secondary_result) = negative_data.unwrap();
+        let (y_negative, n_zeros_y_neg) = secondary_result.unwrap();
+        let n_negative = j_negative.len();
+        for i in 0..n {
+            let current_order = order + T::from_usize(i);
+            if current_order < T::ZERO {
+                let index = n_negative - 1 - i;
+                answer.push(reflect_non_int(
+                    current_order.abs(),
+                    j_negative[index],
+                    Some(y_negative[index]),
+                ));
+                if (index >= n_negative - n_zeros_j_neg) && index >= n_negative - n_zeros_y_neg {
+                    n_zeros += 1;
+                }
+            } else {
+                // abort on first positive order
+                break;
+            }
+        }
+        n_positive
+    };
+
+    if n_remaining > 0 {
+        // make j_positive mutable for draining - was immutable to this point
+        let mut j_positive = j_positive;
+        answer.extend(j_positive.drain(..n_remaining));
+        n_zeros += n_zeros_j_positive.saturating_sub(n_positive - n_remaining);
+    }
+    Ok((answer, n_zeros))
 }

@@ -4,7 +4,7 @@ pub use super::core::{complex_airy, complex_airy_b};
 use crate::{
     BesselFloat, Scaling,
     amos::HankelKind,
-    reflections::{as_integer, integer_sign, reflect_j_element},
+    reflections::{UnderflowLocation, integer_sign, reflect_j_element, reflect_orders},
     types::BesselResult,
 };
 
@@ -169,93 +169,23 @@ pub fn complex_bessel_j<T: BesselFloat>(
     scaling: Scaling,
     n: usize,
 ) -> BesselResult<T> {
-    use super::core::complex_bessel_j;
+    use super::core;
     if order >= T::ZERO {
         // implies all requested orders are positive
-        return complex_bessel_j(z, order, scaling, n);
-    }
-
-    // Special case for negative integer order: J(-n, z) = (-1)^n J(n, z)
-    let abs_order: T = order.abs();
-    if let Some(int_order) = as_integer(abs_order) {
-        // if we have a negative integer order, then orders are
-        // (if int_order is denoted by o)
-        // -o, -o+1, -o+2, ..., 0, 1, 2, ... n-(o+1)
-        // e.g for order = -3, int_order = 3, n = 5 orders are -3, -2, -1, 0, 1,
-        // of course, if n < int_order, then we never reach order 0
-        // -o, -o+1, -o+2, ..., -o+n
-        // e.g. if n = 2, int_order = 3, orders are -3, -2,
-
-        // now we need positive forms of all the orders we need in either
-        // negative or positive form.
-
-        let n64 = n as i64;
-        let min_order = (-int_order + n64).abs().min(0);
-        let max_order = (n64 - (int_order + 1)).max(int_order);
-        let n_positive = ((max_order - min_order) + 1) as usize;
-        let (pos_js, n_zeros_positive) =
-            complex_bessel_j(z, T::from_isize(min_order as isize), scaling, n_positive)?;
-
-        let mut answer = Vec::with_capacity(n);
-
-        let mut n_zeros = 0;
-        for i in 0..n {
-            let current_order = order + T::from_usize(i);
-            let abs_order = current_order.abs().to_usize().unwrap();
-            if abs_order >= (n_positive - n_zeros_positive) {
-                n_zeros += 1;
-            }
-            if current_order < T::ZERO {
-                answer.push(pos_js[abs_order] * integer_sign::<T>(abs_order as i64));
-            } else {
-                answer.push(pos_js[abs_order]);
-            }
-        }
-        return Ok((answer, n_zeros));
-    }
-
-    // General case: need both J and Y at positive |ν|
-    //
-    // say order = -2.7, then we need
-    // -2.7, -1.7, -0.7, 0.3, 1.3, 2.3, ...
-
-    let n_negative = order.abs().ceil().abs().to_usize().unwrap();
-    let first_negative = order.fract().abs();
-    let (j_negative, n_zeros_j_neg) = complex_bessel_j(z, first_negative, scaling, n_negative)?;
-    let (y_negative, n_zeros_y_neg) = complex_bessel_y(z, first_negative, scaling, n_negative)?;
-
-    let n_positive = n.saturating_sub(n_negative);
-
-    let first_positive = T::ONE + order.fract();
-    let (j_positive, n_zeros_j_pos) = if n_positive > 0 {
-        complex_bessel_j(z, first_positive, scaling, n_positive)?
+        core::complex_bessel_j(z, order, scaling, n)
     } else {
-        (Vec::new(), 0)
-    };
-
-    let mut answer = Vec::with_capacity(n);
-    let mut n_zeros = 0;
-    for i in 0..n {
-        let current_order = order + T::from_usize(i);
-        if current_order < T::ZERO {
-            let index = n_negative - 1 - i;
-            answer.push(reflect_j_element(
-                current_order.abs(),
-                j_negative[index],
-                y_negative[index],
-            ));
-            if (index >= n_negative - n_zeros_j_neg) && index >= n_negative - n_zeros_y_neg {
-                n_zeros += 1;
-            }
-        } else {
-            let index = i - n_negative;
-            answer.push(j_positive[index]);
-            if index >= n_positive - n_zeros_j_pos {
-                n_zeros += 1;
-            }
-        }
+        reflect_orders(
+            z,
+            order,
+            scaling,
+            n,
+            core::complex_bessel_j,
+            UnderflowLocation::End,
+            Some((core::complex_bessel_y, UnderflowLocation::Start)),
+            |order, j, y| reflect_j_element(order, j, y.unwrap()),
+            |abs_order, z| z * integer_sign::<T>(abs_order),
+        )
     }
-    Ok((answer, n_zeros))
 }
 
 /// Computes the K-Bessel function of a complex argument.
