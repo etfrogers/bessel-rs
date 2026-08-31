@@ -6,8 +6,8 @@ use crate::{
     BesselFloat, Scaling,
     amos::HankelKind,
     reflections::{
-        UnderflowLocation, integer_sign, no_secondary, reflect_h_element, reflect_j_element,
-        reflect_orders,
+        UnderflowLocation, integer_sign, no_secondary, reflect_h_element, reflect_i_element,
+        reflect_j_element, reflect_orders,
     },
     types::BesselResult,
 };
@@ -136,14 +136,28 @@ pub fn complex_hankel2<T: BesselFloat>(
 /// * `y`: A vector of complex numbers containing the values of the Bessel
 ///   functions for orders `[order, order + 1, ..., order + n - 1]`.
 /// * `n_zeros`: The number of components in `y` set to zero due to underflow.
-///   For `complex_bessel_i`, the first `n_zeros` components are set to zero.
+///   For `complex_bessel_i`, the last `n_zeros` components are set to zero.
 pub fn complex_bessel_i<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
     n: usize,
 ) -> BesselResult<T, usize> {
-    super::core::complex_bessel_i(z, order, scaling, n)
+    if order >= T::ZERO {
+        core::complex_bessel_i(z, order, scaling, n)
+    } else {
+        reflect_orders(
+            z,
+            order,
+            scaling,
+            n,
+            core::complex_bessel_i,
+            UnderflowLocation::End,
+            Some((core::complex_bessel_k, UnderflowLocation::Start)),
+            |order, i, k| reflect_i_element(order, i, k.unwrap()),
+            |_, i| i,
+        )
+    }
 }
 
 /// Computes the J-Bessel function of a complex argument.

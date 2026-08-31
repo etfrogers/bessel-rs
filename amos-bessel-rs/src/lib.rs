@@ -161,24 +161,7 @@ pub fn bessel_i<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
 ) -> Result<ZT, BesselError<FT>> {
-    let order = order.into();
-    let z = z.into();
-    if order >= FT::ZERO {
-        return ZT::back_from(&bessel_i_single(order, z));
-    }
-
-    let abs_order = order.abs();
-
-    // Integer shortcut: I_{-n}(z) = I_n(z)
-    if as_integer(abs_order).is_some() {
-        return ZT::back_from(&bessel_i_single(abs_order, z));
-    }
-
-    // General case: need both I and K at positive |ν|
-    let i = bessel_i_single(abs_order, z)?;
-    let k = bessel_k_single(abs_order, z)?;
-
-    ZT::back_from(&reflect_i_element(abs_order, i, k))
+    ZT::back_from(&bessel_i_single(order.into(), z.into()))
 }
 
 /// Computes the modified Bessel function of the second kind Kv(z).

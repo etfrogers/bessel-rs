@@ -238,8 +238,8 @@ where
         (pos_result, Some((primary_neg_result, secondary_neg_result)))
     };
 
-    let (j_positive, n_zeros_j_positive) = pos_result;
-    let n_positive = j_positive.len();
+    let (prim_positive, n_zeros_prim_positive) = pos_result;
+    let n_positive = prim_positive.len();
     let mut answer = Vec::with_capacity(n);
     let mut n_zeros = 0;
 
@@ -249,12 +249,11 @@ where
         for i in 0..n {
             let current_order = order + T::from_usize(i);
             let abs_order = current_order.abs().to_usize().unwrap();
-            // if abs_order >= (n_positive - n_zeros_j_positive) {
-            if primary_loc.is_underflow(abs_order, n_positive, n_zeros_j_positive) {
+            if primary_loc.is_underflow(abs_order, n_positive, n_zeros_prim_positive) {
                 n_zeros += 1;
             }
             if current_order < T::ZERO {
-                answer.push(reflect_int(abs_order as i64, j_positive[abs_order]));
+                answer.push(reflect_int(abs_order as i64, prim_positive[abs_order]));
                 n_negative += 1;
             } else {
                 // abort on first positive order
@@ -263,26 +262,25 @@ where
         }
         n - n_negative
     } else {
-        let ((j_negative, n_zeros_j_neg), secondary_result) = negative_data.unwrap();
-        let (y_negative, n_zeros_y_neg) =
-            if let Some((y_negative, n_zeros_y_neg)) = secondary_result {
-                (Some(y_negative), Some(n_zeros_y_neg))
-            } else {
-                (None, None)
-            };
-        let n_negative = j_negative.len();
+        let ((prim_negative, n_zeros_prim_neg), secondary_result) = negative_data.unwrap();
+        let (sec_negative, n_zeros_sec_neg) = if let Some((vals, nz)) = secondary_result {
+            (Some(vals), Some(nz))
+        } else {
+            (None, None)
+        };
+        let n_negative = prim_negative.len();
         for i in 0..n {
             let current_order = order + T::from_usize(i);
             if current_order < T::ZERO {
                 let index = n_negative - 1 - i;
                 answer.push(reflect_non_int(
                     current_order.abs(),
-                    j_negative[index],
-                    y_negative.as_ref().map(|y| y[index]),
+                    prim_negative[index],
+                    sec_negative.as_ref().map(|y| y[index]),
                 ));
-                if primary_loc.is_underflow(index, n_negative, n_zeros_j_neg)
+                if primary_loc.is_underflow(index, n_negative, n_zeros_prim_neg)
                     && negative_fn.as_ref().is_some_and(|(_, loc)| {
-                        loc.is_underflow(index, n_negative, n_zeros_y_neg.unwrap())
+                        loc.is_underflow(index, n_negative, n_zeros_sec_neg.unwrap())
                     })
                 {
                     n_zeros += 1;
@@ -297,10 +295,9 @@ where
 
     if n_remaining > 0 {
         // make j_positive mutable for draining - was immutable to this point
-        let mut j_positive = j_positive;
+        let mut j_positive = prim_positive;
         answer.extend(j_positive.drain(..n_remaining));
-        // n_zeros += n_zeros_j_positive.saturating_sub(n_positive - n_remaining);
-        n_zeros += primary_loc.positive_tail_zeros(n_positive, n_remaining, n_zeros_j_positive);
+        n_zeros += primary_loc.positive_tail_zeros(n_positive, n_remaining, n_zeros_prim_positive);
     }
     Ok((answer, n_zeros))
 }

@@ -31,7 +31,7 @@ fn test_reflection_n_vs_loop(
     #[values(0.0, 5.0, -3.0, -49.0, -51.0, -100.0, -10.763, -51.1276, 34.23)] order: f64,
     #[values(
         complex_bessel_j as BesselSig,
-        // complex_bessel_i as BesselSig,
+        complex_bessel_i as BesselSig,
         complex_hankel1 as BesselSig,
         complex_hankel2 as BesselSig,
         complex_bessel_k as BesselSig,
