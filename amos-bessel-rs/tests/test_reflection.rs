@@ -8,7 +8,7 @@ use amos_bessel_rs::{
 };
 use num::Complex;
 use rstest::rstest;
-use std::{assert_matches, f64::consts::PI};
+use std::f64::consts::PI;
 
 mod common;
 use common::assert_complex_arrays_equal;
@@ -34,7 +34,7 @@ fn test_reflection_n_vs_loop(
         // complex_bessel_i as BesselSig,
         // complex_hankel1 as BesselSig,
         // complex_hankel2 as BesselSig,
-        // complex_bessel_k as BesselSig,
+        complex_bessel_k as BesselSig,
         // complex_bessel_y as BesselSig,
     )]
     fun: BesselSig,
@@ -48,8 +48,9 @@ fn test_reflection_n_vs_loop(
             if matches!(result, Err(BesselError::Overflow)) {
                 continue;
             }
-            if z == Complex::ZERO && order.fract() != 0.0 && order < 0.0 {
-                assert_matches!(result, Err(BesselError::InvalidInput { .. }));
+            if z == Complex::ZERO
+                && matches!(&result, Err(BesselError::InvalidInput { details })if details == "z must not be zero")
+            {
                 continue;
             }
             let (y, n_zeros) = result.unwrap();

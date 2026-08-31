@@ -238,7 +238,8 @@ where
         for i in 0..n {
             let current_order = order + T::from_usize(i);
             let abs_order = current_order.abs().to_usize().unwrap();
-            if abs_order >= (n_positive - n_zeros_j_positive) {
+            // if abs_order >= (n_positive - n_zeros_j_positive) {
+            if primary_loc.is_underflow(abs_order, n_positive, n_zeros_j_positive) {
                 n_zeros += 1;
             }
             if current_order < T::ZERO {
@@ -252,7 +253,12 @@ where
         n - n_negative
     } else {
         let ((j_negative, n_zeros_j_neg), secondary_result) = negative_data.unwrap();
-        let (y_negative, n_zeros_y_neg) = secondary_result.unwrap();
+        let (y_negative, n_zeros_y_neg) =
+            if let Some((y_negative, n_zeros_y_neg)) = secondary_result {
+                (Some(y_negative), Some(n_zeros_y_neg))
+            } else {
+                (None, None)
+            };
         let n_negative = j_negative.len();
         for i in 0..n {
             let current_order = order + T::from_usize(i);
@@ -261,9 +267,13 @@ where
                 answer.push(reflect_non_int(
                     current_order.abs(),
                     j_negative[index],
-                    Some(y_negative[index]),
+                    y_negative.as_ref().map(|y| y[index]),
                 ));
-                if (index >= n_negative - n_zeros_j_neg) && index >= n_negative - n_zeros_y_neg {
+                if primary_loc.is_underflow(index, n_negative, n_zeros_j_neg)
+                    && negative_fn.is_some_and(|(_, loc)| {
+                        loc.is_underflow(index, n_negative, n_zeros_y_neg.unwrap())
+                    })
+                {
                     n_zeros += 1;
                 }
             } else {
@@ -278,7 +288,8 @@ where
         // make j_positive mutable for draining - was immutable to this point
         let mut j_positive = j_positive;
         answer.extend(j_positive.drain(..n_remaining));
-        n_zeros += n_zeros_j_positive.saturating_sub(n_positive - n_remaining);
+        // n_zeros += n_zeros_j_positive.saturating_sub(n_positive - n_remaining);
+        n_zeros += primary_loc.positive_tail_zeros(n_positive, n_remaining, n_zeros_j_positive);
     }
     Ok((answer, n_zeros))
 }

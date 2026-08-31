@@ -1,5 +1,6 @@
 use num::Complex;
 
+use super::core;
 pub use super::core::{complex_airy, complex_airy_b};
 use crate::{
     BesselFloat, Scaling,
@@ -169,7 +170,6 @@ pub fn complex_bessel_j<T: BesselFloat>(
     scaling: Scaling,
     n: usize,
 ) -> BesselResult<T> {
-    use super::core;
     if order >= T::ZERO {
         // implies all requested orders are positive
         core::complex_bessel_j(z, order, scaling, n)
@@ -235,8 +235,22 @@ pub fn complex_bessel_k<T: BesselFloat>(
     n: usize,
 ) -> BesselResult<T> {
     // K_{-ν}(z) = K_ν(z) (DLMF 10.27.3)
-    let abs_order = order.abs();
-    super::core::complex_bessel_k(z, abs_order, scaling, n)
+    if order >= T::ZERO {
+        // implies all requested orders are positive
+        core::complex_bessel_k(z, order, scaling, n)
+    } else {
+        reflect_orders(
+            z,
+            order,
+            scaling,
+            n,
+            core::complex_bessel_k,
+            UnderflowLocation::Start,
+            None,
+            |_, z, _| z,
+            |_, z| z,
+        )
+    }
 }
 
 /// Computes the Y-Bessel function of a complex argument.
