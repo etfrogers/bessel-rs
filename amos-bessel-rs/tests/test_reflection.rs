@@ -15,8 +15,6 @@ use common::assert_complex_arrays_equal;
 
 use crate::common::BesselSig;
 
-// const ORDER: [f64; 4] = [0.0, 5.0, -100.0, -10.0];
-
 const Z_PARTS: [f64; 37] = [
     // -1e-6,
     // 0.0,
@@ -35,7 +33,7 @@ fn test_reflection_n_vs_loop(
         complex_hankel1 as BesselSig,
         complex_hankel2 as BesselSig,
         complex_bessel_k as BesselSig,
-        // complex_bessel_y as BesselSig,
+        complex_bessel_y as BesselSig,
     )]
     fun: BesselSig,
 ) {

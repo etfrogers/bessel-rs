@@ -7,7 +7,7 @@ use crate::{
     amos::HankelKind,
     reflections::{
         UnderflowLocation, integer_sign, no_secondary, reflect_h_element, reflect_i_element,
-        reflect_j_element, reflect_orders,
+        reflect_j_element, reflect_orders, reflect_y_element,
     },
     types::BesselResult,
 };
@@ -327,5 +327,19 @@ pub fn complex_bessel_y<T: BesselFloat>(
     scaling: Scaling,
     n: usize,
 ) -> BesselResult<T> {
-    super::core::complex_bessel_y(z, order, scaling, n)
+    if order >= T::ZERO {
+        core::complex_bessel_y(z, order, scaling, n)
+    } else {
+        reflect_orders(
+            z,
+            order,
+            scaling,
+            n,
+            core::complex_bessel_y,
+            UnderflowLocation::Start,
+            Some((core::complex_bessel_j, UnderflowLocation::End)),
+            |n, y, j| reflect_y_element(n, j.unwrap(), y),
+            |n, y| y * integer_sign::<T>(n),
+        )
+    }
 }

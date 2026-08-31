@@ -102,14 +102,9 @@ mod types;
 
 use std::ops::Mul;
 
-use crate::{
-    amos::{
-        complex_airy, complex_airy_b, complex_bessel_i, complex_bessel_j, complex_bessel_k,
-        complex_bessel_y, complex_hankel1, complex_hankel2,
-    },
-    reflections::{
-        as_integer, integer_sign, reflect_h_element, reflect_i_element, reflect_y_element,
-    },
+use crate::amos::{
+    complex_airy, complex_airy_b, complex_bessel_i, complex_bessel_j, complex_bessel_k,
+    complex_bessel_y, complex_hankel1, complex_hankel2,
 };
 pub use amos::{HankelKind, Scaling};
 
@@ -185,25 +180,7 @@ pub fn bessel_y<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
 ) -> Result<ZT, BesselError<FT>> {
-    let order = order.into();
-    let z = z.into();
-    if order >= FT::ZERO {
-        return ZT::back_from(&bessel_y_single(order, z));
-    }
-
-    let abs_order = order.abs();
-
-    // Integer shortcut: Y_{-n}(z) = (-1)^n * Y_n(z)
-    if let Some(n) = as_integer(abs_order) {
-        let y = bessel_y_single(abs_order, z)?;
-        return ZT::back_from(&(y * integer_sign::<FT>(n)));
-    }
-
-    // General case: need both J and Y at positive |ν|
-    let j = bessel_j_single(abs_order, z)?;
-    let y = bessel_y_single(abs_order, z)?;
-
-    ZT::back_from(&reflect_y_element(abs_order, j, y))
+    ZT::back_from(&bessel_y_single(order.into(), z.into()))
 }
 
 /// Computes the Hankel function Hv(z) of the first or second kind.
