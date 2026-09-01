@@ -89,7 +89,7 @@ fn test_reflection_n_vs_loop(
     }
 }
 
-/// 1. Tests exact spherical/half-integer closed forms for negative orders.
+/// Tests exact spherical/half-integer closed forms for negative orders.
 /// These formulas evaluate directly with trigonometric and hyperbolic functions,
 /// completely independent of any reflection formulas.
 #[test]
@@ -181,7 +181,7 @@ fn test_half_integer_closed_forms() {
     }
 }
 
-/// 2. Tests the three-term recurrence relations across negative orders.
+/// Tests the three-term recurrence relations across negative orders.
 /// Recurrence relations hold for all real nu, providing an invariant test
 /// that does not depend on reflection formulas.
 #[test]
@@ -245,7 +245,7 @@ fn test_three_term_recurrence() {
     }
 }
 
-/// 3. Tests integer limits and continuity near negative integers.
+/// Tests integer limits and continuity near negative integers.
 /// Compares the negative integer identities with positive evaluations and
 /// checks smooth continuity for nu = -n +/- eps.
 #[test]
@@ -343,5 +343,53 @@ fn test_integer_limit_continuity() {
                 );
             }
         }
+    }
+}
+
+#[rstest]
+#[case::j_non_int(complex_bessel_j as BesselSig, -2.5, Scaling::Unscaled, 5)]
+#[case::j_int(complex_bessel_j as BesselSig, -3.0, Scaling::Unscaled, 6)]
+#[case::y_non_int(complex_bessel_y as BesselSig, -2.5, Scaling::Unscaled, 5)]
+#[case::y_int(complex_bessel_y as BesselSig, -3.0, Scaling::Unscaled, 6)]
+#[case::i_scaled_non_int(complex_bessel_i as BesselSig, -2.5, Scaling::Scaled, 5)]
+#[case::i_scaled_int(complex_bessel_i as BesselSig, -3.0, Scaling::Scaled, 6)]
+#[case::k_non_int(complex_bessel_k as BesselSig, -2.5, Scaling::Unscaled, 5)]
+#[case::k_int(complex_bessel_k as BesselSig, -3.0, Scaling::Unscaled, 6)]
+#[case::h1_non_int(complex_hankel1 as BesselSig, -2.5, Scaling::Unscaled, 5)]
+#[case::h1_int(complex_hankel1 as BesselSig, -3.0, Scaling::Unscaled, 6)]
+fn test_reflection_partial_loss_of_significance(
+    #[case] fun: BesselSig,
+    #[case] order: f64,
+    #[case] scaling: Scaling,
+    #[case] n: usize,
+) {
+    // Large |z| > 32768.0 triggers PartialLossOfSignificance in f64
+    let z = Complex::new(50000.0, 0.0);
+    let result = fun(z, order, scaling, n);
+
+    let (y, _n_zeros) = match result {
+        Err(BesselError::PartialLossOfSignificance { y, n_zeros }) => (y, n_zeros),
+        other => panic!("Expected PartialLossOfSignificance, got {:?}", other),
+    };
+
+    // Vector length must match requested n, not just n_negative
+    assert_eq!(
+        y.len(),
+        n,
+        "Returned vector length {} does not match requested n={}",
+        y.len(),
+        n
+    );
+
+    // Each element in sequence must match single-point evaluation
+    for (i, yi) in y.iter().enumerate() {
+        let single_order = order + i as f64;
+        let single_result = fun(z, single_order, scaling, 1);
+        let single_y = match single_result {
+            Err(BesselError::PartialLossOfSignificance { y, .. }) => y[0],
+            Ok((y, ..)) => y[0],
+            other => panic!("Unexpected result for single evaluation: {:?}", other),
+        };
+        assert_complex_arrays_equal(yi, &single_y, &vec![], 1e6);
     }
 }

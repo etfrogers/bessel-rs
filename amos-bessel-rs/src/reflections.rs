@@ -193,6 +193,17 @@ where
     FReflectNonInt: Fn(T, Complex<T>, Option<Complex<T>>) -> Complex<T>,
     FReflectInt: Fn(i64, Complex<T>) -> Complex<T>,
 {
+    let mut partial_loss_of_significance = false;
+
+    let mut unwrap_plos = |result: BesselResult<T>| match result {
+        Ok(vals) => Ok(vals),
+        Err(BesselError::PartialLossOfSignificance { y, n_zeros }) => {
+            partial_loss_of_significance = true;
+            Ok((y, n_zeros))
+        }
+        Err(e) => Err(e),
+    };
+
     let abs_order: T = order.abs();
     let (pos_result, negative_data) = if let Some(int_order) = as_integer(abs_order) {
         // if we have a negative integer order, then orders are
@@ -210,7 +221,12 @@ where
         let min_order = (-int_order + n64).abs().min(0);
         let max_order = (n64 - (int_order + 1)).max(int_order);
         let n_positive = ((max_order - min_order) + 1) as usize;
-        let result = primary_fn(z, T::from_isize(min_order as isize), scaling, n_positive)?;
+        let result = unwrap_plos(primary_fn(
+            z,
+            T::from_isize(min_order as isize),
+            scaling,
+            n_positive,
+        ))?;
         (result, None)
     } else {
         // General case: need both J and Y at positive |ν|
@@ -220,9 +236,15 @@ where
 
         let n_negative = order.abs().ceil().abs().to_usize().unwrap();
         let first_negative = order.fract().abs();
-        let primary_neg_result = primary_fn(z, first_negative, scaling, n_negative)?;
+        let primary_neg_result =
+            unwrap_plos(primary_fn(z, first_negative, scaling, n_negative))?;
         let secondary_neg_result = if let Some((ref negative_fn, _)) = negative_fn {
-            Some(negative_fn(z, first_negative, scaling, n_negative)?)
+            Some(unwrap_plos(negative_fn(
+                z,
+                first_negative,
+                scaling,
+                n_negative,
+            ))?)
         } else {
             None
         };
@@ -231,7 +253,7 @@ where
 
         let first_positive = T::ONE + order.fract();
         let pos_result = if n_positive > 0 {
-            primary_fn(z, first_positive, scaling, n_positive)?
+            unwrap_plos(primary_fn(z, first_positive, scaling, n_positive))?
         } else {
             (Vec::new(), 0)
         };
@@ -299,5 +321,9 @@ where
         answer.extend(j_positive.drain(..n_remaining));
         n_zeros += primary_loc.positive_tail_zeros(n_positive, n_remaining, n_zeros_prim_positive);
     }
-    Ok((answer, n_zeros))
+    if partial_loss_of_significance {
+        Err(BesselError::PartialLossOfSignificance { y: answer, n_zeros })
+    } else {
+        Ok((answer, n_zeros))
+    }
 }
