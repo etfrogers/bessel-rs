@@ -97,7 +97,7 @@
 /// for finer control of the calculation and results
 pub mod amos;
 
-pub mod reflections;
+pub(crate) mod reflections;
 mod types;
 
 use std::ops::Mul;

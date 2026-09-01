@@ -12,41 +12,33 @@ use crate::{
     types::BesselResult,
 };
 
-/// Computes the H-Bessel functions (Hankel functions) of a complex argument.
+/// Computes the Hankel function $H_\nu^{(1)}(z)$ or $H_\nu^{(2)}(z)$ for a complex argument.
 ///
-/// This function computes a sequence of complex Hankel (Bessel) functions
-/// `y[j] = H(order + j - 1, z)` real, non-negative
-/// orders `order + j - 1` (`j = 1, ..., n`), and a complex argument `z` which is
-/// not equal to `(0.0, 0.0)`. The computation is valid in the cut plane
-/// `-PI < z.arg() <= PI`.
+/// Computes a sequence of complex Hankel (Bessel of the third kind) functions
+/// `y[j] = H(order + j, z)` for real orders `order + j` (`j = 0, ..., n - 1`) and complex
+/// argument `z` ($z \ne 0$) in the cut plane $-\pi < \arg(z) \le \pi$.
 ///
-/// The kind of the Hankel function is specified by the hankel_kind parameter,
-/// which can take values [HankelKind::First] or [HankelKind::Second]
+/// The kind of Hankel function is specified by `hankel_kind` ([HankelKind::First] or [HankelKind::Second]).
+/// Negative orders are supported via the reflection relation (DLMF 10.4.6/7):
 ///
-/// When `scaling` is `Scaling::Scaled`, this function returns the scaled Hankel
-/// functions, which remove the exponential behavior in both the upper and
-/// lower half-planes.
-/// `y(j) = (-(3 - 2 * m)*z*i).exp() * H(order + j - 1, z)` where `m` depends
-/// on the kind of Hankel function (1 for First, 2 for second).
+/// $$H_{-\nu}^{(1)}(z) = e^{i\nu\pi} H_\nu^{(1)}(z), \quad H_{-\nu}^{(2)}(z) = e^{-i\nu\pi} H_\nu^{(2)}(z)$$
 ///
 /// # Arguments
 ///
-/// * `z` - Complex argument `z`, `z != (0.0, 0.0)`, `-PI < z.arg() <= PI`.
-/// * `order` - Order of the initial H function, `order >= 0.0`.
-/// * `scaling` - A parameter to indicate the scaling option.
-///     * `Scaling::Unscaled`: returns `y(j) = H(order + j - 1, z)`.
-///     * `Scaling::Scaled`: returns `y(j) = H(m, order + j - 1, z) * (-i * z * (3 - 2*m)).exp()`
-///       where `m` is determined by the kind of Hankel function (1 for First, 2 for second).
-/// * `hankel_kind` - Kind of Hankel function.
-/// * `n` - Number of members in the sequence, `n >= 1`.
+/// * `z` - Complex argument $z \ne 0$ in the cut plane $-\pi < \arg(z) \le \pi$.
+/// * `order` - Order of the initial Hankel function (any real number).
+/// * `scaling` - Scaling option:
+///     * [Scaling::Unscaled]: returns $H_\nu^{(m)}(z)$.
+///     * [Scaling::Scaled]: returns $\exp(-i z (3 - 2m)) H_\nu^{(m)}(z)$ where $m \in \{1, 2\}$,
+///       which removes the exponential growth in upper and lower half-planes.
+/// * `hankel_kind` - [HankelKind::First] ($H_\nu^{(1)}$) or [HankelKind::Second] ($H_\nu^{(2)}$).
+/// * `n` - Number of members in the sequence ($n \ge 1$).
 ///
 /// # Returns
 ///
-/// A tuple containing:
-/// * `y`: A vector of complex numbers containing the values of the Hankel
-///   functions for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `n_zeros`: The number of components in `y` set to zero due to underflow.
-///   for complex_bessel_h the first `n_zeros` components are set to zero.
+/// A `Result` containing a tuple `(y, n_zeros)`:
+/// * `y`: A vector of complex values for orders `[order, order + 1, ..., order + n - 1]`.
+/// * `n_zeros`: The number of components at the start of `y` set to zero due to underflow.
 pub fn complex_bessel_h<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -71,9 +63,9 @@ pub fn complex_bessel_h<T: BesselFloat>(
     }
 }
 
-/// Computes the Hankel function of the first kind H1v(z) for a complex argument.
+/// Computes the Hankel function of the first kind $H_\nu^{(1)}(z)$ for a complex argument.
 ///
-/// An alternative interface to [`complex_bessel_h`]
+/// Convenience wrapper equivalent to calling [`complex_bessel_h`] with [`HankelKind::First`].
 #[inline]
 pub fn complex_hankel1<T: BesselFloat>(
     z: Complex<T>,
@@ -84,9 +76,9 @@ pub fn complex_hankel1<T: BesselFloat>(
     complex_bessel_h(z, order, scaling, HankelKind::First, n)
 }
 
-/// Computes the Hankel function of the second kind H2v(z) for a complex argument.
+/// Computes the Hankel function of the second kind $H_\nu^{(2)}(z)$ for a complex argument.
 ///
-/// An alternative interface to [`complex_bessel_h`]
+/// Convenience wrapper equivalent to calling [`complex_bessel_h`] with [`HankelKind::Second`].
 #[inline]
 pub fn complex_hankel2<T: BesselFloat>(
     z: Complex<T>,
@@ -97,46 +89,31 @@ pub fn complex_hankel2<T: BesselFloat>(
     complex_bessel_h(z, order, scaling, HankelKind::Second, n)
 }
 
-/// Computes the I-Bessel function of a complex argument.
+/// Computes the modified Bessel function of the first kind $I_\nu(z)$ for a complex argument.
 ///
-/// This function computes a sequence of complex Bessel functions `y(j) = I(order + j - 1, z)`
-/// for real, non-negative orders `order + j - 1` (`j = 1, ..., n`) and a complex argument `z`
-/// in the cut plane `-PI < z.arg() <= PI`.
+/// Computes a sequence of complex modified Bessel functions `y[j] = I(order + j, z)`
+/// for real orders `order + j` (`j = 0, ..., n - 1`) and complex argument `z`
+/// in the cut plane $-\pi < \arg(z) \le \pi$.
 ///
-/// When `scaling` is `Scaling::Scaled`, this function returns the scaled functions
-/// `y(j) = (-(z.re.abs())).exp() * I(order + j - 1, z)` which remove the
-/// exponential growth in both the left and right half-planes for `z` to infinity.
+/// Negative orders are evaluated via the DLMF reflection formulas (DLMF 10.27.2):
 ///
-/// The computation is carried out by the power series for small `z.abs()`,
-/// the asymptotic expansion for large `z.abs()`,
-/// the Miller algorithm normalized by the Wronskian and a Neumann
-/// series for intermediate magnitudes, and the
-/// uniform asymptotic expansions for I(order, z) and J(order, z)
-/// for large orders. Backward recurrence is used to generate
-/// sequences or reduce orders when necessary.
-///
-/// The calculations above are done in the right half-plane and
-/// continued into the left half-plane by the formula
-/// `I(order, z * (m * PI).exp()) = (m * PI * order).exp() * I(order, z),   z.re > 0.0`
-/// with `m = +i OR -i`,  (`i` is the imaginary unit).
-//
+/// $$I_{-\nu}(z) = I_\nu(z) + \frac{2}{\pi}\sin(\nu\pi)K_\nu(z), \quad I_{-n}(z) = I_n(z) \ (n \in \mathbb{Z})$$
 ///
 /// # Arguments
 ///
-/// * `z` - Complex argument `z`, `-PI < z.arg() <= PI`.
-/// * `order` - Order of the initial I function, `order >= 0.0`.
-/// * `scaling` - A parameter to indicate the scaling option.
-///     * `Scaling::Unscaled`: returns `y(j) = I(order + j - 1, z)`.
-///     * `Scaling::Scaled`: returns `y(j) = I(order + j - 1, z) * (-z.re().abs()).exp()`.
-/// * `n` - Number of members of the sequence, `n >= 1`.
+/// * `z` - Complex argument in the cut plane $-\pi < \arg(z) \le \pi$.
+/// * `order` - Order of the initial I function (any real number).
+/// * `scaling` - Scaling option:
+///     * [Scaling::Unscaled]: returns $I_\nu(z)$.
+///     * [Scaling::Scaled]: returns $\exp(-|\text{Re}(z)|) I_\nu(z)$, which removes exponential
+///       growth in both left and right half-planes as $|z| \to \infty$.
+/// * `n` - Number of members in the sequence ($n \ge 1$).
 ///
 /// # Returns
 ///
-/// A tuple containing:
-/// * `y`: A vector of complex numbers containing the values of the Bessel
-///   functions for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `n_zeros`: The number of components in `y` set to zero due to underflow.
-///   For `complex_bessel_i`, the last `n_zeros` components are set to zero.
+/// A `Result` containing a tuple `(y, n_zeros)`:
+/// * `y`: A vector of complex values for orders `[order, order + 1, ..., order + n - 1]`.
+/// * `n_zeros`: The number of components at the end of `y` (highest orders) set to zero due to underflow.
 pub fn complex_bessel_i<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -160,41 +137,31 @@ pub fn complex_bessel_i<T: BesselFloat>(
     }
 }
 
-/// Computes the J-Bessel function of a complex argument.
+/// Computes the Bessel function of the first kind $J_\nu(z)$ for a complex argument.
 ///
-/// This function computes a sequence of complex Bessel functions `y(j) = J(order + j - 1, z)`
-/// for real, non-negative orders `order + j - 1` (`j = 1, ..., n`) and a complex argument `z`
-/// in the cut plane `-PI < z.arg() <= PI`.
+/// Computes a sequence of complex Bessel functions `y[j] = J(order + j, z)`
+/// for real orders `order + j` (`j = 0, ..., n - 1`) and complex argument `z`
+/// in the cut plane $-\pi < \arg(z) \le \pi$.
 ///
-/// When `scaling` is `Scaling::Scaled`, this function returns the scaled functions
-/// `y(j) = (-(z.im.abs())).exp() * J(order + j - 1, z)`, which removes the
-/// exponential growth in both the upper and lower half-planes for `z` to infinity.
+/// Negative orders are evaluated via the DLMF reflection formulas (DLMF 10.2.3):
 ///
-/// The computation is carried out by the formula
-///
-/// `J(order, Z) = ( order * PI * i / 2).exp() * I(order, -i*z)`    if `z.im >= 0.0`
-///
-/// `J(order, Z) = (-order * PI * i / 2).exp() * I(order, i*z)`    if `z.im < 0.0`
-///
-/// where `i` is the imaginary unit and `I(order, z)` is the I Bessel function.
+/// $$J_{-\nu}(z) = \cos(\nu\pi)J_\nu(z) - \sin(\nu\pi)Y_\nu(z), \quad J_{-n}(z) = (-1)^n J_n(z) \ (n \in \mathbb{Z})$$
 ///
 /// # Arguments
 ///
-/// * `z` - Complex argument `z`, `-PI < z.arg() <= PI`.
-/// * `order` - Order of the initial J function, `order >= 0.0`.
-/// * `scaling` - A parameter to indicate the scaling option.
-///     * `Scaling::Unscaled`: returns `y(j) = J(order + j - 1, z)`.
-///     * `Scaling::Scaled`: returns `y(j) = J(order + j - 1, z) * (-(z.im.abs())).exp()`.
-/// * `n` - Number of members of the sequence, `n >= 1`.
+/// * `z` - Complex argument in the cut plane $-\pi < \arg(z) \le \pi$.
+/// * `order` - Order of the initial J function (any real number).
+/// * `scaling` - Scaling option:
+///     * [Scaling::Unscaled]: returns $J_\nu(z)$.
+///     * [Scaling::Scaled]: returns $\exp(-|\text{Im}(z)|) J_\nu(z)$, which removes exponential
+///       growth in both upper and lower half-planes as $|z| \to \infty$.
+/// * `n` - Number of members in the sequence ($n \ge 1$).
 ///
 /// # Returns
 ///
-/// A tuple containing:
-/// * `y`: A vector of complex numbers containing the values of the Bessel
-///   functions for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `n_zeros`: The number of components in `y` set to zero due to underflow.
-///   For `complex_bessel_j`, the last `n_zeros` components are set to zero.
-///
+/// A `Result` containing a tuple `(y, n_zeros)`:
+/// * `y`: A vector of complex values for orders `[order, order + 1, ..., order + n - 1]`.
+/// * `n_zeros`: The number of components at the end of `y` (highest orders) set to zero due to underflow.
 pub fn complex_bessel_j<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -219,46 +186,31 @@ pub fn complex_bessel_j<T: BesselFloat>(
     }
 }
 
-/// Computes the K-Bessel function of a complex argument.
+/// Computes the modified Bessel function of the second kind $K_\nu(z)$ for a complex argument.
 ///
-/// This function computes a sequence of complex Bessel functions `y(j) = K(order + j - 1, z)`
-/// for real, non-negative orders `order + j - 1` (`j = 1, ..., n`) and a complex argument `z`
-/// which is not equal to `(0.0, 0.0)`. The computation is valid in the cut plane
-/// `-PI < z.arg() <= PI`.
+/// Computes a sequence of complex modified Bessel functions `y[j] = K(order + j, z)`
+/// for real orders `order + j` (`j = 0, ..., n - 1`) and complex argument `z` ($z \ne 0$)
+/// in the cut plane $-\pi < \arg(z) \le \pi$.
 ///
-/// When `scaling` is `Scaling::Scaled`, this function returns the scaled K functions,
-/// `y(j) = z.exp() * K(order + j - 1, z)`, which remove the exponential behavior in both
-/// the left and right half-planes for `z` to infinity.
+/// Negative orders are evaluated via the reflection identity (DLMF 10.27.3):
 ///
-/// EQUATIONS ARE IMPLEMENTED FOR SMALL ORDERS
-/// order AND order + 1.0 IN THE RIGHT HALF PLANE X >= 0.0. FORWARD
-/// RECURRENCE GENERATES HIGHER ORDERS. K IS CONTINUED TO THE LEFT
-/// HALF PLANE BY THE RELATION
-///
-/// `K(order, z * mp.exp()) = (-mp * order).exp() * K(order, z) - mp * I(order, z)`
-///
-/// where `mp = mr * PI * i`, `mr = +1 OR -1`, `z.re > 0`, `i` is the imaginary unit
-/// and `I(order, Z)` is the I Bessel function.
-///
-/// For large order, `order > MACHINE_CONSTANTS.asymptotic_order_limit`, the K function is computed
-/// by means of its uniform asymptotic expansions.
+/// $$K_{-\nu}(z) = K_\nu(z)$$
 ///
 /// # Arguments
 ///
-/// * `z` - Complex argument `z`, `z != (0.0, 0.0)`, `-PI < z.arg() <= PI`.
-/// * `order` - Order of the initial K function, `order >= 0.0`.
-/// * `scaling` - A parameter to indicate the scaling option.
-///     * `Scaling::Unscaled`: returns `y(j) = K(order + j - 1, z)`.
-///     * `Scaling::Scaled`: returns `y(j) = K(order + j - 1, z) * z.exp()`.
-/// * `n` - Number of members of the sequence, `n >= 1`.
+/// * `z` - Complex argument $z \ne 0$ in the cut plane $-\pi < \arg(z) \le \pi$.
+/// * `order` - Order of the initial K function (any real number).
+/// * `scaling` - Scaling option:
+///     * [Scaling::Unscaled]: returns $K_\nu(z)$.
+///     * [Scaling::Scaled]: returns $\exp(z) K_\nu(z)$, which removes exponential decay
+///       as $\text{Re}(z) \to +\infty$.
+/// * `n` - Number of members in the sequence ($n \ge 1$).
 ///
 /// # Returns
 ///
-/// A tuple containing:
-/// * `y`: A vector of complex numbers containing the values of the Bessel
-///   functions for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `n_zeros`: The number of components in `y` set to zero due to underflow.
-///   For `complex_bessel_k`, the first `n_zeros` components are set to zero.
+/// A `Result` containing a tuple `(y, n_zeros)`:
+/// * `y`: A vector of complex values for orders `[order, order + 1, ..., order + n - 1]`.
+/// * `n_zeros`: The number of components at the start of `y` set to zero due to underflow.
 pub fn complex_bessel_k<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -284,43 +236,31 @@ pub fn complex_bessel_k<T: BesselFloat>(
     }
 }
 
-/// Computes the Y-Bessel function of a complex argument.
+/// Computes the Bessel function of the second kind $Y_\nu(z)$ for a complex argument.
 ///
-/// This function computes a sequence of complex Bessel functions `y(j) = Y(order + j - 1, z)`
-/// for real, non-negative orders `order + j - 1` (`j = 1, ..., n`) and a complex argument `z`
-/// which is not equal to `(0.0, 0.0)`. The computation is valid in the cut plane
-/// `-PI < z.arg() <= PI`.
+/// Computes a sequence of complex Bessel functions `y[j] = Y(order + j, z)`
+/// for real orders `order + j` (`j = 0, ..., n - 1`) and complex argument `z` ($z \ne 0$)
+/// in the cut plane $-\pi < \arg(z) \le \pi$.
 ///
-/// When `scaling` is `Scaling::Scaled`, this function returns the scaled functions
-/// `y(j) = (-(z.im.abs())).exp() * Y(order + j - 1, z)`, which remove the
-/// exponential growth in both the upper and lower half-planes for `z` to infinity.
+/// Negative orders are evaluated via the DLMF reflection formulas (DLMF 10.2.3):
 ///
-/// The computation is carried out in terms of the I(order, z) and
-/// K(order, z) Bessel functions in the right half-plane by
-///
-/// `Y(order, z) = i * cc * I(order, arg) - (2/PI) * cc.conj() * K(order, arg)` if `z.im >= 0`
-///
-/// `Y(order, z) = Y(order, z.conj()).conj()` if `z.im < 0`
-///
-/// where
-/// `cc = (i* PI * order / 2).exp()`, `arg = z * (-i * PI / 2).exp()` and `i` is the imaginary unit.
+/// $$Y_{-\nu}(z) = \sin(\nu\pi)J_\nu(z) + \cos(\nu\pi)Y_\nu(z), \quad Y_{-n}(z) = (-1)^n Y_n(z) \ (n \in \mathbb{Z})$$
 ///
 /// # Arguments
 ///
-/// * `z` - Complex argument `z`, `z != (0.0, 0.0)`, `-PI < z.arg() <= PI`.
-/// * `order` - Order of the initial Y function, `order >= 0.0`.
-/// * `scaling` - A parameter to indicate the scaling option.
-///     * `Scaling::Unscaled`: returns `y(j) = Y(order + j - 1, z)`.
-///     * `Scaling::Scaled`: returns `y(j) = Y(order + j - 1, z) * (-(z.im.abs())).exp()`.
-/// * `n` - Number of members of the sequence, `n >= 1`.
+/// * `z` - Complex argument $z \ne 0$ in the cut plane $-\pi < \arg(z) \le \pi$.
+/// * `order` - Order of the initial Y function (any real number).
+/// * `scaling` - Scaling option:
+///     * [Scaling::Unscaled]: returns $Y_\nu(z)$.
+///     * [Scaling::Scaled]: returns $\exp(-|\text{Im}(z)|) Y_\nu(z)$, which removes exponential
+///       growth in both upper and lower half-planes as $|z| \to \infty$.
+/// * `n` - Number of members in the sequence ($n \ge 1$).
 ///
 /// # Returns
 ///
-/// A tuple containing:
-/// * `y`: A vector of complex numbers containing the values of the Bessel
-///   functions for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `n_zeros`: The number of components in `y` set to zero due to underflow.
-///   For `complex_bessel_y`, the first `n_zeros` components are set to zero.
+/// A `Result` containing a tuple `(y, n_zeros)`:
+/// * `y`: A vector of complex values for orders `[order, order + 1, ..., order + n - 1]`.
+/// * `n_zeros`: The number of components at the start of `y` set to zero due to underflow.
 pub fn complex_bessel_y<T: BesselFloat>(
     z: Complex<T>,
     order: T,

@@ -16,41 +16,20 @@ use crate::{
     types::BesselResult,
 };
 
-/// Computes the H-Bessel functions (Hankel functions) of a complex argument.
+/// Core Amos implementation for Hankel functions $H_\nu^{(1)}(z)$ and $H_\nu^{(2)}(z)$ ($\nu \ge 0$).
 ///
-/// This function computes a sequence of complex Hankel (Bessel) functions
-/// `y[j] = H(order + j - 1, z)` real, non-negative
-/// orders `order + j - 1` (`j = 1, ..., n`), and a complex argument `z` which is
-/// not equal to `(0.0, 0.0)`. The computation is valid in the cut plane
-/// `-PI < z.arg() <= PI`.
+/// Corresponds to Amos routine `ZBESK` / `CBESH`.
 ///
-/// The kind of the Hankel function is specified by the hankel_kind parameter,
-/// which can take values [HankelKind::First] or [HankelKind::Second]
+/// # Algorithm & Mechanics
+/// - Computes $H_\nu^{(m)}(z)$ via $K_\nu$:
+///   $$H_\nu^{(m)}(z) = -\text{fmm} \cdot \frac{i}{\pi/2} z_t^\nu K_\nu(-z \cdot z_t)$$
+///   where $z_t = \exp(-i \cdot \text{fmm} \cdot \pi / 2)$ and $\text{fmm} = 3 - 2m$.
+/// - **Right half plane** ($\text{Re}(z_t \cdot z) > 0$): computes $K_\nu$ directly via `k_right_half_plane`.
+/// - **Left half plane**: applies analytic continuation via `analytic_continuation`.
+/// - **Large orders** ($\nu > \text{asymptotic\_order\_limit}$): uses uniform asymptotic expansion `k_asymp_large_order`.
 ///
-/// When `scaling` is `Scaling::Scaled`, this function returns the scaled Hankel
-/// functions, which remove the exponential behavior in both the upper and
-/// lower half-planes.
-/// `y(j) = (-(3 - 2 * m)*z*i).exp() * H(order + j - 1, z)` where `m` depends
-/// on the kind of Hankel function (1 for First, 2 for second).
-///
-/// # Arguments
-///
-/// * `z` - Complex argument `z`, `z != (0.0, 0.0)`, `-PI < z.arg() <= PI`.
-/// * `order` - Order of the initial H function, `order >= 0.0`.
-/// * `scaling` - A parameter to indicate the scaling option.
-///     * `Scaling::Unscaled`: returns `y(j) = H(order + j - 1, z)`.
-///     * `Scaling::Scaled`: returns `y(j) = H(m, order + j - 1, z) * (-i * z * (3 - 2*m)).exp()`
-///       where `m` is determined by the kind of Hankel function (1 for First, 2 for second).
-/// * `hankel_kind` - Kind of Hankel function.
-/// * `n` - Number of members in the sequence, `n >= 1`.
-///
-/// # Returns
-///
-/// A tuple containing:
-/// * `y`: A vector of complex numbers containing the values of the Hankel
-///   functions for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `n_zeros`: The number of components in `y` set to zero due to underflow.
-pub fn complex_bessel_h<T: BesselFloat>(
+/// Precondition: `order >= 0.0`, `n >= 1`, $z \ne 0$.
+pub(crate) fn complex_bessel_h<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
@@ -148,14 +127,8 @@ pub fn complex_bessel_h<T: BesselFloat>(
         phase_multiplier = -phase_multiplier;
     }
 
-    for element in y.iter_mut() {
-        let scaling = if element.linf_norm() < mc.absolute_approximation_limit {
-            *element *= mc.rtol;
-            mc.abs_error_tolerance
-        } else {
-            T::ONE
-        };
-        *element *= phase_multiplier * scaling;
+    for yi in y.iter_mut().take(n - n_zeros) {
+        *yi = safe_multiply(*yi, phase_multiplier, mc);
         phase_multiplier *= rotation_factor;
     }
     if partial_loss_of_significance {
@@ -165,46 +138,20 @@ pub fn complex_bessel_h<T: BesselFloat>(
     }
 }
 
-/// Computes the I-Bessel function of a complex argument.
+/// Core Amos implementation for modified Bessel functions $I_\nu(z)$ ($\nu \ge 0$).
 ///
-/// This function computes a sequence of complex Bessel functions `y(j) = I(order + j - 1, z)`
-/// for real, non-negative orders `order + j - 1` (`j = 1, ..., n`) and a complex argument `z`
-/// in the cut plane `-PI < z.arg() <= PI`.
+/// Corresponds to Amos routine `ZBESI` / `CBESI`.
 ///
-/// When `scaling` is `Scaling::Scaled`, this function returns the scaled functions
-/// `y(j) = (-(z.re.abs())).exp() * I(order + j - 1, z)` which remove the
-/// exponential growth in both the left and right half-planes for `z` to infinity.
+/// # Algorithm & Mechanics
+/// - Evaluates in the right half-plane ($\text{Re}(z) \ge 0$) using `i_right_half_plane`:
+///   - Power series for small $|z| \le 2\sqrt{\nu + 1}$.
+///   - Asymptotic expansion for large $|z|$.
+///   - Miller algorithm normalized by Wronskian / Neumann series for intermediate $|z|$.
+///   - Uniform asymptotic expansion for large $\nu$.
+/// - **Left half plane** ($\text{Re}(z) < 0$): continued via $I_\nu(z) = \exp(\pm i\pi\nu) I_\nu(-z)$.
 ///
-/// The computation is carried out by the power series for small `z.abs()`,
-/// the asymptotic expansion for large `z.abs()`,
-/// the Miller algorithm normalized by the Wronskian and a Neumann
-/// series for intermediate magnitudes, and the
-/// uniform asymptotic expansions for I(order, z) and J(order, z)
-/// for large orders. Backward recurrence is used to generate
-/// sequences or reduce orders when necessary.
-///
-/// The calculations above are done in the right half-plane and
-/// continued into the left half-plane by the formula
-/// `I(order, z * (m * PI).exp()) = (m * PI * order).exp() * I(order, z),   z.re > 0.0`
-/// with `m = +i OR -i`,  (`i` is the imaginary unit).
-//
-///
-/// # Arguments
-///
-/// * `z` - Complex argument `z`, `-PI < z.arg() <= PI`.
-/// * `order` - Order of the initial I function, `order >= 0.0`.
-/// * `scaling` - A parameter to indicate the scaling option.
-///     * `Scaling::Unscaled`: returns `y(j) = I(order + j - 1, z)`.
-///     * `Scaling::Scaled`: returns `y(j) = I(order + j - 1, z) * (-z.re().abs()).exp()`.
-/// * `n` - Number of members of the sequence, `n >= 1`.
-///
-/// # Returns
-///
-/// A tuple containing:
-/// * `y`: A vector of complex numbers containing the values of the Bessel
-///   functions for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `n_zeros`: The number of components in `y` set to zero due to underflow.
-pub fn complex_bessel_i<T: BesselFloat>(
+/// Precondition: `order >= 0.0`, `n >= 1`.
+pub(crate) fn complex_bessel_i<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
@@ -246,40 +193,19 @@ pub fn complex_bessel_i<T: BesselFloat>(
     }
 }
 
-/// Computes the J-Bessel function of a complex argument.
+/// Core Amos implementation for Bessel functions of the first kind $J_\nu(z)$ ($\nu \ge 0$).
 ///
-/// This function computes a sequence of complex Bessel functions `y(j) = J(order + j - 1, z)`
-/// for real, non-negative orders `order + j - 1` (`j = 1, ..., n`) and a complex argument `z`
-/// in the cut plane `-PI < z.arg() <= PI`.
+/// Corresponds to Amos routine `ZBESJ` / `CBESJ`.
 ///
-/// When `scaling` is `Scaling::Scaled`, this function returns the scaled functions
-/// `y(j) = (-(z.im.abs())).exp() * J(order + j - 1, z)`, which removes the
-/// exponential growth in both the upper and lower half-planes for `z` to infinity.
+/// # Algorithm & Mechanics
+/// - Transforms $J_\nu(z)$ to $I_\nu$:
+///   $$J_\nu(z) = \exp(i\nu\pi/2) I_\nu(-iz) \quad (\text{Im}(z) \ge 0)$$
+///   and uses conjugate symmetry for $\text{Im}(z) < 0$.
+/// - Evaluates $I_\nu$ in the right half-plane via `i_right_half_plane`.
+/// - Multiplies by phase $\exp(i\nu\pi/2)$ using order mod 2 arithmetic to prevent loss of significance.
 ///
-/// The computation is carried out by the formula
-///
-/// `J(order, Z) = ( order * PI * i / 2).exp() * I(order, -i*z)`    if `z.im >= 0.0`
-///
-/// `J(order, Z) = (-order * PI * i / 2).exp() * I(order, i*z)`    if `z.im < 0.0`
-///
-/// where `i` is the imaginary unit and `I(order, z)` is the I Bessel function.
-///
-/// # Arguments
-///
-/// * `z` - Complex argument `z`, `-PI < z.arg() <= PI`.
-/// * `order` - Order of the initial J function, `order >= 0.0`.
-/// * `scaling` - A parameter to indicate the scaling option.
-///     * `Scaling::Unscaled`: returns `y(j) = J(order + j - 1, z)`.
-///     * `Scaling::Scaled`: returns `y(j) = J(order + j - 1, z) * (-(z.im.abs())).exp()`.
-/// * `n` - Number of members of the sequence, `n >= 1`.
-///
-/// # Returns
-///
-/// A tuple containing:
-/// * `y`: A vector of complex numbers containing the values of the Bessel
-///   functions for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `n_zeros`: The number of components in `y` set to zero due to underflow.
-pub fn complex_bessel_j<T: BesselFloat>(
+/// Precondition: `order >= 0.0`, `n >= 1`.
+pub(crate) fn complex_bessel_j<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
@@ -316,46 +242,19 @@ pub fn complex_bessel_j<T: BesselFloat>(
     }
 }
 
-/// Computes the K-Bessel function of a complex argument.
+/// Core Amos implementation for modified Bessel functions of the second kind $K_\nu(z)$ ($\nu \ge 0$).
 ///
-/// This function computes a sequence of complex Bessel functions `y(j) = K(order + j - 1, z)`
-/// for real, non-negative orders `order + j - 1` (`j = 1, ..., n`) and a complex argument `z`
-/// which is not equal to `(0.0, 0.0)`. The computation is valid in the cut plane
-/// `-PI < z.arg() <= PI`.
+/// Corresponds to Amos routine `ZBESK` / `CBESK`.
 ///
-/// When `scaling` is `Scaling::Scaled`, this function returns the scaled K functions,
-/// `y(j) = z.exp() * K(order + j - 1, z)`, which remove the exponential behavior in both
-/// the left and right half-planes for `z` to infinity.
+/// # Algorithm & Mechanics
+/// - **Small orders**: computes $K_\nu$ and $K_{\nu+1}$ in the right half-plane via `k_right_half_plane`
+///   and uses forward recurrence for higher orders.
+/// - **Left half plane** ($\text{Re}(z) < 0$): continued via
+///   $$K_\nu(z e^{\pm i\pi}) = e^{\mp i\pi\nu} K_\nu(z) \mp i\pi I_\nu(z)$$
+/// - **Large orders** ($\nu > \text{asymptotic\_order\_limit}$): uniform asymptotic expansions via `k_asymp_large_order`.
 ///
-/// EQUATIONS ARE IMPLEMENTED FOR SMALL ORDERS
-/// order AND order + 1.0 IN THE RIGHT HALF PLANE X >= 0.0. FORWARD
-/// RECURRENCE GENERATES HIGHER ORDERS. K IS CONTINUED TO THE LEFT
-/// HALF PLANE BY THE RELATION
-///
-/// `K(order, z * mp.exp()) = (-mp * order).exp() * K(order, z) - mp * I(order, z)`
-///
-/// where `mp = mr * PI * i`, `mr = +1 OR -1`, `z.re > 0`, `i` is the imaginary unit
-/// and `I(order, Z)` is the I Bessel function.
-///
-/// For large order, `order > MACHINE_CONSTANTS.asymptotic_order_limit`, the K function is computed
-/// by means of its uniform asymptotic expansions.
-///
-/// # Arguments
-///
-/// * `z` - Complex argument `z`, `z != (0.0, 0.0)`, `-PI < z.arg() <= PI`.
-/// * `order` - Order of the initial K function, `order >= 0.0`.
-/// * `scaling` - A parameter to indicate the scaling option.
-///     * `Scaling::Unscaled`: returns `y(j) = K(order + j - 1, z)`.
-///     * `Scaling::Scaled`: returns `y(j) = K(order + j - 1, z) * z.exp()`.
-/// * `n` - Number of members of the sequence, `n >= 1`.
-///
-/// # Returns
-///
-/// A tuple containing:
-/// * `y`: A vector of complex numbers containing the values of the Bessel
-///   functions for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `n_zeros`: The number of components in `y` set to zero due to underflow.
-pub fn complex_bessel_k<T: BesselFloat>(
+/// Precondition: `order >= 0.0`, `n >= 1`, $z \ne 0$.
+pub(crate) fn complex_bessel_k<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
@@ -437,43 +336,18 @@ pub fn complex_bessel_k<T: BesselFloat>(
     }
 }
 
-/// Computes the Y-Bessel function of a complex argument.
+/// Core Amos implementation for Bessel functions of the second kind $Y_\nu(z)$ ($\nu \ge 0$).
 ///
-/// This function computes a sequence of complex Bessel functions `y(j) = Y(order + j - 1, z)`
-/// for real, non-negative orders `order + j - 1` (`j = 1, ..., n`) and a complex argument `z`
-/// which is not equal to `(0.0, 0.0)`. The computation is valid in the cut plane
-/// `-PI < z.arg() <= PI`.
+/// Corresponds to Amos routine `ZBESY` / `CBESY`.
 ///
-/// When `scaling` is `Scaling::Scaled`, this function returns the scaled functions
-/// `y(j) = (-(z.im.abs())).exp() * Y(order + j - 1, z)`, which remove the
-/// exponential growth in both the upper and lower half-planes for `z` to infinity.
+/// # Algorithm & Mechanics
+/// - Computes $Y_\nu(z)$ in the right half-plane via $I_\nu$ and $K_\nu$:
+///   $$Y_\nu(z) = i e^{i\pi\nu/2} I_\nu(-iz) - \frac{2}{\pi} e^{-i\pi\nu/2} K_\nu(-iz) \quad (\text{Im}(z) \ge 0)$$
+/// - For $\text{Im}(z) < 0$, uses conjugate symmetry $Y_\nu(z) = \overline{Y_\nu(\bar{z})}$.
+/// - Handles exponential scaling correction when `Scaling::Scaled` is requested.
 ///
-/// The computation is carried out in terms of the I(order, z) and
-/// K(order, z) Bessel functions in the right half-plane by
-///
-/// `Y(order, z) = i * cc * I(order, arg) - (2/PI) * cc.conj() * K(order, arg)` if `z.im >= 0`
-///
-/// `Y(order, z) = Y(order, z.conj()).conj()` if `z.im < 0`
-///
-/// where
-/// `cc = (i* PI * order / 2).exp()`, `arg = z * (-i * PI / 2).exp()` and `i` is the imaginary unit.
-///
-/// # Arguments
-///
-/// * `z` - Complex argument `z`, `z != (0.0, 0.0)`, `-PI < z.arg() <= PI`.
-/// * `order` - Order of the initial Y function, `order >= 0.0`.
-/// * `scaling` - A parameter to indicate the scaling option.
-///     * `Scaling::Unscaled`: returns `y(j) = Y(order + j - 1, z)`.
-///     * `Scaling::Scaled`: returns `y(j) = Y(order + j - 1, z) * (-(z.im.abs())).exp()`.
-/// * `n` - Number of members of the sequence, `n >= 1`.
-///
-/// # Returns
-///
-/// A tuple containing:
-/// * `y`: A vector of complex numbers containing the values of the Bessel
-///   functions for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `n_zeros`: The number of components in `y` set to zero due to underflow.
-pub fn complex_bessel_y<T: BesselFloat>(
+/// Precondition: `order >= 0.0`, `n >= 1`, $z \ne 0$.
+pub(crate) fn complex_bessel_y<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
