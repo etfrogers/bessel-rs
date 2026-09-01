@@ -89,9 +89,9 @@ fn complex_bessel_test_relative_error(
 ) -> Option<f64> {
     let diff_re = computed.re - ref_val.re;
     let diff_im = computed.im - ref_val.im;
-    let diff_mag = pymath::math::hypot(&[diff_re, diff_im]);
+    let diff_mag = diff_re.hypot(diff_im);
 
-    let ref_mag = pymath::math::hypot(&[ref_val.re, ref_val.im]);
+    let ref_mag = ref_val.re.hypot(ref_val.im);
 
     // Both values near zero: comparison meaningless (e.g. analytic zeros,
     // f64 underflow at extreme orders). Skip these points entirely.
