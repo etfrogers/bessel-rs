@@ -236,8 +236,7 @@ where
 
         let n_negative = order.abs().ceil().abs().to_usize().unwrap();
         let first_negative = order.fract().abs();
-        let primary_neg_result =
-            unwrap_plos(primary_fn(z, first_negative, scaling, n_negative))?;
+        let primary_neg_result = unwrap_plos(primary_fn(z, first_negative, scaling, n_negative))?;
         let secondary_neg_result = if let Some((ref negative_fn, _)) = negative_fn {
             Some(unwrap_plos(negative_fn(
                 z,
@@ -265,55 +264,55 @@ where
     let mut answer = Vec::with_capacity(n);
     let mut n_zeros = 0;
 
-    let n_remaining = if negative_data.is_none() {
-        // Special case for negative integer order: J(-n, z) = (-1)^n J(n, z)
-        let mut n_negative = 0;
-        for i in 0..n {
-            let current_order = order + T::from_usize(i);
-            let abs_order = current_order.abs().to_usize().unwrap();
-            if primary_loc.is_underflow(abs_order, n_positive, n_zeros_prim_positive) {
-                n_zeros += 1;
-            }
-            if current_order < T::ZERO {
-                answer.push(reflect_int(abs_order as i64, prim_positive[abs_order]));
-                n_negative += 1;
+    let n_remaining =
+        if let Some(((prim_negative, n_zeros_prim_neg), secondary_result)) = negative_data {
+            let (sec_negative, n_zeros_sec_neg) = if let Some((vals, nz)) = secondary_result {
+                (Some(vals), Some(nz))
             } else {
-                // abort on first positive order
-                break;
+                (None, None)
+            };
+            let n_negative = prim_negative.len();
+            for i in 0..n {
+                let current_order = order + T::from_usize(i);
+                if current_order < T::ZERO {
+                    let index = n_negative - 1 - i;
+                    answer.push(reflect_non_int(
+                        current_order.abs(),
+                        prim_negative[index],
+                        sec_negative.as_ref().map(|y| y[index]),
+                    ));
+                    if primary_loc.is_underflow(index, n_negative, n_zeros_prim_neg)
+                        && negative_fn.as_ref().is_some_and(|(_, loc)| {
+                            loc.is_underflow(index, n_negative, n_zeros_sec_neg.unwrap())
+                        })
+                    {
+                        n_zeros += 1;
+                    }
+                } else {
+                    // abort on first positive order
+                    break;
+                }
             }
-        }
-        n - n_negative
-    } else {
-        let ((prim_negative, n_zeros_prim_neg), secondary_result) = negative_data.unwrap();
-        let (sec_negative, n_zeros_sec_neg) = if let Some((vals, nz)) = secondary_result {
-            (Some(vals), Some(nz))
+            n_positive
         } else {
-            (None, None)
-        };
-        let n_negative = prim_negative.len();
-        for i in 0..n {
-            let current_order = order + T::from_usize(i);
-            if current_order < T::ZERO {
-                let index = n_negative - 1 - i;
-                answer.push(reflect_non_int(
-                    current_order.abs(),
-                    prim_negative[index],
-                    sec_negative.as_ref().map(|y| y[index]),
-                ));
-                if primary_loc.is_underflow(index, n_negative, n_zeros_prim_neg)
-                    && negative_fn.as_ref().is_some_and(|(_, loc)| {
-                        loc.is_underflow(index, n_negative, n_zeros_sec_neg.unwrap())
-                    })
-                {
+            // Special case for negative integer order: J(-n, z) = (-1)^n J(n, z)
+            let mut n_negative = 0;
+            for i in 0..n {
+                let current_order = order + T::from_usize(i);
+                let abs_order = current_order.abs().to_usize().unwrap();
+                if primary_loc.is_underflow(abs_order, n_positive, n_zeros_prim_positive) {
                     n_zeros += 1;
                 }
-            } else {
-                // abort on first positive order
-                break;
+                if current_order < T::ZERO {
+                    answer.push(reflect_int(abs_order as i64, prim_positive[abs_order]));
+                    n_negative += 1;
+                } else {
+                    // abort on first positive order
+                    break;
+                }
             }
-        }
-        n_positive
-    };
+            n - n_negative
+        };
 
     if n_remaining > 0 {
         // make j_positive mutable for draining - was immutable to this point
