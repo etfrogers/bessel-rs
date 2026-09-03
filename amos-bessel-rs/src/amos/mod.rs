@@ -13,7 +13,7 @@ use crate::types::BesselFloat;
 mod airy;
 mod analytic_continuation;
 mod asymptotics;
-mod core;
+pub(crate) mod core;
 mod entry_points;
 mod gamma_ln;
 mod i_computation;

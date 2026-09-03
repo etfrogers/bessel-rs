@@ -2,7 +2,8 @@ use num::Complex;
 
 use crate::{
     BesselError, HankelKind, Scaling,
-    types::{BesselFloat, BesselResult, BesselValues},
+    amos::core,
+    types::{BesselFloat, BesselResult},
 };
 
 /// (-1)^n sign factor for integer order reflection.
@@ -162,37 +163,214 @@ impl UnderflowLocation {
     }
 }
 
-#[allow(type_alias_bounds)]
-pub(crate) type BesselSig<T: BesselFloat = f64> =
-    fn(Complex<T>, T, Scaling, usize) -> Result<BesselValues<T>, BesselError<T>>;
+pub(crate) trait ReflectableBessel<T: BesselFloat> {
+    /// Location where zeros appear upon underflow (Start or End).
+    const UNDERFLOW_LOCATION: UnderflowLocation;
 
-pub(crate) fn no_secondary<T: BesselFloat>() -> Option<(BesselSig<T>, UnderflowLocation)> {
-    None
+    /// The secondary function type needed for non-integer reflection (e.g. BesselY for BesselJ).
+    type Secondary: ReflectableBessel<T>;
+
+    /// Returns the secondary function instance, or None if none is needed (e.g. for K and H).
+    fn secondary(&self) -> Option<Self::Secondary>;
+
+    /// Evaluates the core Amos function for positive orders.
+    fn eval(&self, z: Complex<T>, order: T, scaling: Scaling, n: usize) -> BesselResult<T>;
+
+    /// DLMF reflection formula for non-integer orders: f_{-ν}(z) from f_ν(z) and optional g_ν(z).
+    fn reflect_non_int(
+        &self,
+        order: T,
+        primary: Complex<T>,
+        secondary: Option<Complex<T>>,
+    ) -> Complex<T>;
+
+    /// DLMF reflection formula for integer orders: f_{-n}(z) from f_n(z).
+    fn reflect_int(&self, order: i64, primary: Complex<T>) -> Complex<T>;
 }
 
-pub(crate) fn reflect_orders<
-    T: BesselFloat,
-    BesselSigPrim,
-    BesselSigSec,
-    FReflectNonInt,
-    FReflectInt,
->(
+pub(crate) struct BesselJ;
+pub(crate) struct BesselY;
+pub(crate) struct BesselI;
+pub(crate) struct BesselK;
+pub(crate) struct Hankel(pub HankelKind);
+pub(crate) struct NoSecondary;
+
+impl<T: BesselFloat> ReflectableBessel<T> for NoSecondary {
+    const UNDERFLOW_LOCATION: UnderflowLocation = UnderflowLocation::Start;
+    type Secondary = NoSecondary;
+
+    #[inline]
+    fn secondary(&self) -> Option<Self::Secondary> {
+        None
+    }
+
+    #[inline]
+    fn eval(&self, _z: Complex<T>, _order: T, _scaling: Scaling, _n: usize) -> BesselResult<T> {
+        unreachable!("NoSecondary should never be evaluated directly")
+    }
+
+    #[inline]
+    fn reflect_non_int(
+        &self,
+        _order: T,
+        _primary: Complex<T>,
+        _secondary: Option<Complex<T>>,
+    ) -> Complex<T> {
+        unreachable!("NoSecondary has no reflection formula")
+    }
+
+    #[inline]
+    fn reflect_int(&self, _order: i64, _primary: Complex<T>) -> Complex<T> {
+        unreachable!("NoSecondary has no reflection formula")
+    }
+}
+
+impl<T: BesselFloat> ReflectableBessel<T> for BesselJ {
+    const UNDERFLOW_LOCATION: UnderflowLocation = UnderflowLocation::End;
+    type Secondary = BesselY;
+
+    #[inline]
+    fn secondary(&self) -> Option<Self::Secondary> {
+        Some(BesselY)
+    }
+
+    #[inline]
+    fn eval(&self, z: Complex<T>, order: T, scaling: Scaling, n: usize) -> BesselResult<T> {
+        core::complex_bessel_j(z, order, scaling, n)
+    }
+
+    #[inline]
+    fn reflect_non_int(&self, order: T, j: Complex<T>, y: Option<Complex<T>>) -> Complex<T> {
+        reflect_j_element(order, j, y.unwrap())
+    }
+
+    #[inline]
+    fn reflect_int(&self, order: i64, j: Complex<T>) -> Complex<T> {
+        j * integer_sign::<T>(order)
+    }
+}
+
+impl<T: BesselFloat> ReflectableBessel<T> for BesselY {
+    const UNDERFLOW_LOCATION: UnderflowLocation = UnderflowLocation::Start;
+    type Secondary = BesselJ;
+
+    #[inline]
+    fn secondary(&self) -> Option<Self::Secondary> {
+        Some(BesselJ)
+    }
+
+    #[inline]
+    fn eval(&self, z: Complex<T>, order: T, scaling: Scaling, n: usize) -> BesselResult<T> {
+        core::complex_bessel_y(z, order, scaling, n)
+    }
+
+    #[inline]
+    fn reflect_non_int(&self, order: T, y: Complex<T>, j: Option<Complex<T>>) -> Complex<T> {
+        reflect_y_element(order, j.unwrap(), y)
+    }
+
+    #[inline]
+    fn reflect_int(&self, order: i64, y: Complex<T>) -> Complex<T> {
+        y * integer_sign::<T>(order)
+    }
+}
+
+impl<T: BesselFloat> ReflectableBessel<T> for BesselI {
+    const UNDERFLOW_LOCATION: UnderflowLocation = UnderflowLocation::End;
+    type Secondary = BesselK;
+
+    #[inline]
+    fn secondary(&self) -> Option<Self::Secondary> {
+        Some(BesselK)
+    }
+
+    #[inline]
+    fn eval(&self, z: Complex<T>, order: T, scaling: Scaling, n: usize) -> BesselResult<T> {
+        core::complex_bessel_i(z, order, scaling, n)
+    }
+
+    #[inline]
+    fn reflect_non_int(&self, order: T, i: Complex<T>, k: Option<Complex<T>>) -> Complex<T> {
+        reflect_i_element(order, i, k.unwrap())
+    }
+
+    #[inline]
+    fn reflect_int(&self, _order: i64, i: Complex<T>) -> Complex<T> {
+        i
+    }
+}
+
+impl<T: BesselFloat> ReflectableBessel<T> for BesselK {
+    const UNDERFLOW_LOCATION: UnderflowLocation = UnderflowLocation::Start;
+    type Secondary = NoSecondary;
+
+    #[inline]
+    fn secondary(&self) -> Option<Self::Secondary> {
+        None
+    }
+
+    #[inline]
+    fn eval(&self, z: Complex<T>, order: T, scaling: Scaling, n: usize) -> BesselResult<T> {
+        core::complex_bessel_k(z, order, scaling, n)
+    }
+
+    #[inline]
+    fn reflect_non_int(
+        &self,
+        _order: T,
+        k: Complex<T>,
+        _secondary: Option<Complex<T>>,
+    ) -> Complex<T> {
+        k
+    }
+
+    #[inline]
+    fn reflect_int(&self, _order: i64, k: Complex<T>) -> Complex<T> {
+        k
+    }
+}
+
+impl<T: BesselFloat> ReflectableBessel<T> for Hankel {
+    const UNDERFLOW_LOCATION: UnderflowLocation = UnderflowLocation::Start;
+    type Secondary = NoSecondary;
+
+    #[inline]
+    fn secondary(&self) -> Option<Self::Secondary> {
+        None
+    }
+
+    #[inline]
+    fn eval(&self, z: Complex<T>, order: T, scaling: Scaling, n: usize) -> BesselResult<T> {
+        core::complex_bessel_h(z, order, scaling, self.0, n)
+    }
+
+    #[inline]
+    fn reflect_non_int(
+        &self,
+        order: T,
+        h: Complex<T>,
+        _secondary: Option<Complex<T>>,
+    ) -> Complex<T> {
+        reflect_h_element(order, self.0, h)
+    }
+
+    #[inline]
+    fn reflect_int(&self, order: i64, h: Complex<T>) -> Complex<T> {
+        h * integer_sign::<T>(order)
+    }
+}
+
+pub(crate) fn reflect_orders<T: BesselFloat, Op: ReflectableBessel<T>>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
     n: usize,
-    primary_fn: BesselSigPrim,
-    primary_loc: UnderflowLocation,
-    negative_fn: Option<(BesselSigSec, UnderflowLocation)>,
-    reflect_non_int: FReflectNonInt,
-    reflect_int: FReflectInt,
-) -> BesselResult<T>
-where
-    BesselSigPrim: Fn(Complex<T>, T, Scaling, usize) -> Result<BesselValues<T>, BesselError<T>>,
-    BesselSigSec: Fn(Complex<T>, T, Scaling, usize) -> Result<BesselValues<T>, BesselError<T>>,
-    FReflectNonInt: Fn(T, Complex<T>, Option<Complex<T>>) -> Complex<T>,
-    FReflectInt: Fn(i64, Complex<T>) -> Complex<T>,
-{
+    op: Op,
+) -> BesselResult<T> {
+    if order >= T::ZERO {
+        return op.eval(z, order, scaling, n);
+    }
+
     let mut partial_loss_of_significance = false;
 
     let mut unwrap_plos = |result: BesselResult<T>| match result {
@@ -221,12 +399,8 @@ where
         let min_order = (-int_order + n64).abs().min(0);
         let max_order = (n64 - (int_order + 1)).max(int_order);
         let n_positive = ((max_order - min_order) + 1) as usize;
-        let result = unwrap_plos(primary_fn(
-            z,
-            T::from_isize(min_order as isize),
-            scaling,
-            n_positive,
-        ))?;
+        let result =
+            unwrap_plos(op.eval(z, T::from_isize(min_order as isize), scaling, n_positive))?;
         (result, None)
     } else {
         // General case: need both J and Y at positive |ν|
@@ -236,23 +410,16 @@ where
 
         let n_negative = order.abs().ceil().abs().to_usize().unwrap();
         let first_negative = order.fract().abs();
-        let primary_neg_result = unwrap_plos(primary_fn(z, first_negative, scaling, n_negative))?;
-        let secondary_neg_result = if let Some((ref negative_fn, _)) = negative_fn {
-            Some(unwrap_plos(negative_fn(
-                z,
-                first_negative,
-                scaling,
-                n_negative,
-            ))?)
-        } else {
-            None
-        };
+        let primary_neg_result = unwrap_plos(op.eval(z, first_negative, scaling, n_negative))?;
+        let secondary_neg_result = op
+            .secondary()
+            .map(|s| unwrap_plos(s.eval(z, first_negative, scaling, n_negative)))
+            .transpose()?;
 
         let n_positive = n.saturating_sub(n_negative);
-
         let first_positive = T::ONE + order.fract();
         let pos_result = if n_positive > 0 {
-            unwrap_plos(primary_fn(z, first_positive, scaling, n_positive))?
+            unwrap_plos(op.eval(z, first_positive, scaling, n_positive))?
         } else {
             (Vec::new(), 0)
         };
@@ -264,61 +431,64 @@ where
     let mut answer = Vec::with_capacity(n);
     let mut n_zeros = 0;
 
-    let n_remaining =
-        if let Some(((prim_negative, n_zeros_prim_neg), secondary_result)) = negative_data {
-            let (sec_negative, n_zeros_sec_neg) = if let Some((vals, nz)) = secondary_result {
-                (Some(vals), Some(nz))
-            } else {
-                (None, None)
-            };
-            let n_negative = prim_negative.len();
-            for i in 0..n {
-                let current_order = order + T::from_usize(i);
-                if current_order < T::ZERO {
-                    let index = n_negative - 1 - i;
-                    answer.push(reflect_non_int(
-                        current_order.abs(),
-                        prim_negative[index],
-                        sec_negative.as_ref().map(|y| y[index]),
-                    ));
-                    if primary_loc.is_underflow(index, n_negative, n_zeros_prim_neg)
-                        && negative_fn.as_ref().is_some_and(|(_, loc)| {
-                            loc.is_underflow(index, n_negative, n_zeros_sec_neg.unwrap())
-                        })
-                    {
-                        n_zeros += 1;
-                    }
-                } else {
-                    // abort on first positive order
-                    break;
-                }
-            }
-            n_positive
-        } else {
-            // Special case for negative integer order: J(-n, z) = (-1)^n J(n, z)
-            let mut n_negative = 0;
-            for i in 0..n {
-                let current_order = order + T::from_usize(i);
-                let abs_order = current_order.abs().to_usize().unwrap();
-                if primary_loc.is_underflow(abs_order, n_positive, n_zeros_prim_positive) {
+    let n_remaining = if let Some(((prim_negative, n_zeros_prim_neg), secondary_result)) =
+        negative_data
+    {
+        let (sec_negative, n_zeros_sec_neg) = secondary_result.unzip();
+        let n_negative = prim_negative.len();
+        for i in 0..n {
+            let current_order = order + T::from_usize(i);
+            if current_order < T::ZERO {
+                let index = n_negative - 1 - i;
+                answer.push(op.reflect_non_int(
+                    current_order.abs(),
+                    prim_negative[index],
+                    sec_negative.as_ref().map(|y| y[index]),
+                ));
+                if Op::UNDERFLOW_LOCATION.is_underflow(index, n_negative, n_zeros_prim_neg)
+                    && (op.secondary().is_none()
+                        || Op::Secondary::UNDERFLOW_LOCATION.is_underflow(
+                            index,
+                            n_negative,
+                            n_zeros_sec_neg.unwrap(),
+                        ))
+                {
                     n_zeros += 1;
                 }
-                if current_order < T::ZERO {
-                    answer.push(reflect_int(abs_order as i64, prim_positive[abs_order]));
-                    n_negative += 1;
-                } else {
-                    // abort on first positive order
-                    break;
-                }
+            } else {
+                // abort on first positive order
+                break;
             }
-            n - n_negative
-        };
+        }
+        n_positive
+    } else {
+        // Special case for negative integer order: J(-n, z) = (-1)^n J(n, z)
+        let mut n_negative = 0;
+        for i in 0..n {
+            let current_order = order + T::from_usize(i);
+            let abs_order = current_order.abs().to_usize().unwrap();
+            if Op::UNDERFLOW_LOCATION.is_underflow(abs_order, n_positive, n_zeros_prim_positive) {
+                n_zeros += 1;
+            }
+            if current_order < T::ZERO {
+                answer.push(op.reflect_int(abs_order as i64, prim_positive[abs_order]));
+                n_negative += 1;
+            } else {
+                // abort on first positive order
+                break;
+            }
+        }
+        n - n_negative
+    };
 
     if n_remaining > 0 {
-        // make j_positive mutable for draining - was immutable to this point
         let mut j_positive = prim_positive;
         answer.extend(j_positive.drain(..n_remaining));
-        n_zeros += primary_loc.positive_tail_zeros(n_positive, n_remaining, n_zeros_prim_positive);
+        n_zeros += Op::UNDERFLOW_LOCATION.positive_tail_zeros(
+            n_positive,
+            n_remaining,
+            n_zeros_prim_positive,
+        );
     }
     if partial_loss_of_significance {
         Err(BesselError::PartialLossOfSignificance { y: answer, n_zeros })

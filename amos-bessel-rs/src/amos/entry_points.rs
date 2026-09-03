@@ -1,14 +1,10 @@
 use num::Complex;
 
-use super::core;
 pub use super::core::{complex_airy, complex_airy_b};
 use crate::{
     BesselFloat, Scaling,
     amos::HankelKind,
-    reflections::{
-        UnderflowLocation, integer_sign, no_secondary, reflect_h_element, reflect_i_element,
-        reflect_j_element, reflect_orders, reflect_y_element,
-    },
+    reflections::{BesselI, BesselJ, BesselK, BesselY, Hankel, reflect_orders},
     types::BesselResult,
 };
 
@@ -46,21 +42,7 @@ pub fn complex_bessel_h<T: BesselFloat>(
     hankel_kind: HankelKind,
     n: usize,
 ) -> BesselResult<T> {
-    if order >= T::ZERO {
-        core::complex_bessel_h(z, order, scaling, hankel_kind, n)
-    } else {
-        reflect_orders(
-            z,
-            order,
-            scaling,
-            n,
-            |z, order, scaling, n| core::complex_bessel_h(z, order, scaling, hankel_kind, n),
-            UnderflowLocation::Start,
-            no_secondary(),
-            |order, z, _| reflect_h_element(order, hankel_kind, z),
-            |order, z| z * integer_sign::<T>(order),
-        )
-    }
+    reflect_orders(z, order, scaling, n, Hankel(hankel_kind))
 }
 
 /// Computes the Hankel function of the first kind $H_\nu^{(1)}(z)$ for a complex argument.
@@ -120,21 +102,7 @@ pub fn complex_bessel_i<T: BesselFloat>(
     scaling: Scaling,
     n: usize,
 ) -> BesselResult<T, usize> {
-    if order >= T::ZERO {
-        core::complex_bessel_i(z, order, scaling, n)
-    } else {
-        reflect_orders(
-            z,
-            order,
-            scaling,
-            n,
-            core::complex_bessel_i,
-            UnderflowLocation::End,
-            Some((core::complex_bessel_k, UnderflowLocation::Start)),
-            |order, i, k| reflect_i_element(order, i, k.unwrap()),
-            |_, i| i,
-        )
-    }
+    reflect_orders(z, order, scaling, n, BesselI)
 }
 
 /// Computes the Bessel function of the first kind $J_\nu(z)$ for a complex argument.
@@ -168,22 +136,7 @@ pub fn complex_bessel_j<T: BesselFloat>(
     scaling: Scaling,
     n: usize,
 ) -> BesselResult<T> {
-    if order >= T::ZERO {
-        // implies all requested orders are positive
-        core::complex_bessel_j(z, order, scaling, n)
-    } else {
-        reflect_orders(
-            z,
-            order,
-            scaling,
-            n,
-            core::complex_bessel_j,
-            UnderflowLocation::End,
-            Some((core::complex_bessel_y, UnderflowLocation::Start)),
-            |order, j, y| reflect_j_element(order, j, y.unwrap()),
-            |abs_order, z| z * integer_sign::<T>(abs_order),
-        )
-    }
+    reflect_orders(z, order, scaling, n, BesselJ)
 }
 
 /// Computes the modified Bessel function of the second kind $K_\nu(z)$ for a complex argument.
@@ -217,23 +170,7 @@ pub fn complex_bessel_k<T: BesselFloat>(
     scaling: Scaling,
     n: usize,
 ) -> BesselResult<T> {
-    // K_{-ν}(z) = K_ν(z) (DLMF 10.27.3)
-    if order >= T::ZERO {
-        // implies all requested orders are positive
-        core::complex_bessel_k(z, order, scaling, n)
-    } else {
-        reflect_orders(
-            z,
-            order,
-            scaling,
-            n,
-            core::complex_bessel_k,
-            UnderflowLocation::Start,
-            no_secondary(),
-            |_, z, _| z,
-            |_, z| z,
-        )
-    }
+    reflect_orders(z, order, scaling, n, BesselK)
 }
 
 /// Computes the Bessel function of the second kind $Y_\nu(z)$ for a complex argument.
@@ -267,19 +204,5 @@ pub fn complex_bessel_y<T: BesselFloat>(
     scaling: Scaling,
     n: usize,
 ) -> BesselResult<T> {
-    if order >= T::ZERO {
-        core::complex_bessel_y(z, order, scaling, n)
-    } else {
-        reflect_orders(
-            z,
-            order,
-            scaling,
-            n,
-            core::complex_bessel_y,
-            UnderflowLocation::Start,
-            Some((core::complex_bessel_j, UnderflowLocation::End)),
-            |n, y, j| reflect_y_element(n, j.unwrap(), y),
-            |n, y| y * integer_sign::<T>(n),
-        )
-    }
+    reflect_orders(z, order, scaling, n, BesselY)
 }
