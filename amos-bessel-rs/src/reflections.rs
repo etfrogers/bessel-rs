@@ -383,6 +383,9 @@ pub(crate) fn reflect_orders<T: BesselFloat, Op: ReflectableBessel<T>>(
     };
 
     let abs_order: T = order.abs();
+    let n_order = abs_order.ceil().to_usize().unwrap();
+    let n_negative = n_order.min(n);
+
     let (pos_result, negative_data) = if let Some(int_order) = as_integer(abs_order) {
         // if we have a negative integer order, then orders are
         // (if int_order is denoted by o)
@@ -408,8 +411,8 @@ pub(crate) fn reflect_orders<T: BesselFloat, Op: ReflectableBessel<T>>(
         // say order = -2.7, then we need
         // -2.7, -1.7, -0.7, 0.3, 1.3, 2.3, ...
 
-        let n_negative = order.abs().ceil().abs().to_usize().unwrap();
-        let first_negative = order.fract().abs();
+        let first_negative = order.abs() - T::from_usize(n_negative - 1);
+
         let primary_neg_result = unwrap_plos(op.eval(z, first_negative, scaling, n_negative))?;
         let secondary_neg_result = op
             .secondary()
@@ -417,8 +420,8 @@ pub(crate) fn reflect_orders<T: BesselFloat, Op: ReflectableBessel<T>>(
             .transpose()?;
 
         let n_positive = n.saturating_sub(n_negative);
-        let first_positive = T::ONE + order.fract();
         let pos_result = if n_positive > 0 {
+            let first_positive = T::ONE + order.fract();
             unwrap_plos(op.eval(z, first_positive, scaling, n_positive))?
         } else {
             (Vec::new(), 0)
@@ -436,7 +439,7 @@ pub(crate) fn reflect_orders<T: BesselFloat, Op: ReflectableBessel<T>>(
     {
         let (sec_negative, n_zeros_sec_neg) = secondary_result.unzip();
         let n_negative = prim_negative.len();
-        for i in 0..n {
+        for i in 0..n_negative {
             let current_order = order + T::from_usize(i);
             if current_order < T::ZERO {
                 let index = n_negative - 1 - i;
@@ -455,32 +458,21 @@ pub(crate) fn reflect_orders<T: BesselFloat, Op: ReflectableBessel<T>>(
                 {
                     n_zeros += 1;
                 }
-            } else {
-                // abort on first positive order
-                break;
             }
         }
-        n_positive
     } else {
         // Special case for negative integer order: J(-n, z) = (-1)^n J(n, z)
-        let mut n_negative = 0;
-        for i in 0..n {
+        for i in 0..n_negative {
             let current_order = order + T::from_usize(i);
             let abs_order = current_order.abs().to_usize().unwrap();
             if Op::UNDERFLOW_LOCATION.is_underflow(abs_order, n_positive, n_zeros_prim_positive) {
                 n_zeros += 1;
             }
-            if current_order < T::ZERO {
-                answer.push(op.reflect_int(abs_order as i64, prim_positive[abs_order]));
-                n_negative += 1;
-            } else {
-                // abort on first positive order
-                break;
-            }
+            answer.push(op.reflect_int(abs_order as i64, prim_positive[abs_order]));
         }
-        n - n_negative
-    };
+    }
 
+    let n_remaining = n - n_negative;
     if n_remaining > 0 {
         let mut j_positive = prim_positive;
         answer.extend(j_positive.drain(..n_remaining));
