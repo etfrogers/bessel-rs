@@ -1,6 +1,7 @@
 #![allow(dead_code, unused_imports)]
 use std::f64;
 use std::fmt::{Display, LowerExp};
+use std::ops::Bound::Included;
 
 use approx::{AbsDiffEq, RelativeEq};
 use fortran_amos_testing::{zairy_fortran, zbesh_fortran, zbiry_fortran};
@@ -45,6 +46,23 @@ pub fn check_against_fortran<T: DiagnosticBesselFloat>(
     let actual = rust_func(z, order, scaling, n);
 
     let (cy, n_zeros, ierr) = fortran_func(order.to_f64().unwrap(), z.to_c64(), scaling as i32, n);
+
+    if order < T::ZERO {
+        // The fortran function should return an error for negative orders;
+        //  complex_bessel_.. should not return an invalid input error (it may return another error)
+        if z != T::C_ZERO {
+            assert!(
+                !matches!(actual, Err(BesselError::InvalidInput { .. })),
+                "order={order:?}, z={z:?}, scaling={scaling:?}, n={n:?}, rust_func={:?}, fortran_func={:?} actual={:?}",
+                rust_func,
+                fortran_func,
+                actual
+            );
+        }
+        assert_eq!(ierr, 1);
+        return;
+    }
+
     let (cy_loop_fort, _, _) = fortran_bess_loop(
         order.to_f64().unwrap(),
         z.to_c64(),

@@ -11,4 +11,4 @@ repository = "https://github.com/etfrogers/bessel-rs"
 cc = "1.2.60"
 
 [dependencies]
-num = "0.4.3"
+num = { version = "0.4.3", default-features = false, features = ["std"] }
