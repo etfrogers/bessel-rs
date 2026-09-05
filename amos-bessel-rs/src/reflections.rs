@@ -144,21 +144,15 @@ pub(crate) enum UnderflowLocation {
 }
 
 impl UnderflowLocation {
-    /// Check if the element at `index` in a buffer of `len` underflowed.
     #[inline]
-    pub fn is_underflow(self, index: usize, len: usize, n_zeros: usize) -> bool {
+    pub fn slice_zeros(self, len: usize, start: usize, end: usize, n_zeros: usize) -> usize {
+        let slice_len = end + 1 - start;
         match self {
-            UnderflowLocation::Start => index < n_zeros,
-            UnderflowLocation::End => index >= len.saturating_sub(n_zeros),
-        }
-    }
-
-    /// Calculate how many zeros remain when taking the first `n_remaining` elements.
-    #[inline]
-    pub fn positive_tail_zeros(self, len: usize, n_remaining: usize, n_zeros: usize) -> usize {
-        match self {
-            UnderflowLocation::Start => n_zeros.min(n_remaining),
-            UnderflowLocation::End => n_zeros.saturating_sub(len.saturating_sub(n_remaining)),
+            UnderflowLocation::Start => n_zeros.saturating_sub(start).min(slice_len),
+            UnderflowLocation::End => {
+                let tail = len.saturating_sub(end + 1);
+                n_zeros.saturating_sub(tail).min(slice_len)
+            }
         }
     }
 }
@@ -382,117 +376,94 @@ pub(crate) fn reflect_orders<T: BesselFloat, Op: ReflectableBessel<T>>(
         Err(e) => Err(e),
     };
 
-    let abs_order: T = order.abs();
-    let (pos_result, negative_data) = if let Some(int_order) = as_integer(abs_order) {
-        // if we have a negative integer order, then orders are
-        // (if int_order is denoted by o)
-        // -o, -o+1, -o+2, ..., 0, 1, 2, ... n-(o+1)
-        // e.g for order = -3, int_order = 3, n = 5 orders are -3, -2, -1, 0, 1,
-        // of course, if n < int_order, then we never reach order 0
-        // -o, -o+1, -o+2, ..., -o+n
-        // e.g. if n = 2, int_order = 3, orders are -3, -2,
-
-        // now we need positive forms of all the orders we need in either
-        // negative or positive form.
-
-        let n64 = n as i64;
-        let min_order = (-int_order + n64).abs().min(0);
-        let max_order = (n64 - (int_order + 1)).max(int_order);
-        let n_positive = ((max_order - min_order) + 1) as usize;
-        let result =
-            unwrap_plos(op.eval(z, T::from_isize(min_order as isize), scaling, n_positive))?;
-        (result, None)
-    } else {
-        // General case: need both J and Y at positive |ν|
-        //
-        // say order = -2.7, then we need
-        // -2.7, -1.7, -0.7, 0.3, 1.3, 2.3, ...
-
-        let n_negative = order.abs().ceil().abs().to_usize().unwrap();
-        let first_negative = order.fract().abs();
-        let primary_neg_result = unwrap_plos(op.eval(z, first_negative, scaling, n_negative))?;
-        let secondary_neg_result = op
-            .secondary()
-            .map(|s| unwrap_plos(s.eval(z, first_negative, scaling, n_negative)))
-            .transpose()?;
-
-        let n_positive = n.saturating_sub(n_negative);
-        let first_positive = T::ONE + order.fract();
-        let pos_result = if n_positive > 0 {
-            unwrap_plos(op.eval(z, first_positive, scaling, n_positive))?
+    let finish = |y: Vec<Complex<T>>, n_zeros: usize, plos: bool| {
+        if plos {
+            Err(BesselError::PartialLossOfSignificance { y, n_zeros })
         } else {
-            (Vec::new(), 0)
-        };
-        (pos_result, Some((primary_neg_result, secondary_neg_result)))
+            Ok((y, n_zeros))
+        }
     };
 
-    let (prim_positive, n_zeros_prim_positive) = pos_result;
-    let n_positive = prim_positive.len();
-    let mut answer = Vec::with_capacity(n);
-    let mut n_zeros = 0;
+    let abs_order: T = order.abs();
+    let n_order = abs_order.ceil().to_usize().unwrap();
+    let n_negative = n_order.min(n);
 
-    let n_remaining = if let Some(((prim_negative, n_zeros_prim_neg), secondary_result)) =
-        negative_data
-    {
-        let (sec_negative, n_zeros_sec_neg) = secondary_result.unzip();
-        let n_negative = prim_negative.len();
-        for i in 0..n {
-            let current_order = order + T::from_usize(i);
-            if current_order < T::ZERO {
-                let index = n_negative - 1 - i;
-                answer.push(op.reflect_non_int(
-                    current_order.abs(),
-                    prim_negative[index],
-                    sec_negative.as_ref().map(|y| y[index]),
-                ));
-                if Op::UNDERFLOW_LOCATION.is_underflow(index, n_negative, n_zeros_prim_neg)
-                    && (op.secondary().is_none()
-                        || Op::Secondary::UNDERFLOW_LOCATION.is_underflow(
-                            index,
-                            n_negative,
-                            n_zeros_sec_neg.unwrap(),
-                        ))
-                {
-                    n_zeros += 1;
-                }
-            } else {
-                // abort on first positive order
-                break;
-            }
-        }
-        n_positive
-    } else {
-        // Special case for negative integer order: J(-n, z) = (-1)^n J(n, z)
-        let mut n_negative = 0;
-        for i in 0..n {
-            let current_order = order + T::from_usize(i);
-            let abs_order = current_order.abs().to_usize().unwrap();
-            if Op::UNDERFLOW_LOCATION.is_underflow(abs_order, n_positive, n_zeros_prim_positive) {
-                n_zeros += 1;
-            }
-            if current_order < T::ZERO {
-                answer.push(op.reflect_int(abs_order as i64, prim_positive[abs_order]));
-                n_negative += 1;
-            } else {
-                // abort on first positive order
-                break;
-            }
-        }
-        n - n_negative
-    };
+    // 1. Negative integer orders: J(-n, z) = (-1)^n J(n, z)
+    // Evaluated with a single positive Amos call starting at order 0.
+    if let Some(int_order) = as_integer(abs_order) {
+        let max_order = (n as i64 - 1 - int_order).max(int_order);
+        let n_positive = (max_order + 1) as usize;
+        let (mut pos_values, pos_n_zeros) = unwrap_plos(op.eval(z, T::ZERO, scaling, n_positive))?;
 
-    if n_remaining > 0 {
-        let mut j_positive = prim_positive;
-        answer.extend(j_positive.drain(..n_remaining));
-        n_zeros += Op::UNDERFLOW_LOCATION.positive_tail_zeros(
-            n_positive,
-            n_remaining,
-            n_zeros_prim_positive,
-        );
+        let order_size = int_order as usize;
+        let start_ind = order_size + 1 - n_negative;
+        let mut n_zeros =
+            Op::UNDERFLOW_LOCATION.slice_zeros(n_positive, start_ind, order_size, pos_n_zeros);
+
+        let mut answer = Vec::with_capacity(n);
+        for i in 0..n_negative {
+            let cur_order = order_size - i;
+            answer.push(op.reflect_int(cur_order as i64, pos_values[cur_order]));
+        }
+
+        let n_remaining = n - n_negative;
+        if n_remaining > 0 {
+            answer.extend(pos_values.drain(..n_remaining));
+            n_zeros +=
+                Op::UNDERFLOW_LOCATION.slice_zeros(n_positive, 0, n_remaining - 1, pos_n_zeros);
+        }
+
+        return finish(answer, n_zeros, partial_loss_of_significance);
     }
-    if partial_loss_of_significance {
-        Err(BesselError::PartialLossOfSignificance { y: answer, n_zeros })
-    } else {
-        Ok((answer, n_zeros))
+
+    // 2. Negative non-integer orders (DLMF reflection formulas)
+    let first_negative = order.abs() - T::from_usize(n_negative - 1);
+    let (prim_neg, n_zeros_prim_neg) =
+        unwrap_plos(op.eval(z, first_negative, scaling, n_negative))?;
+    let sec_neg_result = op
+        .secondary()
+        .map(|s| unwrap_plos(s.eval(z, first_negative, scaling, n_negative)))
+        .transpose()?;
+
+    let (sec_neg, n_zeros_sec_neg) = sec_neg_result.unzip();
+    let secondary_neg_iter = sec_neg.map(|sec| sec.into_iter().rev());
+
+    let mut answer = Vec::with_capacity(n);
+    for (i, (prim_val, sec_val)) in prim_neg
+        .into_iter()
+        .rev()
+        .zip_option(secondary_neg_iter)
+        .enumerate()
+    {
+        let cur_abs_order = order.abs() - T::from_usize(i);
+        answer.push(op.reflect_non_int(cur_abs_order, prim_val, sec_val));
+    }
+
+    let mut n_zeros = match n_zeros_sec_neg {
+        Some(sec_zeros) => (n_zeros_prim_neg + sec_zeros).saturating_sub(n_negative),
+        None => n_zeros_prim_neg,
+    };
+
+    // Push the remaining positive orders onto the end, if required.
+    let n_remaining = n - n_negative;
+    if n_remaining > 0 {
+        let first_positive = order + T::from_usize(n_negative);
+        let (pos_values, pos_n_zeros) =
+            unwrap_plos(op.eval(z, first_positive, scaling, n_remaining))?;
+        answer.extend(pos_values);
+        n_zeros += pos_n_zeros;
+    }
+
+    finish(answer, n_zeros, partial_loss_of_significance)
+}
+
+trait ZipOptionExt: Iterator + Sized {
+    fn zip_option<J: Iterator>(
+        self,
+        mut maybe_iter: Option<J>,
+    ) -> impl Iterator<Item = (Self::Item, Option<J::Item>)> {
+        self.map(move |val| (val, maybe_iter.as_mut().and_then(|it| it.next())))
     }
 }
+
+impl<I: Iterator> ZipOptionExt for I {}
