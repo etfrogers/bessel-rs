@@ -114,7 +114,6 @@ pub use types::{BackFrom, BesselError, BesselFloat};
 
 // TODO bessel derivatives
 // TODO Overflow to positive or negative infinity, or zero?
-// TODO Handle Vectors/ndarrays for z
 
 /// A trait for types that can be used as input to Bessel functions.
 ///
