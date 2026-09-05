@@ -434,30 +434,25 @@ pub(crate) fn reflect_orders<T: BesselFloat, Op: ReflectableBessel<T>>(
     let mut answer = Vec::with_capacity(n);
     let mut n_zeros = 0;
 
-    let n_remaining = if let Some(((prim_negative, n_zeros_prim_neg), secondary_result)) =
-        negative_data
-    {
+    if let Some(((prim_negative, n_zeros_prim_neg), secondary_result)) = negative_data {
         let (sec_negative, n_zeros_sec_neg) = secondary_result.unzip();
-        let n_negative = prim_negative.len();
-        for i in 0..n_negative {
+
+        let prim_rev = prim_negative.into_iter().rev();
+        let sec_rev = sec_negative.map(|sec| sec.into_iter().rev());
+
+        for (i, (prim_val, sec_val)) in prim_rev.zip_option(sec_rev).enumerate() {
             let current_order = order + T::from_usize(i);
-            if current_order < T::ZERO {
-                let index = n_negative - 1 - i;
-                answer.push(op.reflect_non_int(
-                    current_order.abs(),
-                    prim_negative[index],
-                    sec_negative.as_ref().map(|y| y[index]),
-                ));
-                if Op::UNDERFLOW_LOCATION.is_underflow(index, n_negative, n_zeros_prim_neg)
-                    && (op.secondary().is_none()
-                        || Op::Secondary::UNDERFLOW_LOCATION.is_underflow(
-                            index,
-                            n_negative,
-                            n_zeros_sec_neg.unwrap(),
-                        ))
-                {
-                    n_zeros += 1;
-                }
+            answer.push(op.reflect_non_int(current_order.abs(), prim_val, sec_val));
+            let index = n_negative - 1 - i;
+            if Op::UNDERFLOW_LOCATION.is_underflow(index, n_negative, n_zeros_prim_neg)
+                && (op.secondary().is_none()
+                    || Op::Secondary::UNDERFLOW_LOCATION.is_underflow(
+                        index,
+                        n_negative,
+                        n_zeros_sec_neg.unwrap(),
+                    ))
+            {
+                n_zeros += 1;
             }
         }
     } else {
@@ -488,3 +483,14 @@ pub(crate) fn reflect_orders<T: BesselFloat, Op: ReflectableBessel<T>>(
         Ok((answer, n_zeros))
     }
 }
+
+trait ZipOptionExt: Iterator + Sized {
+    fn zip_option<J: Iterator>(
+        self,
+        mut maybe_iter: Option<J>,
+    ) -> impl Iterator<Item = (Self::Item, Option<J::Item>)> {
+        self.map(move |val| (val, maybe_iter.as_mut().and_then(|it| it.next())))
+    }
+}
+
+impl<I: Iterator> ZipOptionExt for I {}
