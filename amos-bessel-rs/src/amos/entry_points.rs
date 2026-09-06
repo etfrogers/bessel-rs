@@ -2,10 +2,9 @@ use num::Complex;
 
 pub use super::core::{complex_airy, complex_airy_b};
 use crate::{
-    BesselFloat, Scaling,
+    BesselError, BesselFloat, Scaling,
     amos::HankelKind,
     reflections::{BesselI, BesselJ, BesselK, BesselY, Hankel, reflect_orders},
-    types::BesselResult,
 };
 
 /// Computes the Hankel function $H_\nu^{(1)}(z)$ or $H_\nu^{(2)}(z)$ for a complex argument.
@@ -41,7 +40,7 @@ pub fn complex_bessel_h<T: BesselFloat>(
     scaling: Scaling,
     hankel_kind: HankelKind,
     n: usize,
-) -> BesselResult<T> {
+) -> Result<(Vec<Complex<T>>, usize), BesselError<T>> {
     reflect_orders(z, order, scaling, n, Hankel(hankel_kind))
 }
 
@@ -54,7 +53,7 @@ pub fn complex_hankel1<T: BesselFloat>(
     order: T,
     scaling: Scaling,
     n: usize,
-) -> BesselResult<T> {
+) -> Result<(Vec<Complex<T>>, usize), BesselError<T>> {
     complex_bessel_h(z, order, scaling, HankelKind::First, n)
 }
 
@@ -67,7 +66,7 @@ pub fn complex_hankel2<T: BesselFloat>(
     order: T,
     scaling: Scaling,
     n: usize,
-) -> BesselResult<T> {
+) -> Result<(Vec<Complex<T>>, usize), BesselError<T>> {
     complex_bessel_h(z, order, scaling, HankelKind::Second, n)
 }
 
@@ -101,7 +100,7 @@ pub fn complex_bessel_i<T: BesselFloat>(
     order: T,
     scaling: Scaling,
     n: usize,
-) -> BesselResult<T, usize> {
+) -> Result<(Vec<Complex<T>>, usize), BesselError<T>> {
     reflect_orders(z, order, scaling, n, BesselI)
 }
 
@@ -135,7 +134,7 @@ pub fn complex_bessel_j<T: BesselFloat>(
     order: T,
     scaling: Scaling,
     n: usize,
-) -> BesselResult<T> {
+) -> Result<(Vec<Complex<T>>, usize), BesselError<T>> {
     reflect_orders(z, order, scaling, n, BesselJ)
 }
 
@@ -169,7 +168,7 @@ pub fn complex_bessel_k<T: BesselFloat>(
     order: T,
     scaling: Scaling,
     n: usize,
-) -> BesselResult<T> {
+) -> Result<(Vec<Complex<T>>, usize), BesselError<T>> {
     reflect_orders(z, order, scaling, n, BesselK)
 }
 
@@ -203,6 +202,6 @@ pub fn complex_bessel_y<T: BesselFloat>(
     order: T,
     scaling: Scaling,
     n: usize,
-) -> BesselResult<T> {
+) -> Result<(Vec<Complex<T>>, usize), BesselError<T>> {
     reflect_orders(z, order, scaling, n, BesselY)
 }

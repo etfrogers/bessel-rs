@@ -8,16 +8,16 @@ use crate::{
 
 /// (-1)^n sign factor for integer order reflection.
 #[inline]
-pub fn integer_sign<T: BesselFloat>(n: i64) -> T {
+pub(crate) fn integer_sign<T: BesselFloat>(n: i64) -> T {
     if n % 2 == 0 { T::one() } else { -T::one() }
 }
 
 /// Check if `nu` is a non-negative integer. Returns `Some(n)` if so.
 #[inline]
-pub fn as_integer<T: BesselFloat>(nu: T) -> Option<i64> {
+pub(crate) fn as_integer<T: BesselFloat>(nu: T) -> Option<i64> {
     if nu.is_finite() && nu == nu.floor() {
         // Safe conversion: orders beyond i64 range are not practical
-        Some(nu.to_i64().unwrap())
+        nu.to_i64()
     } else {
         None
     }
@@ -109,13 +109,21 @@ pub(crate) fn cospi<T: BesselFloat>(x: T) -> T {
 
 /// J_{-ν}(z) = cos(νπ)·J_ν(z) − sin(νπ)·Y_ν(z)  (DLMF 10.2.3)
 #[inline]
-pub fn reflect_j_element<T: BesselFloat>(order: T, j: Complex<T>, y: Complex<T>) -> Complex<T> {
+pub(crate) fn reflect_j_element<T: BesselFloat>(
+    order: T,
+    j: Complex<T>,
+    y: Complex<T>,
+) -> Complex<T> {
     j * cospi(order) - y * sinpi(order)
 }
 
 /// H^(m)_{-ν}(z) = exp(±νπi)·H^(m)_ν(z)  (DLMF 10.4.6/7)
 #[inline]
-pub fn reflect_h_element<T: BesselFloat>(order: T, kind: HankelKind, h: Complex<T>) -> Complex<T> {
+pub(crate) fn reflect_h_element<T: BesselFloat>(
+    order: T,
+    kind: HankelKind,
+    h: Complex<T>,
+) -> Complex<T> {
     let cos_nu_pi = cospi(order);
     let sin_nu_pi = sinpi(order);
     let rotation = match kind {
@@ -127,13 +135,21 @@ pub fn reflect_h_element<T: BesselFloat>(order: T, kind: HankelKind, h: Complex<
 
 /// Y_{-ν}(z) = sin(νπ)·J_ν(z) + cos(νπ)·Y_ν(z)  (DLMF 10.2.3)
 #[inline]
-pub fn reflect_y_element<T: BesselFloat>(order: T, j: Complex<T>, y: Complex<T>) -> Complex<T> {
+pub(crate) fn reflect_y_element<T: BesselFloat>(
+    order: T,
+    j: Complex<T>,
+    y: Complex<T>,
+) -> Complex<T> {
     j * sinpi(order) + y * cospi(order)
 }
 
 /// I_{-ν}(z) = I_ν(z) + (2/π)·sin(νπ)·K_ν(z)  (DLMF 10.27.2)
 #[inline]
-pub fn reflect_i_element<T: BesselFloat>(order: T, i: Complex<T>, k: Complex<T>) -> Complex<T> {
+pub(crate) fn reflect_i_element<T: BesselFloat>(
+    order: T,
+    i: Complex<T>,
+    k: Complex<T>,
+) -> Complex<T> {
     k * (T::TWO / T::PI() * sinpi(order)) + i
 }
 
@@ -145,7 +161,7 @@ pub(crate) enum UnderflowLocation {
 
 impl UnderflowLocation {
     #[inline]
-    pub fn slice_zeros(self, len: usize, start: usize, end: usize, n_zeros: usize) -> usize {
+    pub(crate) fn slice_zeros(self, len: usize, start: usize, end: usize, n_zeros: usize) -> usize {
         let slice_len = end + 1 - start;
         match self {
             UnderflowLocation::Start => n_zeros.saturating_sub(start).min(slice_len),
