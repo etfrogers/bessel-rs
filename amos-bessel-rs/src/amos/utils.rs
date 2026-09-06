@@ -73,23 +73,51 @@ pub fn is_significance_lost<T: BesselFloat>(
     Ok((abs_z > scaling_limit) || (modified_order > scaling_limit))
 }
 
+pub(crate) fn validate_inputs<T: BesselFloat>(
+    z: Complex<T>,
+    order: T,
+    n: usize,
+) -> Result<(), BesselError<T>> {
+    let mut err = None;
+
+    // using is_infinite excludes NaN
+    if !z.is_finite() {
+        err = Some("z must be finite and non-NaN");
+    }
+
+    if !order.is_finite() {
+        err = Some("order must be finite and non-NaN");
+    }
+    if n < 1 {
+        err = Some("N must be >= 1");
+    };
+    if let Some(details) = err {
+        Err(BesselError::InvalidInput {
+            details: details.to_owned(),
+        })
+    } else {
+        Ok(())
+    }
+}
+
 /// Validates Bessel inputs: checks that $z \neq 0$ (if requested), $\text{order} \geq 0$, and sequence length $N \geq 1$.
-pub(crate) fn sanitise_inputs<T: BesselFloat>(
+pub(crate) fn validate_core_inputs<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     n: usize,
     check_z_zero: bool,
 ) -> Result<(), BesselError<T>> {
+    validate_inputs(z, order, n)?;
     let mut err = None;
+
     if check_z_zero && z.re == T::ZERO && z.im == T::ZERO {
         err = Some("z must not be zero");
     }
+
     if order < T::ZERO {
-        err = Some("order must be positive");
+        err = Some("order must be non-negative");
     };
-    if n < 1 {
-        err = Some("N must be >= 1");
-    };
+
     if let Some(details) = err {
         Err(BesselError::InvalidInput {
             details: details.to_owned(),

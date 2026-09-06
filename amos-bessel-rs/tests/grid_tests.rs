@@ -10,9 +10,10 @@ use amos_bessel_rs::{
     bessel_i, bessel_j, bessel_k, bessel_y, hankel,
 };
 use common::{
-    BesselFortranSig, BesselSig, ComplexConversions, check_against_fortran,
-    check_complex_arrays_equal, sig_airy, sig_airy_fortran, sig_airyp, sig_airyp_fortran, sig_biry,
-    sig_biry_fortran, sig_biryp, sig_biryp_fortran, zbesh_fortran_first, zbesh_fortran_second, assert_results_are_equal_floats
+    BesselFortranSig, BesselSig, ComplexConversions, assert_results_are_equal_floats,
+    check_against_fortran, check_complex_arrays_equal, sig_airy, sig_airy_fortran, sig_airyp,
+    sig_airyp_fortran, sig_biry, sig_biry_fortran, sig_biryp, sig_biryp_fortran,
+    zbesh_fortran_first, zbesh_fortran_second,
 };
 
 use fortran_amos_testing::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
@@ -89,9 +90,9 @@ fn complex_bessel_test_relative_error(
 ) -> Option<f64> {
     let diff_re = computed.re - ref_val.re;
     let diff_im = computed.im - ref_val.im;
-    let diff_mag = pymath::math::hypot(&[diff_re, diff_im]);
+    let diff_mag = diff_re.hypot(diff_im);
 
-    let ref_mag = pymath::math::hypot(&[ref_val.re, ref_val.im]);
+    let ref_mag = ref_val.re.hypot(ref_val.im);
 
     // Both values near zero: comparison meaningless (e.g. analytic zeros,
     // f64 underflow at extreme orders). Skip these points entirely.
@@ -224,7 +225,8 @@ fn test_f32_vs_f64(
                 // |im| ≤ 1e-6), f32 and f64 take different algorithmic paths because their
                 // "near-axis" detection thresholds differ due to machine constants.
                 // Same root cause as the |im|=40 skip above.
-                if abs_diff_eq!(order, 1.5) && (z64.re.abs() <= 1e-6 || z64.im.abs() <= 1e-6) {
+                if abs_diff_eq!(order.abs(), 1.5) && (z64.re.abs() <= 1e-6 || z64.im.abs() <= 1e-6)
+                {
                     continue;
                 }
 
@@ -234,6 +236,7 @@ fn test_f32_vs_f64(
                     continue;
                 }
 
+                println!("{order}, {z64}");
                 assert_results_are_equal_floats(&actual, &expected, 1e4);
             }
         }

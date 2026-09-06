@@ -1,7 +1,22 @@
 use std::cmp::min;
 
-use itertools::Either;
 use num::{Complex, complex::ComplexFloat};
+
+enum EitherIter<L, R> {
+    Left(L),
+    Right(R),
+}
+
+impl<I, L: Iterator<Item = I>, R: Iterator<Item = I>> Iterator for EitherIter<L, R> {
+    type Item = I;
+    #[inline]
+    fn next(&mut self) -> Option<I> {
+        match self {
+            EitherIter::Left(l) => l.next(),
+            EitherIter::Right(r) => r.next(),
+        }
+    }
+}
 
 use crate::{
     amos::{
@@ -167,11 +182,10 @@ pub(crate) fn scale_controlled_recurrence<T: BesselFloat>(
 ) -> (Complex<T>, Complex<T>, OverflowState) {
     let two_over_z = two_over_z_safe(z);
 
-    let base_iterator = 0..n;
     let iterator = if forward {
-        Either::Right(base_iterator.skip(n_offset))
+        EitherIter::Right(n_offset..n)
     } else {
-        Either::Left(base_iterator.take(n_offset).rev())
+        EitherIter::Left((0..n_offset).rev())
     };
     let index_adjustment = if forward { -T::ONE } else { T::ONE };
 

@@ -16,7 +16,7 @@ real-bessel = { path = "../real-bessel", version = ">=0.1.0" }
 approx = "0.5.1"
 rstest = "0.26.1"
 csv = "1.4.0"
-criterion = "0.5.1"
+criterion = "0.8.2"
 
 [[bench]]
 name = "zeros_bench"

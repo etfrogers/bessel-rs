@@ -97,20 +97,14 @@
 /// for finer control of the calculation and results
 pub mod amos;
 
-mod reflections;
+pub(crate) mod reflections;
 mod types;
 
 use std::ops::Mul;
 
-use crate::{
-    amos::{
-        complex_airy, complex_airy_b, complex_bessel_i, complex_bessel_j, complex_bessel_k,
-        complex_bessel_y, complex_hankel1, complex_hankel2,
-    },
-    reflections::{
-        as_integer, integer_sign, reflect_h_element, reflect_i_element, reflect_j_element,
-        reflect_y_element,
-    },
+use crate::amos::{
+    complex_airy, complex_airy_b, complex_bessel_i, complex_bessel_j, complex_bessel_k,
+    complex_bessel_y, complex_hankel1, complex_hankel2,
 };
 pub use amos::{HankelKind, Scaling};
 
@@ -118,10 +112,8 @@ use num::Complex;
 use types::simple_bessel_wrapper;
 pub use types::{BackFrom, BesselError, BesselFloat};
 
-// TODO work with abritrary bit-depth floats
 // TODO bessel derivatives
 // TODO Overflow to positive or negative infinity, or zero?
-// TODO Handle Vectors/ndarrays for z
 
 /// A trait for types that can be used as input to Bessel functions.
 ///
@@ -151,21 +143,7 @@ pub fn bessel_j<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 ) -> Result<ZT, BesselError<FT>> {
     let order: FT = order.into();
     let z: Complex<FT> = z.into();
-    if order >= FT::ZERO {
-        return ZT::back_from(&bessel_j_single(order, z));
-    }
-
-    // Special case for negative integer order: J(-n, z) = (-1)^n J(n, z)
-    let abs_order: FT = order.abs();
-    if let Some(n) = as_integer(abs_order) {
-        return ZT::back_from(&bessel_j_single(abs_order, z)).map(|x| x * integer_sign(n));
-    }
-
-    // General case: need both J and Y at positive |ν|
-    let j = bessel_j_single(abs_order, z)?;
-    let y = bessel_y_single(abs_order, z)?;
-
-    ZT::back_from(&reflect_j_element(abs_order, j, y))
+    ZT::back_from(&bessel_j_single(order, z))
 }
 
 /// Computes the modified Bessel function of the first kind Iv(z).
@@ -177,24 +155,7 @@ pub fn bessel_i<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
 ) -> Result<ZT, BesselError<FT>> {
-    let order = order.into();
-    let z = z.into();
-    if order >= FT::ZERO {
-        return ZT::back_from(&bessel_i_single(order, z));
-    }
-
-    let abs_order = order.abs();
-
-    // Integer shortcut: I_{-n}(z) = I_n(z)
-    if as_integer(abs_order).is_some() {
-        return ZT::back_from(&bessel_i_single(abs_order, z));
-    }
-
-    // General case: need both I and K at positive |ν|
-    let i = bessel_i_single(abs_order, z)?;
-    let k = bessel_k_single(abs_order, z)?;
-
-    ZT::back_from(&reflect_i_element(abs_order, i, k))
+    ZT::back_from(&bessel_i_single(order.into(), z.into()))
 }
 
 /// Computes the modified Bessel function of the second kind Kv(z).
@@ -206,9 +167,7 @@ pub fn bessel_k<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
 ) -> Result<ZT, BesselError<FT>> {
-    // K_{-ν}(z) = K_ν(z) (DLMF 10.27.3)
-    let abs_order = order.into().abs();
-    ZT::back_from(&bessel_k_single(abs_order, z.into()))
+    ZT::back_from(&bessel_k_single(order.into(), z.into()))
 }
 
 /// Computes the Bessel function of the second kind Yv(z).
@@ -220,25 +179,7 @@ pub fn bessel_y<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
 ) -> Result<ZT, BesselError<FT>> {
-    let order = order.into();
-    let z = z.into();
-    if order >= FT::ZERO {
-        return ZT::back_from(&bessel_y_single(order, z));
-    }
-
-    let abs_order = order.abs();
-
-    // Integer shortcut: Y_{-n}(z) = (-1)^n * Y_n(z)
-    if let Some(n) = as_integer(abs_order) {
-        let y = bessel_y_single(abs_order, z)?;
-        return ZT::back_from(&(y * integer_sign::<FT>(n)));
-    }
-
-    // General case: need both J and Y at positive |ν|
-    let j = bessel_j_single(abs_order, z)?;
-    let y = bessel_y_single(abs_order, z)?;
-
-    ZT::back_from(&reflect_y_element(abs_order, j, y))
+    ZT::back_from(&bessel_y_single(order.into(), z.into()))
 }
 
 /// Computes the Hankel function Hv(z) of the first or second kind.
@@ -252,17 +193,10 @@ pub fn hankel<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     z: ZT,
     kind: HankelKind,
 ) -> Result<ZT, BesselError<FT>> {
-    let order = order.into();
-    let abs_order = order.abs();
-    let mut h = match kind {
-        HankelKind::First => hankel1_single(abs_order, z.into())?,
-        HankelKind::Second => hankel2_single(abs_order, z.into())?,
+    let h = match kind {
+        HankelKind::First => hankel1_single(order.into(), z.into())?,
+        HankelKind::Second => hankel2_single(order.into(), z.into())?,
     };
-
-    if order < FT::ZERO {
-        // Need to reflect the Hankel function for negative orders, but this is just a rotation, so no loss of significance.
-        h = reflect_h_element(abs_order, kind, h);
-    }
     ZT::back_from(&h)
 }
 

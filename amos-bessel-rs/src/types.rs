@@ -208,7 +208,7 @@ impl<T: BesselFloat> BackFrom<Complex<T>, T> for T {
         let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
         let margin = T::from_f64(1000.0);
         let tol = margin * mc.abs_error_tolerance;
-        // if the imainary part is small, pass the value on
+        // if the imaginary part is small, pass the value on
         // if the imaginary part is small compared to the real part, pass the value on
         // if the real part is small, the imaginary part is likely inaccurate, so pass the value on
         if val.im().abs() < tol || val.im().abs() < val.re().abs() * tol || val.re() < tol {
@@ -278,16 +278,16 @@ pub enum BesselError<T: BesselFloat = f64> {
     /// Usually caused by a (very) large `order`, or small `z.abs()`.
     #[error("Overflow: order too large or z.abs() too small or both")]
     Overflow = 2, //{ too_large: bool },
-    /// Calculation is done, and a valkue returned wrapped in this error,
+    /// Calculation is done, and a value returned wrapped in this error,
     /// however the value is lower in accuracy than normally expected from these algorithms.
-    /// As `z.abs()` or `order` are large, losses of significnace produce
+    /// As `z.abs()` or `order` are large, losses of significance produce
     /// less than half of machine accuracy. This error is conservative, in
     /// that it assume argument reduction causes problems that may not occur
     /// in some architectures.
     /// Not returned by the reduced API `bessel_...` functions, as they unwrap this and
     /// return the value. To detect partial loss of significance, the `complex_bessel_..`
     /// function must be used.
-    #[error("Partial loss of significance in output. Losssy values returned.")]
+    #[error("Partial loss of significance in output. Lossy values returned.")]
     PartialLossOfSignificance {
         /// Value(s) of Bessel function (reduced accuracy)
         y: Vec<Complex<T>>,
@@ -303,7 +303,7 @@ pub enum BesselError<T: BesselFloat = f64> {
     /// Returned only when the input `z` to the `bessel_...` functions is real.
     /// As these function return a real output for a real input, the output is
     /// only valid if the imaginary part is small. If the imaginary part of the
-    /// answer is siginificant this error is returned. The complex answer is returned
+    /// answer is significant this error is returned. The complex answer is returned
     /// in the output field, if that is wanted.
     #[error("Real input returned complex output. Output value {output}")]
     ComplexOutputForRealInput {
