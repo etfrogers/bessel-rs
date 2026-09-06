@@ -394,6 +394,46 @@ fn test_reflection_partial_loss_of_significance(
     }
 }
 
+#[test]
+fn test_k_negative_non_int_underflow_n_zeros() {
+    // Large z causes K to underflow at small orders.
+    let z = Complex::new(715.0, 0.0);
+    let order = -10.5;
+    let n = 11; // Only negative orders: -10.5, -9.5, ..., -0.5
+    let (y, n_zeros) = complex_bessel_k(z, order, Scaling::Unscaled, n).unwrap();
+
+    // In DLMF 10.27.3, K_{-ν}(z) = K_ν(z).
+    // The positive orders are known to underflow at z = 715.
+    let mut expected_underflows = 0;
+    for (i, &val) in y.iter().enumerate() {
+        let positive_order = (order + i as f64).abs();
+        let (_pos_y, pos_nz) = complex_bessel_k(z, positive_order, Scaling::Unscaled, 1).unwrap();
+        expected_underflows += pos_nz;
+        if pos_nz > 0 {
+            assert_eq!(
+                val,
+                Complex::ZERO,
+                "Underflowed element at index {i} should be zero"
+            );
+        }
+    }
+
+    assert!(
+        expected_underflows > 0,
+        "Precondition failed: expected positive orders to underflow at z={z}"
+    );
+    let count_exact_zeros = y.iter().filter(|&&v| v == Complex::ZERO).count();
+    assert_eq!(
+        n_zeros, count_exact_zeros,
+        "n_zeros ({n_zeros}) must match exact zero count ({count_exact_zeros})"
+    );
+    let diff = (n_zeros as isize - expected_underflows as isize).abs();
+    assert!(
+        diff <= 1,
+        "n_zeros ({n_zeros}) should match looped underflow count ({expected_underflows}) within tolerance"
+    );
+}
+
 /// Tests that order = -0.0 behaves identically to +0.0 across all Bessel functions.
 #[test]
 fn test_negative_zero_order() {
