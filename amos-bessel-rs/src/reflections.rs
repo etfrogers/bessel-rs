@@ -2,7 +2,7 @@ use num::Complex;
 
 use crate::{
     BesselError, HankelKind, Scaling,
-    amos::core,
+    amos::{core, validate_inputs},
     types::{BesselFloat, BesselResult},
 };
 
@@ -15,7 +15,7 @@ pub fn integer_sign<T: BesselFloat>(n: i64) -> T {
 /// Check if `nu` is a non-negative integer. Returns `Some(n)` if so.
 #[inline]
 pub fn as_integer<T: BesselFloat>(nu: T) -> Option<i64> {
-    if nu == nu.floor() {
+    if nu.is_finite() && nu == nu.floor() {
         // Safe conversion: orders beyond i64 range are not practical
         Some(nu.to_i64().unwrap())
     } else {
@@ -361,6 +361,7 @@ pub(crate) fn reflect_orders<T: BesselFloat, Op: ReflectableBessel<T>>(
     n: usize,
     op: Op,
 ) -> BesselResult<T> {
+    validate_inputs(z, order, n)?;
     if order >= T::ZERO {
         return op.eval(z, order, scaling, n);
     }

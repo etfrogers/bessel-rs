@@ -11,7 +11,7 @@ use crate::{
         i_pow_n,
         limits::check_underflow_uniform_asymp_params,
         right_half_plane::{i_right_half_plane, k_right_half_plane},
-        utils::{is_significance_lost, sanitise_inputs},
+        utils::{is_significance_lost, validate_core_inputs},
     },
     types::BesselResult,
 };
@@ -36,7 +36,7 @@ pub(crate) fn complex_bessel_h<T: BesselFloat>(
     hankel_kind: HankelKind,
     n: usize,
 ) -> BesselResult<T> {
-    sanitise_inputs(z, order, n, true)?;
+    validate_core_inputs(z, order, n, true)?;
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let mut n_zeros = 0;
 
@@ -157,7 +157,7 @@ pub(crate) fn complex_bessel_i<T: BesselFloat>(
     scaling: Scaling,
     n: usize,
 ) -> BesselResult<T, usize> {
-    sanitise_inputs(z, order, n, false)?;
+    validate_core_inputs(z, order, n, false)?;
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
 
     let abs_z = z.abs();
@@ -211,7 +211,7 @@ pub(crate) fn complex_bessel_j<T: BesselFloat>(
     scaling: Scaling,
     n: usize,
 ) -> BesselResult<T> {
-    sanitise_inputs(z, order, n, false)?;
+    validate_core_inputs(z, order, n, false)?;
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
 
     let partial_significance_loss =
@@ -260,7 +260,7 @@ pub(crate) fn complex_bessel_k<T: BesselFloat>(
     scaling: Scaling,
     n: usize,
 ) -> BesselResult<T> {
-    sanitise_inputs(z, order, n, true)?;
+    validate_core_inputs(z, order, n, true)?;
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let abs_z = z.abs();
     let max_order = order + T::from_usize(n - 1);
@@ -353,7 +353,7 @@ pub(crate) fn complex_bessel_y<T: BesselFloat>(
     scaling: Scaling,
     n: usize,
 ) -> BesselResult<T> {
-    sanitise_inputs(z, order, n, true)?;
+    validate_core_inputs(z, order, n, true)?;
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     // Use conjugate symmetry: Y(ν,z) = conj(Y(ν,conj(z))) for Im(z) < 0
     let z_upper_half_plane = if z.im < T::ZERO { z.conj() } else { z };

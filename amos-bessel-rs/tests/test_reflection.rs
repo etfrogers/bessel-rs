@@ -393,3 +393,62 @@ fn test_reflection_partial_loss_of_significance(
         assert_complex_arrays_equal(yi, &single_y, &vec![], 1e6);
     }
 }
+
+/// Tests that order = -0.0 behaves identically to +0.0 across all Bessel functions.
+#[test]
+fn test_negative_zero_order() {
+    let z = Complex::new(2.5, 1.0);
+    assert_eq!(
+        bessel_j(-0.0, z).unwrap(),
+        bessel_j(0.0, z).unwrap()
+    );
+    assert_eq!(
+        bessel_y(-0.0, z).unwrap(),
+        bessel_y(0.0, z).unwrap()
+    );
+    assert_eq!(
+        bessel_i(-0.0, z).unwrap(),
+        bessel_i(0.0, z).unwrap()
+    );
+    assert_eq!(
+        bessel_k(-0.0, z).unwrap(),
+        bessel_k(0.0, z).unwrap()
+    );
+    assert_eq!(
+        hankel(-0.0, z, HankelKind::First).unwrap(),
+        hankel(0.0, z, HankelKind::First).unwrap()
+    );
+    assert_eq!(
+        hankel(-0.0, z, HankelKind::Second).unwrap(),
+        hankel(0.0, z, HankelKind::Second).unwrap()
+    );
+}
+
+/// Tests that sequence length n = 0 is rejected with InvalidInput for both
+/// positive and negative orders.
+#[test]
+fn test_zero_sequence_length_error() {
+    let z = Complex::new(2.5, 1.0);
+    assert!(matches!(
+        complex_bessel_j(z, 2.0, Scaling::Unscaled, 0),
+        Err(BesselError::InvalidInput { .. })
+    ));
+    assert!(matches!(
+        complex_bessel_j(z, -2.5, Scaling::Unscaled, 0),
+        Err(BesselError::InvalidInput { .. })
+    ));
+    assert!(matches!(
+        complex_bessel_j(z, -2.0, Scaling::Unscaled, 0),
+        Err(BesselError::InvalidInput { .. })
+    ));
+}
+
+/// Tests that non-finite order inputs do not cause panics.
+#[test]
+fn test_non_finite_inputs() {
+    let z = Complex::new(2.5, 1.0);
+    let _ = bessel_j(f64::NAN, z);
+    let _ = bessel_j(f64::INFINITY, z);
+    let _ = bessel_j(-f64::INFINITY, z);
+}
+
