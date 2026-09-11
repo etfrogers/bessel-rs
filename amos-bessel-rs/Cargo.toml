@@ -13,6 +13,7 @@ random_tests = []
 
 [dependencies]
 num = { version = "0.4.3", default-features = false, features = ["std"] }
+num-integer = "0.1.47"
 paste = "1.0.15"
 thiserror = "2.0.17"
 

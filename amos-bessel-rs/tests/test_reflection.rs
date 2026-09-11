@@ -11,17 +11,9 @@ use rstest::rstest;
 use std::f64::consts::PI;
 
 mod common;
-use common::assert_complex_arrays_equal;
+use common::{Z_PARTS, assert_complex_arrays_equal};
 
 use crate::common::BesselSig;
-
-const Z_PARTS: [f64; 37] = [
-    // -1e-6,
-    // 0.0,
-    -50.0, -40.0, -30.0, -25.0, -20.0, -15.0, -12.0, -10.0, -8.0, -6.0, -4.0, -3.0, -2.0, -1.0,
-    -0.5, -0.1, -0.001, -1e-6, 0.0, 1e-6, 0.001, 0.1, 0.5, 1.0, 2.0, 3.0, 4.0, 6.0, 8.0, 10.0,
-    12.0, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0,
-];
 
 #[rstest]
 fn test_reflection_n_vs_loop(
@@ -438,22 +430,10 @@ fn test_k_negative_non_int_underflow_n_zeros() {
 #[test]
 fn test_negative_zero_order() {
     let z = Complex::new(2.5, 1.0);
-    assert_eq!(
-        bessel_j(-0.0, z).unwrap(),
-        bessel_j(0.0, z).unwrap()
-    );
-    assert_eq!(
-        bessel_y(-0.0, z).unwrap(),
-        bessel_y(0.0, z).unwrap()
-    );
-    assert_eq!(
-        bessel_i(-0.0, z).unwrap(),
-        bessel_i(0.0, z).unwrap()
-    );
-    assert_eq!(
-        bessel_k(-0.0, z).unwrap(),
-        bessel_k(0.0, z).unwrap()
-    );
+    assert_eq!(bessel_j(-0.0, z).unwrap(), bessel_j(0.0, z).unwrap());
+    assert_eq!(bessel_y(-0.0, z).unwrap(), bessel_y(0.0, z).unwrap());
+    assert_eq!(bessel_i(-0.0, z).unwrap(), bessel_i(0.0, z).unwrap());
+    assert_eq!(bessel_k(-0.0, z).unwrap(), bessel_k(0.0, z).unwrap());
     assert_eq!(
         hankel(-0.0, z, HankelKind::First).unwrap(),
         hankel(0.0, z, HankelKind::First).unwrap()
@@ -491,4 +471,3 @@ fn test_non_finite_inputs() {
     let _ = bessel_j(f64::INFINITY, z);
     let _ = bessel_j(-f64::INFINITY, z);
 }
-

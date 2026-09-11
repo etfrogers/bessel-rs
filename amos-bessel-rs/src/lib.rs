@@ -78,6 +78,21 @@
 //!   the values of the function at orders `[order, order + 1, ..., order + n]` and `n_zeros` contains the number of the elements
 //!   in the Vec that have been set to zero due to underflow.
 //!
+//! ### Derivatives
+//!
+//! Derivatives of Bessel and Hankel functions with respect to the argument $z$ are provided in the
+//! [`derivatives`] module. For each function family, both the first derivative (e.g. [`derivatives::bessel_j_p`])
+//! and arbitrary $k$-th order derivatives (e.g. [`derivatives::bessel_j_derivative`]) are available:
+//!
+//! ```rust
+//! use amos_bessel_rs::derivatives::{bessel_j_p, bessel_j_derivative};
+//!
+//! // First derivative J_0'(1.0):
+//! let dj = bessel_j_p(0.0, 1.0).unwrap();
+//!
+//! // Second derivative (d/dz)^2 J_0(1.0):
+//! let d2j = bessel_j_derivative(0.0, 1.0, 2).unwrap();
+//! ```
 //!
 //! ## Note on accuracy
 //!
@@ -93,26 +108,26 @@
 //! based on the original Amos documentation, please see the
 //! [Performance & Accuracy Guide](https://etfrogers.github.io/bessel-rs/).
 
+use num::Complex;
+use std::ops::Mul;
+
 /// Container for the complex_\[func\] version of the Bessel and Airy functions
 /// for finer control of the calculation and results
 pub mod amos;
 
+/// Functions for computing derivatives of Bessel functions with respect to the argument $z$.
+pub mod derivatives;
 pub(crate) mod reflections;
 mod types;
 
-use std::ops::Mul;
-
-use crate::amos::{
+pub use amos::{HankelKind, Scaling};
+use amos::{
     complex_airy, complex_airy_b, complex_bessel_i, complex_bessel_j, complex_bessel_k,
     complex_bessel_y, complex_hankel1, complex_hankel2,
 };
-pub use amos::{HankelKind, Scaling};
-
-use num::Complex;
 use types::simple_bessel_wrapper;
 pub use types::{BackFrom, BesselError, BesselFloat};
 
-// TODO bessel derivatives
 // TODO Overflow to positive or negative infinity, or zero?
 
 /// A trait for types that can be used as input to Bessel functions.

@@ -30,6 +30,7 @@ dependencies = [
  "criterion",
  "fortran-amos-testing",
  "num",
+ "num-integer",
  "paste",
  "rand 0.9.5",
  "rstest",

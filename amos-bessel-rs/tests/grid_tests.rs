@@ -10,10 +10,10 @@ use amos_bessel_rs::{
     bessel_i, bessel_j, bessel_k, bessel_y, hankel,
 };
 use common::{
-    BesselFortranSig, BesselSig, ComplexConversions, assert_results_are_equal_floats,
-    check_against_fortran, check_complex_arrays_equal, sig_airy, sig_airy_fortran, sig_airyp,
-    sig_airyp_fortran, sig_biry, sig_biry_fortran, sig_biryp, sig_biryp_fortran,
-    zbesh_fortran_first, zbesh_fortran_second,
+    BesselFortranSig, BesselSig, ComplexConversions, ORDERS, Z_PARTS,
+    assert_results_are_equal_floats, check_against_fortran, check_complex_arrays_equal, sig_airy,
+    sig_airy_fortran, sig_airyp, sig_airyp_fortran, sig_biry, sig_biry_fortran, sig_biryp,
+    sig_biryp_fortran, zbesh_fortran_first, zbesh_fortran_second,
 };
 
 use fortran_amos_testing::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
@@ -29,20 +29,6 @@ use approx::abs_diff_eq;
 use num::Complex;
 #[cfg(test)]
 use rstest::rstest;
-
-const ORDERS: [f64; 21] = [
-    // 1.5,
-    0.0, 0.25, 0.5, 1.0, 1.5, 2.0, 5.0, 10.0, 25.0, 50.0, 75.0, 85.0, 90.0, 100.0, 150.0, 200.0,
-    500.0, 1000.0, -0.5, -1.5, -2.0,
-];
-
-const Z_PARTS: [f64; 37] = [
-    // -1.0,
-    // 0.0,
-    -50.0, -40.0, -30.0, -25.0, -20.0, -15.0, -12.0, -10.0, -8.0, -6.0, -4.0, -3.0, -2.0, -1.0,
-    -0.5, -0.1, -0.001, -1e-6, 0.0, 1e-6, 0.001, 0.1, 0.5, 1.0, 2.0, 3.0, 4.0, 6.0, 8.0, 10.0,
-    12.0, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0,
-];
 
 // Too many values create macro invocation errors
 #[rstest]
