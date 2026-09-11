@@ -211,7 +211,7 @@ impl<T: BesselFloat> BackFrom<Complex<T>, T> for T {
         // if the imaginary part is small, pass the value on
         // if the imaginary part is small compared to the real part, pass the value on
         // if the real part is small, the imaginary part is likely inaccurate, so pass the value on
-        if val.im().abs() < tol || val.im().abs() < val.re().abs() * tol || val.re() < tol {
+        if val.im().abs() < tol || val.im().abs() < val.re().abs() * tol || val.re().abs() < tol {
             Ok(val.re())
         } else {
             Err(BesselError::ComplexOutputForRealInput { output: *val })
