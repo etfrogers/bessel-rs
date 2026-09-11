@@ -78,6 +78,21 @@
 //!   the values of the function at orders `[order, order + 1, ..., order + n]` and `n_zeros` contains the number of the elements
 //!   in the Vec that have been set to zero due to underflow.
 //!
+//! ### Derivatives
+//!
+//! Derivatives of Bessel and Hankel functions with respect to the argument $z$ are provided in the
+//! [`derivatives`] module. For each function family, both the first derivative (e.g. [`derivatives::bessel_j_p`])
+//! and arbitrary $k$-th order derivatives (e.g. [`derivatives::bessel_j_derivative`]) are available:
+//!
+//! ```rust
+//! use amos_bessel_rs::derivatives::{bessel_j_p, bessel_j_derivative};
+//!
+//! // First derivative J_0'(1.0):
+//! let dj = bessel_j_p(0.0, 1.0).unwrap();
+//!
+//! // Second derivative (d/dz)^2 J_0(1.0):
+//! let d2j = bessel_j_derivative(0.0, 1.0, 2).unwrap();
+//! ```
 //!
 //! ## Note on accuracy
 //!

@@ -20,6 +20,14 @@ type BesselSig<T: BesselFloat = f64> =
 /// # Arguments
 /// * `order` - The order $\nu$ of the Bessel function (can be integer or non-integer, positive or negative).
 /// * `z` - The complex or real argument.
+///
+/// # Examples
+/// ```
+/// use amos_bessel_rs::derivatives::bessel_j_p;
+///
+/// let dj: f64 = bessel_j_p(0.0, 1.0).unwrap();
+/// assert!((dj - (-0.4400505857)).abs() < 1e-6);
+/// ```
 pub fn bessel_j_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -36,6 +44,15 @@ pub fn bessel_j_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// * `order` - The order $\nu$ of the Bessel function.
 /// * `z` - The complex or real argument.
 /// * `derivative_order` - The order of the derivative $k \ge 0$.
+///
+/// # Examples
+/// ```
+/// use amos_bessel_rs::derivatives::bessel_j_derivative;
+///
+/// // Second derivative of J_0 at z = 1.0:
+/// let d2j: f64 = bessel_j_derivative(0.0, 1.0, 2).unwrap();
+/// assert!((d2j - (-0.3251471008)).abs() < 1e-6);
+/// ```
 pub fn bessel_j_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -57,6 +74,14 @@ pub fn bessel_j_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// # Arguments
 /// * `order` - The order $\nu$ of the Bessel function.
 /// * `z` - The complex or real argument.
+///
+/// # Examples
+/// ```
+/// use amos_bessel_rs::derivatives::bessel_y_p;
+///
+/// let dy: f64 = bessel_y_p(0.0, 1.0).unwrap();
+/// assert!((dy - 0.7812128213).abs() < 1e-6);
+/// ```
 pub fn bessel_y_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -73,6 +98,15 @@ pub fn bessel_y_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// * `order` - The order $\nu$ of the Bessel function.
 /// * `z` - The complex or real argument.
 /// * `derivative_order` - The order of the derivative $k \ge 0$.
+///
+/// # Examples
+/// ```
+/// use amos_bessel_rs::derivatives::bessel_y_derivative;
+///
+/// // Second derivative of Y_0 at z = 1.0:
+/// let d2y: f64 = bessel_y_derivative(0.0, 1.0, 2).unwrap();
+/// assert!((d2y - (-0.8694697855)).abs() < 1e-6);
+/// ```
 pub fn bessel_y_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -94,6 +128,14 @@ pub fn bessel_y_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// # Arguments
 /// * `order` - The order $\nu$ of the Bessel function.
 /// * `z` - The complex or real argument.
+///
+/// # Examples
+/// ```
+/// use amos_bessel_rs::derivatives::bessel_i_p;
+///
+/// let di: f64 = bessel_i_p(0.0, 1.0).unwrap();
+/// assert!((di - 0.5651591039).abs() < 1e-6);
+/// ```
 pub fn bessel_i_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -110,6 +152,15 @@ pub fn bessel_i_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// * `order` - The order $\nu$ of the Bessel function.
 /// * `z` - The complex or real argument.
 /// * `derivative_order` - The order of the derivative $k \ge 0$.
+///
+/// # Examples
+/// ```
+/// use amos_bessel_rs::derivatives::bessel_i_derivative;
+///
+/// // Second derivative of I_0 at z = 1.0:
+/// let d2i: f64 = bessel_i_derivative(0.0, 1.0, 2).unwrap();
+/// assert!((d2i - 0.7009067738).abs() < 1e-6);
+/// ```
 pub fn bessel_i_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -132,6 +183,16 @@ pub fn bessel_i_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// * `order` - The order $\nu$ of the Hankel function.
 /// * `z` - The complex or real argument.
 /// * `kind` - The kind of Hankel function ([`HankelKind::First`] or [`HankelKind::Second`]).
+///
+/// # Examples
+/// ```
+/// use amos_bessel_rs::{HankelKind, derivatives::hankel_p};
+/// use num::Complex;
+///
+/// let z = Complex::new(1.0, 0.5);
+/// let dh = hankel_p(0.0, z, HankelKind::First).unwrap();
+/// assert!(dh.norm() > 0.0);
+/// ```
 pub fn hankel_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -150,6 +211,16 @@ pub fn hankel_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// * `z` - The complex or real argument.
 /// * `kind` - The kind of Hankel function ([`HankelKind::First`] or [`HankelKind::Second`]).
 /// * `derivative_order` - The order of the derivative $k \ge 0$.
+///
+/// # Examples
+/// ```
+/// use amos_bessel_rs::{HankelKind, derivatives::hankel_derivative};
+/// use num::Complex;
+///
+/// let z = Complex::new(1.0, 0.5);
+/// let d2h = hankel_derivative(0.0, z, HankelKind::First, 2).unwrap();
+/// assert!(d2h.norm() > 0.0);
+/// ```
 pub fn hankel_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -167,6 +238,16 @@ pub fn hankel_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// # Arguments
 /// * `order` - The order $\nu$ of the Hankel function.
 /// * `z` - The complex or real argument.
+///
+/// # Examples
+/// ```
+/// use amos_bessel_rs::derivatives::hankel1_p;
+/// use num::Complex;
+///
+/// let z = Complex::new(1.0, 0.5);
+/// let dh1 = hankel1_p(0.0, z).unwrap();
+/// assert!(dh1.norm() > 0.0);
+/// ```
 pub fn hankel1_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -183,6 +264,16 @@ pub fn hankel1_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// * `order` - The order $\nu$ of the Hankel function.
 /// * `z` - The complex or real argument.
 /// * `derivative_order` - The order of the derivative $k \ge 0$.
+///
+/// # Examples
+/// ```
+/// use amos_bessel_rs::derivatives::hankel1_derivative;
+/// use num::Complex;
+///
+/// let z = Complex::new(1.0, 0.5);
+/// let d2h1 = hankel1_derivative(0.0, z, 2).unwrap();
+/// assert!(d2h1.norm() > 0.0);
+/// ```
 pub fn hankel1_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -204,6 +295,16 @@ pub fn hankel1_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// # Arguments
 /// * `order` - The order $\nu$ of the Hankel function.
 /// * `z` - The complex or real argument.
+///
+/// # Examples
+/// ```
+/// use amos_bessel_rs::derivatives::hankel2_p;
+/// use num::Complex;
+///
+/// let z = Complex::new(1.0, 0.5);
+/// let dh2 = hankel2_p(0.0, z).unwrap();
+/// assert!(dh2.norm() > 0.0);
+/// ```
 pub fn hankel2_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -220,6 +321,16 @@ pub fn hankel2_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// * `order` - The order $\nu$ of the Hankel function.
 /// * `z` - The complex or real argument.
 /// * `derivative_order` - The order of the derivative $k \ge 0$.
+///
+/// # Examples
+/// ```
+/// use amos_bessel_rs::derivatives::hankel2_derivative;
+/// use num::Complex;
+///
+/// let z = Complex::new(1.0, 0.5);
+/// let d2h2 = hankel2_derivative(0.0, z, 2).unwrap();
+/// assert!(d2h2.norm() > 0.0);
+/// ```
 pub fn hankel2_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -241,6 +352,14 @@ pub fn hankel2_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// # Arguments
 /// * `order` - The order $\nu$ of the Bessel function.
 /// * `z` - The complex or real argument.
+///
+/// # Examples
+/// ```
+/// use amos_bessel_rs::derivatives::bessel_k_p;
+///
+/// let dk: f64 = bessel_k_p(0.0, 1.0).unwrap();
+/// assert!((dk - (-0.6019072301)).abs() < 1e-6);
+/// ```
 pub fn bessel_k_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -257,6 +376,15 @@ pub fn bessel_k_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// * `order` - The order $\nu$ of the Bessel function.
 /// * `z` - The complex or real argument.
 /// * `derivative_order` - The order of the derivative $k \ge 0$.
+///
+/// # Examples
+/// ```
+/// use amos_bessel_rs::derivatives::bessel_k_derivative;
+///
+/// // Second derivative of K_0 at z = 1.0:
+/// let d2k: f64 = bessel_k_derivative(0.0, 1.0, 2).unwrap();
+/// assert!((d2k - 1.0229316684).abs() < 1e-6);
+/// ```
 pub fn bessel_k_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
