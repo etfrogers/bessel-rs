@@ -710,3 +710,39 @@ fn test_k_half_integer_closed_forms_grid() {
         }
     }
 }
+
+#[test]
+fn test_derivatives_f32() {
+    let dz = bessel_j_derivative(0.0f32, 1.0f32, 1).unwrap();
+    assert_relative_eq!(dz, -0.4400506f32, max_relative = 1e-5);
+
+    let z_cpx = Complex::new(1.0f32, 0.5f32);
+    let dz_cpx = bessel_j_derivative(1.0f32, z_cpx, 2).unwrap();
+    assert!(dz_cpx.re.is_finite() && dz_cpx.im.is_finite());
+}
+
+#[test]
+fn test_derivative_order_too_large() {
+    let err = bessel_j_derivative(0.0, 1.0, 61).unwrap_err();
+    match err {
+        BesselError::InvalidInput { details } => {
+            assert!(details.contains("too large"));
+        }
+        _ => panic!("Expected InvalidInput error, got {:?}", err),
+    }
+}
+
+#[test]
+fn test_derivative_real_input_and_complex_error() {
+    let val: f64 = bessel_j_derivative(0.0, 2.0, 1).unwrap();
+    assert_relative_eq!(val, -0.5767248077568734, max_relative = 1e-12);
+
+    let err = bessel_y_derivative(0.0, -3.0, 1).unwrap_err();
+    match err {
+        BesselError::ComplexOutputForRealInput { output } => {
+            assert!(output.norm() > 0.0);
+        }
+        _ => panic!("Expected ComplexOutputForRealInput, got {:?}", err),
+    }
+}
+
