@@ -296,16 +296,19 @@ fn derivative_internal<T: BesselFloat>(
         });
     }
     let k = derivative_order as usize;
-    let prefactor = T::ONE / T::TWO.powi(k as i32);
+    let mut prefactor = T::ONE / T::TWO.powi(k as i32);
+    if sign_type == SignType::K {
+        prefactor *= integer_sign::<T>(k as i64);
+    }
+
     let (values, _n_zeros) = func(z, order - T::from_usize(k), Scaling::Unscaled, 2 * k + 1)?;
 
     let mut sum = T::C_ZERO;
-    let k_sign = integer_sign::<T>(k as i64);
     for n in 0..=k {
-        let n_choose_k = T::from_usize(binomial(k, n));
+        let n_choose_k = T::from_f64(binomial(k as u64, n as u64) as f64);
         let sign = match sign_type {
             SignType::I => T::ONE,
-            SignType::K => k_sign,
+            SignType::K => T::ONE,
             SignType::Cylinder => integer_sign::<T>(n as i64),
         };
         let v = values[n * 2];
