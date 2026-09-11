@@ -93,13 +93,14 @@
 //! based on the original Amos documentation, please see the
 //! [Performance & Accuracy Guide](https://etfrogers.github.io/bessel-rs/).
 
-/// Container for the complex_\[func\] version of the Bessel and Airy functions
-/// for finer control of the calculation and results
 use num::Complex;
 use std::ops::Mul;
 
+/// Container for the complex_\[func\] version of the Bessel and Airy functions
+/// for finer control of the calculation and results
 pub mod amos;
 
+/// Functions for computing derivatives of Bessel functions with respect to the argument $z$.
 pub mod derivatives;
 pub(crate) mod reflections;
 mod types;

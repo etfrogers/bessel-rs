@@ -10,6 +10,11 @@ use crate::{
 type BesselSig<T: BesselFloat = f64> =
     fn(Complex<T>, T, Scaling, usize) -> Result<BesselValues<T>, BesselError<T>>;
 
+/// Computes the first derivative of the Bessel function of the first kind $J_\nu'(z)$ with respect to $z$.
+///
+/// # Arguments
+/// * `order` - The order $\nu$ of the Bessel function (can be integer or non-integer, positive or negative).
+/// * `z` - The complex or real argument.
 pub fn bessel_j_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -17,6 +22,15 @@ pub fn bessel_j_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     bessel_j_derivative(order, z, 1)
 }
 
+/// Computes the $k$-th derivative of the Bessel function of the first kind $\left(\frac{d}{dz}\right)^k J_\nu(z)$.
+///
+/// Evaluated via the exact binomial identity from DLMF 10.6.7:
+/// $$\left(\frac{d}{dz}\right)^k J_\nu(z) = \frac{1}{2^k} \sum_{n=0}^k (-1)^n \binom{k}{n} J_{\nu - k + 2n}(z)$$
+///
+/// # Arguments
+/// * `order` - The order $\nu$ of the Bessel function.
+/// * `z` - The complex or real argument.
+/// * `derivative_order` - The order of the derivative $k \ge 0$.
 pub fn bessel_j_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -42,7 +56,7 @@ fn derivative_internal<T: BesselFloat>(
     let prefactor = T::ONE / T::TWO.powi(k as i32);
     let (values, _n_zeros) = func(
         z,
-        order - T::from_f64(k as f64),
+        order - T::from_usize(k),
         Scaling::Unscaled,
         2 * k + 1,
     )?;
