@@ -95,24 +95,23 @@
 
 /// Container for the complex_\[func\] version of the Bessel and Airy functions
 /// for finer control of the calculation and results
+use num::Complex;
+use std::ops::Mul;
+
 pub mod amos;
 
+pub mod derivatives;
 pub(crate) mod reflections;
 mod types;
 
-use std::ops::Mul;
-
-use crate::amos::{
+pub use amos::{HankelKind, Scaling};
+use amos::{
     complex_airy, complex_airy_b, complex_bessel_i, complex_bessel_j, complex_bessel_k,
     complex_bessel_y, complex_hankel1, complex_hankel2,
 };
-pub use amos::{HankelKind, Scaling};
-
-use num::Complex;
 use types::simple_bessel_wrapper;
 pub use types::{BackFrom, BesselError, BesselFloat};
 
-// TODO bessel derivatives
 // TODO Overflow to positive or negative infinity, or zero?
 
 /// A trait for types that can be used as input to Bessel functions.
