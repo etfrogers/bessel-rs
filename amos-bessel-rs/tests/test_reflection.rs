@@ -173,6 +173,42 @@ fn test_half_integer_closed_forms() {
     }
 }
 
+/// Tests exact spherical/half-integer closed forms for negative orders with Scaling::Scaled.
+#[test]
+fn test_half_integer_closed_forms_scaled() {
+    let test_points = [
+        Complex::new(1.5, 2.0),
+        Complex::new(3.0, -1.5),
+        Complex::new(-2.0, 3.0),
+        Complex::new(-1.0, -2.5),
+        Complex::new(5.0, 0.2),
+        Complex::new(0.8, 0.5),
+        Complex::new(-4.0, 0.1),
+    ];
+
+    for &z in &test_points {
+        let factor = (Complex::new(2.0 / PI, 0.0) / z).sqrt();
+        let i_scale = (-z.re.abs()).exp();
+
+        // I_{-1/2}(z) = sqrt(2 / (pi * z)) * cosh(z) * exp(-|Re(z)|)
+        let actual_i_neg_half: Complex<f64> =
+            complex_bessel_i(z, -0.5, Scaling::Scaled, 1).unwrap().0[0];
+        let expected_i_neg_half = factor * z.cosh() * i_scale;
+        assert_complex_arrays_equal(&actual_i_neg_half, &expected_i_neg_half, &vec![], 1e6);
+
+        // I_{-3/2}(z) = sqrt(2 / (pi * z)) * (sinh(z) - cosh(z)/z) * exp(-|Re(z)|)
+        let actual_i_neg_three_halves: Complex<f64> =
+            complex_bessel_i(z, -1.5, Scaling::Scaled, 1).unwrap().0[0];
+        let expected_i_neg_three_halves = factor * (z.sinh() - z.cosh() / z) * i_scale;
+        assert_complex_arrays_equal(
+            &actual_i_neg_three_halves,
+            &expected_i_neg_three_halves,
+            &vec![],
+            1e6,
+        );
+    }
+}
+
 /// Tests the three-term recurrence relations across negative orders.
 /// Recurrence relations hold for all real nu, providing an invariant test
 /// that does not depend on reflection formulas.
@@ -471,3 +507,101 @@ fn test_non_finite_inputs() {
     let _ = bessel_j(f64::INFINITY, z);
     let _ = bessel_j(-f64::INFINITY, z);
 }
+
+/// Tests that Scaling::Scaled for negative orders matches the mathematical definition:
+/// f_scaled(z) = f_unscaled(z) * scale_factor(z).
+#[test]
+fn test_scaled_negative_orders_against_unscaled() {
+    let test_points: [Complex<f64>; 7] = [
+        Complex::new(1.5, 2.0),
+        Complex::new(3.0, -1.5),
+        Complex::new(0.8, 0.5),
+        Complex::new(2.5, 0.0),
+        Complex::new(0.5, -2.0),
+        Complex::new(-1.5, 2.0),
+        Complex::new(-2.0, -1.0),
+    ];
+    let orders: [f64; 6] = [-0.5, -1.5, -2.3, -3.0, -4.7, -5.0];
+
+    for &z in &test_points {
+        for &order in &orders {
+            // 1. Bessel I: scale factor is exp(-|Re(z)|)
+            if let (Ok((unscaled, _)), Ok((scaled, _))) = (
+                complex_bessel_i(z, order, Scaling::Unscaled, 3),
+                complex_bessel_i(z, order, Scaling::Scaled, 3),
+            ) {
+                let scale_factor = (-z.re.abs()).exp();
+                for (u, s) in unscaled.iter().zip(scaled.iter()) {
+                    let expected = u * scale_factor;
+                    assert_complex_arrays_equal(
+                        s,
+                        &expected,
+                        &vec![],
+                        1e6,
+                    );
+                }
+            }
+
+            // 2. Bessel J: scale factor is exp(-|Im(z)|)
+            if let (Ok((unscaled, _)), Ok((scaled, _))) = (
+                complex_bessel_j(z, order, Scaling::Unscaled, 3),
+                complex_bessel_j(z, order, Scaling::Scaled, 3),
+            ) {
+                let scale_factor = (-z.im.abs()).exp();
+                for (u, s) in unscaled.iter().zip(scaled.iter()) {
+                    let expected = u * scale_factor;
+                    assert_complex_arrays_equal(s, &expected, &vec![], 1e6);
+                }
+            }
+
+            // 3. Bessel Y: scale factor is exp(-|Im(z)|)
+            if let (Ok((unscaled, _)), Ok((scaled, _))) = (
+                complex_bessel_y(z, order, Scaling::Unscaled, 3),
+                complex_bessel_y(z, order, Scaling::Scaled, 3),
+            ) {
+                let scale_factor = (-z.im.abs()).exp();
+                for (u, s) in unscaled.iter().zip(scaled.iter()) {
+                    let expected = u * scale_factor;
+                    assert_complex_arrays_equal(s, &expected, &vec![], 1e6);
+                }
+            }
+
+            // 4. Bessel K: scale factor is exp(z)
+            if let (Ok((unscaled, _)), Ok((scaled, _))) = (
+                complex_bessel_k(z, order, Scaling::Unscaled, 3),
+                complex_bessel_k(z, order, Scaling::Scaled, 3),
+            ) {
+                let scale_factor = z.exp();
+                for (u, s) in unscaled.iter().zip(scaled.iter()) {
+                    let expected = u * scale_factor;
+                    assert_complex_arrays_equal(s, &expected, &vec![], 1e6);
+                }
+            }
+
+            // 5. Hankel 1: scale factor is exp(-i*z)
+            if let (Ok((unscaled, _)), Ok((scaled, _))) = (
+                complex_hankel1(z, order, Scaling::Unscaled, 3),
+                complex_hankel1(z, order, Scaling::Scaled, 3),
+            ) {
+                let scale_factor = (-Complex::<f64>::I * z).exp();
+                for (u, s) in unscaled.iter().zip(scaled.iter()) {
+                    let expected = u * scale_factor;
+                    assert_complex_arrays_equal(s, &expected, &vec![], 1e6);
+                }
+            }
+
+            // 6. Hankel 2: scale factor is exp(i*z)
+            if let (Ok((unscaled, _)), Ok((scaled, _))) = (
+                complex_hankel2(z, order, Scaling::Unscaled, 3),
+                complex_hankel2(z, order, Scaling::Scaled, 3),
+            ) {
+                let scale_factor = (Complex::<f64>::I * z).exp();
+                for (u, s) in unscaled.iter().zip(scaled.iter()) {
+                    let expected = u * scale_factor;
+                    assert_complex_arrays_equal(s, &expected, &vec![], 1e6);
+                }
+            }
+        }
+    }
+}
+

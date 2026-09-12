@@ -145,13 +145,31 @@ pub(crate) fn reflect_y_element<T: BesselFloat>(
 }
 
 /// I_{-ν}(z) = I_ν(z) + (2/π)·sin(νπ)·K_ν(z)  (DLMF 10.27.2)
+///
+/// When `scaling == Scaling::Scaled`, K_ν is scaled by exp(z) while I_ν is scaled by exp(-|Re(z)|).
+/// The K_ν term must be converted to the I_ν scaling frame by multiplying by exp(-|Re(z)| - z).
 #[inline]
 pub(crate) fn reflect_i_element<T: BesselFloat>(
+    z: Complex<T>,
     order: T,
+    scaling: Scaling,
     i: Complex<T>,
     k: Complex<T>,
 ) -> Complex<T> {
-    k * (T::TWO / T::PI() * sinpi(order)) + i
+    let k_scaled = match scaling {
+        Scaling::Unscaled => k,
+        Scaling::Scaled => {
+            let x = z.re;
+            let r = -x.abs() - x; // <= 0 for all x
+            let mc = T::MACHINE_CONSTANTS;
+            if -r > mc.exponent_limit {
+                Complex::<T>::ZERO
+            } else {
+                (k * r.exp()) * Complex::<T>::cis(-z.im)
+            }
+        }
+    };
+    k_scaled * (T::TWO / T::PI() * sinpi(order)) + i
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -190,7 +208,9 @@ pub(crate) trait ReflectableBessel<T: BesselFloat> {
     /// DLMF reflection formula for non-integer orders: f_{-ν}(z) from f_ν(z) and optional g_ν(z).
     fn reflect_non_int(
         &self,
+        z: Complex<T>,
         order: T,
+        scaling: Scaling,
         primary: Complex<T>,
         secondary: Option<Complex<T>>,
     ) -> Complex<T>;
@@ -223,7 +243,9 @@ impl<T: BesselFloat> ReflectableBessel<T> for NoSecondary {
     #[inline]
     fn reflect_non_int(
         &self,
+        _z: Complex<T>,
         _order: T,
+        _scaling: Scaling,
         _primary: Complex<T>,
         _secondary: Option<Complex<T>>,
     ) -> Complex<T> {
@@ -251,7 +273,14 @@ impl<T: BesselFloat> ReflectableBessel<T> for BesselJ {
     }
 
     #[inline]
-    fn reflect_non_int(&self, order: T, j: Complex<T>, y: Option<Complex<T>>) -> Complex<T> {
+    fn reflect_non_int(
+        &self,
+        _z: Complex<T>,
+        order: T,
+        _scaling: Scaling,
+        j: Complex<T>,
+        y: Option<Complex<T>>,
+    ) -> Complex<T> {
         reflect_j_element(order, j, y.unwrap())
     }
 
@@ -276,7 +305,14 @@ impl<T: BesselFloat> ReflectableBessel<T> for BesselY {
     }
 
     #[inline]
-    fn reflect_non_int(&self, order: T, y: Complex<T>, j: Option<Complex<T>>) -> Complex<T> {
+    fn reflect_non_int(
+        &self,
+        _z: Complex<T>,
+        order: T,
+        _scaling: Scaling,
+        y: Complex<T>,
+        j: Option<Complex<T>>,
+    ) -> Complex<T> {
         reflect_y_element(order, j.unwrap(), y)
     }
 
@@ -301,8 +337,15 @@ impl<T: BesselFloat> ReflectableBessel<T> for BesselI {
     }
 
     #[inline]
-    fn reflect_non_int(&self, order: T, i: Complex<T>, k: Option<Complex<T>>) -> Complex<T> {
-        reflect_i_element(order, i, k.unwrap())
+    fn reflect_non_int(
+        &self,
+        z: Complex<T>,
+        order: T,
+        scaling: Scaling,
+        i: Complex<T>,
+        k: Option<Complex<T>>,
+    ) -> Complex<T> {
+        reflect_i_element(z, order, scaling, i, k.unwrap())
     }
 
     #[inline]
@@ -328,7 +371,9 @@ impl<T: BesselFloat> ReflectableBessel<T> for BesselK {
     #[inline]
     fn reflect_non_int(
         &self,
+        _z: Complex<T>,
         _order: T,
+        _scaling: Scaling,
         k: Complex<T>,
         _secondary: Option<Complex<T>>,
     ) -> Complex<T> {
@@ -358,7 +403,9 @@ impl<T: BesselFloat> ReflectableBessel<T> for Hankel {
     #[inline]
     fn reflect_non_int(
         &self,
+        _z: Complex<T>,
         order: T,
+        _scaling: Scaling,
         h: Complex<T>,
         _secondary: Option<Complex<T>>,
     ) -> Complex<T> {
@@ -454,7 +501,7 @@ pub(crate) fn reflect_orders<T: BesselFloat, Op: ReflectableBessel<T>>(
         .enumerate()
     {
         let cur_abs_order = order.abs() - T::from_usize(i);
-        answer.push(op.reflect_non_int(cur_abs_order, prim_val, sec_val));
+        answer.push(op.reflect_non_int(z, cur_abs_order, scaling, prim_val, sec_val));
     }
 
     let mut n_zeros = match n_zeros_sec_neg {
