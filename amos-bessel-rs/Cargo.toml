@@ -8,14 +8,17 @@ repository = "https://github.com/etfrogers/bessel-rs"
 keywords = ["bessel-functions"]
 
 [features]
-# default = ["random_tests"]
+default = ["std"]
+# default = ["std", "random_tests"]
 random_tests = []
+std = ["num/std", "thiserror/std"]
 
 [dependencies]
-num = { version = "0.4.3", default-features = false, features = ["std"] }
-num-integer = "0.1.47"
+# When std is disabled, num uses libm for sin/cos/exp/ln
+num = { version = "0.4.3", default-features = false, features = ["libm"] }
+num-integer = { version = "0.1.47", default-features = false }
 paste = "1.0.15"
-thiserror = "2.0.17"
+thiserror = { version = "2.0.17", default-features = false }
 
 
 [dev-dependencies]
