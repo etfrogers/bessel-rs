@@ -19,6 +19,8 @@ use crate::{
 ///
 /// $$H_{-\nu}^{(1)}(z) = e^{i\nu\pi} H_\nu^{(1)}(z), \quad H_{-\nu}^{(2)}(z) = e^{-i\nu\pi} H_\nu^{(2)}(z)$$
 ///
+/// Note: The branch cut is along $(-\infty, 0]$ with $-\pi < \arg(z) \le \pi$. Both $+0.0i$ and $-0.0i$ evaluate on the upper edge ($\arg(z) = +\pi$).
+///
 /// # Arguments
 ///
 /// * `z` - Complex argument $z \ne 0$ in the cut plane $-\pi < \arg(z) \le \pi$.
@@ -149,6 +151,8 @@ pub fn complex_bessel_j<T: BesselFloat>(
 ///
 /// $$K_{-\nu}(z) = K_\nu(z)$$
 ///
+/// Note: The branch cut is along $(-\infty, 0]$ with $-\pi < \arg(z) \le \pi$. Both $+0.0i$ and $-0.0i$ evaluate on the upper edge ($\arg(z) = +\pi$).
+///
 /// # Arguments
 ///
 /// * `z` - Complex argument $z \ne 0$ in the cut plane $-\pi < \arg(z) \le \pi$.
@@ -182,6 +186,8 @@ pub fn complex_bessel_k<T: BesselFloat>(
 /// Negative orders are evaluated via the DLMF reflection formulas (DLMF 10.2.3):
 ///
 /// $$Y_{-\nu}(z) = \sin(\nu\pi)J_\nu(z) + \cos(\nu\pi)Y_\nu(z), \quad Y_{-n}(z) = (-1)^n Y_n(z) \ (n \in \mathbb{Z})$$
+///
+/// Note: The branch cut is along $(-\infty, 0]$ with $-\pi < \arg(z) \le \pi$. Both $+0.0i$ and $-0.0i$ evaluate on the upper edge ($\arg(z) = +\pi$).
 ///
 /// # Arguments
 ///
