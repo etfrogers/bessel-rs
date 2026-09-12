@@ -8,9 +8,16 @@ repository = "https://github.com/etfrogers/bessel-rs"
 keywords = ["bessel-functions"]
 categories = ["science", "mathematics", "algorithms"]
 
+[features]
+default = ["std"]
+std = ["amos-bessel-rs/std", "real-bessel/std", "num/std"]
+
 [dependencies]
-amos-bessel-rs = { path = "../amos-bessel-rs", version = ">=0.3.0" }
-real-bessel = { path = "../real-bessel", version = ">=0.1.0" }
+amos-bessel-rs = { path = "../amos-bessel-rs", version = ">=0.3.0", default-features = false }
+real-bessel = { path = "../real-bessel", version = ">=0.1.0", default-features = false }
+# When std is disabled, num uses libm for sin/cos/exp/ln
+num = { version = "0.4.3", default-features = false, features = ["libm"] }
+
 
 [dev-dependencies]
 approx = "0.5.1"

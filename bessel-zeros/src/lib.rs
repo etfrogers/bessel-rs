@@ -51,6 +51,12 @@
 //! ```
 
 #![warn(missing_docs)]
+#![cfg_attr(not(feature = "std"), no_std)]
+
+#[macro_use]
+extern crate alloc;
+
+use alloc::vec::Vec;
 
 pub(crate) mod algorithm;
 pub(crate) mod backend;
@@ -83,10 +89,10 @@ impl BesselFunType {
 }
 
 /// Calculates the zeros of the Bessel function of the given kind and `order`.
-/// 
+///
 /// Note: this general-purpose AMOS-backed function is only defined for non-negative
-/// `order` (`order >= 0.0`). If you need zeros for a negative integer order, use the 
-/// integer-only [`fast::bessel_zeros`] function instead, or pass the absolute value 
+/// `order` (`order >= 0.0`). If you need zeros for a negative integer order, use the
+/// integer-only [`fast::bessel_zeros`] function instead, or pass the absolute value
 /// of the order (since J₋ₙ and Y₋ₙ have identical zeros to their positive counterparts).
 ///
 /// # Arguments the AMOS backend; `order` can be any type that converts to `f64`
@@ -160,6 +166,7 @@ pub fn bessel_zeros<OT: Into<f64>>(
 pub mod fast {
     use crate::backend::real::RealBackend;
     use crate::{BesselFunType, DEFAULT_PRECISION, algorithm::bessel_zeros_impl};
+    use alloc::vec::Vec;
 
     /// Finds the first `n_zeros` zeros of Jn(x) using the fast real-bessel backend.
     /// Order must be an integer (`i32`).
@@ -186,7 +193,7 @@ pub mod fast {
     }
 
     /// Calculates the zeros of the Bessel function for integer orders using `real-bessel`.
-    /// 
+    ///
     /// This fast integer-only algorithm fully supports negative integer orders. The zeros of
     /// J₋ₙ and Y₋ₙ are mathematically identical to the zeros of Jₙ and Yₙ.
     ///
@@ -202,11 +209,6 @@ pub mod fast {
         n_zeros: usize,
         precision: f64,
     ) -> Vec<f64> {
-        bessel_zeros_impl::<RealBackend>(
-            &kind,
-            order.abs() as f64,
-            n_zeros,
-            precision,
-        )
+        bessel_zeros_impl::<RealBackend>(&kind, order.abs() as f64, n_zeros, precision)
     }
 }
