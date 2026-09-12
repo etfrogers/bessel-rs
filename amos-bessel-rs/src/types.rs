@@ -205,26 +205,26 @@ mod private {
         /// Converts a value (number or `Result<number, BesselError>` wrapping that number)
         /// into the number itself (wrapped in a `Result<number, BesselError>`, due to the
         /// possibility of complex output for real input)
-        fn back_from(val: &T) -> Result<Self, BesselError<FT>>;
+        fn back_from(val: T) -> Result<Self, BesselError<FT>>;
     }
 
     impl<T: BesselFloat> BackFrom<Complex<T>, T> for Complex<T> {
         #[inline]
-        fn back_from(val: &Complex<T>) -> Result<Complex<T>, BesselError<T>> {
-            Ok(*val)
+        fn back_from(val: Complex<T>) -> Result<Complex<T>, BesselError<T>> {
+            Ok(val)
         }
     }
 
     impl<T: BesselFloat> BackFrom<T, T> for T {
         #[inline]
-        fn back_from(val: &T) -> Result<T, BesselError<T>> {
-            Ok(*val)
+        fn back_from(val: T) -> Result<T, BesselError<T>> {
+            Ok(val)
         }
     }
 
     impl<T: BesselFloat> BackFrom<Complex<T>, T> for T {
         #[inline]
-        fn back_from(val: &Complex<T>) -> Result<T, BesselError<T>> {
+        fn back_from(val: Complex<T>) -> Result<T, BesselError<T>> {
             let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
             let margin = T::from_f64(1000.0);
             let tol = margin * mc.abs_error_tolerance;
@@ -235,7 +235,7 @@ mod private {
             {
                 Ok(val.re())
             } else {
-                Err(BesselError::ComplexOutputForRealInput { output: *val })
+                Err(BesselError::ComplexOutputForRealInput { output: val })
             }
         }
     }
@@ -243,29 +243,27 @@ mod private {
     impl<T: BesselFloat> BackFrom<Result<Complex<T>, BesselError<T>>, T> for T {
         #[inline]
         fn back_from(
-            val: &Result<Complex<Self>, BesselError<Self>>,
+            val: Result<Complex<Self>, BesselError<Self>>,
         ) -> Result<Self, BesselError<Self>> {
             match val {
                 Ok(cpx) => T::back_from(cpx),
                 // below we can assume that y has one element, as the input type is BesselResult<Complex<T>> not
                 // BesselResult<Vec<Complex<T>>>
-                Err(BesselError::PartialLossOfSignificance { y, n_zeros: _ }) => {
-                    T::back_from(&y[0])
-                }
-                Err(err) => Err((*err).clone()),
+                Err(BesselError::PartialLossOfSignificance { y, n_zeros: _ }) => T::back_from(y[0]),
+                Err(err) => Err((err).clone()),
             }
         }
     }
 
     impl<T: BesselFloat> BackFrom<Result<Self, BesselError<T>>, T> for Complex<T> {
         #[inline]
-        fn back_from(val: &Result<Self, BesselError<T>>) -> Result<Self, BesselError<T>> {
+        fn back_from(val: Result<Self, BesselError<T>>) -> Result<Self, BesselError<T>> {
             match val {
-                Ok(cpx) => Ok(*cpx),
+                Ok(cpx) => Ok(cpx),
                 // below we can assume that y has one element, as the input type is BesselResult<Complex<T>> not
                 // BesselResult<Vec<Complex<T>>>
                 Err(BesselError::PartialLossOfSignificance { y, n_zeros: _ }) => Ok(y[0]),
-                Err(err) => Err((*err).clone()),
+                Err(err) => Err((err).clone()),
             }
         }
     }

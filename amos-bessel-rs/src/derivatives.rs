@@ -60,7 +60,7 @@ pub fn bessel_j_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 ) -> Result<ZT, BesselError<FT>> {
     let order: FT = order.into();
     let z: Complex<FT> = z.into();
-    ZT::back_from(&derivative_internal(
+    ZT::back_from(derivative_internal(
         complex_bessel_j,
         order,
         z,
@@ -114,7 +114,7 @@ pub fn bessel_y_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 ) -> Result<ZT, BesselError<FT>> {
     let order: FT = order.into();
     let z: Complex<FT> = z.into();
-    ZT::back_from(&derivative_internal(
+    ZT::back_from(derivative_internal(
         complex_bessel_y,
         order,
         z,
@@ -168,7 +168,7 @@ pub fn bessel_i_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 ) -> Result<ZT, BesselError<FT>> {
     let order: FT = order.into();
     let z: Complex<FT> = z.into();
-    ZT::back_from(&derivative_internal(
+    ZT::back_from(derivative_internal(
         complex_bessel_i,
         order,
         z,
@@ -281,7 +281,7 @@ pub fn hankel1_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 ) -> Result<ZT, BesselError<FT>> {
     let order: FT = order.into();
     let z: Complex<FT> = z.into();
-    ZT::back_from(&derivative_internal(
+    ZT::back_from(derivative_internal(
         complex_hankel1,
         order,
         z,
@@ -338,7 +338,7 @@ pub fn hankel2_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 ) -> Result<ZT, BesselError<FT>> {
     let order: FT = order.into();
     let z: Complex<FT> = z.into();
-    ZT::back_from(&derivative_internal(
+    ZT::back_from(derivative_internal(
         complex_hankel2,
         order,
         z,
@@ -392,7 +392,7 @@ pub fn bessel_k_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 ) -> Result<ZT, BesselError<FT>> {
     let order: FT = order.into();
     let z: Complex<FT> = z.into();
-    ZT::back_from(&derivative_internal(
+    ZT::back_from(derivative_internal(
         complex_bessel_k,
         order,
         z,
