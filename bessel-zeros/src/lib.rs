@@ -209,6 +209,6 @@ pub mod fast {
         n_zeros: usize,
         precision: f64,
     ) -> Vec<f64> {
-        bessel_zeros_impl::<RealBackend>(&kind, order.abs() as f64, n_zeros, precision)
+        bessel_zeros_impl::<RealBackend>(&kind, (order as f64).abs(), n_zeros, precision)
     }
 }
