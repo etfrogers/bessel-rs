@@ -1,11 +1,13 @@
 [package]
 name = "bessel-zeros"
-version = "0.2.0"
+version = "1.0.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "A crate for calculating zeros of Bessel functions"
 repository = "https://github.com/etfrogers/bessel-rs"
-keywords = ["bessel-functions"]
+documentation = "https://docs.rs/bessel-zeros"
+readme = "README.md"
+keywords = ["bessel", "mathematics", "roots", "bessel-functions"]
 categories = ["science", "mathematics", "algorithms"]
 
 [features]
@@ -13,8 +15,8 @@ default = ["std"]
 std = ["amos-bessel-rs/std", "real-bessel/std", "num/std"]
 
 [dependencies]
-amos-bessel-rs = { path = "../amos-bessel-rs", version = ">=0.3.0", default-features = false }
-real-bessel = { path = "../real-bessel", version = ">=0.1.0", default-features = false }
+amos-bessel-rs = { path = "../amos-bessel-rs", version = "1.0.0", default-features = false }
+real-bessel = { path = "../real-bessel", version = "1.0.0", default-features = false }
 # When std is disabled, num uses libm for sin/cos/exp/ln
 num = { version = "0.4.3", default-features = false, features = ["libm"] }
 

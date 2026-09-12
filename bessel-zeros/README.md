@@ -4,6 +4,11 @@ Bessel zeros
 A crate for finding the zeros (roots) of the Bessel functions and their derivatives.
 
 ## Quick start
+ 
+```toml
+[dependencies]
+bessel-zeros = "1.0"
+```
 
 ```rust
 use bessel_zeros::bessel_zeros_j;
@@ -64,7 +69,7 @@ To use in a `no_std` project, disable default features:
 
 ```toml
 [dependencies]
-bessel-zeros = { version = "0.2", default-features = false }
+bessel-zeros = { version = "1.0", default-features = false }
 ```
 
 ## Algorithm

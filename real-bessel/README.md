@@ -30,7 +30,7 @@ Usage
 
 ```toml
 [dependencies]
-real-bessel = "0.1"
+real-bessel = "1.0"
 ```
 
 ```rust
@@ -58,7 +58,7 @@ To use in a `no_std` project, disable default features in your `Cargo.toml`:
 
 ```toml
 [dependencies]
-real-bessel = { version = "0.1", default-features = false }
+real-bessel = { version = "1.0", default-features = false }
 ```
 
 Provenance
