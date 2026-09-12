@@ -3,6 +3,7 @@ use num::Complex;
 use crate::{
     BesselError, HankelKind, Scaling,
     amos::{algorithms, validate_inputs},
+    prelude::*,
     types::{BesselFloat, BesselResult},
 };
 

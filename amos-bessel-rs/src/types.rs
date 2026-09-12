@@ -2,6 +2,10 @@ use core::{
     fmt::Debug,
     ops::{AddAssign, Div, DivAssign, Mul, MulAssign, RemAssign, SubAssign},
 };
+
+use crate::prelude::*;
+
+#[cfg(feature = "std")]
 use std::sync::LazyLock;
 
 use crate::amos::{MACHINE_CONSTANTS_32, MACHINE_CONSTANTS_64, MachineConsts};
