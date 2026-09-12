@@ -208,12 +208,7 @@ fn test_fast_negative_integer_orders_match_positive() {
 }
 
 /// Test that negative integer orders in the standard AMOS backend match positive orders.
-///
-/// Note: Marked `should_panic` for now because the standard AMOS backend in bessel-zeros
-/// currently asserts `order >= 0.0`. When bessel-zeros is updated to support negative orders
-/// via the updated amos-bessel-rs, remove `#[should_panic]` and this will fully verify all orders.
 #[rstest]
-#[should_panic(expected = "AMOS-backed bessel_zeros requires order >= 0.0")]
 fn test_amos_negative_integer_orders_match_positive() {
     for kind in [
         BesselFunType::J,
