@@ -39,7 +39,7 @@ Usage
 
 ```toml
 [dependencies]
-amos-bessel-rs = "0.4"
+amos-bessel-rs = "1.0"
 ```
 
 ### `no_std` and `no-alloc` Support
