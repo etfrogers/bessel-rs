@@ -109,7 +109,6 @@
 //! [Performance & Accuracy Guide](https://etfrogers.github.io/bessel-rs/).
 
 use num::Complex;
-use std::ops::Mul;
 
 /// Container for the complex_\[func\] version of the Bessel and Airy functions
 /// for finer control of the calculation and results
@@ -126,26 +125,9 @@ use amos::{
     complex_bessel_y, complex_hankel1, complex_hankel2,
 };
 use types::simple_bessel_wrapper;
-pub use types::{BackFrom, BesselError, BesselFloat};
+pub use types::{BesselError, BesselFloat, BesselInput};
 
 // TODO Overflow to positive or negative infinity, or zero?
-
-/// A trait for types that can be used as input to Bessel functions.
-///
-/// This trait is implemented for `f64` and `Complex<f64>`, allowing the Bessel functions
-/// to accept both real and complex arguments.
-pub trait BesselInput<T: BesselFloat = f64>:
-    Into<Complex<T>>
-    + BackFrom<Complex<T>, T>
-    + Mul<T, Output = Self>
-    + BackFrom<Result<Complex<T>, BesselError<T>>, T>
-{
-}
-
-impl BesselInput<f64> for f64 {}
-impl BesselInput<f64> for Complex<f64> {}
-impl BesselInput<f32> for f32 {}
-impl BesselInput<f32> for Complex<f32> {}
 
 /// Computes the Bessel function of the first kind Jv(z).
 ///
