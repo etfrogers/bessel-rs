@@ -1,5 +1,5 @@
+use core::{f64::consts::PI, ops::Neg};
 use num::{Complex, complex::ComplexFloat};
-use std::{f64::consts::PI, ops::Neg};
 
 pub use entry_points::*;
 pub(crate) use gamma_ln::gamma_ln;
@@ -12,9 +12,9 @@ pub(crate) use gamma_ln::GammaError;
 use crate::types::BesselFloat;
 
 mod airy;
+pub(crate) mod algorithms;
 mod analytic_continuation;
 mod asymptotics;
-pub(crate) mod core;
 mod entry_points;
 mod gamma_ln;
 mod i_computation;

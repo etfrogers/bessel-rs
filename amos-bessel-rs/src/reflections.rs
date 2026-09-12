@@ -2,7 +2,7 @@ use num::Complex;
 
 use crate::{
     BesselError, HankelKind, Scaling,
-    amos::{core, validate_inputs},
+    amos::{algorithms, validate_inputs},
     types::{BesselFloat, BesselResult},
 };
 
@@ -246,7 +246,7 @@ impl<T: BesselFloat> ReflectableBessel<T> for BesselJ {
 
     #[inline]
     fn eval(&self, z: Complex<T>, order: T, scaling: Scaling, n: usize) -> BesselResult<T> {
-        core::complex_bessel_j(z, order, scaling, n)
+        algorithms::complex_bessel_j(z, order, scaling, n)
     }
 
     #[inline]
@@ -271,7 +271,7 @@ impl<T: BesselFloat> ReflectableBessel<T> for BesselY {
 
     #[inline]
     fn eval(&self, z: Complex<T>, order: T, scaling: Scaling, n: usize) -> BesselResult<T> {
-        core::complex_bessel_y(z, order, scaling, n)
+        algorithms::complex_bessel_y(z, order, scaling, n)
     }
 
     #[inline]
@@ -296,7 +296,7 @@ impl<T: BesselFloat> ReflectableBessel<T> for BesselI {
 
     #[inline]
     fn eval(&self, z: Complex<T>, order: T, scaling: Scaling, n: usize) -> BesselResult<T> {
-        core::complex_bessel_i(z, order, scaling, n)
+        algorithms::complex_bessel_i(z, order, scaling, n)
     }
 
     #[inline]
@@ -321,7 +321,7 @@ impl<T: BesselFloat> ReflectableBessel<T> for BesselK {
 
     #[inline]
     fn eval(&self, z: Complex<T>, order: T, scaling: Scaling, n: usize) -> BesselResult<T> {
-        core::complex_bessel_k(z, order, scaling, n)
+        algorithms::complex_bessel_k(z, order, scaling, n)
     }
 
     #[inline]
@@ -351,7 +351,7 @@ impl<T: BesselFloat> ReflectableBessel<T> for Hankel {
 
     #[inline]
     fn eval(&self, z: Complex<T>, order: T, scaling: Scaling, n: usize) -> BesselResult<T> {
-        core::complex_bessel_h(z, order, scaling, self.0, n)
+        algorithms::complex_bessel_h(z, order, scaling, self.0, n)
     }
 
     #[inline]

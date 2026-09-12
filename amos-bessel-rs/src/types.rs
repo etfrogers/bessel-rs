@@ -1,8 +1,8 @@
-use std::{
+use core::{
     fmt::Debug,
     ops::{AddAssign, Div, DivAssign, Mul, MulAssign, RemAssign, SubAssign},
-    sync::LazyLock,
 };
+use std::sync::LazyLock;
 
 use crate::amos::{MACHINE_CONSTANTS_32, MACHINE_CONSTANTS_64, MachineConsts};
 use num::{
