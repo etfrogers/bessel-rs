@@ -26,6 +26,11 @@ pub use equality::{
 
 use equality::print_complex_arrays;
 
+pub const FORTRAN_ORDERS: [f64; 18] = [
+    0.0, 0.25, 0.5, 1.0, 1.5, 2.0, 5.0, 10.0, 25.0, 50.0, 75.0, 85.0, 90.0, 100.0, 150.0, 200.0,
+    500.0, 1000.0,
+];
+
 pub const ORDERS: [f64; 21] = [
     // 1.5,
     0.0, 0.25, 0.5, 1.0, 1.5, 2.0, 5.0, 10.0, 25.0, 50.0, 75.0, 85.0, 90.0, 100.0, 150.0, 200.0,
@@ -45,8 +50,10 @@ pub trait DiagnosticBesselFloat:
 {
 }
 
-impl DiagnosticBesselFloat for f64 {}
-impl DiagnosticBesselFloat for f32 {}
+impl<T> DiagnosticBesselFloat for T where
+    T: BesselFloat + Display + LowerExp + RelativeEq + AbsDiffEq<Epsilon = Self>
+{
+}
 
 pub fn check_against_fortran<T: DiagnosticBesselFloat>(
     order: T,
@@ -57,25 +64,14 @@ pub fn check_against_fortran<T: DiagnosticBesselFloat>(
     fortran_func: BesselFortranSig,
     margin: f64,
 ) {
+    assert!(
+        order >= T::ZERO,
+        "check_against_fortran requires order >= 0; Fortran Amos returns ierr=1 on negative orders."
+    );
+
     let actual = rust_func(z, order, scaling, n);
 
     let (cy, n_zeros, ierr) = fortran_func(order.to_f64().unwrap(), z.to_c64(), scaling as i32, n);
-
-    if order < T::ZERO {
-        // The fortran function should return an error for negative orders;
-        //  complex_bessel_.. should not return an invalid input error (it may return another error)
-        if z != T::C_ZERO {
-            assert!(
-                !matches!(actual, Err(BesselError::InvalidInput { .. })),
-                "order={order:?}, z={z:?}, scaling={scaling:?}, n={n:?}, rust_func={:?}, fortran_func={:?} actual={:?}",
-                rust_func,
-                fortran_func,
-                actual
-            );
-        }
-        assert_eq!(ierr, 1);
-        return;
-    }
 
     let (cy_loop_fort, _, _) = fortran_bess_loop(
         order.to_f64().unwrap(),

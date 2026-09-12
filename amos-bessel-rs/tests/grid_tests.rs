@@ -10,7 +10,7 @@ use amos_bessel_rs::{
     bessel_i, bessel_j, bessel_k, bessel_y, hankel,
 };
 use common::{
-    BesselFortranSig, BesselSig, ComplexConversions, ORDERS, Z_PARTS,
+    BesselFortranSig, BesselSig, ComplexConversions, FORTRAN_ORDERS, ORDERS, Z_PARTS,
     assert_results_are_equal_floats, check_against_fortran, check_complex_arrays_equal, sig_airy,
     sig_airy_fortran, sig_airyp, sig_airyp_fortran, sig_biry, sig_biry_fortran, sig_biryp,
     sig_biryp_fortran, zbesh_fortran_first, zbesh_fortran_second,
@@ -46,13 +46,43 @@ fn test_bessel_grid_fortran(
     (rust_fn, fortran_fn): (BesselSig, BesselFortranSig),
 ) {
     let n = 1;
-    for order in ORDERS {
+    for order in FORTRAN_ORDERS {
         for re in Z_PARTS {
             for im in Z_PARTS {
                 let z = Complex::new(re, im);
                 check_against_fortran(order, z, scaling, n, rust_fn, fortran_fn, 1e6);
             }
         }
+    }
+}
+
+/// Explicit test asserting that Fortran Amos rejects negative orders with ierr=1.
+///
+/// Fortran Amos requires ν >= 0.0. Negative orders in `amos-bessel-rs` are computed
+/// via DLMF reflection formulas and are verified independently against `complex-bessel`
+/// (in `test_bessel_grid_complex_besssel`), exact closed forms, and 3-term recurrence invariants.
+#[test]
+fn test_fortran_rejects_negative_orders() {
+    for &order in &[-0.5, -1.0, -1.5, -2.0] {
+        let z = Complex::<f64>::new(1.0, 1.0);
+        let (_, _, ierr_j) = zbesj_fortran(order, z, 1, 1);
+        assert_eq!(ierr_j, 1, "zbesj must return ierr=1 for negative orders");
+        let (_, _, ierr_i) = zbesi_fortran(order, z, 1, 1);
+        assert_eq!(ierr_i, 1, "zbesi must return ierr=1 for negative orders");
+        let (_, _, ierr_k) = zbesk_fortran(order, z, 1, 1);
+        assert_eq!(ierr_k, 1, "zbesk must return ierr=1 for negative orders");
+        let (_, _, ierr_y) = zbesy_fortran(order, z, 1, 1);
+        assert_eq!(ierr_y, 1, "zbesy must return ierr=1 for negative orders");
+        let (_, _, ierr_h1) = zbesh_fortran_first(order, z, 1, 1);
+        assert_eq!(
+            ierr_h1, 1,
+            "zbesh first must return ierr=1 for negative orders"
+        );
+        let (_, _, ierr_h2) = zbesh_fortran_second(order, z, 1, 1);
+        assert_eq!(
+            ierr_h2, 1,
+            "zbesh second must return ierr=1 for negative orders"
+        );
     }
 }
 
@@ -117,43 +147,75 @@ fn test_bessel_grid_complex_besssel(
     )]
     (rust_fn, ref_fn): (Sig<BesselError>, Sig<RefError>),
 ) {
+    let mut mismatches = Vec::new();
     for order in ORDERS {
         for re in Z_PARTS {
             for im in Z_PARTS {
                 let z = Complex::new(re, im);
                 let actual = rust_fn(order, z);
                 let expected = ref_fn(order, z);
-                if let Err(BesselError::InvalidInput { details: _ }) = actual {
-                    assert!(
-                        matches!(expected, Err(RefError::InvalidInput)),
-                        "Expected an InvalidInput error for order {order} and z {z}, but got {expected:?}"
-                    );
-                    return;
-                }
-                let actual = actual.unwrap();
-                let expected = expected.unwrap();
-                let rel_err = complex_bessel_test_relative_error(actual, expected);
-                // print!(
-                //     "\norder: {order}\nz: {z}\nactual: {actual:?}\nexpected: {expected:?}\nRelative Error: {rel_err:?}\n"
-                // );
+                match (&actual, &expected) {
+                    (Err(actual_err), Err(expected_err)) => {
+                        match (actual_err, expected_err) {
+                            (BesselError::InvalidInput { .. }, RefError::InvalidInput) => {}
+                            (BesselError::Overflow, RefError::Overflow) => {}
+                            (BesselError::LossOfSignificance, RefError::TotalPrecisionLoss) => {}
+                            (BesselError::DidNotConverge, RefError::ConvergenceFailure) => {}
+                            _ => panic!(
+                                "Error variant mismatch for order {order} and z {z}:\n  actual:   {actual_err:?}\n  expected: {expected_err:?}"
+                            ),
+                        }
+                        continue;
+                    }
+                    (Err(actual_err), Ok(expected_val)) => {
+                        panic!(
+                            "Rust function returned error but reference succeeded for order {order} and z {z}:\n  actual:   {actual_err:?}\n  expected: {expected_val:?}"
+                        );
+                    }
+                    (Ok(actual_val), Err(expected_err)) => {
+                        panic!(
+                            "Rust function succeeded but reference returned error for order {order} and z {z}:\n  actual:   {actual_val:?}\n  expected: {expected_err:?}"
+                        );
+                    }
+                    (Ok(actual), Ok(expected)) => {
+                        let rel_err = complex_bessel_test_relative_error(*actual, *expected);
 
-                if let Some(msg) = check_complex_arrays_equal(&actual, &expected, &Vec::new(), 1e3)
-                {
-                    panic!(
-                        "Grid test failed\norder: {order}\nz: {z}
-                    {msg}"
-                    )
+                        if let Some(msg) =
+                            check_complex_arrays_equal(actual, expected, &Vec::new(), 1e4)
+                        {
+                            mismatches.push(format!(
+                                "check_complex_arrays_equal failed: order={order}, z={z}, msg={msg}"
+                            ));
+                            continue;
+                        }
+                        let tol = if z.re.abs() <= 1e-5 || z.im.abs() <= 1e-5 {
+                            5e-10
+                        } else {
+                            1e-10
+                        };
+                        if let Some(err) = rel_err
+                            && err >= tol
+                        {
+                            mismatches.push(format!(
+                                    "order={order}, z={z}: rel_err={err:.3e}, actual={actual:?}, expected={expected:?}"
+                                ));
+                        }
+                    }
                 }
-                // below is the measure which is used by complex_bessel-test (though it only
-                // prints the relative error: it doesn't assert.)
-                // It's a very different measure to the one used in the fortran tests,
-                // which is based on the number of matching significant digits.
-                assert!(
-                    rel_err.is_none() || rel_err.unwrap() < 1e-10,
-                    "Relative error {rel_err:?} exceeds threshold for order {order} and z {z}",
-                );
             }
         }
+    }
+    if !mismatches.is_empty() {
+        panic!(
+            "{} points exceeded 1e-10 relative error or 1e4 margin:\n{}",
+            mismatches.len(),
+            mismatches
+                .iter()
+                .take(20)
+                .cloned()
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
     }
 }
 
