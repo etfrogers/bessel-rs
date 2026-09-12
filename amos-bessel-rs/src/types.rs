@@ -81,9 +81,14 @@ pub trait BesselFloat:
         vec![Complex::<Self>::ZERO; n]
     }
 
+    #[cfg(feature = "std")]
     /// Environmental machine constants used for scaling, underflow detection, and iteration bounds
     /// specific to the AMOS algorithms for this precision.
     const MACHINE_CONSTANTS: &'static LazyLock<MachineConsts<Self>>;
+    #[cfg(not(feature = "std"))]
+    /// Environmental machine constants used for scaling, underflow detection, and iteration bounds
+    /// specific to the AMOS algorithms for this precision.
+    const MACHINE_CONSTANTS: &MachineConsts<Self>;
 }
 
 impl BesselFloat for f64 {
@@ -100,7 +105,10 @@ impl BesselFloat for f64 {
     const HALF: Self = 0.5;
     const TWO: Self = 2.0;
 
+    #[cfg(feature = "std")]
     const MACHINE_CONSTANTS: &'static LazyLock<MachineConsts<Self>> = &MACHINE_CONSTANTS_64;
+    #[cfg(not(feature = "std"))]
+    const MACHINE_CONSTANTS: &MachineConsts<Self> = &MACHINE_CONSTANTS_64;
 
     #[inline]
     fn from_f64(value: f64) -> Self {
@@ -142,7 +150,10 @@ impl BesselFloat for f32 {
     const HALF: Self = 0.5;
     const TWO: Self = 2.0;
 
+    #[cfg(feature = "std")]
     const MACHINE_CONSTANTS: &'static LazyLock<MachineConsts<Self>> = &MACHINE_CONSTANTS_32;
+    #[cfg(not(feature = "std"))]
+    const MACHINE_CONSTANTS: &MachineConsts<Self> = &MACHINE_CONSTANTS_32;
 
     #[inline]
     fn from_f64(value: f64) -> Self {

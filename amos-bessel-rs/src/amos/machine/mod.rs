@@ -1,5 +1,3 @@
-use std::sync::LazyLock;
-
 use crate::BesselFloat;
 
 /// `exponent_limit` is a number such that if you take `exponent_limit.exp()` or `(-exponent_limit).exp()`
@@ -40,8 +38,9 @@ pub struct MachineConsts<T: BesselFloat> {
 }
 
 impl<T: BesselFloat> MachineConsts<T> {
+    #[cfg(any(feature = "std", test))]
     /// Computes the machine constants using the formulas from the Amos algorithms.
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         // Here we use approximate value, rather than calculating `10.0_f64.ln()`, as
         // this matches the Fortran code, and the exact value causes subtle differences
         // in output (should just be what values are accepted, but cause tests to fail)
@@ -91,8 +90,21 @@ impl<T: BesselFloat> MachineConsts<T> {
     }
 }
 
+//In std mode, compute dynamically with LazyLock:
+#[cfg(feature = "std")]
+use std::sync::LazyLock;
+
+#[cfg(feature = "std")]
 pub(crate) static MACHINE_CONSTANTS_64: LazyLock<MachineConsts<f64>> =
     LazyLock::new(MachineConsts::new);
 
+#[cfg(feature = "std")]
 pub(crate) static MACHINE_CONSTANTS_32: LazyLock<MachineConsts<f32>> =
     LazyLock::new(MachineConsts::new);
+
+// In no_std mode, import precomputed constants from machine_no_std:
+#[cfg(not(feature = "std"))]
+mod machine_no_std;
+
+#[cfg(not(feature = "std"))]
+pub(crate) use machine_no_std::{MACHINE_CONSTANTS_32, MACHINE_CONSTANTS_64};
