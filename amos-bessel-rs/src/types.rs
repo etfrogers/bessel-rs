@@ -199,46 +199,33 @@ mod private {
     /// if the user has put a real argument into the high-level interface, to allow a real
     /// value to be returned.
     pub trait Sealed<T: BesselFloat>: Sized {
-        /// Converts a `Result<Complex<T>, BesselError<T>>` into `Result<Self, BesselError<T>>`,
+        /// Converts a `Complex<T>` into `Self`,
         /// verifying that the imaginary part is within machine tolerance when `Self = T`.
-        fn back_from(res: Result<Complex<T>, BesselError<T>>) -> Result<Self, BesselError<T>>;
+        fn back_from(val: Complex<T>) -> Result<Self, BesselError<T>>;
     }
 
     impl<T: BesselFloat> Sealed<T> for T {
         #[inline]
-        fn back_from(res: Result<Complex<T>, BesselError<T>>) -> Result<T, BesselError<T>> {
-            let cpx = match res {
-                Ok(cpx) => cpx,
-                // below we can assume that y has one element, as the input type is BesselResult<Complex<T>> not
-                // BesselResult<Vec<Complex<T>>>
-                Err(BesselError::PartialLossOfSignificance { y, n_zeros: _ }) => y[0],
-                Err(err) => return Err(err),
-            };
+        fn back_from(val: Complex<T>) -> Result<Self, BesselError<T>> {
             let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
             let margin = T::from_f64(1000.0);
             let tol = margin * mc.abs_error_tolerance;
             // if the imaginary part is small, pass the value on
             // if the imaginary part is small compared to the real part, pass the value on
             // if the real part is small, the imaginary part is likely inaccurate, so pass the value on
-            if cpx.im().abs() < tol || cpx.im().abs() < cpx.re().abs() * tol || cpx.re().abs() < tol
+            if val.im().abs() < tol || val.im().abs() < val.re().abs() * tol || val.re().abs() < tol
             {
-                Ok(cpx.re())
+                Ok(val.re())
             } else {
-                Err(BesselError::ComplexOutputForRealInput { output: cpx })
+                Err(BesselError::ComplexOutputForRealInput { output: val })
             }
         }
     }
 
     impl<T: BesselFloat> Sealed<T> for Complex<T> {
         #[inline]
-        fn back_from(res: Result<Self, BesselError<T>>) -> Result<Self, BesselError<T>> {
-            match res {
-                Ok(cpx) => Ok(cpx),
-                // below we can assume that y has one element, as the input type is BesselResult<Complex<T>> not
-                // BesselResult<Vec<Complex<T>>>
-                Err(BesselError::PartialLossOfSignificance { y, n_zeros: _ }) => Ok(y[0]),
-                Err(err) => Err(err),
-            }
+        fn back_from(val: Self) -> Result<Self, BesselError<T>> {
+            Ok(val)
         }
     }
 }
@@ -368,6 +355,23 @@ impl<T: BesselFloat> BesselError<T> {
     }
 }
 
+/// This trait embodies the ability to unwrap a PartialLossOfSignificance, such that
+/// the user doesn't have to worry about it. Used in the high-level API.
+pub(crate) trait AllowPlos<T: BesselFloat> {
+    fn allow_plos(self) -> Self;
+}
+
+impl<T: BesselFloat> AllowPlos<T> for Result<Complex<T>, BesselError<T>> {
+    #[inline]
+    fn allow_plos(self) -> Result<Complex<T>, BesselError<T>> {
+        match self {
+            Ok(y) => Ok(y),
+            Err(BesselError::PartialLossOfSignificance { mut y, .. }) => Ok(y.remove(0)),
+            Err(e) => Err(e),
+        }
+    }
+}
+
 macro_rules! simple_bessel_wrapper {
     (
         $(#[$meta:meta])*
@@ -379,8 +383,7 @@ macro_rules! simple_bessel_wrapper {
             // [<simple_ $base_func>] concatenates into simple_bessel_j
             #[inline]
             fn [<$base_func _single>]<T:BesselFloat>(order: T, z: Complex<T>) -> Result<Complex<T>, BesselError<T>> {
-                let (result_vec, _n_zeros) = [<complex_$base_func>](z, order, Scaling::Unscaled, 1)?;
-                Ok(result_vec[0])
+                [<complex_$base_func>](z, order, Scaling::Unscaled, 1).map(|(mut y, _n_zeros)| y.remove(0)).allow_plos()
             }
         }
     };

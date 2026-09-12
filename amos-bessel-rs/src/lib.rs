@@ -124,7 +124,7 @@ use amos::{
     complex_airy, complex_airy_b, complex_bessel_i, complex_bessel_j, complex_bessel_k,
     complex_bessel_y, complex_hankel1, complex_hankel2,
 };
-use types::simple_bessel_wrapper;
+use types::{AllowPlos, simple_bessel_wrapper};
 pub use types::{BesselError, BesselFloat, BesselInput};
 
 // TODO Overflow to positive or negative infinity, or zero?
@@ -138,9 +138,7 @@ pub fn bessel_j<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
 ) -> Result<ZT, BesselError<FT>> {
-    let order: FT = order.into();
-    let z: Complex<FT> = z.into();
-    ZT::back_from(bessel_j_single(order, z))
+    bessel_j_single(order.into(), z.into()).and_then(ZT::back_from)
 }
 
 /// Computes the modified Bessel function of the first kind Iv(z).
@@ -152,7 +150,7 @@ pub fn bessel_i<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
 ) -> Result<ZT, BesselError<FT>> {
-    ZT::back_from(bessel_i_single(order.into(), z.into()))
+    bessel_i_single(order.into(), z.into()).and_then(ZT::back_from)
 }
 
 /// Computes the modified Bessel function of the second kind Kv(z).
@@ -164,7 +162,7 @@ pub fn bessel_k<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
 ) -> Result<ZT, BesselError<FT>> {
-    ZT::back_from(bessel_k_single(order.into(), z.into()))
+    bessel_k_single(order.into(), z.into()).and_then(ZT::back_from)
 }
 
 /// Computes the Bessel function of the second kind Yv(z).
@@ -176,7 +174,7 @@ pub fn bessel_y<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
 ) -> Result<ZT, BesselError<FT>> {
-    ZT::back_from(bessel_y_single(order.into(), z.into()))
+    bessel_y_single(order.into(), z.into()).and_then(ZT::back_from)
 }
 
 /// Computes the Hankel function Hv(z) of the first or second kind.
@@ -190,31 +188,41 @@ pub fn hankel<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     z: ZT,
     kind: HankelKind,
 ) -> Result<ZT, BesselError<FT>> {
-    let h = match kind {
+    match kind {
         HankelKind::First => hankel1_single(order.into(), z.into()),
         HankelKind::Second => hankel2_single(order.into(), z.into()),
-    };
-    ZT::back_from(h)
+    }
+    .and_then(ZT::back_from)
 }
 
 /// Computes the Airy function Ai(z).
 pub fn airy<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
-    ZT::back_from(complex_airy(z.into(), false, Scaling::Unscaled).map(|x| x.0))
+    complex_airy(z.into(), false, Scaling::Unscaled)
+        .map(|x| x.0)
+        .allow_plos()
+        .and_then(ZT::back_from)
 }
 
 /// Computes the derivative of the Airy function Ai'(z).
 pub fn airyp<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
-    ZT::back_from(complex_airy(z.into(), true, Scaling::Unscaled).map(|x| x.0))
+    complex_airy(z.into(), true, Scaling::Unscaled)
+        .map(|x| x.0)
+        .allow_plos()
+        .and_then(ZT::back_from)
 }
 
 /// Computes the Airy function of the second kind Bi(z).
 pub fn airy_b<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
-    ZT::back_from(complex_airy_b(z.into(), false, Scaling::Unscaled))
+    complex_airy_b(z.into(), false, Scaling::Unscaled)
+        .allow_plos()
+        .and_then(ZT::back_from)
 }
 
 /// Computes the derivative of the Airy function of the second kind Bi'(z).
 pub fn airy_bp<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
-    ZT::back_from(complex_airy_b(z.into(), true, Scaling::Unscaled))
+    complex_airy_b(z.into(), true, Scaling::Unscaled)
+        .allow_plos()
+        .and_then(ZT::back_from)
 }
 
 use paste::paste;
