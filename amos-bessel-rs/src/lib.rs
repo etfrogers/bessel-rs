@@ -31,52 +31,52 @@
 //! The primary interface to this crate are the functions in the crate root:
 //! [bessel_j], [bessel_i], etc.
 //! These functions are implemented for any real `order` (including negative orders)
-//! and real or complex argument `z`. All return a single value of the function at the
-//! given order and argument. If the argument is real (f64) then the function will attempt to
-//! return a real (f64) output. If the calculated answer is complex, then a [BesselError::ComplexOutputForRealInput]
+//! and real or complex argument `z` (for both `f64` and `f32` via [BesselFloat]). All return a single
+//! value of the function at the given order and argument. If the argument is real then the function
+//! will attempt to return a real output. If the calculated answer is complex, then a [BesselError::ComplexOutputForRealInput]
 //! error will be returned, which contains the complex value, in case it is needed.
 //! If the argument is complex, the output will be complex.
 //!
 //! Other errors returned by these functions are on overflow, failure to converge, or
 //! loss of significance in the answer (triggered by extreme values of inputs). See [BesselError] for more details.
 //!
-//! These functions implement calculation for negative orders (not in Amos' original functions)
-//! using the reflection formulae from [DLMF](https://dlmf.nist.gov/10)
+//! These functions implement calculation for negative orders using the reflection formulae
+//! from [DLMF](https://dlmf.nist.gov/10).
 //!
 //! ### Amos interface
 //!
-//! Amos' original functions are available in the [amos] module, and are called complex_\[func\].
-//! These functions expose additional functionality, but at some loss of simplicity.
+//! Amos' core functions are available in the [amos] module, named `complex_[func]`.
+//! These functions expose additional functionality, but at some loss of simplicity:
 //!
-//! #### Limitations
+//! #### Negative orders
 //!
-//! - They do not implement the reflection formulae, and so are limited to positive orders (returning a [BesselError::InvalidInput]
-//!   error if a negative order is requested).
+//! - Like the root functions, the [amos] functions natively support negative orders across all function
+//!   families using the reflection identities from DLMF.
 //!
 //! #### Inputs
 //!
 //! - The Amos functions take an additional `scaling` parameter, of type [Scaling], which, if set to [Scaling::Scaled],
 //!   returns the scaled Bessel function value. That is, the return value is the function value multiplied by a
-//!   (positive or negative) exponential factor to remove the exponential growth or decay that occurs as the argument is goes to infinity.
+//!   (positive or negative) exponential factor to remove the exponential growth or decay that occurs as the argument goes to infinity.
 //!   The precise formula for the scaled function value is given in documentation for each function. The simple functions
 //!   always return the unscaled function value.
 //!
 //! - The Amos functions take an additional argument `n` which specifies the number of orders to return. The return value is a
-//!   vector of `Complex<f64>` containing the values of the function at orders `[order, order + 1, ..., order + n]`.
-//!   This is implemented because, if multiple orders are required, the computation of them in a single run of the algroithm
-//!   is more efficient than running it multiple times.
+//!   vector of `Complex<T>` containing the values of the function at orders `[order, order + 1, ..., order + n - 1]`.
+//!   This is implemented because, if multiple orders are required, computing them in a single run of the algorithm
+//!   is much more efficient than running it repeatedly.
 //!
 //! #### Return values
 //!
-//! - They return an additional error: [BesselError::PartialLossOfSignificance], in cases where the algorithm
-//!   as converged, but the result is not as accurate as normal due to loss of significance. It occurs on
+//! - They return an additional error variant: [BesselError::PartialLossOfSignificance], in cases where the algorithm
+//!   has converged, but the result is not as accurate as normal due to loss of significance. It occurs on
 //!   extreme values of inputs, and is a feature of the Amos algorithm. It is hidden from the user in the simpler functions,
 //!   so that the user does not need to worry about it: if the error is returned by the underlying Amos function, then
-//!   it is unwrapped and returned as `Ok(value)`. by the simpler functions.
+//!   it is unwrapped and returned as `Ok(value)` by the simpler functions.
 //!
-//! - The general form of the Amos functions return is a `Result<(Vec<Complex<f64>>, usize>, BesselError>`, where the `Vec` contains
-//!   the values of the function at orders `[order, order + 1, ..., order + n]` and `n_zeros` contains the number of the elements
-//!   in the Vec that have been set to zero due to underflow.
+//! - The general form of the Amos functions return is a `Result<(Vec<Complex<T>>, usize), BesselError<T>>`, where the `Vec` contains
+//!   the values of the function at orders `[order, order + 1, ..., order + n - 1]` and `n_zeros` contains the number of elements
+//!   in the `Vec` that have been set to zero due to underflow.
 //!
 //! ### Derivatives
 //!
@@ -109,7 +109,6 @@
 //! [Performance & Accuracy Guide](https://etfrogers.github.io/bessel-rs/).
 
 use num::Complex;
-use std::ops::Mul;
 
 /// Container for the complex_\[func\] version of the Bessel and Airy functions
 /// for finer control of the calculation and results
@@ -125,27 +124,10 @@ use amos::{
     complex_airy, complex_airy_b, complex_bessel_i, complex_bessel_j, complex_bessel_k,
     complex_bessel_y, complex_hankel1, complex_hankel2,
 };
-use types::simple_bessel_wrapper;
-pub use types::{BackFrom, BesselError, BesselFloat};
+use types::{AllowPlos, simple_bessel_wrapper};
+pub use types::{BesselError, BesselFloat, BesselInput};
 
 // TODO Overflow to positive or negative infinity, or zero?
-
-/// A trait for types that can be used as input to Bessel functions.
-///
-/// This trait is implemented for `f64` and `Complex<f64>`, allowing the Bessel functions
-/// to accept both real and complex arguments.
-pub trait BesselInput<T: BesselFloat = f64>:
-    Into<Complex<T>>
-    + BackFrom<Complex<T>, T>
-    + Mul<T, Output = Self>
-    + BackFrom<Result<Complex<T>, BesselError<T>>, T>
-{
-}
-
-impl BesselInput<f64> for f64 {}
-impl BesselInput<f64> for Complex<f64> {}
-impl BesselInput<f32> for f32 {}
-impl BesselInput<f32> for Complex<f32> {}
 
 /// Computes the Bessel function of the first kind Jv(z).
 ///
@@ -156,9 +138,7 @@ pub fn bessel_j<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
 ) -> Result<ZT, BesselError<FT>> {
-    let order: FT = order.into();
-    let z: Complex<FT> = z.into();
-    ZT::back_from(&bessel_j_single(order, z))
+    bessel_j_single(order.into(), z.into()).and_then(ZT::back_from)
 }
 
 /// Computes the modified Bessel function of the first kind Iv(z).
@@ -170,7 +150,7 @@ pub fn bessel_i<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
 ) -> Result<ZT, BesselError<FT>> {
-    ZT::back_from(&bessel_i_single(order.into(), z.into()))
+    bessel_i_single(order.into(), z.into()).and_then(ZT::back_from)
 }
 
 /// Computes the modified Bessel function of the second kind Kv(z).
@@ -182,7 +162,7 @@ pub fn bessel_k<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
 ) -> Result<ZT, BesselError<FT>> {
-    ZT::back_from(&bessel_k_single(order.into(), z.into()))
+    bessel_k_single(order.into(), z.into()).and_then(ZT::back_from)
 }
 
 /// Computes the Bessel function of the second kind Yv(z).
@@ -194,7 +174,7 @@ pub fn bessel_y<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
 ) -> Result<ZT, BesselError<FT>> {
-    ZT::back_from(&bessel_y_single(order.into(), z.into()))
+    bessel_y_single(order.into(), z.into()).and_then(ZT::back_from)
 }
 
 /// Computes the Hankel function Hv(z) of the first or second kind.
@@ -208,31 +188,41 @@ pub fn hankel<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     z: ZT,
     kind: HankelKind,
 ) -> Result<ZT, BesselError<FT>> {
-    let h = match kind {
-        HankelKind::First => hankel1_single(order.into(), z.into())?,
-        HankelKind::Second => hankel2_single(order.into(), z.into())?,
-    };
-    ZT::back_from(&h)
+    match kind {
+        HankelKind::First => hankel1_single(order.into(), z.into()),
+        HankelKind::Second => hankel2_single(order.into(), z.into()),
+    }
+    .and_then(ZT::back_from)
 }
 
 /// Computes the Airy function Ai(z).
 pub fn airy<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
-    ZT::back_from(&complex_airy(z.into(), false, Scaling::Unscaled).map(|x| x.0))
+    complex_airy(z.into(), false, Scaling::Unscaled)
+        .map(|x| x.0)
+        .allow_plos()
+        .and_then(ZT::back_from)
 }
 
 /// Computes the derivative of the Airy function Ai'(z).
 pub fn airyp<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
-    ZT::back_from(&complex_airy(z.into(), true, Scaling::Unscaled).map(|x| x.0))
+    complex_airy(z.into(), true, Scaling::Unscaled)
+        .map(|x| x.0)
+        .allow_plos()
+        .and_then(ZT::back_from)
 }
 
 /// Computes the Airy function of the second kind Bi(z).
 pub fn airy_b<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
-    ZT::back_from(&complex_airy_b(z.into(), false, Scaling::Unscaled))
+    complex_airy_b(z.into(), false, Scaling::Unscaled)
+        .allow_plos()
+        .and_then(ZT::back_from)
 }
 
 /// Computes the derivative of the Airy function of the second kind Bi'(z).
 pub fn airy_bp<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
-    ZT::back_from(&complex_airy_b(z.into(), true, Scaling::Unscaled))
+    complex_airy_b(z.into(), true, Scaling::Unscaled)
+        .allow_plos()
+        .and_then(ZT::back_from)
 }
 
 use paste::paste;

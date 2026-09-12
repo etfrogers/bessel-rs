@@ -58,15 +58,14 @@ pub fn bessel_j_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     z: ZT,
     derivative_order: u32,
 ) -> Result<ZT, BesselError<FT>> {
-    let order: FT = order.into();
-    let z: Complex<FT> = z.into();
-    ZT::back_from(&derivative_internal(
+    derivative_internal(
         complex_bessel_j,
-        order,
-        z,
+        order.into(),
+        z.into(),
         derivative_order,
         SignType::Cylinder,
-    )?)
+    )
+    .and_then(ZT::back_from)
 }
 
 /// Computes the first derivative of the Bessel function of the second kind $Y_\nu'(z)$ with respect to $z$.
@@ -112,15 +111,14 @@ pub fn bessel_y_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     z: ZT,
     derivative_order: u32,
 ) -> Result<ZT, BesselError<FT>> {
-    let order: FT = order.into();
-    let z: Complex<FT> = z.into();
-    ZT::back_from(&derivative_internal(
+    derivative_internal(
         complex_bessel_y,
-        order,
-        z,
+        order.into(),
+        z.into(),
         derivative_order,
         SignType::Cylinder,
-    )?)
+    )
+    .and_then(ZT::back_from)
 }
 
 /// Computes the first derivative of the modified Bessel function of the first kind $I_\nu'(z)$ with respect to $z$.
@@ -166,15 +164,14 @@ pub fn bessel_i_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     z: ZT,
     derivative_order: u32,
 ) -> Result<ZT, BesselError<FT>> {
-    let order: FT = order.into();
-    let z: Complex<FT> = z.into();
-    ZT::back_from(&derivative_internal(
+    derivative_internal(
         complex_bessel_i,
-        order,
-        z,
+        order.into(),
+        z.into(),
         derivative_order,
         SignType::I,
-    )?)
+    )
+    .and_then(ZT::back_from)
 }
 
 /// Computes the first derivative of the Hankel function $H_\nu^{(1)\prime}(z)$ or $H_\nu^{(2)\prime}(z)$ with respect to $z$.
@@ -279,15 +276,14 @@ pub fn hankel1_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     z: ZT,
     derivative_order: u32,
 ) -> Result<ZT, BesselError<FT>> {
-    let order: FT = order.into();
-    let z: Complex<FT> = z.into();
-    ZT::back_from(&derivative_internal(
+    derivative_internal(
         complex_hankel1,
-        order,
-        z,
+        order.into(),
+        z.into(),
         derivative_order,
         SignType::Cylinder,
-    )?)
+    )
+    .and_then(ZT::back_from)
 }
 
 /// Computes the first derivative of the Hankel function of the second kind $H_\nu^{(2)\prime}(z)$ with respect to $z$.
@@ -336,15 +332,14 @@ pub fn hankel2_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     z: ZT,
     derivative_order: u32,
 ) -> Result<ZT, BesselError<FT>> {
-    let order: FT = order.into();
-    let z: Complex<FT> = z.into();
-    ZT::back_from(&derivative_internal(
+    derivative_internal(
         complex_hankel2,
-        order,
-        z,
+        order.into(),
+        z.into(),
         derivative_order,
         SignType::Cylinder,
-    )?)
+    )
+    .and_then(ZT::back_from)
 }
 
 /// Computes the first derivative of the modified Bessel function of the second kind $K_\nu'(z)$ with respect to $z$.
@@ -390,15 +385,14 @@ pub fn bessel_k_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     z: ZT,
     derivative_order: u32,
 ) -> Result<ZT, BesselError<FT>> {
-    let order: FT = order.into();
-    let z: Complex<FT> = z.into();
-    ZT::back_from(&derivative_internal(
+    derivative_internal(
         complex_bessel_k,
-        order,
-        z,
+        order.into(),
+        z.into(),
         derivative_order,
         SignType::K,
-    )?)
+    )
+    .and_then(ZT::back_from)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -429,7 +423,11 @@ fn derivative_internal<T: BesselFloat>(
         prefactor *= integer_sign::<T>(k as i64);
     }
 
-    let (values, _n_zeros) = func(z, order - T::from_usize(k), Scaling::Unscaled, 2 * k + 1)?;
+    let values = match func(z, order - T::from_usize(k), Scaling::Unscaled, 2 * k + 1) {
+        Ok((values, _n_zeros)) => values,
+        Err(BesselError::PartialLossOfSignificance { y, .. }) => y,
+        Err(err) => return Err(err),
+    };
 
     let mut sum = T::C_ZERO;
     for n in 0..=k {
