@@ -43,3 +43,19 @@ fn test_yn_grid(
         }
     }
 }
+
+#[test]
+fn test_i32_min_edge_case() {
+    assert_eq!(jn(i32::MIN, 1.0), 0.0);
+    assert_eq!(jn(i32::MIN, -1.0), 0.0);
+    assert_eq!(jn(i32::MIN, 0.0), 0.0);
+    assert!(jn(i32::MIN, f64::NAN).is_nan());
+    assert_eq!(jn(i32::MIN, f64::INFINITY), 0.0);
+
+    assert_eq!(yn(i32::MIN, 1.0).unwrap(), f64::NEG_INFINITY);
+    assert_eq!(yn(i32::MIN, 0.0).unwrap(), f64::NEG_INFINITY);
+    assert!(yn(i32::MIN, -1.0).is_err());
+    assert!(yn(i32::MIN, f64::NAN).unwrap().is_nan());
+    assert_eq!(yn(i32::MIN, f64::INFINITY).unwrap(), 0.0);
+}
+
