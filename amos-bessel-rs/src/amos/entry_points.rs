@@ -1,9 +1,10 @@
 use num::Complex;
 
-pub use super::core::{complex_airy, complex_airy_b};
+pub use super::algorithms::{complex_airy, complex_airy_b};
 use crate::{
     BesselError, BesselFloat, Scaling,
     amos::HankelKind,
+    prelude::*,
     reflections::{BesselI, BesselJ, BesselK, BesselY, Hankel, reflect_orders},
 };
 

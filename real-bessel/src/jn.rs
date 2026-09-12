@@ -46,14 +46,13 @@
 //      that forward recursion is used for all
 //      values of n>1.
 
-use crate::BesselError;
-
-use super::{
-    TWO_302, TWO_M29,
+use crate::{
+    BesselError, TWO_302, TWO_M29,
     j0::{j0, y0},
     j1::{j1, y1},
+    prelude::*,
 };
-use std::f64::{self, consts::PI};
+use core::f64::{self, consts::PI};
 
 /// Returns the order-`n` Bessel function of the first kind, Jₙ(x).
 ///
@@ -281,7 +280,7 @@ pub fn yn(n: i32, x: f64) -> Result<f64, BesselError> {
     // special cases
     if x < 0.0 {
         return Err(BesselError::NegativeInputForYFunction {
-            function: "yn".to_string(),
+            function: "yn",
             input: x,
         });
     }

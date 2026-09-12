@@ -74,6 +74,7 @@ dependencies = [
  "approx",
  "criterion",
  "csv",
+ "num",
  "real-bessel",
  "rstest",
 ]
@@ -706,6 +707,7 @@ dependencies = [
  "approx",
  "criterion",
  "itertools 0.14.0",
+ "num",
  "rstest",
  "rstest_reuse",
  "thiserror",

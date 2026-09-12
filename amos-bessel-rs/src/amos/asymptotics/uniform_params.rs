@@ -12,7 +12,7 @@
 //! - F. W. J. Olver, *Asymptotics and Special Functions*, Academic Press (1974), pp. 376–382, 420.
 //! - NIST Digital Library of Mathematical Functions (DLMF), §10.20 and §10.41.
 
-use std::f64::consts::FRAC_PI_2;
+use core::f64::consts::FRAC_PI_2;
 
 use num::{Complex, complex::ComplexFloat};
 

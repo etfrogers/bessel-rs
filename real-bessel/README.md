@@ -50,6 +50,17 @@ let v = yn(3, 2.0).unwrap();             // arbitrary integer order
 assert!(y0(-1.0).is_err());
 ```
 
+### `no_std` Support
+
+`real-bessel` supports `#![no_std]` environments without requiring an allocator (`alloc`). It operates entirely on `core`, with zero heap allocations across all calculations and error types. When `std` is disabled, the crate computes all functions using pure-Rust floating-point routines provided by `libm`.
+
+To use in a `no_std` project, disable default features in your `Cargo.toml`:
+
+```toml
+[dependencies]
+real-bessel = { version = "0.1", default-features = false }
+```
+
 Provenance
 ----------
 

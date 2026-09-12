@@ -1,4 +1,4 @@
-use std::f64;
+use core::f64;
 
 use thiserror::Error;
 

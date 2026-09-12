@@ -8,7 +8,10 @@
 //! zeros of the Ordinary Bessel Functions and those of their Derivatives",
 //! Journal of Computational Physics, 32, 270-279 (1979).
 
-use std::f64::consts::{FRAC_PI_2, PI};
+use alloc::vec::Vec;
+use core::f64::consts::{FRAC_PI_2, PI};
+#[cfg(not(feature = "std"))]
+use num::Float;
 
 use crate::BesselFunType;
 use crate::backend::BesselBackend;
@@ -169,8 +172,7 @@ fn fi(y: f64) -> f64 {
             let pp = p.powf(2.0);
             p = c1
                 - p * (1.0
-                    + pp * (2310.0
-                        + pp * (3003.0 + pp * (4818.0 + pp * (8591.0 + pp * 16328.0))))
+                    + pp * (2310.0 + pp * (3003.0 + pp * (4818.0 + pp * (8591.0 + pp * 16328.0))))
                         / 3465.0);
         }
         let pp = (y + p).powf(2.0);

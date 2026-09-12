@@ -66,11 +66,9 @@
 //               y1(x) = sqrt(2/(pi*x))*(p1(x)*sin(x1)+q1(x)*cos(x1))
 //         where x1 = x-3*pi/4. It is better to compute sin(x1),cos(x1)
 //         by method mentioned above.
-use std::f64::{self, consts::PI};
+use core::f64::{self, consts::PI};
 
-use crate::BesselError;
-
-use super::{TWO_129, TWO_M27, TWO_M54};
+use crate::{BesselError, TWO_129, TWO_M27, TWO_M54, prelude::*};
 
 /// Returns the order-one Bessel function of the first kind, J₁(x).
 ///
@@ -205,7 +203,7 @@ pub fn y1(x: f64) -> Result<f64, BesselError> {
 
     if x < 0.0 {
         return Err(BesselError::NegativeInputForYFunction {
-            function: "y1".to_string(),
+            function: "y1",
             input: x,
         });
     }

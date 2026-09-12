@@ -107,8 +107,18 @@
 //! For a full mathematical breakdown of the relative error and phase angle accuracy
 //! based on the original Amos documentation, please see the
 //! [Performance & Accuracy Guide](https://etfrogers.github.io/bessel-rs/).
+#![cfg_attr(not(feature = "std"), no_std)]
+
+#[macro_use]
+extern crate alloc;
 
 use num::Complex;
+
+pub(crate) mod prelude {
+    pub use alloc::borrow::ToOwned;
+    pub use alloc::string::{String, ToString};
+    pub use alloc::vec::Vec;
+}
 
 /// Container for the complex_\[func\] version of the Bessel and Airy functions
 /// for finer control of the calculation and results
