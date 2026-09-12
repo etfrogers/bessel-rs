@@ -1,8 +1,8 @@
-use num::Complex;
+use num::{Complex, complex::ComplexFloat};
 
 use crate::{
     BesselError, HankelKind, Scaling,
-    amos::{algorithms, validate_inputs},
+    amos::{MachineConsts, algorithms, is_significance_lost, validate_inputs},
     prelude::*,
     types::{BesselFloat, BesselResult},
 };
@@ -430,6 +430,9 @@ pub(crate) fn reflect_orders<T: BesselFloat, Op: ReflectableBessel<T>>(
         return op.eval(z, order, scaling, n);
     }
 
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
+    let _ = is_significance_lost(z.abs(), order.abs(), false, mc)?;
+
     let mut partial_loss_of_significance = false;
 
     let mut unwrap_plos = |result: BesselResult<T>| match result {
@@ -450,7 +453,9 @@ pub(crate) fn reflect_orders<T: BesselFloat, Op: ReflectableBessel<T>>(
     };
 
     let abs_order: T = order.abs();
-    let n_order = abs_order.ceil().to_usize().unwrap();
+    let Some(n_order) = abs_order.ceil().to_usize() else {
+        return Err(BesselError::LossOfSignificance);
+    };
     let n_negative = n_order.min(n);
 
     // 1. Negative integer orders: J(-n, z) = (-1)^n J(n, z)

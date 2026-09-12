@@ -585,7 +585,7 @@ fn determine_miller_starting_k<T: BesselFloat>(
             }
             let raw_k = T::from_usize(trial_index)
                 + miller_truncation_heuristic_1 * arg_z * (recurrence_threshold / abs_z).sqrt();
-            raw_k.to_usize().unwrap()
+            raw_k.to_usize().ok_or(BesselError::DidNotConverge)?
         }
     } else {
         // For small z.abs() (< recurrence threshold), we don't bother running the loop above;
@@ -599,7 +599,7 @@ fn determine_miller_starting_k<T: BesselFloat>(
             / angle_correction_b.cos();
         let raw_k =
             T::from_f64(0.12125) * heuristic_curve_factor.powi(2) / abs_z + T::from_f64(1.5);
-        raw_k.to_usize().unwrap()
+        raw_k.to_usize().ok_or(BesselError::DidNotConverge)?
     };
     Ok(starting_k)
 }
