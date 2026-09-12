@@ -66,7 +66,7 @@ pub fn bessel_j_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
         z,
         derivative_order,
         SignType::Cylinder,
-    )?)
+    ))
 }
 
 /// Computes the first derivative of the Bessel function of the second kind $Y_\nu'(z)$ with respect to $z$.
@@ -120,7 +120,7 @@ pub fn bessel_y_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
         z,
         derivative_order,
         SignType::Cylinder,
-    )?)
+    ))
 }
 
 /// Computes the first derivative of the modified Bessel function of the first kind $I_\nu'(z)$ with respect to $z$.
@@ -174,7 +174,7 @@ pub fn bessel_i_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
         z,
         derivative_order,
         SignType::I,
-    )?)
+    ))
 }
 
 /// Computes the first derivative of the Hankel function $H_\nu^{(1)\prime}(z)$ or $H_\nu^{(2)\prime}(z)$ with respect to $z$.
@@ -287,7 +287,7 @@ pub fn hankel1_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
         z,
         derivative_order,
         SignType::Cylinder,
-    )?)
+    ))
 }
 
 /// Computes the first derivative of the Hankel function of the second kind $H_\nu^{(2)\prime}(z)$ with respect to $z$.
@@ -344,7 +344,7 @@ pub fn hankel2_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
         z,
         derivative_order,
         SignType::Cylinder,
-    )?)
+    ))
 }
 
 /// Computes the first derivative of the modified Bessel function of the second kind $K_\nu'(z)$ with respect to $z$.
@@ -398,7 +398,7 @@ pub fn bessel_k_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
         z,
         derivative_order,
         SignType::K,
-    )?)
+    ))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

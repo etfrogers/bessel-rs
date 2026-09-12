@@ -191,8 +191,8 @@ pub fn hankel<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     kind: HankelKind,
 ) -> Result<ZT, BesselError<FT>> {
     let h = match kind {
-        HankelKind::First => hankel1_single(order.into(), z.into())?,
-        HankelKind::Second => hankel2_single(order.into(), z.into())?,
+        HankelKind::First => hankel1_single(order.into(), z.into()),
+        HankelKind::Second => hankel2_single(order.into(), z.into()),
     };
     ZT::back_from(h)
 }
