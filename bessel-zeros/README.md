@@ -56,6 +56,17 @@ use bessel_zeros::{BesselFunType, bessel_zeros, DEFAULT_PRECISION};
 let zeros = bessel_zeros(&BesselFunType::J, 0.0_f64, 10, 1e-10);
 ```
 
+## `no_std` Support
+
+`bessel-zeros` supports `#![no_std]` environments (requiring `alloc` for the returned root vectors). When `std` is disabled, calculations fall back to pure-Rust software floating-point routines via `libm`, and both `amos-bessel-rs` and `real-bessel` backends are compiled in `no_std` mode.
+
+To use in a `no_std` project, disable default features:
+
+```toml
+[dependencies]
+bessel-zeros = { version = "0.2", default-features = false }
+```
+
 ## Algorithm
 
 This crate implements the routine described in:

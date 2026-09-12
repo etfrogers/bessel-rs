@@ -34,6 +34,25 @@ full version, as per Amos, are available.
 
 **📖 Documentation:** Read the [Performance & Accuracy Guide](https://etfrogers.github.io/bessel-rs/) for deep dives into how `amos-bessel-rs` exceeds Fortran performance, mitigates floating-point overflow, and eliminates legacy `IERR` array vulnerabilities.
 
+Usage
+-----
+
+```toml
+[dependencies]
+amos-bessel-rs = "0.4"
+```
+
+### `no_std` Support
+
+`amos-bessel-rs` supports `#![no_std]` environments (with dynamic allocation via `alloc`). When `std` is disabled, the crate relies on pure-Rust software floating-point routines via `libm` and precomputed IEEE-754 machine constants.
+
+To use in a `no_std` environment, disable default features:
+
+```toml
+[dependencies]
+amos-bessel-rs = { version = "0.4", default-features = false }
+```
+
 Alternatives
 ------------
 
