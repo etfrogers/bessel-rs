@@ -22,8 +22,19 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Run clippy
+      - name: Run clippy (all features)
         run: cargo clippy --workspace --all-features --all-targets -- -D warnings
+
+      - name: Install embedded no_std target
+        run: rustup target add thumbv7em-none-eabihf
+
+      - name: Run clippy (no_std bare-metal)
+        run: cargo clippy -p amos-bessel-rs --no-default-features --target thumbv7em-none-eabihf -- -D warnings
+
+      - name: Check no_std compilation (host)
+        run: cargo check -p amos-bessel-rs --no-default-features --lib
+        env:
+          RUSTFLAGS: "-D warnings"
 
       - name: Generate code coverage
         run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
