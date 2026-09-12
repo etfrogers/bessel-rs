@@ -1,12 +1,11 @@
 use amos_bessel_rs::{
-    BesselError, BesselFloat, HankelKind, bessel_i, bessel_j, bessel_k, bessel_y, hankel,
+    BesselError, BesselFloat, HankelKind, Scaling, bessel_i, bessel_j, bessel_k, bessel_y,
     derivatives::{
-        bessel_i_derivative, bessel_i_p, bessel_j_derivative, bessel_j_p,
-        bessel_k_derivative, bessel_k_p,
-        bessel_y_derivative, bessel_y_p,
-        hankel_derivative, hankel_p, hankel1_derivative, hankel1_p,
-        hankel2_derivative, hankel2_p,
+        bessel_i_derivative, bessel_i_p, bessel_j_derivative, bessel_j_p, bessel_k_derivative,
+        bessel_k_p, bessel_y_derivative, bessel_y_p, hankel_derivative, hankel_p,
+        hankel1_derivative, hankel1_p, hankel2_derivative, hankel2_p,
     },
+    hankel,
 };
 use approx::assert_relative_eq;
 use num::Complex;
@@ -29,7 +28,7 @@ pub type BesselSimpleSig<T: BesselFloat = f64> =
 
 #[allow(type_alias_bounds)]
 pub type DerivSig<T: BesselFloat = f64> =
-    fn(T, Complex<T>, u32) -> Result<Complex<T>, BesselError<T>>;
+    fn(T, Complex<T>, u32, Scaling) -> Result<Complex<T>, BesselError<T>>;
 
 fn hankel1(order: f64, z: Complex<f64>) -> Result<Complex<f64>, BesselError> {
     hankel(order, z, HankelKind::First)
@@ -44,7 +43,7 @@ fn hankel2(order: f64, z: Complex<f64>) -> Result<Complex<f64>, BesselError> {
 #[case(1, 0.32515)]
 #[case(2, 0.21033)]
 fn test_bessel_j_hardcoded(#[case] order: u32, #[case] expected: f64) {
-    let dz = bessel_j_derivative(order, 1.0, 1).unwrap();
+    let dz = bessel_j_derivative(order, 1.0, 1, Scaling::Unscaled).unwrap();
     assert_relative_eq!(dz, expected, epsilon = 1e-4);
 }
 
@@ -75,11 +74,11 @@ fn test_bessel_differential_equation_grid(
                     Ok(val) => val,
                     Err(_) => continue,
                 };
-                let j1 = match d_func(order, z, 1) {
+                let j1 = match d_func(order, z, 1, Scaling::Unscaled) {
                     Ok(val) => val,
                     Err(_) => continue,
                 };
-                let j2 = match d_func(order, z, 2) {
+                let j2 = match d_func(order, z, 2, Scaling::Unscaled) {
                     Ok(val) => val,
                     Err(_) => continue,
                 };
@@ -124,7 +123,7 @@ fn test_bessel_differential_equation_grid(
 // 1) K_ν'(z) = -1/2 · [K_{ν-1}(z) + K_{ν+1}(z)]
 // 2) K_ν'(z) = -K_{ν-1}(z) - (ν/z) · K_ν(z)
 // 3) K_0'(z) = -K_1(z)
-// All: func_p(ν, z) == d_func(ν, z, 1)
+// All: func_p(ν, z) == d_func(ν, z, 1, Scaling::Unscaled)
 // -----------------------------------------------------------------------------
 #[rstest]
 #[case(bessel_j, bessel_j_derivative, bessel_j_p, RecurrenceKind::Cylinder)]
@@ -146,7 +145,7 @@ fn test_first_derivative_recurrence_grid(
                 if z == Complex::ZERO {
                     continue;
                 }
-                let dz = match d_func(order, z, 1) {
+                let dz = match d_func(order, z, 1, Scaling::Unscaled) {
                     Ok(val) => val,
                     Err(_) => continue,
                 };
@@ -232,15 +231,14 @@ fn test_first_derivative_recurrence_grid(
 #[case(bessel_k, bessel_k_derivative)]
 #[case(hankel1, hankel1_derivative)]
 #[case(hankel2, hankel2_derivative)]
-fn test_zero_derivative_order_grid(
-    #[case] func: BesselSimpleSig,
-    #[case] d_func: DerivSig,
-) {
+fn test_zero_derivative_order_grid(#[case] func: BesselSimpleSig, #[case] d_func: DerivSig) {
     for order in ORDERS {
         for zr in Z_PARTS {
             for zi in Z_PARTS {
                 let z = Complex::new(zr, zi);
-                if let (Ok(d0), Ok(direct)) = (d_func(order, z, 0), func(order, z)) {
+                if let (Ok(d0), Ok(direct)) =
+                    (d_func(order, z, 0, Scaling::Unscaled), func(order, z))
+                {
                     assert_relative_eq!(d0, direct, max_relative = 1e-14);
                 }
             }
@@ -276,8 +274,8 @@ fn test_integer_reflection_parity_grid(
             for zi in Z_PARTS {
                 let z = Complex::new(zr, zi);
                 if let (Ok(d_pos), Ok(d_neg)) = (
-                    d_func(n as f64, z, k),
-                    d_func(-n as f64, z, k),
+                    d_func(n as f64, z, k, Scaling::Unscaled),
+                    d_func(-n as f64, z, k, Scaling::Unscaled),
                 ) {
                     let scale = d_pos.norm() + d_neg.norm();
                     if scale > 1e-100 {
@@ -313,7 +311,7 @@ fn test_half_integer_closed_forms_grid() {
             let prefactor = (Complex::new(2.0 / PI, 0.0) / z).sqrt();
 
             // ν = 1/2
-            if let Ok(computed) = bessel_j_derivative(0.5, z, 1) {
+            if let Ok(computed) = bessel_j_derivative(0.5, z, 1, Scaling::Unscaled) {
                 let expected = prefactor * (z.cos() - z.sin() / (z * 2.0));
                 let scale = computed.norm() + expected.norm();
                 if scale > 1e-100 {
@@ -328,7 +326,7 @@ fn test_half_integer_closed_forms_grid() {
             }
 
             // ν = -1/2
-            if let Ok(computed) = bessel_j_derivative(-0.5, z, 1) {
+            if let Ok(computed) = bessel_j_derivative(-0.5, z, 1, Scaling::Unscaled) {
                 let expected = prefactor * (-z.sin() - z.cos() / (z * 2.0));
                 let scale = computed.norm() + expected.norm();
                 if scale > 1e-100 {
@@ -384,7 +382,7 @@ fn test_against_cauchy_derivative_grid(
                 continue; // Avoid circle enclosing z = 0
             }
 
-            let dz = match bessel_j_derivative(order, z, derivative_order) {
+            let dz = match bessel_j_derivative(order, z, derivative_order, Scaling::Unscaled) {
                 Ok(val) => val,
                 Err(_) => continue,
             };
@@ -435,8 +433,9 @@ fn test_hankel_derivative_relations_grid(
             }
 
             // Test dispatch: hankel_p and hankel_derivative
-            if let Ok(h1_d) = hankel1_derivative(order, z, k) {
-                let h_d = hankel_derivative(order, z, HankelKind::First, k).unwrap();
+            if let Ok(h1_d) = hankel1_derivative(order, z, k, Scaling::Unscaled) {
+                let h_d =
+                    hankel_derivative(order, z, HankelKind::First, k, Scaling::Unscaled).unwrap();
                 assert_relative_eq!(h1_d, h_d, max_relative = 1e-14);
                 if k == 1 {
                     let h1_p_val = hankel1_p(order, z).unwrap();
@@ -446,8 +445,9 @@ fn test_hankel_derivative_relations_grid(
                 }
             }
 
-            if let Ok(h2_d) = hankel2_derivative(order, z, k) {
-                let h_d = hankel_derivative(order, z, HankelKind::Second, k).unwrap();
+            if let Ok(h2_d) = hankel2_derivative(order, z, k, Scaling::Unscaled) {
+                let h_d =
+                    hankel_derivative(order, z, HankelKind::Second, k, Scaling::Unscaled).unwrap();
                 assert_relative_eq!(h2_d, h_d, max_relative = 1e-14);
                 if k == 1 {
                     let h2_p_val = hankel2_p(order, z).unwrap();
@@ -465,10 +465,10 @@ fn test_hankel_derivative_relations_grid(
             // Therefore, compare linear relation for moderate |Im(z)| <= 2.0.
             if z.im.abs() <= 2.0
                 && let (Ok(dj), Ok(dy), Ok(dh1), Ok(dh2)) = (
-                    bessel_j_derivative(order, z, k),
-                    bessel_y_derivative(order, z, k),
-                    hankel1_derivative(order, z, k),
-                    hankel2_derivative(order, z, k),
+                    bessel_j_derivative(order, z, k, Scaling::Unscaled),
+                    bessel_y_derivative(order, z, k, Scaling::Unscaled),
+                    hankel1_derivative(order, z, k, Scaling::Unscaled),
+                    hankel2_derivative(order, z, k, Scaling::Unscaled),
                 )
             {
                 let expected_h1 = dj + i_unit * dy;
@@ -521,9 +521,9 @@ fn test_wronskian_j_y_grid() {
                 }
                 let (j, dj, y, dy) = match (
                     bessel_j(order, z),
-                    bessel_j_derivative(order, z, 1),
+                    bessel_j_derivative(order, z, 1, Scaling::Unscaled),
                     bessel_y(order, z),
-                    bessel_y_derivative(order, z, 1),
+                    bessel_y_derivative(order, z, 1, Scaling::Unscaled),
                 ) {
                     (Ok(j), Ok(dj), Ok(y), Ok(dy)) => (j, dj, y, dy),
                     _ => continue,
@@ -572,15 +572,19 @@ fn test_wronskian_hankel_grid() {
                 }
                 let (h1, dh1, h2, dh2) = match (
                     hankel1(order, z),
-                    hankel1_derivative(order, z, 1),
+                    hankel1_derivative(order, z, 1, Scaling::Unscaled),
                     hankel2(order, z),
-                    hankel2_derivative(order, z, 1),
+                    hankel2_derivative(order, z, 1, Scaling::Unscaled),
                 ) {
                     (Ok(h1), Ok(dh1), Ok(h2), Ok(dh2)) => (h1, dh1, h2, dh2),
                     _ => continue,
                 };
 
-                if h1.norm() < 1e-50 || dh1.norm() < 1e-50 || h2.norm() < 1e-50 || dh2.norm() < 1e-50 {
+                if h1.norm() < 1e-50
+                    || dh1.norm() < 1e-50
+                    || h2.norm() < 1e-50
+                    || dh2.norm() < 1e-50
+                {
                     continue;
                 }
 
@@ -625,9 +629,9 @@ fn test_wronskian_i_k_grid() {
                 }
                 let (i, di, k, dk) = match (
                     bessel_i(order, z),
-                    bessel_i_derivative(order, z, 1),
+                    bessel_i_derivative(order, z, 1, Scaling::Unscaled),
                     bessel_k(order, z),
-                    bessel_k_derivative(order, z, 1),
+                    bessel_k_derivative(order, z, 1, Scaling::Unscaled),
                 ) {
                     (Ok(i), Ok(di), Ok(k), Ok(dk)) => (i, di, k, dk),
                     _ => continue,
@@ -681,7 +685,7 @@ fn test_k_half_integer_closed_forms_grid() {
                 -prefactor * (Complex::new(1.0, 0.0) + Complex::new(0.5, 0.0) / z);
 
             // ν = 1/2
-            if let Ok(computed) = bessel_k_derivative(0.5, z, 1) {
+            if let Ok(computed) = bessel_k_derivative(0.5, z, 1, Scaling::Unscaled) {
                 let scale = computed.norm() + expected_k_prime.norm();
                 if scale > 1e-100 {
                     let diff = (computed - expected_k_prime).norm() / scale;
@@ -695,7 +699,7 @@ fn test_k_half_integer_closed_forms_grid() {
             }
 
             // ν = -1/2
-            if let Ok(computed) = bessel_k_derivative(-0.5, z, 1) {
+            if let Ok(computed) = bessel_k_derivative(-0.5, z, 1, Scaling::Unscaled) {
                 let scale = computed.norm() + expected_k_prime.norm();
                 if scale > 1e-100 {
                     let diff = (computed - expected_k_prime).norm() / scale;
@@ -713,17 +717,17 @@ fn test_k_half_integer_closed_forms_grid() {
 
 #[test]
 fn test_derivatives_f32() {
-    let dz = bessel_j_derivative(0.0f32, 1.0f32, 1).unwrap();
+    let dz = bessel_j_derivative(0.0f32, 1.0f32, 1, Scaling::Unscaled).unwrap();
     assert_relative_eq!(dz, -0.4400506f32, max_relative = 1e-5);
 
     let z_cpx = Complex::new(1.0f32, 0.5f32);
-    let dz_cpx = bessel_j_derivative(1.0f32, z_cpx, 2).unwrap();
+    let dz_cpx = bessel_j_derivative(1.0f32, z_cpx, 2, Scaling::Unscaled).unwrap();
     assert!(dz_cpx.re.is_finite() && dz_cpx.im.is_finite());
 }
 
 #[test]
 fn test_derivative_order_too_large() {
-    let err = bessel_j_derivative(0.0, 1.0, 61).unwrap_err();
+    let err = bessel_j_derivative(0.0, 1.0, 61, Scaling::Unscaled).unwrap_err();
     match err {
         BesselError::InvalidInput { details } => {
             assert!(details.contains("too large"));
@@ -734,10 +738,10 @@ fn test_derivative_order_too_large() {
 
 #[test]
 fn test_derivative_real_input_and_complex_error() {
-    let val: f64 = bessel_j_derivative(0.0, 2.0, 1).unwrap();
+    let val: f64 = bessel_j_derivative(0.0, 2.0, 1, Scaling::Unscaled).unwrap();
     assert_relative_eq!(val, -0.5767248077568734, max_relative = 1e-12);
 
-    let err = bessel_y_derivative(0.0, -3.0, 1).unwrap_err();
+    let err = bessel_y_derivative(0.0, -3.0, 1, Scaling::Unscaled).unwrap_err();
     match err {
         BesselError::ComplexOutputForRealInput { output } => {
             assert!(output.norm() > 0.0);
@@ -746,3 +750,84 @@ fn test_derivative_real_input_and_complex_error() {
     }
 }
 
+#[rstest]
+fn test_scaled_derivatives_match_unscaled_grid() {
+    let i_unit = Complex::new(0.0, 1.0);
+    for &order in &[-2.5_f64, -1.0, 0.0, 1.5, 3.0] {
+        for &zr in &[0.5_f64, 2.0, 10.0] {
+            for &zi in &[-3.0_f64, 0.5, 4.0] {
+                let z: Complex<f64> = Complex::new(zr, zi);
+                // 1) J derivative
+                if let (Ok(dj_unscaled), Ok(dj_scaled)) = (
+                    bessel_j_derivative(order, z, 1, Scaling::Unscaled),
+                    bessel_j_derivative(order, z, 1, Scaling::Scaled),
+                ) {
+                    let expected_scaled = dj_unscaled * (-z.im.abs()).exp();
+                    assert_relative_eq!(dj_scaled, expected_scaled, max_relative = 1e-12);
+                }
+
+                // 2) Y derivative
+                if let (Ok(dy_unscaled), Ok(dy_scaled)) = (
+                    bessel_y_derivative(order, z, 1, Scaling::Unscaled),
+                    bessel_y_derivative(order, z, 1, Scaling::Scaled),
+                ) {
+                    let expected_scaled = dy_unscaled * (-z.im.abs()).exp();
+                    assert_relative_eq!(dy_scaled, expected_scaled, max_relative = 1e-12);
+                }
+
+                // 3) I derivative
+                if let (Ok(di_unscaled), Ok(di_scaled)) = (
+                    bessel_i_derivative(order, z, 1, Scaling::Unscaled),
+                    bessel_i_derivative(order, z, 1, Scaling::Scaled),
+                ) {
+                    let expected_scaled = di_unscaled * (-z.re.abs()).exp();
+                    assert_relative_eq!(di_scaled, expected_scaled, max_relative = 1e-12);
+                }
+
+                // 4) K derivative
+                if let (Ok(dk_unscaled), Ok(dk_scaled)) = (
+                    bessel_k_derivative(order, z, 1, Scaling::Unscaled),
+                    bessel_k_derivative(order, z, 1, Scaling::Scaled),
+                ) {
+                    let expected_scaled = dk_unscaled * z.exp();
+                    assert_relative_eq!(dk_scaled, expected_scaled, max_relative = 1e-12);
+                }
+
+                // 5) Hankel1 derivative
+                if let (Ok(dh1_unscaled), Ok(dh1_scaled)) = (
+                    hankel1_derivative(order, z, 1, Scaling::Unscaled),
+                    hankel1_derivative(order, z, 1, Scaling::Scaled),
+                ) {
+                    let expected_scaled = dh1_unscaled * (-i_unit * z).exp();
+                    assert_relative_eq!(dh1_scaled, expected_scaled, max_relative = 1e-12);
+                }
+
+                // 6) Hankel2 derivative
+                if let (Ok(dh2_unscaled), Ok(dh2_scaled)) = (
+                    hankel2_derivative(order, z, 1, Scaling::Unscaled),
+                    hankel2_derivative(order, z, 1, Scaling::Scaled),
+                ) {
+                    let expected_scaled = dh2_unscaled * (i_unit * z).exp();
+                    assert_relative_eq!(dh2_scaled, expected_scaled, max_relative = 1e-12);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn test_scaled_derivative_avoids_overflow() {
+    let z: f64 = 800.0;
+    // Unscaled I_0'(800.0) overflows f64
+    assert!(bessel_i_derivative(0.0, z, 1, Scaling::Unscaled).is_err());
+
+    // Scaled I_0'(800.0) succeeds and is finite positive
+    let di_scaled: f64 = bessel_i_derivative(0.0, z, 1, Scaling::Scaled).unwrap();
+    assert!(di_scaled > 0.0 && di_scaled.is_finite());
+    let expected_asymp = 1.0 / (2.0 * PI * z).sqrt();
+    assert_relative_eq!(di_scaled, expected_asymp, max_relative = 1e-3);
+
+    // Scaled K_0'(800.0) succeeds and is finite negative
+    let dk_scaled: f64 = bessel_k_derivative(0.0, z, 1, Scaling::Scaled).unwrap();
+    assert!(dk_scaled < 0.0 && dk_scaled.is_finite());
+}
