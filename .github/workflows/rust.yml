@@ -28,11 +28,20 @@ jobs:
       - name: Install embedded no_std target
         run: rustup target add thumbv7em-none-eabihf
 
-      - name: Run clippy (no_std bare-metal)
+      - name: Check no_std bare-metal (amos-bessel-rs)
         run: cargo clippy -p amos-bessel-rs --no-default-features --target thumbv7em-none-eabihf -- -D warnings
 
+      - name: Check no_std bare-metal (real-bessel)
+        run: cargo clippy -p real-bessel --no-default-features --target thumbv7em-none-eabihf -- -D warnings
+
+      - name: Check no_std bare-metal (bessel-zeros)
+        run: cargo clippy -p bessel-zeros --no-default-features --target thumbv7em-none-eabihf -- -D warnings
+
       - name: Check no_std compilation (host)
-        run: cargo check -p amos-bessel-rs --no-default-features --lib
+        run: |
+          cargo check -p amos-bessel-rs --no-default-features --lib
+          cargo check -p real-bessel --no-default-features --lib
+          cargo check -p bessel-zeros --no-default-features --lib
         env:
           RUSTFLAGS: "-D warnings"
 
