@@ -9,8 +9,14 @@ keywords = ["bessel", "mathematics", "special-functions"]
 categories = ["science", "mathematics", "algorithms"]
 readme = "README.md"
 
+[features]
+default = ["std"]
+std = ["thiserror/std", "num/std"]
+
 [dependencies]
-thiserror = "2.0.17"
+thiserror = { version = "2.0.17", default-features = false }
+# When std is disabled, num uses libm for sin/cos/exp/ln
+num = { version = "0.4.3", default-features = false, features = ["libm"] }
 
 [dev-dependencies]
 amos-bessel-rs = { path = "../amos-bessel-rs", version = ">=0.3.0" }

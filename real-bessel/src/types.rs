@@ -14,7 +14,7 @@ pub enum BesselError {
     )]
     NegativeInputForYFunction {
         /// The name of the function that caused the error.
-        function: String,
+        function: &'static str,
         /// The input value that caused the error.
         input: f64,
     },

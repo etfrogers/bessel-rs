@@ -34,8 +34,18 @@
 //! let result = j0(1.0);
 //! assert!((result - 0.7651976865579612).abs() < 1e-10);
 //! ```
+
+#![cfg_attr(not(feature = "std"), no_std)]
+
 mod types;
 pub use types::BesselError;
+
+mod prelude {
+    pub use core::convert::Into;
+    pub use core::iter::Iterator;
+    pub use core::result::Result;
+    pub use num::Float;
+}
 
 mod j0;
 mod j1;

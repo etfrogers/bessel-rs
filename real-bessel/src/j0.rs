@@ -68,11 +68,8 @@
 //         by the method mentioned above.
 //      3. Special cases: y0(0)=-inf, y0(x<0)=NaN, y0(inf)=0.
 //
-use crate::BesselError;
-
-use super::{TWO_129, TWO_M13, TWO_M27};
-use std::f64;
-use std::f64::consts::PI;
+use crate::{BesselError, TWO_129, TWO_M13, TWO_M27, prelude::*};
+use core::f64::consts::PI;
 
 /// Returns the order-zero Bessel function of the first kind, J₀(x).
 ///
@@ -214,7 +211,7 @@ pub fn y0(x: f64) -> Result<f64, BesselError> {
     // special cases
     if x < 0.0 {
         return Err(BesselError::NegativeInputForYFunction {
-            function: "y0".to_string(),
+            function: "y0",
             input: x,
         });
     }
