@@ -183,7 +183,6 @@ pub(crate) type BesselResult<FT: BesselFloat = f64, NT = usize> =
 pub trait BesselInput<T: BesselFloat = f64>:
     Into<Complex<T>>
     + private::BackFrom<Complex<T>, T>
-    + Mul<T, Output = Self>
     + private::BackFrom<Result<Complex<T>, BesselError<T>>, T>
 {
 }
