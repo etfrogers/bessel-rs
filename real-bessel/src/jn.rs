@@ -249,7 +249,7 @@ pub fn jn(n: i32, x: f64) -> f64 {
 /// For `n = 0` and `n = 1` this delegates to the optimised [`y0`] and [`y1`]
 /// implementations. For `|n| > 1`, forward recurrence from Y₀ and Y₁ is used.
 ///
-/// Yn is only real-valued for positive x. For x ≤ 0, the function returns an
+/// Yn is only real-valued for positive x. For x < 0, the function returns an
 /// `Err(`[`BesselError::NegativeInputForYFunction`]`)` rather than a complex result.
 ///
 /// # Special cases

@@ -10,7 +10,7 @@
 //! return `f64` directly.
 //!
 //! The **Y functions** (`y0`, `y1`, `yn`) are real-valued only for positive x.
-//! For `x ≤ 0` they return `Err(`[`BesselError::NegativeInputForYFunction`]`)`
+//! For `x < 0` they return `Err(`[`BesselError::NegativeInputForYFunction`]`)`
 //! rather than a complex result.
 //!
 //! ## Special cases shared by all functions
@@ -19,7 +19,7 @@
 //! |-------|------------|-------------|
 //! | `NaN` | `NaN` | `Ok(NaN)` |
 //! | `+∞`  | `0.0` | `Ok(0.0)` |
-//! | `x ≤ 0` | real result | `Err(…)` |
+//! | `x < 0` | real result | `Err(…)` |
 //! | `x = 0` | `j0 → 1`, `j1/jn → 0` | `Ok(−∞)` |
 //!
 //! If you need complex arguments, non-integer orders, or other Bessel
