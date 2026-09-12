@@ -40,7 +40,8 @@ pub struct MachineConsts<T: BesselFloat> {
 }
 
 impl<T: BesselFloat> MachineConsts<T> {
-    fn new() -> Self {
+    /// Computes the machine constants using the formulas from the Amos algorithms.
+    pub(crate) fn new() -> Self {
         // Here we use approximate value, rather than calculating `10.0_f64.ln()`, as
         // this matches the Fortran code, and the exact value causes subtle differences
         // in output (should just be what values are accepted, but cause tests to fail)
