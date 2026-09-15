@@ -162,7 +162,7 @@ pub fn j1(x: f64) -> f64 {
 
 /// Returns the order-one Bessel function of the second kind, Y₁(x).
 ///
-/// Y₁ is only real-valued for positive x. For x ≤ 0, the function returns an
+/// Y₁ is only real-valued for positive x. For x < 0, the function returns an
 /// `Err(`[`BesselError::NegativeInputForYFunction`]`)` rather than a complex result.
 ///
 /// # Special cases

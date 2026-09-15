@@ -32,7 +32,7 @@ pub fn bessel_j_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
 ) -> Result<ZT, BesselError<FT>> {
-    bessel_j_derivative(order, z, 1)
+    bessel_j_derivative(order, z, 1, Scaling::Unscaled)
 }
 
 /// Computes the $k$-th derivative of the Bessel function of the first kind $\left(\frac{d}{dz}\right)^k J_\nu(z)$.
@@ -40,29 +40,34 @@ pub fn bessel_j_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// Evaluated via the exact binomial identity from DLMF 10.6.7:
 /// $$\left(\frac{d}{dz}\right)^k J_\nu(z) = \frac{1}{2^k} \sum_{n=0}^k (-1)^n \binom{k}{n} J_{\nu - k + 2n}(z)$$
 ///
+/// When `scaling` is [`Scaling::Scaled`], the result is scaled by $e^{-|\mathrm{Im}(z)|}$.
+///
 /// # Arguments
 /// * `order` - The order $\nu$ of the Bessel function.
 /// * `z` - The complex or real argument.
 /// * `derivative_order` - The order of the derivative $k \ge 0$.
+/// * `scaling` - Whether to compute the unscaled or exponentially scaled derivative.
 ///
 /// # Examples
 /// ```
-/// use amos_bessel_rs::derivatives::bessel_j_derivative;
+/// use amos_bessel_rs::{Scaling, derivatives::bessel_j_derivative};
 ///
 /// // Second derivative of J_0 at z = 1.0:
-/// let d2j: f64 = bessel_j_derivative(0.0, 1.0, 2).unwrap();
+/// let d2j: f64 = bessel_j_derivative(0.0, 1.0, 2, Scaling::Unscaled).unwrap();
 /// assert!((d2j - (-0.3251471008)).abs() < 1e-6);
 /// ```
 pub fn bessel_j_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
     derivative_order: u32,
+    scaling: Scaling,
 ) -> Result<ZT, BesselError<FT>> {
     derivative_internal(
         complex_bessel_j,
         order.into(),
         z.into(),
         derivative_order,
+        scaling,
         SignType::Cylinder,
     )
     .and_then(ZT::back_from)
@@ -85,7 +90,7 @@ pub fn bessel_y_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
 ) -> Result<ZT, BesselError<FT>> {
-    bessel_y_derivative(order, z, 1)
+    bessel_y_derivative(order, z, 1, Scaling::Unscaled)
 }
 
 /// Computes the $k$-th derivative of the Bessel function of the second kind $\left(\frac{d}{dz}\right)^k Y_\nu(z)$.
@@ -93,29 +98,34 @@ pub fn bessel_y_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// Evaluated via DLMF 10.6.7:
 /// $$\left(\frac{d}{dz}\right)^k Y_\nu(z) = \frac{1}{2^k} \sum_{n=0}^k (-1)^n \binom{k}{n} Y_{\nu - k + 2n}(z)$$
 ///
+/// When `scaling` is [`Scaling::Scaled`], the result is scaled by $e^{-|\mathrm{Im}(z)|}$.
+///
 /// # Arguments
 /// * `order` - The order $\nu$ of the Bessel function.
 /// * `z` - The complex or real argument.
 /// * `derivative_order` - The order of the derivative $k \ge 0$.
+/// * `scaling` - Whether to compute the unscaled or exponentially scaled derivative.
 ///
 /// # Examples
 /// ```
-/// use amos_bessel_rs::derivatives::bessel_y_derivative;
+/// use amos_bessel_rs::{Scaling, derivatives::bessel_y_derivative};
 ///
 /// // Second derivative of Y_0 at z = 1.0:
-/// let d2y: f64 = bessel_y_derivative(0.0, 1.0, 2).unwrap();
+/// let d2y: f64 = bessel_y_derivative(0.0, 1.0, 2, Scaling::Unscaled).unwrap();
 /// assert!((d2y - (-0.8694697855)).abs() < 1e-6);
 /// ```
 pub fn bessel_y_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
     derivative_order: u32,
+    scaling: Scaling,
 ) -> Result<ZT, BesselError<FT>> {
     derivative_internal(
         complex_bessel_y,
         order.into(),
         z.into(),
         derivative_order,
+        scaling,
         SignType::Cylinder,
     )
     .and_then(ZT::back_from)
@@ -138,7 +148,7 @@ pub fn bessel_i_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
 ) -> Result<ZT, BesselError<FT>> {
-    bessel_i_derivative(order, z, 1)
+    bessel_i_derivative(order, z, 1, Scaling::Unscaled)
 }
 
 /// Computes the $k$-th derivative of the modified Bessel function of the first kind $\left(\frac{d}{dz}\right)^k I_\nu(z)$.
@@ -146,29 +156,34 @@ pub fn bessel_i_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// Evaluated via DLMF 10.29.5:
 /// $$\left(\frac{d}{dz}\right)^k I_\nu(z) = \frac{1}{2^k} \sum_{n=0}^k \binom{k}{n} I_{\nu - k + 2n}(z)$$
 ///
+/// When `scaling` is [`Scaling::Scaled`], the result is scaled by $e^{-|\mathrm{Re}(z)|}$.
+///
 /// # Arguments
 /// * `order` - The order $\nu$ of the Bessel function.
 /// * `z` - The complex or real argument.
 /// * `derivative_order` - The order of the derivative $k \ge 0$.
+/// * `scaling` - Whether to compute the unscaled or exponentially scaled derivative.
 ///
 /// # Examples
 /// ```
-/// use amos_bessel_rs::derivatives::bessel_i_derivative;
+/// use amos_bessel_rs::{Scaling, derivatives::bessel_i_derivative};
 ///
 /// // Second derivative of I_0 at z = 1.0:
-/// let d2i: f64 = bessel_i_derivative(0.0, 1.0, 2).unwrap();
+/// let d2i: f64 = bessel_i_derivative(0.0, 1.0, 2, Scaling::Unscaled).unwrap();
 /// assert!((d2i - 0.7009067738).abs() < 1e-6);
 /// ```
 pub fn bessel_i_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
     derivative_order: u32,
+    scaling: Scaling,
 ) -> Result<ZT, BesselError<FT>> {
     derivative_internal(
         complex_bessel_i,
         order.into(),
         z.into(),
         derivative_order,
+        scaling,
         SignType::I,
     )
     .and_then(ZT::back_from)
@@ -195,7 +210,7 @@ pub fn hankel_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     z: ZT,
     kind: HankelKind,
 ) -> Result<ZT, BesselError<FT>> {
-    hankel_derivative(order, z, kind, 1)
+    hankel_derivative(order, z, kind, 1, Scaling::Unscaled)
 }
 
 /// Computes the $k$-th derivative of the Hankel function $\left(\frac{d}{dz}\right)^k H_\nu^{(1,2)}(z)$.
@@ -203,19 +218,22 @@ pub fn hankel_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// Evaluated via DLMF 10.6.7:
 /// $$\left(\frac{d}{dz}\right)^k H_\nu^{(m)}(z) = \frac{1}{2^k} \sum_{n=0}^k (-1)^n \binom{k}{n} H_{\nu - k + 2n}^{(m)}(z)$$
 ///
+/// When `scaling` is [`Scaling::Scaled`], the result is scaled by $e^{\mp i z}$.
+///
 /// # Arguments
 /// * `order` - The order $\nu$ of the Hankel function.
 /// * `z` - The complex or real argument.
 /// * `kind` - The kind of Hankel function ([`HankelKind::First`] or [`HankelKind::Second`]).
 /// * `derivative_order` - The order of the derivative $k \ge 0$.
+/// * `scaling` - Whether to compute the unscaled or exponentially scaled derivative.
 ///
 /// # Examples
 /// ```
-/// use amos_bessel_rs::{HankelKind, derivatives::hankel_derivative};
+/// use amos_bessel_rs::{HankelKind, Scaling, derivatives::hankel_derivative};
 /// use num::Complex;
 ///
 /// let z = Complex::new(1.0, 0.5);
-/// let d2h = hankel_derivative(0.0, z, HankelKind::First, 2).unwrap();
+/// let d2h = hankel_derivative(0.0, z, HankelKind::First, 2, Scaling::Unscaled).unwrap();
 /// assert!(d2h.norm() > 0.0);
 /// ```
 pub fn hankel_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
@@ -223,10 +241,11 @@ pub fn hankel_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     z: ZT,
     kind: HankelKind,
     derivative_order: u32,
+    scaling: Scaling,
 ) -> Result<ZT, BesselError<FT>> {
     match kind {
-        HankelKind::First => hankel1_derivative(order, z, derivative_order),
-        HankelKind::Second => hankel2_derivative(order, z, derivative_order),
+        HankelKind::First => hankel1_derivative(order, z, derivative_order, scaling),
+        HankelKind::Second => hankel2_derivative(order, z, derivative_order, scaling),
     }
 }
 
@@ -249,7 +268,7 @@ pub fn hankel1_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
 ) -> Result<ZT, BesselError<FT>> {
-    hankel1_derivative(order, z, 1)
+    hankel1_derivative(order, z, 1, Scaling::Unscaled)
 }
 
 /// Computes the $k$-th derivative of the Hankel function of the first kind $\left(\frac{d}{dz}\right)^k H_\nu^{(1)}(z)$.
@@ -257,30 +276,35 @@ pub fn hankel1_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// Evaluated via DLMF 10.6.7:
 /// $$\left(\frac{d}{dz}\right)^k H_\nu^{(1)}(z) = \frac{1}{2^k} \sum_{n=0}^k (-1)^n \binom{k}{n} H_{\nu - k + 2n}^{(1)}(z)$$
 ///
+/// When `scaling` is [`Scaling::Scaled`], the result is scaled by $e^{-i z}$.
+///
 /// # Arguments
 /// * `order` - The order $\nu$ of the Hankel function.
 /// * `z` - The complex or real argument.
 /// * `derivative_order` - The order of the derivative $k \ge 0$.
+/// * `scaling` - Whether to compute the unscaled or exponentially scaled derivative.
 ///
 /// # Examples
 /// ```
-/// use amos_bessel_rs::derivatives::hankel1_derivative;
+/// use amos_bessel_rs::{Scaling, derivatives::hankel1_derivative};
 /// use num::Complex;
 ///
 /// let z = Complex::new(1.0, 0.5);
-/// let d2h1 = hankel1_derivative(0.0, z, 2).unwrap();
+/// let d2h1 = hankel1_derivative(0.0, z, 2, Scaling::Unscaled).unwrap();
 /// assert!(d2h1.norm() > 0.0);
 /// ```
 pub fn hankel1_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
     derivative_order: u32,
+    scaling: Scaling,
 ) -> Result<ZT, BesselError<FT>> {
     derivative_internal(
         complex_hankel1,
         order.into(),
         z.into(),
         derivative_order,
+        scaling,
         SignType::Cylinder,
     )
     .and_then(ZT::back_from)
@@ -305,7 +329,7 @@ pub fn hankel2_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
 ) -> Result<ZT, BesselError<FT>> {
-    hankel2_derivative(order, z, 1)
+    hankel2_derivative(order, z, 1, Scaling::Unscaled)
 }
 
 /// Computes the $k$-th derivative of the Hankel function of the second kind $\left(\frac{d}{dz}\right)^k H_\nu^{(2)}(z)$.
@@ -313,30 +337,35 @@ pub fn hankel2_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// Evaluated via DLMF 10.6.7:
 /// $$\left(\frac{d}{dz}\right)^k H_\nu^{(2)}(z) = \frac{1}{2^k} \sum_{n=0}^k (-1)^n \binom{k}{n} H_{\nu - k + 2n}^{(2)}(z)$$
 ///
+/// When `scaling` is [`Scaling::Scaled`], the result is scaled by $e^{i z}$.
+///
 /// # Arguments
 /// * `order` - The order $\nu$ of the Hankel function.
 /// * `z` - The complex or real argument.
 /// * `derivative_order` - The order of the derivative $k \ge 0$.
+/// * `scaling` - Whether to compute the unscaled or exponentially scaled derivative.
 ///
 /// # Examples
 /// ```
-/// use amos_bessel_rs::derivatives::hankel2_derivative;
+/// use amos_bessel_rs::{Scaling, derivatives::hankel2_derivative};
 /// use num::Complex;
 ///
 /// let z = Complex::new(1.0, 0.5);
-/// let d2h2 = hankel2_derivative(0.0, z, 2).unwrap();
+/// let d2h2 = hankel2_derivative(0.0, z, 2, Scaling::Unscaled).unwrap();
 /// assert!(d2h2.norm() > 0.0);
 /// ```
 pub fn hankel2_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
     derivative_order: u32,
+    scaling: Scaling,
 ) -> Result<ZT, BesselError<FT>> {
     derivative_internal(
         complex_hankel2,
         order.into(),
         z.into(),
         derivative_order,
+        scaling,
         SignType::Cylinder,
     )
     .and_then(ZT::back_from)
@@ -359,7 +388,7 @@ pub fn bessel_k_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
 ) -> Result<ZT, BesselError<FT>> {
-    bessel_k_derivative(order, z, 1)
+    bessel_k_derivative(order, z, 1, Scaling::Unscaled)
 }
 
 /// Computes the $k$-th derivative of the modified Bessel function of the second kind $\left(\frac{d}{dz}\right)^k K_\nu(z)$.
@@ -367,29 +396,34 @@ pub fn bessel_k_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// Evaluated via DLMF 10.29.5:
 /// $$\left(\frac{d}{dz}\right)^k K_\nu(z) = \frac{(-1)^k}{2^k} \sum_{n=0}^k \binom{k}{n} K_{\nu - k + 2n}(z)$$
 ///
+/// When `scaling` is [`Scaling::Scaled`], the result is scaled by $e^{z}$.
+///
 /// # Arguments
 /// * `order` - The order $\nu$ of the Bessel function.
 /// * `z` - The complex or real argument.
 /// * `derivative_order` - The order of the derivative $k \ge 0$.
+/// * `scaling` - Whether to compute the unscaled or exponentially scaled derivative.
 ///
 /// # Examples
 /// ```
-/// use amos_bessel_rs::derivatives::bessel_k_derivative;
+/// use amos_bessel_rs::{Scaling, derivatives::bessel_k_derivative};
 ///
 /// // Second derivative of K_0 at z = 1.0:
-/// let d2k: f64 = bessel_k_derivative(0.0, 1.0, 2).unwrap();
+/// let d2k: f64 = bessel_k_derivative(0.0, 1.0, 2, Scaling::Unscaled).unwrap();
 /// assert!((d2k - 1.0229316684).abs() < 1e-6);
 /// ```
 pub fn bessel_k_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
     derivative_order: u32,
+    scaling: Scaling,
 ) -> Result<ZT, BesselError<FT>> {
     derivative_internal(
         complex_bessel_k,
         order.into(),
         z.into(),
         derivative_order,
+        scaling,
         SignType::K,
     )
     .and_then(ZT::back_from)
@@ -408,6 +442,7 @@ fn derivative_internal<T: BesselFloat>(
     order: T,
     z: Complex<T>,
     derivative_order: u32,
+    scaling: Scaling,
     sign_type: SignType,
 ) -> Result<Complex<T>, BesselError<T>> {
     if derivative_order > 60 {
@@ -423,7 +458,7 @@ fn derivative_internal<T: BesselFloat>(
         prefactor *= integer_sign::<T>(k as i64);
     }
 
-    let values = match func(z, order - T::from_usize(k), Scaling::Unscaled, 2 * k + 1) {
+    let values = match func(z, order - T::from_usize(k), scaling, 2 * k + 1) {
         Ok((values, _n_zeros)) => values,
         Err(BesselError::PartialLossOfSignificance { y, .. }) => y,
         Err(err) => return Err(err),
@@ -442,3 +477,4 @@ fn derivative_internal<T: BesselFloat>(
     }
     Ok(prefactor * sum)
 }
+

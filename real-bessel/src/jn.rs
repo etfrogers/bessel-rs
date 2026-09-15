@@ -99,6 +99,13 @@ pub fn jn(n: i32, x: f64) -> f64 {
     if x == 0.0 {
         return 0.0;
     }
+    if n == i32::MIN {
+        if x.abs() >= TWO_302 {
+            let (s, c) = x.abs().sin_cos();
+            return (1.0 / PI.sqrt()) * (c + s) / x.abs().sqrt();
+        }
+        return 0.0;
+    }
     let (n, x) = if n < 0 { (-n, -x) } else { (n, x) };
     if n == 1 {
         return j1(x);
@@ -249,7 +256,7 @@ pub fn jn(n: i32, x: f64) -> f64 {
 /// For `n = 0` and `n = 1` this delegates to the optimised [`y0`] and [`y1`]
 /// implementations. For `|n| > 1`, forward recurrence from Y₀ and Y₁ is used.
 ///
-/// Yn is only real-valued for positive x. For x ≤ 0, the function returns an
+/// Yn is only real-valued for positive x. For x < 0, the function returns an
 /// `Err(`[`BesselError::NegativeInputForYFunction`]`)` rather than a complex result.
 ///
 /// # Special cases
@@ -300,6 +307,13 @@ pub fn yn(n: i32, x: f64) -> Result<f64, BesselError> {
         } else {
             f64::NEG_INFINITY
         });
+    }
+    if n == i32::MIN {
+        if x >= TWO_302 {
+            let (s, c) = x.sin_cos();
+            return Ok((1.0 / PI.sqrt()) * (s - c) / x.sqrt());
+        }
+        return Ok(f64::NEG_INFINITY);
     }
     let (n, sign) = if n < 0 {
         (-n, n & 1 != 0) // sign true if n < 0 && |n| odd → sign flip

@@ -57,6 +57,8 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
+#[cfg(not(feature = "std"))]
+use num::Float;
 
 pub(crate) mod algorithm;
 pub(crate) mod backend;
@@ -138,10 +140,13 @@ pub fn bessel_zeros<OT: Into<f64>>(
     n_zeros: usize,
     precision: f64,
 ) -> Vec<f64> {
-    let order_f64 = order.into();
+    let mut order_f64 = order.into();
+    if order_f64.fract() == 0.0 {
+        order_f64 = order_f64.abs();
+    }
     assert!(
         order_f64 >= 0.0,
-        "AMOS-backed bessel_zeros requires order >= 0.0. For negative integer orders, use the `fast` module instead, or pass `order.abs()`."
+        "AMOS-backed bessel_zeros requires order >= 0.0 or integer order"
     );
     bessel_zeros_impl::<AmosBackend>(&kind, order_f64, n_zeros, precision)
 }
@@ -209,6 +214,6 @@ pub mod fast {
         n_zeros: usize,
         precision: f64,
     ) -> Vec<f64> {
-        bessel_zeros_impl::<RealBackend>(&kind, order.abs() as f64, n_zeros, precision)
+        bessel_zeros_impl::<RealBackend>(&kind, (order as f64).abs(), n_zeros, precision)
     }
 }

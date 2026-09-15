@@ -85,13 +85,13 @@
 //! and arbitrary $k$-th order derivatives (e.g. [`derivatives::bessel_j_derivative`]) are available:
 //!
 //! ```rust
-//! use amos_bessel_rs::derivatives::{bessel_j_p, bessel_j_derivative};
+//! use amos_bessel_rs::{Scaling, derivatives::{bessel_j_p, bessel_j_derivative}};
 //!
 //! // First derivative J_0'(1.0):
 //! let dj = bessel_j_p(0.0, 1.0).unwrap();
 //!
 //! // Second derivative (d/dz)^2 J_0(1.0):
-//! let d2j = bessel_j_derivative(0.0, 1.0, 2).unwrap();
+//! let d2j = bessel_j_derivative(0.0, 1.0, 2, Scaling::Unscaled).unwrap();
 //! ```
 //!
 //! ## Note on accuracy
@@ -107,6 +107,34 @@
 //! For a full mathematical breakdown of the relative error and phase angle accuracy
 //! based on the original Amos documentation, please see the
 //! [Performance & Accuracy Guide](https://etfrogers.github.io/bessel-rs/).
+//!
+//! ## Branch cuts and signed zero (`-0.0`)
+//!
+//! The functions $Y_\nu$, $K_\nu$, $H_\nu^{(1)}$, and $H_\nu^{(2)}$ possess a
+//! branch cut along the negative real axis $(-\infty, 0]$.
+//!
+//! ### Phase Convention
+//! Following standard DLMF conventions (DLMF 10.11 and 10.25), the principal branch is defined by:
+//!
+//! $$-\pi < \arg(z) \le \pi$$
+//!
+//! The branch cut adheres to the upper half-plane: values on the negative real axis have phase $\arg(z) = +\pi$.
+//!
+//! ### Signed Zero in Floating-Point Arithmetic
+//! In IEEE 754 arithmetic, zero has a distinct sign (`+0.0` vs `-0.0`):
+//! - By standard complex analysis conventions, `Complex::new(-x, 0.0)` corresponds to $\arg(z) = +\pi$ (upper edge of the cut).
+//! - Conversely, `Complex::new(-x, -0.0)` represents an approach from the lower half-plane ($\arg(z) = -\pi$).
+//!
+//! In the underlying Amos algorithm, checks are formulated using `z.im < 0.0`. Under IEEE 754 floating-point
+//! rules, `-0.0 < 0.0` evaluates to `false`. Consequently, both `Complex::new(-x, 0.0)` and `Complex::new(-x, -0.0)`
+//! evaluate consistently on the **upper edge** of the cut ($\arg(z) = +\pi$).
+//!
+//! If values along the lower edge ($\arg(z) \to -\pi$) are required, the standard DLMF cross-cut
+//! continuation relations (DLMF 10.11 and 10.34) should be applied:
+//! - $Y_\nu(z e^{-i\pi}) = e^{i\nu\pi} Y_\nu(z) - 2i\cos(\nu\pi) J_\nu(z)$
+//! - $K_\nu(z e^{-i\pi}) = e^{i\nu\pi} K_\nu(z) + i\pi I_\nu(z)$
+//! - $H_\nu^{(1)}(z e^{-i\pi}) = 2\cos(\nu\pi) H_\nu^{(1)}(z) + e^{-i\nu\pi} H_\nu^{(2)}(z)$
+//!
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[macro_use]

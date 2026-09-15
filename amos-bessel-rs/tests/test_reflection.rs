@@ -173,6 +173,42 @@ fn test_half_integer_closed_forms() {
     }
 }
 
+/// Tests exact spherical/half-integer closed forms for negative orders with Scaling::Scaled.
+#[test]
+fn test_half_integer_closed_forms_scaled() {
+    let test_points = [
+        Complex::new(1.5, 2.0),
+        Complex::new(3.0, -1.5),
+        Complex::new(-2.0, 3.0),
+        Complex::new(-1.0, -2.5),
+        Complex::new(5.0, 0.2),
+        Complex::new(0.8, 0.5),
+        Complex::new(-4.0, 0.1),
+    ];
+
+    for &z in &test_points {
+        let factor = (Complex::new(2.0 / PI, 0.0) / z).sqrt();
+        let i_scale = (-z.re.abs()).exp();
+
+        // I_{-1/2}(z) = sqrt(2 / (pi * z)) * cosh(z) * exp(-|Re(z)|)
+        let actual_i_neg_half: Complex<f64> =
+            complex_bessel_i(z, -0.5, Scaling::Scaled, 1).unwrap().0[0];
+        let expected_i_neg_half = factor * z.cosh() * i_scale;
+        assert_complex_arrays_equal(&actual_i_neg_half, &expected_i_neg_half, &vec![], 1e6);
+
+        // I_{-3/2}(z) = sqrt(2 / (pi * z)) * (sinh(z) - cosh(z)/z) * exp(-|Re(z)|)
+        let actual_i_neg_three_halves: Complex<f64> =
+            complex_bessel_i(z, -1.5, Scaling::Scaled, 1).unwrap().0[0];
+        let expected_i_neg_three_halves = factor * (z.sinh() - z.cosh() / z) * i_scale;
+        assert_complex_arrays_equal(
+            &actual_i_neg_three_halves,
+            &expected_i_neg_three_halves,
+            &vec![],
+            1e6,
+        );
+    }
+}
+
 /// Tests the three-term recurrence relations across negative orders.
 /// Recurrence relations hold for all real nu, providing an invariant test
 /// that does not depend on reflection formulas.
@@ -470,4 +506,220 @@ fn test_non_finite_inputs() {
     let _ = bessel_j(f64::NAN, z);
     let _ = bessel_j(f64::INFINITY, z);
     let _ = bessel_j(-f64::INFINITY, z);
+}
+
+/// Tests that Scaling::Scaled for negative orders matches the mathematical definition:
+/// f_scaled(z) = f_unscaled(z) * scale_factor(z).
+#[test]
+fn test_scaled_negative_orders_against_unscaled() {
+    let test_points: [Complex<f64>; 7] = [
+        Complex::new(1.5, 2.0),
+        Complex::new(3.0, -1.5),
+        Complex::new(0.8, 0.5),
+        Complex::new(2.5, 0.0),
+        Complex::new(0.5, -2.0),
+        Complex::new(-1.5, 2.0),
+        Complex::new(-2.0, -1.0),
+    ];
+    let orders: [f64; 6] = [-0.5, -1.5, -2.3, -3.0, -4.7, -5.0];
+
+    for &z in &test_points {
+        for &order in &orders {
+            // 1. Bessel I: scale factor is exp(-|Re(z)|)
+            if let (Ok((unscaled, _)), Ok((scaled, _))) = (
+                complex_bessel_i(z, order, Scaling::Unscaled, 3),
+                complex_bessel_i(z, order, Scaling::Scaled, 3),
+            ) {
+                let scale_factor = (-z.re.abs()).exp();
+                for (u, s) in unscaled.iter().zip(scaled.iter()) {
+                    let expected = u * scale_factor;
+                    assert_complex_arrays_equal(s, &expected, &vec![], 1e6);
+                }
+            }
+
+            // 2. Bessel J: scale factor is exp(-|Im(z)|)
+            if let (Ok((unscaled, _)), Ok((scaled, _))) = (
+                complex_bessel_j(z, order, Scaling::Unscaled, 3),
+                complex_bessel_j(z, order, Scaling::Scaled, 3),
+            ) {
+                let scale_factor = (-z.im.abs()).exp();
+                for (u, s) in unscaled.iter().zip(scaled.iter()) {
+                    let expected = u * scale_factor;
+                    assert_complex_arrays_equal(s, &expected, &vec![], 1e6);
+                }
+            }
+
+            // 3. Bessel Y: scale factor is exp(-|Im(z)|)
+            if let (Ok((unscaled, _)), Ok((scaled, _))) = (
+                complex_bessel_y(z, order, Scaling::Unscaled, 3),
+                complex_bessel_y(z, order, Scaling::Scaled, 3),
+            ) {
+                let scale_factor = (-z.im.abs()).exp();
+                for (u, s) in unscaled.iter().zip(scaled.iter()) {
+                    let expected = u * scale_factor;
+                    assert_complex_arrays_equal(s, &expected, &vec![], 1e6);
+                }
+            }
+
+            // 4. Bessel K: scale factor is exp(z)
+            if let (Ok((unscaled, _)), Ok((scaled, _))) = (
+                complex_bessel_k(z, order, Scaling::Unscaled, 3),
+                complex_bessel_k(z, order, Scaling::Scaled, 3),
+            ) {
+                let scale_factor = z.exp();
+                for (u, s) in unscaled.iter().zip(scaled.iter()) {
+                    let expected = u * scale_factor;
+                    assert_complex_arrays_equal(s, &expected, &vec![], 1e6);
+                }
+            }
+
+            // 5. Hankel 1: scale factor is exp(-i*z)
+            if let (Ok((unscaled, _)), Ok((scaled, _))) = (
+                complex_hankel1(z, order, Scaling::Unscaled, 3),
+                complex_hankel1(z, order, Scaling::Scaled, 3),
+            ) {
+                let scale_factor = (-Complex::<f64>::I * z).exp();
+                for (u, s) in unscaled.iter().zip(scaled.iter()) {
+                    let expected = u * scale_factor;
+                    assert_complex_arrays_equal(s, &expected, &vec![], 1e6);
+                }
+            }
+
+            // 6. Hankel 2: scale factor is exp(i*z)
+            if let (Ok((unscaled, _)), Ok((scaled, _))) = (
+                complex_hankel2(z, order, Scaling::Unscaled, 3),
+                complex_hankel2(z, order, Scaling::Scaled, 3),
+            ) {
+                let scale_factor = (Complex::<f64>::I * z).exp();
+                for (u, s) in unscaled.iter().zip(scaled.iter()) {
+                    let expected = u * scale_factor;
+                    assert_complex_arrays_equal(s, &expected, &vec![], 1e6);
+                }
+            }
+        }
+    }
+}
+
+/// Tests three-term recurrence relations across negative orders for both Scaled and Unscaled.
+///
+/// Recurrence identities from DLMF 10.6.1 and 10.29.1:
+/// - J_{ν-1}(z) + J_{ν+1}(z) = (2ν/z)·J_ν(z)
+/// - Y_{ν-1}(z) + Y_{ν+1}(z) = (2ν/z)·Y_ν(z)
+/// - I_{ν-1}(z) - I_{ν+1}(z) = (2ν/z)·I_ν(z)
+/// - K_{ν+1}(z) - K_{ν-1}(z) = (2ν/z)·K_ν(z)
+///
+/// For scaled functions, all three terms in each recurrence share the identical exponential
+/// factor (exp(-|Im(z)|) for J/Y, exp(-|Re(z)|) for I, and exp(z) for K), so the identity
+/// holds identically for both Scaling::Unscaled and Scaling::Scaled.
+#[rstest]
+fn test_three_term_recurrence_negative_orders(
+    #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
+    #[values(-0.5, -1.25, -1.5, -2.0, -2.7, -3.5)] nu: f64,
+) {
+    let test_points = [
+        Complex::new(1.5, 2.0),
+        Complex::new(3.0, -1.5),
+        Complex::new(-2.0, 3.0),
+        Complex::new(5.0, 0.2),
+        Complex::new(0.8, 0.5),
+    ];
+
+    for &z in &test_points {
+        let two_nu_over_z = Complex::new(2.0 * nu, 0.0) / z;
+
+        // J recurrence
+        let j_prev = complex_bessel_j(z, nu - 1.0, scaling, 1).unwrap().0[0];
+        let j_curr = complex_bessel_j(z, nu, scaling, 1).unwrap().0[0];
+        let j_next = complex_bessel_j(z, nu + 1.0, scaling, 1).unwrap().0[0];
+        let lhs_j = j_prev + j_next;
+        let rhs_j = two_nu_over_z * j_curr;
+        assert_complex_arrays_equal(&lhs_j, &rhs_j, &vec![], 1e6);
+
+        // Y recurrence
+        let y_prev = complex_bessel_y(z, nu - 1.0, scaling, 1).unwrap().0[0];
+        let y_curr = complex_bessel_y(z, nu, scaling, 1).unwrap().0[0];
+        let y_next = complex_bessel_y(z, nu + 1.0, scaling, 1).unwrap().0[0];
+        let lhs_y = y_prev + y_next;
+        let rhs_y = two_nu_over_z * y_curr;
+        assert_complex_arrays_equal(&lhs_y, &rhs_y, &vec![], 1e6);
+
+        // I recurrence
+        let i_prev = complex_bessel_i(z, nu - 1.0, scaling, 1).unwrap().0[0];
+        let i_curr = complex_bessel_i(z, nu, scaling, 1).unwrap().0[0];
+        let i_next = complex_bessel_i(z, nu + 1.0, scaling, 1).unwrap().0[0];
+        let lhs_i = i_prev - i_next;
+        let rhs_i = two_nu_over_z * i_curr;
+        assert_complex_arrays_equal(&lhs_i, &rhs_i, &vec![], 1e6);
+
+        // K recurrence
+        let k_prev = complex_bessel_k(z, nu - 1.0, scaling, 1).unwrap().0[0];
+        let k_curr = complex_bessel_k(z, nu, scaling, 1).unwrap().0[0];
+        let k_next = complex_bessel_k(z, nu + 1.0, scaling, 1).unwrap().0[0];
+        let lhs_k = k_next - k_prev;
+        let rhs_k = two_nu_over_z * k_curr;
+        assert_complex_arrays_equal(&lhs_k, &rhs_k, &vec![], 1e6);
+    }
+}
+
+/// Tests the cross-order Wronskian relations (DLMF 10.5.2, 10.28.2, 10.5.5)
+/// for both Scaled and Unscaled functions across positive and negative orders:
+///
+/// 1. J_{ν+1}(z)·Y_ν(z) - J_ν(z)·Y_{ν+1}(z) = 2 / (π·z)
+///    When scaled by exp(-|Im(z)|), the RHS is multiplied by exp(-2·|Im(z)|).
+///
+/// 2. I_ν(z)·K_{ν+1}(z) + I_{ν+1}(z)·K_ν(z) = 1 / z
+///    When scaled (I by exp(-|Re(z)|) and K by exp(z)), the RHS is multiplied by
+///    exp(-|Re(z)| + z) = exp(-|x| + x) · cis(y).
+///
+/// 3. H^(1)_{ν+1}(z)·H^(2)_ν(z) - H^(1)_ν(z)·H^(2)_{ν+1}(z) = -4i / (π·z)
+///    When scaled (H1 by exp(-iz) and H2 by exp(iz)), the scale factors cancel
+///    identically (exp(-iz)·exp(iz) = 1), so the relation is exact for both scalings.
+#[rstest]
+fn test_wronskian_cross_product_scaled_and_unscaled(
+    #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
+    #[values(-2.7, -2.0, -1.5, -0.5, 0.0, 0.5, 1.5, 2.3)] nu: f64,
+) {
+    let test_points = [
+        Complex::new(1.5, 2.0),
+        Complex::new(3.0, -1.5),
+        Complex::new(-2.0, 3.0),
+        Complex::new(-1.0, -2.5),
+        Complex::new(5.0, 0.2),
+        Complex::new(0.8, 0.5),
+        Complex::new(-4.0, 0.1),
+    ];
+
+    for &z in &test_points {
+        // 1. J and Y cross-product
+        let j = complex_bessel_j(z, nu, scaling, 2).unwrap().0;
+        let y = complex_bessel_y(z, nu, scaling, 2).unwrap().0;
+        let cross_jy = j[1] * y[0] - j[0] * y[1];
+        let expected_jy_unscaled = Complex::new(2.0 / PI, 0.0) / z;
+        let expected_jy = match scaling {
+            Scaling::Unscaled => expected_jy_unscaled,
+            Scaling::Scaled => expected_jy_unscaled * (-2.0 * z.im.abs()).exp(),
+        };
+        assert_complex_arrays_equal(&cross_jy, &expected_jy, &vec![], 1e6);
+
+        // 2. I and K cross-product
+        let i_vals = complex_bessel_i(z, nu, scaling, 2).unwrap().0;
+        let k_vals = complex_bessel_k(z, nu, scaling, 2).unwrap().0;
+        let cross_ik = i_vals[0] * k_vals[1] + i_vals[1] * k_vals[0];
+        let expected_ik_unscaled = Complex::new(1.0, 0.0) / z;
+        let expected_ik = match scaling {
+            Scaling::Unscaled => expected_ik_unscaled,
+            Scaling::Scaled => {
+                let r = -z.re.abs() + z.re; // 0 if re >= 0, 2*re if re < 0
+                expected_ik_unscaled * r.exp() * Complex::cis(z.im)
+            }
+        };
+        assert_complex_arrays_equal(&cross_ik, &expected_ik, &vec![], 1e6);
+
+        // 3. Hankel 1 and 2 cross-product
+        let h1 = complex_hankel1(z, nu, scaling, 2).unwrap().0;
+        let h2 = complex_hankel2(z, nu, scaling, 2).unwrap().0;
+        let cross_h = h1[1] * h2[0] - h1[0] * h2[1];
+        let expected_h = Complex::new(0.0, -4.0 / PI) / z;
+        assert_complex_arrays_equal(&cross_h, &expected_h, &vec![], 1e6);
+    }
 }

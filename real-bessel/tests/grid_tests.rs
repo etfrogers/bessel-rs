@@ -13,7 +13,9 @@ const Z_PARTS: [f64; 37] = [
 ];
 
 #[rstest]
-fn test_jn_grid(#[values(0, 1, 2, 5, 10, 25, 50, 100, 200, 500, 1000, -2)] order: i32) {
+fn test_jn_grid(
+    #[values(0, 1, 2, 5, 10, 25, 50, 100, 200, 500, 1000, -1, -2, -3, -5, -10, -25)] order: i32,
+) {
     for &zr in &Z_PARTS {
         let expected = unwrap_real_bessel!(bessel_j, order as f64, zr);
         let actual = jn(order, zr);
@@ -26,7 +28,9 @@ fn test_jn_grid(#[values(0, 1, 2, 5, 10, 25, 50, 100, 200, 500, 1000, -2)] order
 }
 
 #[rstest]
-fn test_yn_grid(#[values(0, 1, 2, 5, 10, 25, 50, 100, 200, 500, 1000, -2)] order: i32) {
+fn test_yn_grid(
+    #[values(0, 1, 2, 5, 10, 25, 50, 100, 200, 500, 1000, -1, -2, -3, -5, -10, -25)] order: i32,
+) {
     for &zr in &Z_PARTS {
         let mut zr_test = zr;
         let yn = |z| yn(order, z);
@@ -39,3 +43,19 @@ fn test_yn_grid(#[values(0, 1, 2, 5, 10, 25, 50, 100, 200, 500, 1000, -2)] order
         }
     }
 }
+
+#[test]
+fn test_i32_min_edge_case() {
+    assert_eq!(jn(i32::MIN, 1.0), 0.0);
+    assert_eq!(jn(i32::MIN, -1.0), 0.0);
+    assert_eq!(jn(i32::MIN, 0.0), 0.0);
+    assert!(jn(i32::MIN, f64::NAN).is_nan());
+    assert_eq!(jn(i32::MIN, f64::INFINITY), 0.0);
+
+    assert_eq!(yn(i32::MIN, 1.0).unwrap(), f64::NEG_INFINITY);
+    assert_eq!(yn(i32::MIN, 0.0).unwrap(), f64::NEG_INFINITY);
+    assert!(yn(i32::MIN, -1.0).is_err());
+    assert!(yn(i32::MIN, f64::NAN).unwrap().is_nan());
+    assert_eq!(yn(i32::MIN, f64::INFINITY).unwrap(), 0.0);
+}
+

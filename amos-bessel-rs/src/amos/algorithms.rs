@@ -11,7 +11,7 @@ use crate::{
         i_pow_n,
         limits::check_underflow_uniform_asymp_params,
         right_half_plane::{i_right_half_plane, k_right_half_plane},
-        utils::{is_significance_lost, validate_core_inputs},
+        utils::{is_significance_lost, validate_core_inputs, validate_inputs},
     },
     prelude::*,
     types::BesselResult,
@@ -489,6 +489,7 @@ pub fn complex_airy<T: BesselFloat>(
     return_derivative: bool,
     scaling: Scaling,
 ) -> Result<(Complex<T>, usize), BesselError<T>> {
+    validate_inputs(z, T::ZERO, 1)?;
     const POWER_SERIES_COEFFS: (f64, f64) = (3.550_280_538_878_172e-1, 2.588_194_037_928_068e-1);
     const FRAC_1_PI_SQRT_3: f64 = 1.837_762_984_739_306_8e-1;
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
@@ -604,6 +605,7 @@ pub fn complex_airy_b<T: BesselFloat>(
     return_derivative: bool,
     scaling: Scaling,
 ) -> Result<Complex<T>, BesselError<T>> {
+    validate_inputs(z, T::ZERO, 1)?;
     const POWER_SERIES_COEFFS: (f64, f64) = (6.149_266_274_460_007e-1, -4.482_883_573_538_264e-1);
     const FRAC_1_SQRT_3: f64 = 5.773_502_691_896_257e-1;
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
