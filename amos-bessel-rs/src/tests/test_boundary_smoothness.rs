@@ -14,6 +14,7 @@ use std::f64::consts::PI;
 
 const ORDER_SMOOTHNESS_TOLERANCE: f64 = 1e-3; // Order derivative difference is O(delta) - we don't have analytic order derivative
 const Z_SMOOTHNESS_TOLERANCE: f64 = 1e-7; // z Taylor-shooting tolerance
+const DELTA: f64 = 1e-4;
 
 /// Amos parameter RL: lower boundary of asymptotic expansion
 /// for large z (≈ 21.784_271_729_432_426).
@@ -49,7 +50,7 @@ fn hankel2(order: f64, z: Complex<f64>) -> Result<Complex<f64>, BesselError> {
 /// Verifies that a function is C¹ smooth across a radial boundary circle |z| = r_boundary
 /// at angle theta. Steps radially by ±delta along u = exp(i·theta) and compares the
 /// finite-difference slope across the boundary against the exact analytical derivative.
-fn assert_radial_smoothness<F, DF>(func: F, deriv: DF, r_boundary: f64, delta: f64, context: &str)
+fn assert_radial_smoothness<F, DF>(func: F, deriv: DF, r_boundary: f64, context: &str)
 where
     F: Fn(Complex<f64>) -> Result<Complex<f64>, BesselError>,
     DF: Fn(Complex<f64>, u32) -> Result<Complex<f64>, BesselError>,
@@ -70,7 +71,7 @@ where
         let z_center = Complex::from_polar(r_boundary, theta);
         let theta_context = format!("{context} (θ = {theta:.3} rad, r = {r_boundary})");
 
-        assert_directional_smoothness(&func, &deriv, z_center, direction, delta, &theta_context);
+        assert_directional_smoothness(&func, &deriv, z_center, direction, &theta_context);
     }
 }
 
@@ -81,16 +82,17 @@ fn assert_directional_smoothness<F, DF>(
     deriv: DF,
     z_center: Complex<f64>,
     direction: Complex<f64>,
-    delta: f64,
+
     context: &str,
 ) where
     F: Fn(Complex<f64>) -> Result<Complex<f64>, BesselError>,
     DF: Fn(Complex<f64>, u32) -> Result<Complex<f64>, BesselError>,
 {
     assert_relative_eq!(direction.norm(), 1.0);
+    let dz = DELTA * direction;
 
-    let z_minus = z_center - delta * direction;
-    let z_plus = z_center + delta * direction;
+    let z_minus = z_center - dz;
+    let z_plus = z_center + dz;
 
     let f_minus = func(z_minus)
         .unwrap_or_else(|e| panic!("{context}: Left evaluation failed at z={z_minus}: {e:?}"));
@@ -111,12 +113,11 @@ fn assert_directional_smoothness<F, DF>(
     let d2f_plus = deriv(z_plus, 2)
         .unwrap_or_else(|e| panic!("{context}: Analytical derivative failed at z={z_plus}: {e:?}"));
 
-    let dz = delta * direction;
     let from_minus = f_minus + (df_minus * dz) + 0.5 * d2f_minus * dz.powi(2);
     let from_plus = f_plus - (df_plus * dz) + 0.5 * d2f_plus * dz.powi(2);
     // let df_numerical = (f_plus - f_minus) / (2.0 * delta * direction);
     let assert_eq = |a: Complex<f64>, b: Complex<f64>| {
-        let scale = a.norm().max(b.norm() / z_center.norm()).max(1e-15);
+        let scale = a.norm().max(b.norm()).max(1e-15);
         let diff = (a - b).norm();
         let rel_err = diff / scale;
 
@@ -133,28 +134,28 @@ fn assert_directional_smoothness<F, DF>(
 
 /// Verifies that a function is continuous and smooth with respect to the order parameter ν
 /// across an order boundary nu_boundary. Compares left-side and right-side one-sided finite differences.
-fn assert_order_smoothness<F>(func: F, nu_boundary: f64, z: Complex<f64>, delta: f64, context: &str)
+fn assert_order_smoothness<F>(func: F, nu_boundary: f64, z: Complex<f64>, context: &str)
 where
     F: Fn(f64, Complex<f64>) -> Result<Complex<f64>, BesselError>,
 {
-    let f_minus = func(nu_boundary - delta, z).unwrap_or_else(|e| {
+    let f_minus = func(nu_boundary - DELTA, z).unwrap_or_else(|e| {
         panic!(
             "{context}: Left order eval failed at nu={}: {e:?}",
-            nu_boundary - delta
+            nu_boundary - DELTA
         )
     });
     let f_center = func(nu_boundary, z).unwrap_or_else(|e| {
         panic!("{context}: Center order eval failed at nu={nu_boundary}: {e:?}")
     });
-    let f_plus = func(nu_boundary + delta, z).unwrap_or_else(|e| {
+    let f_plus = func(nu_boundary + DELTA, z).unwrap_or_else(|e| {
         panic!(
             "{context}: Right order eval failed at nu={}: {e:?}",
-            nu_boundary + delta
+            nu_boundary + DELTA
         )
     });
 
-    let slope_left = (f_center - f_minus) / delta;
-    let slope_right = (f_plus - f_center) / delta;
+    let slope_left = (f_center - f_minus) / DELTA;
+    let slope_right = (f_plus - f_center) / DELTA;
 
     let diff = (slope_right - slope_left).norm();
     let scale = slope_left
@@ -179,8 +180,6 @@ where
 /// from Bessel K_{1/3}, K_{2/3} formulation (|z| > 1.0).
 #[rstest]
 fn test_airy_radial_smoothness_at_z_1() {
-    let delta = 1e-4;
-
     // Ai: derivative is Ai'
     assert_radial_smoothness(
         airy::<f64, _>,
@@ -190,7 +189,6 @@ fn test_airy_radial_smoothness_at_z_1() {
             _ => unreachable!(),
         },
         1.0,
-        delta,
         "Airy Ai at |z|=1.0",
     );
 
@@ -203,7 +201,6 @@ fn test_airy_radial_smoothness_at_z_1() {
             _ => unreachable!(),
         },
         1.0,
-        delta,
         "Airy Ai' at |z|=1.0",
     );
 
@@ -216,7 +213,6 @@ fn test_airy_radial_smoothness_at_z_1() {
             _ => unreachable!(),
         },
         1.0,
-        delta,
         "Airy Bi at |z|=1.0",
     );
 
@@ -229,7 +225,6 @@ fn test_airy_radial_smoothness_at_z_1() {
             _ => unreachable!(),
         },
         1.0,
-        delta,
         "Airy Bi' at |z|=1.0",
     );
 }
@@ -244,13 +239,10 @@ fn test_airy_radial_smoothness_at_z_1() {
 #[case(2.5)]
 #[case(85.0)] // just less than asymptotic_order_limit
 fn test_bessel_k_radial_smoothness_at_z_2(#[case] nu: f64) {
-    let delta = 1e-5;
-
     assert_radial_smoothness(
         |z| bessel_k(nu, z),
         |z, order| bessel_k_derivative(nu, z, order, Scaling::Unscaled),
         2.0,
-        delta,
         &format!("Bessel K_{nu} at |z|=2.0"),
     );
 }
@@ -264,14 +256,32 @@ fn test_bessel_k_radial_smoothness_at_z_2(#[case] nu: f64) {
 #[case(3.0, 4.0)]
 #[case(8.0, 6.0)]
 fn test_bessel_i_radial_smoothness_power_series_boundary(#[case] nu: f64, #[case] r_boundary: f64) {
-    let delta = 1e-4;
-
     assert_radial_smoothness(
         |z| bessel_i(nu, z),
         |z, order| bessel_i_derivative(nu, z, order, Scaling::Unscaled),
         r_boundary,
-        delta,
         &format!("Bessel I_{nu} at parabolic boundary |z|={r_boundary:.3}"),
+    );
+}
+
+/// Amos Figure 1 (I_ν): Parabolic boundary |z| = ν² / 2 separating Hankel large-argument
+/// asymptotics (Domain II) from Miller with Wronskian (Domain V, for ν <= √(2·FNUL))
+/// or uniform Debye asymptotics with recurrence (Domain IV, for ν > √(2·FNUL)).
+#[rstest]
+#[case(7.0, 7.0 * 7.0 / 2.0)]
+#[case(8.0, 8.0 * 8.0 / 2.0)]
+#[case(10.0, 10.0 * 10.0 / 2.0)]
+#[case(12.0, 12.0 * 12.0 / 2.0)]
+#[case(15.0, 15.0 * 15.0 / 2.0)]
+fn test_bessel_i_radial_smoothness_parabolic_asymptotic_boundary(
+    #[case] nu: f64,
+    #[case] r_boundary: f64,
+) {
+    assert_radial_smoothness(
+        |z| bessel_i(nu, z),
+        |z, order| bessel_i_derivative(nu, z, order, Scaling::Unscaled),
+        r_boundary,
+        &format!("Bessel I_{nu} at parabolic asymptotic boundary |z|={r_boundary:.3}"),
     );
 }
 
@@ -285,13 +295,10 @@ fn test_bessel_i_radial_smoothness_power_series_boundary(#[case] nu: f64, #[case
 #[case(80.0)]
 #[case(85.0)]
 fn test_bessel_i_radial_smoothness_at_asymptotic_order_limit(#[case] nu: f64) {
-    let delta = 1e-4;
-
     assert_radial_smoothness(
         |z| bessel_i(nu, z),
         |z, order| bessel_i_derivative(nu, z, order, Scaling::Unscaled),
         asymptotic_order_limit(),
-        delta,
         &format!("Bessel I_{nu} at |z|=FNUL"),
     );
 }
@@ -308,13 +315,10 @@ fn test_bessel_i_radial_smoothness_at_asymptotic_order_limit(#[case] nu: f64) {
 #[case(45.23)]
 #[case(85.0)]
 fn test_bessel_i_radial_smoothness_at_asymptotic_z_limit(#[case] nu: f64) {
-    let delta = 1e-4;
-
     assert_radial_smoothness(
         |z| bessel_i(nu, z),
         |z, order| bessel_i_derivative(nu, z, order, Scaling::Unscaled),
         asymptotic_z_limit(),
-        delta,
         &format!("Bessel I_{nu} at |z|=RL"),
     );
 }
@@ -326,14 +330,42 @@ fn test_bessel_i_radial_smoothness_at_asymptotic_z_limit(#[case] nu: f64) {
 #[case(1.5)]
 #[case(4.0)]
 fn test_bessel_k_radial_smoothness_at_recurrence_threshold(#[case] nu: f64) {
-    let delta = 1e-4;
-
     assert_radial_smoothness(
         |z| bessel_k(nu, z),
         |z, order| bessel_k_derivative(nu, z, order, Scaling::Unscaled),
         recurrence_threshold(),
-        delta,
         &format!("Bessel K_{nu} at Miller recurrence threshold |z|=R2"),
+    );
+}
+
+/// Amos uniform asymptotics angular boundary |arg(z)| = π/3 (60°):
+/// Separates direct uniform Airy expansions (ZUNI1 / ZUNK1) for |arg(z)| <= π/3
+/// from rotated uniform expansions (ZUNI2 / ZUNK2) for π/3 < |arg(z)| <= π/2.
+#[rstest]
+#[case(100.0, 30.0)]
+#[case(100.0, 80.0)]
+#[case(120.0, 50.0)]
+fn test_uniform_asymptotics_angular_boundary_pi_over_3(#[case] nu: f64, #[case] r: f64) {
+    let theta = PI / 3.0;
+    let z_center = Complex::from_polar(r, theta);
+    // Normal direction pointing across the ray in the direction of increasing argument theta:
+    // d/dθ (r e^{iθ}) / r = i e^{iθ} = exp(i(θ + π/2))
+    let direction = Complex::from_polar(1.0, theta + PI / 2.0);
+
+    assert_directional_smoothness(
+        |z| bessel_k(nu, z),
+        |z, order| bessel_k_derivative(nu, z, order, Scaling::Unscaled),
+        z_center,
+        direction,
+        &format!("Bessel K_{nu} across uniform asymptotics angular boundary θ=π/3 (r={r})"),
+    );
+
+    assert_directional_smoothness(
+        |z| bessel_i(nu, z),
+        |z, order| bessel_i_derivative(nu, z, order, Scaling::Unscaled),
+        z_center,
+        direction,
+        &format!("Bessel I_{nu} across uniform asymptotics angular boundary θ=π/3 (r={r})"),
     );
 }
 
@@ -349,13 +381,10 @@ fn test_bessel_k_radial_smoothness_at_recurrence_threshold(#[case] nu: f64) {
 #[case(Complex::new(10.0, -3.0))]
 #[case(Complex::new(15.0, 5.0))]
 fn test_bessel_i_order_smoothness_at_nu_1(#[case] z: Complex<f64>) {
-    let delta = 1e-4;
-
     assert_order_smoothness(
         bessel_i,
         1.0,
         z,
-        delta,
         "Bessel I_ν at ν=1.0 (Neumann vs Wronskian)",
     );
 }
@@ -369,14 +398,12 @@ fn test_bessel_i_order_smoothness_at_nu_1(#[case] z: Complex<f64>) {
 #[case(60.0)]
 #[case(90.0)] // asymptotic -> backward recursion regime for i
 fn test_bessel_order_smoothness_at_asymptotic_order_limit(#[case] zr: f64) {
-    let delta = 1e-4;
     let z = Complex::new(zr, 0.0);
 
     assert_order_smoothness(
         bessel_k,
         asymptotic_order_limit(),
         z,
-        delta,
         "Bessel K_ν at ν=FNUL (Recurrence vs Uniform Asymptotics)",
     );
 
@@ -384,7 +411,6 @@ fn test_bessel_order_smoothness_at_asymptotic_order_limit(#[case] zr: f64) {
         bessel_i,
         asymptotic_order_limit(),
         z,
-        delta,
         "Bessel I_ν at ν=FNUL (Recurrence vs Uniform Asymptotics)",
     );
 
@@ -392,7 +418,6 @@ fn test_bessel_order_smoothness_at_asymptotic_order_limit(#[case] zr: f64) {
         hankel1,
         asymptotic_order_limit(),
         z,
-        delta,
         "Hankel H^(1)_ν at ν=FNUL (Recurrence vs Uniform Asymptotics)",
     );
 }
@@ -404,19 +429,17 @@ fn test_bessel_order_smoothness_at_asymptotic_order_limit(#[case] zr: f64) {
 /// - ν = 1.5: Exact closed form + boundary where forward recurrence begins (1 recurrence step)
 #[rstest]
 #[case(0.0)]
+#[case(0.1)] // Temme series Taylor-vs-Gamma threshold |nu - round(nu)| = 0.1
 #[case(0.5)]
 #[case(1.0)]
 #[case(1.5)]
 fn test_bessel_k_order_smoothness_low_orders(#[case] nu: f64) {
-    let delta = 1e-4;
-
     // 1. Temme power series regime (|z| <= 2.0)
     let z_small = Complex::new(1.0, 0.5);
     assert_order_smoothness(
         bessel_k,
         nu,
         z_small,
-        delta,
         &format!("Bessel K_ν at ν={nu} in Temme series regime (|z| <= 2)"),
     );
 
@@ -426,7 +449,6 @@ fn test_bessel_k_order_smoothness_low_orders(#[case] nu: f64) {
         bessel_k,
         nu,
         z_large,
-        delta,
         &format!("Bessel K_ν at ν={nu} in Miller regime (|z| > 2)"),
     );
 }
@@ -444,7 +466,6 @@ fn test_bessel_k_order_smoothness_low_orders(#[case] nu: f64) {
 #[case(2.5, 4.0)]
 #[case(2.5, 10.0)]
 fn test_imaginary_axis_smoothness_i_and_k(#[case] nu: f64, #[case] y: f64) {
-    let delta = 1e-4;
     let z_center = Complex::new(0.0, y);
     let horizontal = Complex::new(1.0, 0.0);
 
@@ -454,7 +475,6 @@ fn test_imaginary_axis_smoothness_i_and_k(#[case] nu: f64, #[case] y: f64) {
         |z, order| bessel_i_derivative(nu, z, order, Scaling::Unscaled),
         z_center,
         horizontal,
-        delta,
         &format!("Bessel I_{nu} crossing Re(z)=0 at y={y}"),
     );
 
@@ -464,7 +484,6 @@ fn test_imaginary_axis_smoothness_i_and_k(#[case] nu: f64, #[case] y: f64) {
         |z, order| bessel_k_derivative(nu, z, order, Scaling::Unscaled),
         z_center,
         horizontal,
-        delta,
         &format!("Bessel K_{nu} crossing Re(z)=0 at y={y}"),
     );
 }
@@ -478,7 +497,6 @@ fn test_imaginary_axis_smoothness_i_and_k(#[case] nu: f64, #[case] y: f64) {
 #[case(1.5, 8.0)]
 #[case(2.0, 12.0)]
 fn test_real_axis_smoothness_j_and_y(#[case] nu: f64, #[case] x: f64) {
-    let delta = 1e-4;
     let z_center = Complex::new(x, 0.0);
     let vertical = Complex::new(0.0, 1.0); // Direction along imaginary axis
 
@@ -488,7 +506,6 @@ fn test_real_axis_smoothness_j_and_y(#[case] nu: f64, #[case] x: f64) {
         |z, order| bessel_j_derivative(nu, z, order, Scaling::Unscaled),
         z_center,
         vertical,
-        delta,
         &format!("Bessel J_{nu} crossing Im(z)=0 at x={x}"),
     );
 
@@ -498,7 +515,6 @@ fn test_real_axis_smoothness_j_and_y(#[case] nu: f64, #[case] x: f64) {
         |z, order| bessel_y_derivative(nu, z, order, Scaling::Unscaled),
         z_center,
         vertical,
-        delta,
         &format!("Bessel Y_{nu} crossing Im(z)=0 at x={x}"),
     );
 }
@@ -510,7 +526,6 @@ fn test_real_axis_smoothness_j_and_y(#[case] nu: f64, #[case] x: f64) {
 #[case(1.0, 5.0)]
 #[case(2.5, 8.0)]
 fn test_real_axis_smoothness_hankel(#[case] nu: f64, #[case] x: f64) {
-    let delta = 1e-4;
     let z_center = Complex::new(x, 0.0);
     let vertical = Complex::new(0.0, 1.0);
 
@@ -519,7 +534,6 @@ fn test_real_axis_smoothness_hankel(#[case] nu: f64, #[case] x: f64) {
         |z, order| hankel1_derivative(nu, z, order, Scaling::Unscaled),
         z_center,
         vertical,
-        delta,
         &format!("Hankel H^(1)_{nu} crossing Im(z)=0 at x={x}"),
     );
 
@@ -528,7 +542,6 @@ fn test_real_axis_smoothness_hankel(#[case] nu: f64, #[case] x: f64) {
         |z, order| hankel2_derivative(nu, z, order, Scaling::Unscaled),
         z_center,
         vertical,
-        delta,
         &format!("Hankel H^(2)_{nu} crossing Im(z)=0 at x={x}"),
     );
 }
