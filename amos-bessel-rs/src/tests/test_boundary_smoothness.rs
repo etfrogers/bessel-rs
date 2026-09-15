@@ -1,3 +1,69 @@
+//! # Boundary Smoothness & Continuity Verification
+//!
+//! ## Purpose
+//! The Amos Bessel library (Sandia Report SAND85-1018) evaluates Bessel, Hankel, and Airy
+//! functions using a patchwork of specialized algorithms across distinct regions in the
+//! (nu, |z|) parameter plane and the complex argument plane. Different regimes employ:
+//! - Maclaurin / Taylor power series for small arguments,
+//! - Miller's backward recurrence with Neumann series normalization for low orders,
+//! - Miller's backward recurrence with Wronskian normalization for intermediate orders,
+//! - Hankel large-argument asymptotic expansions,
+//! - Uniform Debye asymptotic expansions in terms of Airy functions for large orders,
+//! - Left-half plane analytic continuation and conjugate symmetry across coordinate axes.
+//!
+//! Analytically, these functions are smooth (C^inf / holomorphic) everywhere except at
+//! branch cuts and true physical singularities. However, across internal algorithmic
+//! switching boundaries, differences in truncation errors, starting index heuristics, or
+//! normalization schemes can introduce non-physical numerical discontinuities or gradient jumps.
+//!
+//! This test suite systematically probes every internal algorithm boundary across the entire
+//! library to confirm that evaluations transition smoothly (C^1 continuity).
+//!
+//! ## Approach
+//!
+//! ### 1. Radial and Directional z-Boundaries (Taylor Shooting)
+//! To evaluate smoothness across a boundary point z_0 along a unit normal vector u:
+//! 1. Step symmetrically away from the boundary by dz = DELTA * u:
+//!    z_minus = z_0 - dz
+//!    z_plus  = z_0 + dz
+//! 2. Evaluate function values and exact analytical derivatives:
+//!    f(z_minus), f'(z_minus), f''(z_minus)
+//!    f(z_plus),  f'(z_plus),  f''(z_plus)
+//!    computed via recurrence identities from the [`crate::derivatives`] module.
+//! 3. Shoot back to the center using 2-term Taylor extrapolation:
+//!    from_minus = f(z_minus) + f'(z_minus) * dz + 0.5 * f''(z_minus) * (dz)²
+//!    from_plus  = f(z_plus)  - f'(z_plus)  * dz + 0.5 * f''(z_plus)  * (dz)²
+//! 4. Compare both extrapolated values against the evaluation at the center, f(z_0).
+//!
+//! Because analytical 1st and 2nd derivatives are used, the O(DELTA²) curvature error
+//! cancels out completely, leaving an O(DELTA³) residual (~ 1e-12 for DELTA = 1e-4).
+//! This allows a strict relative tolerance of 1e-7 ([`Z_SMOOTHNESS_TOLERANCE`]).
+//!
+//! Radial boundaries (|z| = R) are automatically swept across 8 representative complex
+//! angles θ in {0, π/6, π/4, π/2, 2π/3, 3π/4, -π/4, -π/2}.
+//!
+//! ### 2. Order Parameter nu-Boundaries
+//! Because analytical derivatives with respect to order (df/dnu) are not computed by the library,
+//! order boundaries (such as nu = 1.0, nu = FNUL, and low-order singular points) are tested
+//! via one-sided finite-difference consistency:
+//!      slope_left  = (f(nu_0) - f(nu_0 - DELTA)) / DELTA
+//!      slope_right = (f(nu_0 + DELTA) - f(nu_0)) / DELTA
+//! and verifying that the relative slope difference satisfies:
+//!      |slope_right - slope_left| / scale < 1e-3 ([`ORDER_SMOOTHNESS_TOLERANCE`])
+//! which is consistent with O(DELTA) truncation error.
+//!
+//! ### 3. Boundaries Covered
+//! - I_nu(z) (Amos Figure 1): Parabolic series boundary |z| = 2√(nu + 1), parabolic Hankel
+//!   boundary |z| = nu² / 2, radial limits |z| = RL and |z| = FNUL, and order thresholds
+//!   nu = 1.0 and nu = FNUL.
+//! - K_nu(z) (Amos Figure 2): Series limit |z| = 2.0, recurrence threshold |z| = R_2, order
+//!   limit nu = FNUL, low orders nu in {0.0, 0.1, 0.5, 1.0, 1.5}, and Temme threshold |Δnu| = 0.1.
+//! - Uniform Debye Asymptotics (Amos §4): Angular boundary |arg(z)| = π/3 (60°) separating direct
+//!   (ZUNI1 / ZUNK1) from rotated (ZUNI2 / ZUNK2) Airy-type expansions.
+//! - Coordinate Axes: Imaginary axis Re(z) = 0 for I_nu, K_nu; positive real axis
+//!   Im(z) = 0 for J_nu, Y_nu and Hankel H^(1)_nu, H^(2)_nu.
+//! - Airy Functions: Boundary |z| = 1.0 for Ai, Ai', Bi, Bi'.
+
 use crate::{
     BesselError, BesselFloat, HankelKind, Scaling, airy, airy_b, airy_bp, airyp, bessel_i,
     bessel_j, bessel_k, bessel_y,
