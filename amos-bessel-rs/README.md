@@ -39,7 +39,7 @@ Usage
 
 ```toml
 [dependencies]
-amos-bessel-rs = "0.4"
+amos-bessel-rs = "1.0"
 ```
 
 ### `no_std` Support
@@ -50,7 +50,7 @@ To use in a `no_std` environment, disable default features:
 
 ```toml
 [dependencies]
-amos-bessel-rs = { version = "0.4", default-features = false }
+amos-bessel-rs = { version = "1.0", default-features = false }
 ```
 
 Alternatives
