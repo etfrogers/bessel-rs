@@ -78,8 +78,11 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
     let mut remaining_n: usize = n;
     let mut max_order = order + T::from_usize(n - 1);
     let mut y = T::c_zeros(n);
-    if abs_z <= T::TWO || abs_z.powi(2) * T::from_f64(0.25) <= max_order + T::ONE {
-        // Power series for small z
+    // Power series for small z: |z|² / 4 ≤ ν_max + 1 (Domain I in Amos Fig. 1).
+    // Note: Amos's Fortran ZBINU included an explicit `IF (AZ.LE.2.0D0)` fast-path before
+    // the parabolic check to save a multiplication on 1980s hardware.
+    // We omit the redundant `abs_z <= 2.0` check here, as it's not needed on modern hardware.
+    if abs_z.powi(2) * T::from_f64(0.25) <= max_order + T::ONE {
         let n_zeros_inner;
         // i_power_series return *signed* n_zeros. As per the docs
         // n_zeros > 0 means that the last n_zeros components were set to zero
