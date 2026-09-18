@@ -1,12 +1,11 @@
 use num::complex::{Complex, ComplexFloat};
 
 use crate::{
-    BesselFloat, Scaling,
+    BesselError, BesselFloat, Scaling,
     amos::{
         MachineConsts, gamma_ln,
         utils::{two_over_z_safe, will_underflow},
     },
-    types::BesselResult,
 };
 
 /// z_power_series computes the I bessel function for `real(z) >= 0.0` by
@@ -22,12 +21,12 @@ pub fn i_power_series<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
-    n: usize,
-) -> BesselResult<T, isize> {
+    out: &mut [Complex<T>],
+) -> Result<isize, BesselError<T>> {
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let mut n_zeros = 0;
     let abs_z = z.abs();
-    let mut y = T::c_zeros(n);
+    let n = out.len();
 
     if abs_z < mc.underflow_limit {
         // If z is zero or very small, can return straight away.
@@ -35,7 +34,7 @@ pub fn i_power_series<T: BesselFloat>(
         // we underflowed, so set n_zeros = n. This is then adjusted for order = 0,
         // as we can set y[0] to one, and return one less n_zeros.
         if order == T::ZERO {
-            y[0] = T::C_ONE;
+            out[0] = T::C_ONE;
         }
         if abs_z != T::ZERO {
             n_zeros = n.try_into().unwrap();
@@ -43,7 +42,7 @@ pub fn i_power_series<T: BesselFloat>(
                 n_zeros -= 1;
             }
         }
-        return Ok((y, n_zeros));
+        return Ok(n_zeros);
     }
 
     let mut scale_factor = T::one();
@@ -76,7 +75,7 @@ pub fn i_power_series<T: BesselFloat>(
             }
             if ln_leading_term.re <= -mc.exponent_limit {
                 n_zeros += 1;
-                y[k] = T::C_ZERO;
+                out[k] = T::C_ZERO;
                 if abs_half_z_sq > current_order {
                     break;
                 }
@@ -99,7 +98,7 @@ pub fn i_power_series<T: BesselFloat>(
             let s2 = s1 * coeff;
             if near_underflow && will_underflow(s2, mc) {
                 n_zeros += 1;
-                y[k] = T::C_ZERO;
+                out[k] = T::C_ZERO;
                 continue;
             }
             if num_seeded == 0 {
@@ -108,7 +107,7 @@ pub fn i_power_series<T: BesselFloat>(
                 y_k_plus_1 = s2;
             }
             num_seeded += 1;
-            y[k] = s2 * scale_factor;
+            out[k] = s2 * scale_factor;
         } else {
             // Continue recurring backward. If underflow was close previously, use scaled values,
             // but the first time that we get out of the underflow region, we can switch
@@ -120,17 +119,17 @@ pub fn i_power_series<T: BesselFloat>(
                     y_k_plus_1,
                     (two_over_z * y_k_plus_1) * modified_order + y_k_plus_2,
                 );
-                y[k] = y_k_plus_1 * scale_factor;
-                if y[k].abs() > mc.absolute_approximation_limit {
+                out[k] = y_k_plus_1 * scale_factor;
+                if out[k].abs() > mc.absolute_approximation_limit {
                     near_underflow = false;
                 }
             } else {
                 // .. using unscaled values
-                y[k] = (two_over_z * y[k + 1]) * modified_order + y[k + 2];
+                out[k] = (two_over_z * out[k + 1]) * modified_order + out[k + 2];
             }
         }
     }
-    Ok((y, n_zeros))
+    Ok(n_zeros)
 }
 
 fn single_n_iteration<T: BesselFloat>(

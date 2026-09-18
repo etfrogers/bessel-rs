@@ -1,19 +1,18 @@
+use alloc::vec::Vec;
 use core::{
     fmt::Debug,
     ops::{AddAssign, Div, DivAssign, Mul, MulAssign, RemAssign, SubAssign},
 };
-
-use crate::prelude::*;
-
-#[cfg(feature = "std")]
-use std::sync::LazyLock;
-
-use crate::amos::{MACHINE_CONSTANTS_32, MACHINE_CONSTANTS_64, MachineConsts};
 use num::{
     Complex, Float,
     traits::{ConstOne, ConstZero, FloatConst},
 };
 use thiserror::Error;
+
+#[cfg(feature = "std")]
+use std::sync::LazyLock;
+
+use crate::amos::{MACHINE_CONSTANTS_32, MACHINE_CONSTANTS_64, MachineConsts};
 
 /// A trait defining the mathematical and floating-point constraints required to compute
 /// Bessel and Airy functions.
@@ -185,11 +184,23 @@ impl BesselFloat for f32 {
     }
 }
 
+/// Information about a computed Bessel or Hankel sequence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SequenceInfo {
+    /// The number of components in the destination slice explicitly set to zero due to underflow.
+    ///
+    /// For $J_\nu$ and $I_\nu$, underflow zeroes occur at the end of the slice (highest orders).
+    /// For $Y_\nu$, $K_\nu$, and $H_\nu^{(m)}$, underflow zeroes occur at the start of the slice.
+    pub n_zeros: usize,
+    /// Whether partial loss of significance occurred during calculation.
+    ///
+    /// When `true`, results in the destination slice have reduced accuracy
+    /// (less than half of machine precision) due to large $|z|$ or `order`.
+    pub partial_loss_of_significance: bool,
+}
+
 #[allow(type_alias_bounds)]
 pub(crate) type BesselValues<FT: BesselFloat = f64, NT = usize> = (Vec<Complex<FT>>, NT);
-#[allow(type_alias_bounds)]
-pub(crate) type BesselResult<FT: BesselFloat = f64, NT = usize> =
-    Result<BesselValues<FT, NT>, BesselError<FT>>;
 
 /// A trait for types that can be used as input to Bessel functions.
 ///
@@ -270,7 +281,7 @@ pub enum BesselError<T: BesselFloat = f64> {
     #[error("Invalid input: {details}")]
     InvalidInput {
         /// Explanation of why the input was invalid.
-        details: String,
+        details: &'static str,
     } = 1,
     /// Overflow (or underflow) error in calculation: a valid answer cannot be calculated
     /// Usually caused by a (very) large `order`, or small `z.abs()`.
@@ -328,7 +339,7 @@ impl<T: BesselFloat> BesselError<T> {
     pub fn from_i32(code: i32) -> Option<BesselError<T>> {
         match code {
             1 => Some(BesselError::InvalidInput {
-                details: "from i32".to_string(),
+                details: "from i32",
             }),
             2 => Some(BesselError::Overflow),
             3 => Some(BesselError::PartialLossOfSignificance {
@@ -347,9 +358,7 @@ impl<T: BesselFloat> BesselError<T> {
     #[doc(hidden)]
     pub fn to_f32(&self) -> BesselError<f32> {
         match self {
-            BesselError::InvalidInput { details } => BesselError::InvalidInput {
-                details: details.clone(),
-            },
+            BesselError::InvalidInput { details } => BesselError::InvalidInput { details },
             BesselError::Overflow => BesselError::Overflow,
             BesselError::PartialLossOfSignificance { y, n_zeros } => {
                 BesselError::PartialLossOfSignificance {
@@ -397,8 +406,13 @@ macro_rules! simple_bessel_wrapper {
             $(#[$meta])*
             // [<simple_ $base_func>] concatenates into simple_bessel_j
             #[inline]
-            fn [<$base_func _single>]<T:BesselFloat>(order: T, z: Complex<T>) -> Result<Complex<T>, BesselError<T>> {
-                [<complex_$base_func>](z, order, Scaling::Unscaled, 1).map(|(mut y, _n_zeros)| y.remove(0)).allow_plos()
+            fn [<$base_func _single>]<T: BesselFloat>(order: T, z: Complex<T>) -> Result<Complex<T>, BesselError<T>> {
+                let mut buf = [T::C_ZERO; 1];
+                match [<complex_$base_func _into>](z, order, Scaling::Unscaled, &mut buf) {
+                    Ok(_) => Ok(buf[0]),
+                    Err(BesselError::PartialLossOfSignificance { .. }) => Ok(buf[0]),
+                    Err(e) => Err(e),
+                }
             }
         }
     };

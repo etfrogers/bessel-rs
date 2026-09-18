@@ -3,8 +3,7 @@ use num::{Complex, complex::ComplexFloat};
 use crate::{
     BesselError, HankelKind, Scaling,
     amos::{MachineConsts, algorithms, is_significance_lost, validate_inputs},
-    prelude::*,
-    types::{BesselFloat, BesselResult},
+    types::{BesselFloat, SequenceInfo},
 };
 
 /// (-1)^n sign factor for integer order reflection.
@@ -203,7 +202,13 @@ pub(crate) trait ReflectableBessel<T: BesselFloat> {
     fn secondary(&self) -> Option<Self::Secondary>;
 
     /// Evaluates the core Amos function for positive orders.
-    fn eval(&self, z: Complex<T>, order: T, scaling: Scaling, n: usize) -> BesselResult<T>;
+    fn eval(
+        &self,
+        z: Complex<T>,
+        order: T,
+        scaling: Scaling,
+        out: &mut [Complex<T>],
+    ) -> Result<SequenceInfo, BesselError<T>>;
 
     /// DLMF reflection formula for non-integer orders: f_{-ν}(z) from f_ν(z) and optional g_ν(z).
     fn reflect_non_int(
@@ -236,7 +241,13 @@ impl<T: BesselFloat> ReflectableBessel<T> for NoSecondary {
     }
 
     #[inline]
-    fn eval(&self, _z: Complex<T>, _order: T, _scaling: Scaling, _n: usize) -> BesselResult<T> {
+    fn eval(
+        &self,
+        _z: Complex<T>,
+        _order: T,
+        _scaling: Scaling,
+        _out: &mut [Complex<T>],
+    ) -> Result<SequenceInfo, BesselError<T>> {
         unreachable!("NoSecondary should never be evaluated directly")
     }
 
@@ -268,8 +279,14 @@ impl<T: BesselFloat> ReflectableBessel<T> for BesselJ {
     }
 
     #[inline]
-    fn eval(&self, z: Complex<T>, order: T, scaling: Scaling, n: usize) -> BesselResult<T> {
-        algorithms::complex_bessel_j(z, order, scaling, n)
+    fn eval(
+        &self,
+        z: Complex<T>,
+        order: T,
+        scaling: Scaling,
+        out: &mut [Complex<T>],
+    ) -> Result<SequenceInfo, BesselError<T>> {
+        algorithms::complex_bessel_j(z, order, scaling, out)
     }
 
     #[inline]
@@ -300,8 +317,14 @@ impl<T: BesselFloat> ReflectableBessel<T> for BesselY {
     }
 
     #[inline]
-    fn eval(&self, z: Complex<T>, order: T, scaling: Scaling, n: usize) -> BesselResult<T> {
-        algorithms::complex_bessel_y(z, order, scaling, n)
+    fn eval(
+        &self,
+        z: Complex<T>,
+        order: T,
+        scaling: Scaling,
+        out: &mut [Complex<T>],
+    ) -> Result<SequenceInfo, BesselError<T>> {
+        algorithms::complex_bessel_y(z, order, scaling, out)
     }
 
     #[inline]
@@ -332,8 +355,14 @@ impl<T: BesselFloat> ReflectableBessel<T> for BesselI {
     }
 
     #[inline]
-    fn eval(&self, z: Complex<T>, order: T, scaling: Scaling, n: usize) -> BesselResult<T> {
-        algorithms::complex_bessel_i(z, order, scaling, n)
+    fn eval(
+        &self,
+        z: Complex<T>,
+        order: T,
+        scaling: Scaling,
+        out: &mut [Complex<T>],
+    ) -> Result<SequenceInfo, BesselError<T>> {
+        algorithms::complex_bessel_i(z, order, scaling, out)
     }
 
     #[inline]
@@ -364,8 +393,14 @@ impl<T: BesselFloat> ReflectableBessel<T> for BesselK {
     }
 
     #[inline]
-    fn eval(&self, z: Complex<T>, order: T, scaling: Scaling, n: usize) -> BesselResult<T> {
-        algorithms::complex_bessel_k(z, order, scaling, n)
+    fn eval(
+        &self,
+        z: Complex<T>,
+        order: T,
+        scaling: Scaling,
+        out: &mut [Complex<T>],
+    ) -> Result<SequenceInfo, BesselError<T>> {
+        algorithms::complex_bessel_k(z, order, scaling, out)
     }
 
     #[inline]
@@ -396,8 +431,14 @@ impl<T: BesselFloat> ReflectableBessel<T> for Hankel {
     }
 
     #[inline]
-    fn eval(&self, z: Complex<T>, order: T, scaling: Scaling, n: usize) -> BesselResult<T> {
-        algorithms::complex_bessel_h(z, order, scaling, self.0, n)
+    fn eval(
+        &self,
+        z: Complex<T>,
+        order: T,
+        scaling: Scaling,
+        out: &mut [Complex<T>],
+    ) -> Result<SequenceInfo, BesselError<T>> {
+        algorithms::complex_bessel_h(z, order, scaling, self.0, out)
     }
 
     #[inline]
@@ -422,12 +463,13 @@ pub(crate) fn reflect_orders<T: BesselFloat, Op: ReflectableBessel<T>>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
-    n: usize,
+    out: &mut [Complex<T>],
     op: Op,
-) -> BesselResult<T> {
+) -> Result<SequenceInfo, BesselError<T>> {
+    let n = out.len();
     validate_inputs(z, order, n)?;
     if order >= T::ZERO {
-        return op.eval(z, order, scaling, n);
+        return op.eval(z, order, scaling, out);
     }
 
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
@@ -435,22 +477,18 @@ pub(crate) fn reflect_orders<T: BesselFloat, Op: ReflectableBessel<T>>(
 
     let mut partial_loss_of_significance = false;
 
-    let mut unwrap_plos = |result: BesselResult<T>| match result {
-        Ok(vals) => Ok(vals),
-        Err(BesselError::PartialLossOfSignificance { y, n_zeros }) => {
-            partial_loss_of_significance = true;
-            Ok((y, n_zeros))
-        }
-        Err(e) => Err(e),
+    let mut unwrap_plos = |seq_info: SequenceInfo| {
+        partial_loss_of_significance |= seq_info.partial_loss_of_significance;
+        seq_info.n_zeros
     };
 
-    let finish = |y: Vec<Complex<T>>, n_zeros: usize, plos: bool| {
-        if plos {
-            Err(BesselError::PartialLossOfSignificance { y, n_zeros })
-        } else {
-            Ok((y, n_zeros))
-        }
-    };
+    // let finish = |y: Vec<Complex<T>>, n_zeros: usize, plos: bool| {
+    //     if plos {
+    //         Err(BesselError::PartialLossOfSignificance { y, n_zeros })
+    //     } else {
+    //         Ok((y, n_zeros))
+    //     }
+    // };
 
     let abs_order: T = order.abs();
     let Some(n_order) = abs_order.ceil().to_usize() else {
@@ -463,42 +501,48 @@ pub(crate) fn reflect_orders<T: BesselFloat, Op: ReflectableBessel<T>>(
     if let Some(int_order) = as_integer(abs_order) {
         let max_order = (n as i64 - 1 - int_order).max(int_order);
         let n_positive = (max_order + 1) as usize;
-        let (mut pos_values, pos_n_zeros) = unwrap_plos(op.eval(z, T::ZERO, scaling, n_positive))?;
+        let mut pos_values = T::c_zeros(n_positive);
+        let pos_n_zeros = unwrap_plos(op.eval(z, T::ZERO, scaling, &mut pos_values)?);
 
         let order_size = int_order as usize;
         let start_ind = order_size + 1 - n_negative;
         let mut n_zeros =
             Op::UNDERFLOW_LOCATION.slice_zeros(n_positive, start_ind, order_size, pos_n_zeros);
 
-        let mut answer = Vec::with_capacity(n);
-        for i in 0..n_negative {
+        for (i, out_val) in out.iter_mut().enumerate().take(n_negative) {
             let cur_order = order_size - i;
-            answer.push(op.reflect_int(cur_order as i64, pos_values[cur_order]));
+            *out_val = op.reflect_int(cur_order as i64, pos_values[cur_order]);
         }
 
         let n_remaining = n - n_negative;
         if n_remaining > 0 {
-            answer.extend(pos_values.drain(..n_remaining));
+            out[n_negative..].copy_from_slice(&pos_values[..n_remaining]);
             n_zeros +=
                 Op::UNDERFLOW_LOCATION.slice_zeros(n_positive, 0, n_remaining - 1, pos_n_zeros);
         }
 
-        return finish(answer, n_zeros, partial_loss_of_significance);
+        return Ok(SequenceInfo {
+            n_zeros,
+            partial_loss_of_significance,
+        });
     }
 
     // 2. Negative non-integer orders (DLMF reflection formulas)
     let first_negative = order.abs() - T::from_usize(n_negative - 1);
-    let (prim_neg, n_zeros_prim_neg) =
-        unwrap_plos(op.eval(z, first_negative, scaling, n_negative))?;
+    let mut prim_neg = T::c_zeros(n_negative);
+    let n_zeros_prim_neg = unwrap_plos(op.eval(z, first_negative, scaling, &mut prim_neg)?);
     let sec_neg_result = op
         .secondary()
-        .map(|s| unwrap_plos(s.eval(z, first_negative, scaling, n_negative)))
+        .map(|s| {
+            let mut vals = T::c_zeros(n_negative);
+            let res = s.eval(z, first_negative, scaling, &mut vals);
+            res.map(|seq_info| (vals, unwrap_plos(seq_info)))
+        })
         .transpose()?;
 
     let (sec_neg, n_zeros_sec_neg) = sec_neg_result.unzip();
     let secondary_neg_iter = sec_neg.map(|sec| sec.into_iter().rev());
 
-    let mut answer = Vec::with_capacity(n);
     for (i, (prim_val, sec_val)) in prim_neg
         .into_iter()
         .rev()
@@ -506,7 +550,7 @@ pub(crate) fn reflect_orders<T: BesselFloat, Op: ReflectableBessel<T>>(
         .enumerate()
     {
         let cur_abs_order = order.abs() - T::from_usize(i);
-        answer.push(op.reflect_non_int(z, cur_abs_order, scaling, prim_val, sec_val));
+        out[i] = op.reflect_non_int(z, cur_abs_order, scaling, prim_val, sec_val);
     }
 
     let mut n_zeros = match n_zeros_sec_neg {
@@ -518,13 +562,15 @@ pub(crate) fn reflect_orders<T: BesselFloat, Op: ReflectableBessel<T>>(
     let n_remaining = n - n_negative;
     if n_remaining > 0 {
         let first_positive = order + T::from_usize(n_negative);
-        let (pos_values, pos_n_zeros) =
-            unwrap_plos(op.eval(z, first_positive, scaling, n_remaining))?;
-        answer.extend(pos_values);
+        let pos_n_zeros =
+            unwrap_plos(op.eval(z, first_positive, scaling, &mut out[n_negative..])?);
         n_zeros += pos_n_zeros;
     }
 
-    finish(answer, n_zeros, partial_loss_of_significance)
+    Ok(SequenceInfo {
+        n_zeros,
+        partial_loss_of_significance,
+    })
 }
 
 trait ZipOptionExt: Iterator + Sized {

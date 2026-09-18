@@ -142,12 +142,6 @@ extern crate alloc;
 
 use num::Complex;
 
-pub(crate) mod prelude {
-    pub use alloc::borrow::ToOwned;
-    pub use alloc::string::{String, ToString};
-    pub use alloc::vec::Vec;
-}
-
 /// Container for the complex_\[func\] version of the Bessel and Airy functions
 /// for finer control of the calculation and results
 pub mod amos;
@@ -159,11 +153,11 @@ mod types;
 
 pub use amos::{HankelKind, Scaling};
 use amos::{
-    complex_airy, complex_airy_b, complex_bessel_i, complex_bessel_j, complex_bessel_k,
-    complex_bessel_y, complex_hankel1, complex_hankel2,
+    complex_airy, complex_airy_b, complex_bessel_i_into, complex_bessel_j_into,
+    complex_bessel_k_into, complex_bessel_y_into, complex_hankel1_into, complex_hankel2_into,
 };
 use types::{AllowPlos, simple_bessel_wrapper};
-pub use types::{BesselError, BesselFloat, BesselInput};
+pub use types::{BesselError, BesselFloat, BesselInput, SequenceInfo};
 
 // TODO Overflow to positive or negative infinity, or zero?
 
@@ -252,14 +246,14 @@ pub fn airyp<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselEr
 /// Computes the Airy function of the second kind Bi(z).
 pub fn airy_b<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
     complex_airy_b(z.into(), false, Scaling::Unscaled)
-        .allow_plos()
+        .map(|x| x.0)
         .and_then(ZT::back_from)
 }
 
 /// Computes the derivative of the Airy function of the second kind Bi'(z).
 pub fn airy_bp<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
     complex_airy_b(z.into(), true, Scaling::Unscaled)
-        .allow_plos()
+        .map(|x| x.0)
         .and_then(ZT::back_from)
 }
 

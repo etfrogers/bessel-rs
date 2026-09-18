@@ -1,5 +1,12 @@
+use crate::{
+    amos::{
+        MachineConsts,
+        limits::OverflowState,
+        utils::{two_over_z_safe, will_underflow},
+    },
+    types::BesselFloat,
+};
 use core::cmp::min;
-
 use num::{Complex, complex::ComplexFloat};
 
 enum EitherIter<L, R> {
@@ -17,15 +24,6 @@ impl<I, L: Iterator<Item = I>, R: Iterator<Item = I>> Iterator for EitherIter<L,
         }
     }
 }
-
-use crate::{
-    amos::{
-        MachineConsts,
-        limits::OverflowState,
-        utils::{two_over_z_safe, will_underflow},
-    },
-    types::BesselFloat,
-};
 
 /// Iterate through k functions (the first number of which may be zeros), set
 /// them to zero on underflow, continuing recurrence

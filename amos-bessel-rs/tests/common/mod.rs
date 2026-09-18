@@ -8,7 +8,7 @@ use fortran_amos_testing::{zairy_fortran, zbesh_fortran, zbiry_fortran};
 use num::{Complex, Zero, complex::Complex64};
 
 use amos_bessel_rs::{
-    BesselError, BesselFloat, HankelKind, Scaling,
+    BesselError, BesselFloat, HankelKind, Scaling, SequenceInfo,
     amos::{complex_airy, complex_airy_b},
 };
 
@@ -250,7 +250,21 @@ pub fn sig_airy<T: BesselFloat>(
     scaling: Scaling,
     _n: usize,
 ) -> Result<BesselValues<T>, BesselError<T>> {
-    complex_airy(z, false, scaling).map(|(y, n_zeros)| (vec![y], n_zeros))
+    airy_to_bessel_values(complex_airy(z, false, scaling))
+}
+
+fn airy_to_bessel_values<T: BesselFloat>(
+    res: Result<(Complex<T>, SequenceInfo), BesselError<T>>,
+) -> Result<BesselValues<T>, BesselError<T>> {
+    let (y, seq_info) = res?;
+    if seq_info.partial_loss_of_significance {
+        Err(BesselError::PartialLossOfSignificance {
+            y: vec![y],
+            n_zeros: seq_info.n_zeros,
+        })
+    } else {
+        Ok((vec![y], seq_info.n_zeros))
+    }
 }
 
 pub fn sig_airy_fortran(
@@ -269,7 +283,7 @@ pub fn sig_airyp<T: BesselFloat>(
     scaling: Scaling,
     _n: usize,
 ) -> Result<BesselValues<T>, BesselError<T>> {
-    complex_airy(z, true, scaling).map(|(y, n_zeros)| (vec![y], n_zeros))
+    airy_to_bessel_values(complex_airy(z, true, scaling))
 }
 
 pub fn sig_airyp_fortran(
@@ -288,7 +302,7 @@ pub fn sig_biry<T: BesselFloat>(
     scaling: Scaling,
     _n: usize,
 ) -> Result<BesselValues<T>, BesselError<T>> {
-    complex_airy_b(z, false, scaling).map(|y| (vec![y], 0))
+    airy_to_bessel_values(complex_airy_b(z, false, scaling))
 }
 
 pub fn sig_biry_fortran(
@@ -307,7 +321,7 @@ pub fn sig_biryp<T: BesselFloat>(
     scaling: Scaling,
     _n: usize,
 ) -> Result<BesselValues<T>, BesselError<T>> {
-    complex_airy_b(z, true, scaling).map(|y| (vec![y], 0))
+    airy_to_bessel_values(complex_airy_b(z, true, scaling))
 }
 
 pub fn sig_biryp_fortran(

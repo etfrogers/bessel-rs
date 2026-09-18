@@ -11,7 +11,6 @@ use crate::{
         right_half_plane::{i_right_half_plane, k_right_half_plane},
         utils::two_over_z_safe,
     },
-    types::{BesselResult, BesselValues},
 };
 
 /// Applies the analytic continuation formula
@@ -27,16 +26,20 @@ pub fn analytic_continuation<T: BesselFloat>(
     order: T,
     scaling: Scaling,
     rotation: RotationDirection,
-    n: usize,
-) -> Result<BesselValues<T>, BesselError<T>> {
+    out: &mut [Complex<T>],
+) -> Result<usize, BesselError<T>> {
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let mut n_zeros = 0;
+    let n = out.len();
     let negative_z = -z;
-    let (i_values, _) = i_right_half_plane(negative_z, order, scaling, n)?;
+    // use the output buffer for i_values: will be reassigned later
+    let i_values = out;
+    let _ = i_right_half_plane(negative_z, order, scaling, i_values)?;
     //-----------------------------------------------------------------------
     // Analytic continuation to the left half plane for the K function
     //-----------------------------------------------------------------------
-    let (k_seeds, n_zeros_k) = k_right_half_plane(negative_z, order, scaling, 2.min(n))?;
+    let mut k_seeds = [T::C_ZERO; 2];
+    let n_zeros_k = k_right_half_plane(negative_z, order, scaling, &mut k_seeds[..2.min(n)])?;
     if n_zeros_k > 0 {
         return Err(BesselError::Overflow);
         // Amos also handled  n_zeros_inner = -1 or -2  as error cases, but in rust these
@@ -75,17 +78,17 @@ pub fn analytic_continuation<T: BesselFloat>(
 
     // re-use the i_values buffer for y, modifying it in place below.
     // Saves memory allocation
-    let mut y = i_values;
-    y[0] = k_continuation_coeff * k_component + i_continuation_coeff * i_component;
+    let out = i_values;
+    out[0] = k_continuation_coeff * k_component + i_continuation_coeff * i_component;
     if n == 1 {
-        return Ok((y, n_zeros));
+        return Ok(n_zeros);
     }
     k_continuation_coeff = -k_continuation_coeff;
 
     let mut k_prev = k_seeds[0];
     let mut k_curr = k_seeds[1];
     k_component = k_curr;
-    i_component = y[1]; // y = i_values here
+    i_component = out[1]; // y = i_values here
     let mut scaled_k_component = if scaling == Scaling::Scaled {
         if underflow_add_i_k(negative_z, &mut k_component, &mut i_component, mc) {
             n_zeros += 1;
@@ -95,9 +98,9 @@ pub fn analytic_continuation<T: BesselFloat>(
         None
     };
 
-    y[1] = k_continuation_coeff * k_component + i_continuation_coeff * i_component;
+    out[1] = k_continuation_coeff * k_component + i_continuation_coeff * i_component;
     if n == 2 {
-        return Ok((y, n_zeros));
+        return Ok(n_zeros);
     }
 
     k_continuation_coeff = -k_continuation_coeff;
@@ -123,7 +126,7 @@ pub fn analytic_continuation<T: BesselFloat>(
     // y contains the I values. The K values are computed and combined with I,
     // then assigned back to y in place below.
     let mut n_without_underflow = 0;
-    for (i, y_val) in y.iter_mut().enumerate().skip(2) {
+    for (i, y_val) in out.iter_mut().enumerate().skip(2) {
         let recurrence_factor = (order + T::from_usize(i - 1)) * two_over_z;
         (k_prev, k_curr) = (k_curr, recurrence_factor * k_curr + k_prev);
         k_component = k_curr * recip_scaling_factor;
@@ -163,7 +166,7 @@ pub fn analytic_continuation<T: BesselFloat>(
             mc,
         );
     }
-    Ok((y, n_zeros))
+    Ok(n_zeros)
 }
 
 /// Applies the analytic continuation formula
@@ -190,7 +193,7 @@ pub fn airy_analytic_continuation<T: BesselFloat>(
     order: T,
     scaling: Scaling,
     rotation: RotationDirection,
-) -> BesselResult<T> {
+) -> Result<(Complex<T>, usize), BesselError<T>> {
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let mut n_zeros = 0;
     let negative_z = -z;
@@ -200,7 +203,8 @@ pub fn airy_analytic_continuation<T: BesselFloat>(
         //-----------------------------------------------------------------------
         // Power series for the I function
         //-----------------------------------------------------------------------
-        let (y, n_zeros_inner_signed) = i_power_series(negative_z, order, scaling, 1)?;
+        let mut y = [T::C_ZERO; 1];
+        let n_zeros_inner_signed = i_power_series(negative_z, order, scaling, &mut y)?;
         // While some calls to i_power_series can return negative values,
         // the call here should not
         debug_assert!(n_zeros_inner_signed >= 0);
@@ -209,20 +213,23 @@ pub fn airy_analytic_continuation<T: BesselFloat>(
         //-----------------------------------------------------------------------
         // Asymptotic expansion for large z for the I function
         //-----------------------------------------------------------------------
-        let (y, _) = i_asymptotic(negative_z, order, scaling, 1)?;
+        let mut y = [T::C_ZERO; 1];
+        let _ = i_asymptotic(negative_z, order, scaling, &mut y)?;
         y[0]
 
     //-----------------------------------------------------------------------
     // Miller algorithm normalized by the series for the I function
     //-----------------------------------------------------------------------
     } else {
-        let y = i_miller(negative_z, order, scaling, 1)?;
+        let mut y = [T::C_ZERO; 1];
+        i_miller(negative_z, order, scaling, &mut y)?;
         y[0]
     };
     //-----------------------------------------------------------------------
     // Analytic continuation to the left half plane for the K function
     //-----------------------------------------------------------------------
-    let (k_value, n_zeros_k) = k_right_half_plane(negative_z, order, scaling, 1)?;
+    let mut k_value = [T::C_ZERO; 1];
+    let n_zeros_k = k_right_half_plane(negative_z, order, scaling, &mut k_value)?;
     if n_zeros_k != 0 {
         return Err(BesselError::Overflow);
     }
@@ -253,6 +260,6 @@ pub fn airy_analytic_continuation<T: BesselFloat>(
     if scaling == Scaling::Scaled && underflow_add_i_k(negative_z, &mut k_value, &mut i_value, mc) {
         n_zeros += 1;
     }
-    let y = vec![k_coeff * k_value + i_coeff * i_value];
+    let y = k_coeff * k_value + i_coeff * i_value;
     Ok((y, n_zeros))
 }

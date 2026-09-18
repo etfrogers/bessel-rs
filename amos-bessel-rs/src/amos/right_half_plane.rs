@@ -12,7 +12,7 @@ use crate::{
         recurrence::{scale_controlled_recurrence, scale_k_recurrence},
         utils::{two_over_z_safe, will_underflow},
     },
-    types::{BesselFloat, BesselResult, BesselValues},
+    types::BesselFloat,
 };
 
 /// i_right_half_plane computes the i function in the right half z plane
@@ -70,33 +70,33 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
-    n: usize,
-) -> BesselResult<T, usize> {
+    out: &mut [Complex<T>],
+) -> Result<usize, BesselError<T>> {
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let mut n_zeros = 0;
+    let n = out.len();
     let abs_z = z.abs();
     let mut remaining_n: usize = n;
     let mut max_order = order + T::from_usize(n - 1);
-    let mut y = T::c_zeros(n);
+
     // Power series for small z: |z|² / 4 ≤ ν_max + 1 (Domain I in Amos Fig. 1).
     // Note: Amos's Fortran ZBINU included an explicit `IF (AZ.LE.2.0D0)` fast-path before
     // the parabolic check to save a multiplication on 1980s hardware.
     // We omit the redundant `abs_z <= 2.0` check here, as it's not needed on modern hardware.
     if abs_z.powi(2) * T::from_f64(0.25) <= max_order + T::ONE {
-        let n_zeros_inner;
         // i_power_series return *signed* n_zeros. As per the docs
         // n_zeros > 0 means that the last n_zeros components were set to zero
         // due to underflow. (As is the normal convention)
         // n_zeros < 0 means underflow occurred, but the
         // condition z.abs() <= 2*(order+1).sqrt() was violated and the
         // computation must be completed in another routine with n=n-abs(n_zeros).
-        (y, n_zeros_inner) = i_power_series(z, order, scaling, remaining_n)?;
+        let n_zeros_inner = i_power_series(z, order, scaling, &mut out[..remaining_n])?;
         let calculation_finished = n_zeros_inner >= 0;
         let n_to_complete: usize = n_zeros_inner.unsigned_abs();
         n_zeros += n_to_complete;
         remaining_n -= n_to_complete;
         if remaining_n == 0 || calculation_finished {
-            return Ok((y, n_zeros));
+            return Ok(n_zeros);
         }
         max_order = order + (T::from_usize(remaining_n) - T::ONE);
     }
@@ -105,9 +105,9 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
         && ((max_order <= T::ONE) || (max_order.powi(2) <= abs_z + abs_z))
     {
         // Large Argument Asymptotics (Large z, Small order)
-        let (cy, n_zeros_asymptotic) = i_asymptotic(z, order, scaling, remaining_n)?;
+        let n_zeros_asymptotic = i_asymptotic(z, order, scaling, &mut out[..remaining_n])?;
         debug_assert!(n_zeros_asymptotic == n_zeros);
-        return Ok((cy, n_zeros));
+        return Ok(n_zeros);
     }
 
     if max_order > T::ONE {
@@ -118,35 +118,35 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
             scaling,
             IKType::I,
             remaining_n,
-            &mut y,
+            out,
             mc,
         )?;
         n_zeros += n_zeros_underflow;
         remaining_n -= n_zeros_underflow;
         if remaining_n == 0 {
-            return Ok((y, n_zeros));
+            return Ok(n_zeros);
         }
         max_order = order + T::from_usize(remaining_n - 1);
     }
 
     if (max_order > mc.asymptotic_order_limit) || (abs_z > mc.asymptotic_order_limit) {
         let (n_zeros_asymp_lo, remaining_n) =
-            i_asymp_large_order(z, order, scaling, remaining_n, &mut y)?;
+            i_asymp_large_order(z, order, scaling, remaining_n, &mut out[..remaining_n])?;
         n_zeros += n_zeros_asymp_lo;
         if remaining_n == 0 {
-            return Ok((y, n_zeros));
+            return Ok(n_zeros);
         }
     }
 
     if max_order <= T::ONE && abs_z <= mc.asymptotic_z_limit {
         // Miller algorithm with series normalization
-        let y = i_miller(z, order, scaling, remaining_n)?;
-        return Ok((y, n_zeros));
+        i_miller(z, order, scaling, out)?;
+        return Ok(n_zeros);
     }
 
     // Miller algorithm normalized by the Wronskian
-    let n_zeros_wr = i_wronskian(z, order, scaling, remaining_n, &mut y)?;
-    Ok((y, n_zeros + n_zeros_wr))
+    let n_zeros_wr = i_wronskian(z, order, scaling, &mut out[..remaining_n])?;
+    Ok(n_zeros + n_zeros_wr)
 }
 
 // Could be moved to utils if it's used outside this file
@@ -167,11 +167,12 @@ pub fn k_right_half_plane<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
-    n: usize,
-) -> Result<BesselValues<T, usize>, BesselError<T>> {
+    out: &mut [Complex<T>],
+) -> Result<usize, BesselError<T>> {
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let sqrt_pi_over_2: T = T::from_f64(1.253_314_137_315_500_3);
 
+    let n = out.len();
     let abs_z = z.abs();
     let mut n_zeros = 0;
     let mut underflow_occurred = false;
@@ -197,11 +198,11 @@ pub fn k_right_half_plane<T: BesselFloat>(
             if small_order_n_eq_1 {
                 // Fast exit: order is small (integer_order == 0) and only n = 1 value was requested,
                 // so we can return K_nu directly without running forward recurrence.
-                let mut y = s1;
+                out[0] = s1;
                 if scaling == Scaling::Scaled {
-                    y *= z.exp();
+                    out[0] *= z.exp();
                 }
-                return Ok((vec![y], 0));
+                return Ok(0);
             }
 
             overflow_state = if (order + T::ONE) * shinc_mu.re.abs() > mc.approximation_limit {
@@ -336,49 +337,47 @@ pub fn k_right_half_plane<T: BesselFloat>(
         }
     }
 
-    let mut y = T::c_zeros(n);
-
     let n_completed = if underflow_occurred {
         // Seed output array with the starting values
-        y[0] = k_v_minus_1;
+        out[0] = k_v_minus_1;
         if n > 1 {
-            y[1] = k_v;
+            out[1] = k_v;
         }
         // Step up through orders until we find two values that don't underflow.
         // scale_k_recurrence places them into y scaled by abs_error_tolerance, which we unscale below.
-        scale_k_recurrence(z, order, n, &mut y, &mut n_zeros, two_over_z);
+        scale_k_recurrence(z, order, n, out, &mut n_zeros, two_over_z);
         let n_non_zero = (n - n_zeros) as isize;
         if n_non_zero <= 0 {
-            return Ok((y, n_zeros));
+            return Ok(n_zeros);
         }
 
         // Unscale the first two valid values by multiplying by abs_error_tolerance
         let mut working_index = n_zeros;
-        k_v_minus_1 = y[working_index];
-        y[working_index] *= mc.abs_error_tolerance;
+        k_v_minus_1 = out[working_index];
+        out[working_index] *= mc.abs_error_tolerance;
         if n_non_zero > 1 {
             working_index += 1;
-            k_v = y[working_index];
-            y[working_index] *= mc.abs_error_tolerance;
+            k_v = out[working_index];
+            out[working_index] *= mc.abs_error_tolerance;
         }
         if n_non_zero > 2 {
             // If some values underflowed, the first non-zero values are near the underflow boundary
             overflow_state = OverflowState::NearUnder;
         }
         if n <= 2 {
-            return Ok((y, n_zeros));
+            return Ok(n_zeros);
         }
 
         working_index + 1
     } else {
         // No underflow occurred: unscale and fill output array
-        y[0] = k_v_minus_1 * overflow_state.reciprocal_scaling_factor::<T>(mc);
+        out[0] = k_v_minus_1 * overflow_state.reciprocal_scaling_factor::<T>(mc);
         if n == 1 {
-            return Ok((y, n_zeros));
+            return Ok(n_zeros);
         }
-        y[1] = k_v * overflow_state.reciprocal_scaling_factor::<T>(mc);
+        out[1] = k_v * overflow_state.reciprocal_scaling_factor::<T>(mc);
         if n == 2 {
-            return Ok((y, n_zeros));
+            return Ok(n_zeros);
         }
         2
     };
@@ -388,7 +387,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
         true,
         order,
         z,
-        Some(&mut y),
+        Some(out),
         n_completed,
         n,
         k_v_minus_1,
@@ -396,7 +395,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
         overflow_state,
         mc,
     );
-    Ok((y, n_zeros))
+    Ok(n_zeros)
 }
 
 /// Computes seed values $K_\nu(z)$ and $K_{\nu+1}(z)$ (unscaled) for small $|z| \le 2$

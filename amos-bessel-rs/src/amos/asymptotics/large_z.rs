@@ -9,7 +9,6 @@ use crate::{
         MachineConsts,
         utils::{RECIP_TWO_PI, two_over_z_safe},
     },
-    types::BesselResult,
 };
 
 /// Computes the sequence $[I_\nu(z), \dots, I_{\nu+n-1}(z)]$ for $\operatorname{Re}(z) \ge 0$
@@ -35,10 +34,10 @@ pub fn i_asymptotic<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
-    n: usize,
-) -> BesselResult<T, usize> {
+    out: &mut [Complex<T>],
+) -> Result<usize, BesselError<T>> {
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
-    let mut y = T::c_zeros(n);
+    let n = out.len();
     let abs_z = z.abs();
     let recip_abs_z = T::one() / abs_z;
 
@@ -83,7 +82,7 @@ pub fn i_asymptotic<T: BesselFloat>(
         }
     };
 
-    for (k, elem) in y.iter_mut().enumerate().rev().take(2.min(n)) {
+    for (k, elem) in out.iter_mut().enumerate().rev().take(2.min(n)) {
         let (mut sum_dominant, sum_subdominant) = {
             // this block is just to contain the large number of mutable variables in a small space
             let modified_order = order + T::from_usize(k);
@@ -125,14 +124,14 @@ pub fn i_asymptotic<T: BesselFloat>(
         let two_over_z = two_over_z_safe(z);
         // recur downward from the last two elements
         for k in (0..n - 2).rev() {
-            y[k] = (two_over_z * y[k + 1]) * (T::from_usize(k + 1) + order) + y[k + 2];
+            out[k] = (two_over_z * out[k + 1]) * (T::from_usize(k + 1) + order) + out[k + 2];
         }
     }
     if scaled_calculations {
         let exp_cz = exponent_arg.exp();
-        for yi in y.iter_mut() {
+        for yi in out.iter_mut() {
             *yi *= exp_cz;
         }
     }
-    Ok((y, 0))
+    Ok(0)
 }

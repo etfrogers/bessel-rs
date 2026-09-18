@@ -39,7 +39,7 @@ fn test_reflection_n_vs_loop(
                 continue;
             }
             if z == Complex::ZERO
-                && matches!(&result, Err(BesselError::InvalidInput { details })if details == "z must not be zero")
+                && matches!(&result, Err(BesselError::InvalidInput { details })if *details == "z must not be zero")
             {
                 continue;
             }

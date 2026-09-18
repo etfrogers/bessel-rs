@@ -13,8 +13,7 @@ use crate::{
         right_half_plane::{i_right_half_plane, k_right_half_plane},
         utils::{is_significance_lost, validate_core_inputs, validate_inputs},
     },
-    prelude::*,
-    types::BesselResult,
+    types::SequenceInfo,
 };
 
 /// Core Amos implementation for Hankel functions $H_\nu^{(1)}(z)$ and $H_\nu^{(2)}(z)$ ($\nu \ge 0$).
@@ -35,12 +34,12 @@ pub(crate) fn complex_bessel_h<T: BesselFloat>(
     order: T,
     scaling: Scaling,
     hankel_kind: HankelKind,
-    n: usize,
-) -> BesselResult<T> {
+    out: &mut [Complex<T>],
+) -> Result<SequenceInfo, BesselError<T>> {
+    let n = out.len();
     validate_core_inputs(z, order, n, true)?;
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let mut n_zeros = 0;
-
     let max_order = order + T::from_usize(n - 1);
 
     let rotation = hankel_kind.get_rotation();
@@ -53,17 +52,17 @@ pub(crate) fn complex_bessel_h<T: BesselFloat>(
     if abs_z < mc.underflow_limit {
         return Err(Overflow);
     }
-    let (mut y, n_zeros) = if order < mc.asymptotic_order_limit {
+
+    let n_zeros = if order < mc.asymptotic_order_limit {
         if max_order > T::ONE {
             if max_order > T::TWO {
-                let mut y = T::c_zeros(n);
                 let n_underflow = check_underflow_uniform_asymp_params(
                     z_rotated,
                     order,
                     scaling,
                     IKType::K,
                     n,
-                    &mut y,
+                    out,
                     mc,
                 )?;
 
@@ -72,10 +71,11 @@ pub(crate) fn complex_bessel_h<T: BesselFloat>(
                 if n == n_underflow {
                     return if z_rotated.re < T::ZERO {
                         Err(Overflow)
-                    } else if partial_loss_of_significance {
-                        Err(PartialLossOfSignificance { y, n_zeros })
                     } else {
-                        Ok((y, n_zeros))
+                        Ok(SequenceInfo {
+                            partial_loss_of_significance,
+                            n_zeros,
+                        })
                     };
                 }
             }
@@ -92,10 +92,10 @@ pub(crate) fn complex_bessel_h<T: BesselFloat>(
                 && hankel_kind == HankelKind::First)
         {
             // Right half plane: compute K directly
-            k_right_half_plane(z_rotated, order, scaling, n)?
+            k_right_half_plane(z_rotated, order, scaling, out)?
         } else {
             // Left half plane: use analytic continuation
-            analytic_continuation(z_rotated, order, scaling, -rotation, n)?
+            analytic_continuation(z_rotated, order, scaling, -rotation, out)?
         }
     } else {
         // Large order: use uniform asymptotic expansion.
@@ -112,10 +112,9 @@ pub(crate) fn complex_bessel_h<T: BesselFloat>(
                 z_rotated = -z_rotated;
             }
         }
-        let (y, n_zeros_k) =
-            k_asymp_large_order(z_rotated, order, scaling, asymptotic_rotation, n)?;
+        let n_zeros_k = k_asymp_large_order(z_rotated, order, scaling, asymptotic_rotation, out)?;
         n_zeros += n_zeros_k;
-        (y, n_zeros)
+        n_zeros
     };
 
     // Convert K results to H via: H_m(ν,z) = -fmm·(i/(π/2))·zₜᵛ·K(ν, -z·zₜ)
@@ -128,15 +127,14 @@ pub(crate) fn complex_bessel_h<T: BesselFloat>(
         phase_multiplier = -phase_multiplier;
     }
 
-    for yi in y.iter_mut().take(n - n_zeros) {
+    for yi in out.iter_mut().take(n - n_zeros) {
         *yi = safe_multiply(*yi, phase_multiplier, mc);
         phase_multiplier *= rotation_factor;
     }
-    if partial_loss_of_significance {
-        Err(PartialLossOfSignificance { y, n_zeros })
-    } else {
-        Ok((y, n_zeros))
-    }
+    Ok(SequenceInfo {
+        partial_loss_of_significance,
+        n_zeros,
+    })
 }
 
 /// Core Amos implementation for modified Bessel functions $I_\nu(z)$ ($\nu \ge 0$).
@@ -156,14 +154,15 @@ pub(crate) fn complex_bessel_i<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
-    n: usize,
-) -> BesselResult<T, usize> {
+    out: &mut [Complex<T>],
+) -> Result<SequenceInfo, BesselError<T>> {
+    let n = out.len();
     validate_core_inputs(z, order, n, false)?;
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
 
     let abs_z = z.abs();
     let max_order = order + T::from_usize(n - 1);
-    let partial_significance_loss = is_significance_lost(abs_z, max_order, false, mc)?;
+    let partial_loss_of_significance = is_significance_lost(abs_z, max_order, false, mc)?;
 
     let (z_right_half_plane, mut continuation_phase) = if z.re >= T::ZERO {
         (z, T::C_ONE)
@@ -177,21 +176,20 @@ pub(crate) fn complex_bessel_i<T: BesselFloat>(
         }
         (-z, continuation_phase)
     };
-    let (mut y, n_zeros) = i_right_half_plane(z_right_half_plane, order, scaling, n)?;
+    let n_zeros = i_right_half_plane(z_right_half_plane, order, scaling, out)?;
     let remaining_n = n - n_zeros;
     if z.re < T::ZERO && remaining_n > 0 {
         // Left half plane: apply continuation I(ν,z) = exp(±iπν)·I(ν,-z)
-        for yi in y.iter_mut().take(remaining_n) {
+        for yi in out.iter_mut().take(remaining_n) {
             *yi = safe_multiply(*yi, continuation_phase, mc);
             continuation_phase = -continuation_phase;
         }
     }
 
-    if partial_significance_loss {
-        Err(PartialLossOfSignificance { y, n_zeros })
-    } else {
-        Ok((y, n_zeros))
-    }
+    Ok(SequenceInfo {
+        partial_loss_of_significance,
+        n_zeros,
+    })
 }
 
 /// Core Amos implementation for Bessel functions of the first kind $J_\nu(z)$ ($\nu \ge 0$).
@@ -210,12 +208,13 @@ pub(crate) fn complex_bessel_j<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
-    n: usize,
-) -> BesselResult<T> {
+    out: &mut [Complex<T>],
+) -> Result<SequenceInfo, BesselError<T>> {
+    let n = out.len();
     validate_core_inputs(z, order, n, false)?;
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
 
-    let partial_significance_loss =
+    let partial_loss_of_significance =
         is_significance_lost(z.abs(), order + T::from_usize(n - 1), false, mc)?;
     // Compute exp(i·ν·π/2) via order mod 2 to avoid significance loss for large orders
     let arg = (order % T::TWO) * T::FRAC_PI_2();
@@ -231,16 +230,16 @@ pub(crate) fn complex_bessel_j<T: BesselFloat>(
         phase_multiplier.im = -phase_multiplier.im;
         sign_selector = -sign_selector;
     }
-    let (mut y, n_zeros) = i_right_half_plane(z_rotated, order, scaling, n)?;
-    for yi in y.iter_mut().take(n - n_zeros) {
+
+    let n_zeros = i_right_half_plane(z_rotated, order, scaling, out)?;
+    for yi in out.iter_mut().take(n - n_zeros) {
         *yi = safe_multiply(*yi, phase_multiplier, mc);
         phase_multiplier *= T::I * sign_selector;
     }
-    if partial_significance_loss {
-        Err(PartialLossOfSignificance { y, n_zeros })
-    } else {
-        Ok((y, n_zeros))
-    }
+    Ok(SequenceInfo {
+        partial_loss_of_significance,
+        n_zeros,
+    })
 }
 
 /// Core Amos implementation for modified Bessel functions of the second kind $K_\nu(z)$ ($\nu \ge 0$).
@@ -259,13 +258,14 @@ pub(crate) fn complex_bessel_k<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
-    n: usize,
-) -> BesselResult<T> {
+    out: &mut [Complex<T>],
+) -> Result<SequenceInfo, BesselError<T>> {
+    let n = out.len();
     validate_core_inputs(z, order, n, true)?;
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let abs_z = z.abs();
     let max_order = order + T::from_usize(n - 1);
-    let partial_significance_loss = is_significance_lost(abs_z, max_order, false, mc)?;
+    let partial_loss_of_significance = is_significance_lost(abs_z, max_order, false, mc)?;
 
     // Overflow: K diverges as z → 0
     if abs_z < mc.underflow_limit {
@@ -283,27 +283,26 @@ pub(crate) fn complex_bessel_k<T: BesselFloat>(
             RotationDirection::Right
         };
 
-        let (y, n_zeros) = k_asymp_large_order(z, order, scaling, rotation, n)?;
-        return if partial_significance_loss {
-            Err(PartialLossOfSignificance { y, n_zeros })
-        } else {
-            Ok((y, n_zeros))
-        };
+        let n_zeros = k_asymp_large_order(z, order, scaling, rotation, out)?;
+        return Ok(SequenceInfo {
+            partial_loss_of_significance,
+            n_zeros,
+        });
     }
 
     if max_order > T::TWO {
-        let mut y = T::c_zeros(n);
         let n_underflow =
-            check_underflow_uniform_asymp_params(z, order, scaling, IKType::K, n, &mut y, mc)?;
+            check_underflow_uniform_asymp_params(z, order, scaling, IKType::K, n, out, mc)?;
         n_zeros += n_underflow;
 
         if n_underflow == n {
             return if z.re < T::ZERO {
                 Err(Overflow)
-            } else if partial_significance_loss {
-                Err(PartialLossOfSignificance { y, n_zeros })
             } else {
-                Ok((y, n_zeros))
+                Ok(SequenceInfo {
+                    partial_loss_of_significance,
+                    n_zeros,
+                })
             };
         }
     }
@@ -314,9 +313,9 @@ pub(crate) fn complex_bessel_k<T: BesselFloat>(
             return Err(Overflow);
         }
     }
-    let (y, n_zeros) = if z.re >= T::ZERO {
+    let n_zeros = if z.re >= T::ZERO {
         // Right half plane
-        k_right_half_plane(z, order, scaling, n)?
+        k_right_half_plane(z, order, scaling, out)?
     } else {
         // Left half plane: use analytic continuation
         // If any orders already underflowed, the continuation will overflow
@@ -328,13 +327,12 @@ pub(crate) fn complex_bessel_k<T: BesselFloat>(
         } else {
             RotationDirection::Right
         };
-        analytic_continuation(z, order, scaling, rotation, n)?
+        analytic_continuation(z, order, scaling, rotation, out)?
     };
-    if partial_significance_loss {
-        Err(PartialLossOfSignificance { y, n_zeros })
-    } else {
-        Ok((y, n_zeros))
-    }
+    Ok(SequenceInfo {
+        partial_loss_of_significance,
+        n_zeros,
+    })
 }
 
 /// Core Amos implementation for Bessel functions of the second kind $Y_\nu(z)$ ($\nu \ge 0$).
@@ -352,29 +350,27 @@ pub(crate) fn complex_bessel_y<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
-    n: usize,
-) -> BesselResult<T> {
+    out: &mut [Complex<T>],
+) -> Result<SequenceInfo, BesselError<T>> {
+    let n = out.len();
     validate_core_inputs(z, order, n, true)?;
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     // Use conjugate symmetry: Y(ν,z) = conj(Y(ν,conj(z))) for Im(z) < 0
     let z_upper_half_plane = if z.im < T::ZERO { z.conj() } else { z };
     let z_rotated = -T::I * z_upper_half_plane;
-    let mut partial_loss_of_significance = false;
 
-    let mut unwrap_psl = |result: BesselResult<T>| match result {
-        Ok((y_, n_zeros_)) => Ok((y_, n_zeros_)),
-        Err(PartialLossOfSignificance {
-            y: y_,
-            n_zeros: n_zeros_,
-        }) => {
-            partial_loss_of_significance = true;
-            Ok((y_, n_zeros_))
-        }
-        err => err,
-    };
+    let bess_i = out;
+    let SequenceInfo {
+        n_zeros: n_zeros_i,
+        partial_loss_of_significance: plos_i,
+    } = complex_bessel_i(z_rotated, order, scaling, bess_i)?;
+    let mut bess_k = T::c_zeros(n);
+    let SequenceInfo {
+        n_zeros: n_zeros_k,
+        partial_loss_of_significance: plos_k,
+    } = complex_bessel_k(z_rotated, order, scaling, &mut bess_k)?;
 
-    let (bess_i, n_zeros_i) = unwrap_psl(complex_bessel_i(z_rotated, order, scaling, n))?;
-    let (bess_k, n_zeros_k) = unwrap_psl(complex_bessel_k(z_rotated, order, scaling, n))?;
+    let partial_loss_of_significance = plos_i || plos_k;
 
     let mut n_zeros = n_zeros_i.min(n_zeros_k);
     let frac_order = order.fract();
@@ -396,30 +392,27 @@ pub(crate) fn complex_bessel_y<T: BesselFloat>(
         k_coeff *= phase_correction * exponential_correction;
         n_zeros = 0;
     }
-    let mut y: Vec<Complex<T>> = bess_i
-        .iter()
-        .zip(bess_k)
-        .map(|(&z_i, z_k)| {
-            let z_k = scaled_multiply(z_k, k_coeff, scaling, mc);
-            let z_i = scaled_multiply(z_i, i_coeff, scaling, mc);
-            let val = z_i - z_k;
-            if scaling == Scaling::Scaled && val == T::C_ZERO && exponential_correction == T::ZERO {
-                n_zeros += 1;
-            }
-            i_coeff *= T::I;
-            k_coeff *= -T::I;
-            val
-        })
-        .collect();
+    // note that bess_i is the output array, temporarily holding the bessel_i values
+    let out = bess_i;
+    out.iter_mut().zip(bess_k).for_each(|(out_i, z_k)| {
+        let z_k = scaled_multiply(z_k, k_coeff, scaling, mc);
+        let z_i = scaled_multiply(*out_i, i_coeff, scaling, mc);
+        let val = z_i - z_k;
+        if scaling == Scaling::Scaled && val == T::C_ZERO && exponential_correction == T::ZERO {
+            n_zeros += 1;
+        }
+        i_coeff *= T::I;
+        k_coeff *= -T::I;
+        *out_i = val;
+    });
 
     if z.im < T::ZERO {
-        y.iter_mut().for_each(|v| *v = v.conj());
+        out.iter_mut().for_each(|v| *v = v.conj());
     }
-    if partial_loss_of_significance {
-        Err(PartialLossOfSignificance { y, n_zeros })
-    } else {
-        Ok((y, n_zeros))
-    }
+    Ok(SequenceInfo {
+        partial_loss_of_significance,
+        n_zeros,
+    })
 }
 
 #[inline]
@@ -488,7 +481,7 @@ pub fn complex_airy<T: BesselFloat>(
     z: Complex<T>,
     return_derivative: bool,
     scaling: Scaling,
-) -> Result<(Complex<T>, usize), BesselError<T>> {
+) -> Result<(Complex<T>, SequenceInfo), BesselError<T>> {
     validate_inputs(z, T::ZERO, 1)?;
     const POWER_SERIES_COEFFS: (f64, f64) = (3.550_280_538_878_172e-1, 2.588_194_037_928_068e-1);
     const FRAC_1_PI_SQRT_3: f64 = 1.837_762_984_739_306_8e-1;
@@ -498,7 +491,7 @@ pub fn complex_airy<T: BesselFloat>(
     // significance loss only tested against z, not order, so 0.0 is used to never cause significance loss
     let partial_loss_of_significance = is_significance_lost(abs_z, T::ZERO, true, mc)?;
 
-    let return_values = if abs_z <= T::ONE {
+    let (y, n_zeros) = if abs_z <= T::ONE {
         // Power series for small |z|
         let ai = airy_power_series(z, return_derivative, POWER_SERIES_COEFFS);
         (
@@ -549,25 +542,27 @@ pub fn complex_airy<T: BesselFloat>(
             if scaling == Scaling::Unscaled && re_zeta > mc.approximation_limit {
                 scale_factor = T::ONE / mc.abs_error_tolerance;
                 if (-re_zeta - T::from_f64(0.25) * ln_abs_z) < -mc.exponent_limit {
-                    retval = Some(Ok((T::c_zeros(1), 1)));
+                    retval = Some(Ok((T::C_ZERO, 1)));
                 }
             }
-            retval.unwrap_or_else(|| k_right_half_plane(zeta, order, scaling, 1))?
+            let mut y = [T::C_ZERO; 1];
+            retval.unwrap_or_else(|| {
+                k_right_half_plane(zeta, order, scaling, &mut y).map(|nz| (y[0], nz))
+            })?
         };
 
-        let mut y = y[0] * T::from_f64(FRAC_1_PI_SQRT_3) * scale_factor;
+        let mut y = y * T::from_f64(FRAC_1_PI_SQRT_3) * scale_factor;
         y *= if return_derivative { -z } else { sqrt_z };
         (y / scale_factor, n_zeros)
     };
 
-    if partial_loss_of_significance {
-        Err(PartialLossOfSignificance {
-            y: vec![return_values.0],
-            n_zeros: return_values.1,
-        })
-    } else {
-        Ok(return_values)
-    }
+    Ok((
+        y,
+        SequenceInfo {
+            partial_loss_of_significance,
+            n_zeros,
+        },
+    ))
 }
 
 /// Computes the Airy function Bi(z) or its derivative dBi(z)/dz for a complex argument.
@@ -604,7 +599,7 @@ pub fn complex_airy_b<T: BesselFloat>(
     z: Complex<T>,
     return_derivative: bool,
     scaling: Scaling,
-) -> Result<Complex<T>, BesselError<T>> {
+) -> Result<(Complex<T>, SequenceInfo), BesselError<T>> {
     validate_inputs(z, T::ZERO, 1)?;
     const POWER_SERIES_COEFFS: (f64, f64) = (6.149_266_274_460_007e-1, -4.482_883_573_538_264e-1);
     const FRAC_1_SQRT_3: f64 = 5.773_502_691_896_257e-1;
@@ -664,9 +659,11 @@ pub fn complex_airy_b<T: BesselFloat>(
         }
         // Compute I(ν₁,ζ) and I(ν₂,ζ); in scaled mode these return exp(-|Re(ζ)|)·I(ν,ζ)
         // rotation_angle provides the analytic continuation factor for left half plane
-        let (i1, _) = i_right_half_plane(zeta, order1, scaling, 1)?;
+        let mut i1 = [T::C_ZERO; 1];
+        let _ = i_right_half_plane(zeta, order1, scaling, &mut i1)?;
         let i_pos_term = Complex::<T>::cis(rotation_angle * order1) * i1[0] * scale_factor;
-        let (mut i2, _) = i_right_half_plane(zeta, order2, scaling, 2)?;
+        let mut i2 = [T::C_ZERO; 2];
+        let _ = i_right_half_plane(zeta, order2, scaling, &mut i2)?;
         i2[0] *= scale_factor;
         i2[1] *= scale_factor;
 
@@ -678,12 +675,11 @@ pub fn complex_airy_b<T: BesselFloat>(
         bi_unscaled * z_factor / scale_factor
     };
 
-    if partial_loss_of_significance {
-        Err(PartialLossOfSignificance {
-            y: vec![y],
+    Ok((
+        y,
+        SequenceInfo {
+            partial_loss_of_significance,
             n_zeros: 0,
-        })
-    } else {
-        Ok(y)
-    }
+        },
+    ))
 }

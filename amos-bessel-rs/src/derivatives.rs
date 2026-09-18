@@ -447,9 +447,7 @@ fn derivative_internal<T: BesselFloat>(
 ) -> Result<Complex<T>, BesselError<T>> {
     if derivative_order > 60 {
         return Err(BesselError::InvalidInput {
-            details: format!(
-                "Derivative order {derivative_order} too large - must be no greater than 60"
-            ),
+            details: "Derivative order too large - must be no greater than 60",
         });
     }
     let k = derivative_order as usize;
@@ -477,4 +475,3 @@ fn derivative_internal<T: BesselFloat>(
     }
     Ok(prefactor * sum)
 }
-

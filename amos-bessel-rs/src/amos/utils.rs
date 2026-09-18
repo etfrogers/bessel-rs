@@ -1,6 +1,6 @@
 use num::complex::{Complex, ComplexFloat};
 
-use crate::{BesselError, BesselFloat, amos::MachineConsts, prelude::*};
+use crate::{BesselError, BesselFloat, amos::MachineConsts};
 
 /// $1/(2\pi) \approx 0.159154943...$, used in asymptotic prefactors $\sqrt{1/(2\pi z)}$.
 pub const RECIP_TWO_PI: f64 = 0.159_154_943_091_895_35;
@@ -92,9 +92,7 @@ pub(crate) fn validate_inputs<T: BesselFloat>(
         err = Some("N must be >= 1");
     };
     if let Some(details) = err {
-        Err(BesselError::InvalidInput {
-            details: details.to_owned(),
-        })
+        Err(BesselError::InvalidInput { details })
     } else {
         Ok(())
     }
@@ -119,9 +117,7 @@ pub(crate) fn validate_core_inputs<T: BesselFloat>(
     };
 
     if let Some(details) = err {
-        Err(BesselError::InvalidInput {
-            details: details.to_owned(),
-        })
+        Err(BesselError::InvalidInput { details })
     } else {
         Ok(())
     }
