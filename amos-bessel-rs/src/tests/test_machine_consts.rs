@@ -46,6 +46,7 @@ fn generate_consts() {
         mc64.asymptotic_order_limit
     );
     println!("    rtol: {:?},", mc64.rtol);
+    println!("    gamma_ln_z_min: {:?},", mc64.gamma_ln_z_min);
     println!("}};\n");
 
     println!("pub(crate) const MACHINE_CONSTANTS_32: MachineConsts<f32> = MachineConsts {{");
@@ -70,5 +71,6 @@ fn generate_consts() {
         mc32.asymptotic_order_limit
     );
     println!("    rtol: {:?}_f32,", mc32.rtol);
+    println!("    gamma_ln_z_min: {:?}_f32,", mc32.gamma_ln_z_min);
     println!("}};");
 }

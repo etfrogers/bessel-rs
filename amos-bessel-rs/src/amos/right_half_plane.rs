@@ -433,7 +433,7 @@ fn compute_small_z_power_series<T: BesselFloat>(
     };
     // Compute 1/Gamma(1+nu) and 1/Gamma(1-nu) using Euler's reflection formula:
     // Gamma(1-nu) * Gamma(1+nu) = pi*nu / sin(pi*nu)
-    let recip_gamma_one_plus_nu = (-gamma_ln(T::ONE + signed_fractional_order).unwrap()).exp();
+    let recip_gamma_one_plus_nu = (-gamma_ln(T::ONE + signed_fractional_order, mc).unwrap()).exp();
     let recip_gamma_one_minus_nu = T::ONE / (recip_gamma_one_plus_nu * one_over_sinc_nu);
 
     // Compute (1/Gamma(1-nu) - 1/Gamma(1+nu)) / (2*nu).

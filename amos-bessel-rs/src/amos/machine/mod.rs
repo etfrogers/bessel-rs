@@ -35,6 +35,7 @@ pub struct MachineConsts<T: BesselFloat> {
     /// Originally FNUL.  The lower boundary of the asymptotic series for large order.
     pub asymptotic_order_limit: T,
     pub rtol: T,
+    pub gamma_ln_z_min: T,
 }
 
 impl<T: BesselFloat> MachineConsts<T> {
@@ -53,6 +54,11 @@ impl<T: BesselFloat> MachineConsts<T> {
 
         let digits_per_bit: T = (T::from_f64(T::RADIX as f64)).log10();
         let exponent_bit_limit: T = T::from_f64((T::MIN_EXP.abs().min(T::MAX_EXP.abs())) as f64);
+
+        let mantissa_base10_digits = T::from_f64(T::MANTISSA_DIGITS as f64) * digits_per_bit;
+        let fln =
+            mantissa_base10_digits.clamp(T::from_f64(3.0), T::from_f64(20.0)) - T::from_f64(3.0);
+        let gamma_ln_z_min = (T::from_f64(1.8000) + T::from_f64(0.3875) * fln).round() + T::one();
 
         // Subtract 3.0 (digits) to give a number above which 10^decimal_exponent_limit would
         // be close to overflowing (i.e. within 1000 == 10^3.0 of the actual limit)
@@ -86,6 +92,7 @@ impl<T: BesselFloat> MachineConsts<T> {
             asymptotic_z_limit,
             asymptotic_order_limit,
             rtol,
+            gamma_ln_z_min,
         }
     }
 }

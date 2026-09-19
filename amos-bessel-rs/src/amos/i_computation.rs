@@ -121,9 +121,9 @@ pub(crate) fn i_miller<T: BesselFloat>(
     let mut val_k = Complex::<T>::new(scale, T::ZERO);
     let fractional_order = order.fract();
     let twice_fractional_order = fractional_order + fractional_order;
-    let mut binomial_coeff = (gamma_ln(kk_float + twice_fractional_order + T::ONE).unwrap()
-        - gamma_ln(kk_float + T::ONE).unwrap()
-        - gamma_ln(twice_fractional_order + T::ONE).unwrap())
+    let mut binomial_coeff = (gamma_ln(kk_float + twice_fractional_order + T::ONE, mc).unwrap()
+        - gamma_ln(kk_float + T::ONE, mc).unwrap()
+        - gamma_ln(twice_fractional_order + T::ONE, mc).unwrap())
     .exp();
     let mut normalisation_sum = T::C_ZERO;
     // Neumann normalisation loop
@@ -173,7 +173,7 @@ pub(crate) fn i_miller<T: BesselFloat>(
         scaled_z.re = T::ZERO;
     }
     let mut ln_leading_term = -fractional_order * two_over_z.ln() + scaled_z;
-    let gamma_term = gamma_ln(T::ONE + fractional_order).unwrap();
+    let gamma_term = gamma_ln(T::ONE + fractional_order, mc).unwrap();
     ln_leading_term -= gamma_term;
     // Calculate the final normalisation constant.
     // The complex division exp(ln_leading_term) / (normalisation_sum + val_k) is performed

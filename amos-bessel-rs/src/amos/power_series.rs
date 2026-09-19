@@ -69,7 +69,7 @@ pub fn i_power_series<T: BesselFloat>(
             // then move on to more set last two elements (though still being careful of
             // potential underflow)
             let mut ln_leading_term = ln_half_z * current_order;
-            ln_leading_term.re -= gamma_ln(current_order + T::one()).unwrap();
+            ln_leading_term.re -= gamma_ln(current_order + T::one(), mc).unwrap();
             if scaling == Scaling::Scaled {
                 ln_leading_term.re -= z.re;
             }
