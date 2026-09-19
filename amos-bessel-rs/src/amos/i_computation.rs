@@ -60,15 +60,22 @@ pub(crate) fn i_miller<T: BesselFloat>(
     // doesn't pollute the final values at our target index.
     let mut converged = false;
     let mut series_trunctation_index = 0;
+    let mut recurrence_factor = two_over_z * (abs_z_plus_one * T::HALF);
+    let mut current_index_magnitude = abs_z_plus_one;
     for i in 0..80 {
         series_trunctation_index = i + 2;
-        let current_index_magnitude = abs_z_plus_one + T::from_usize(i);
-        let recurrence_factor = two_over_z * ((abs_z_plus_one + T::from_usize(i * 2)) / T::TWO);
+        // below is the un-optimised line that is now replaced by incremental addition to reduce computational load
+        // un-optimised code is retained for explanation
+        // let current_index_magnitude = abs_z_plus_one + T::from_usize(i);
+        // let recurrence_factor = two_over_z * ((abs_z_plus_one + T::from_usize(i * 2)) / T::TWO);
         (fwd_k_minus_1, fwd_k) = (fwd_k, fwd_k_minus_1 - recurrence_factor * fwd_k);
-        if fwd_k.abs() > convergence_test * current_index_magnitude * current_index_magnitude {
+        let threshold = convergence_test * current_index_magnitude * current_index_magnitude;
+        if fwd_k.norm_sqr() > threshold * threshold {
             converged = true;
             break;
         }
+        recurrence_factor += two_over_z;
+        current_index_magnitude += T::ONE;
     }
     if !converged {
         return Err(DidNotConverge);
@@ -81,16 +88,21 @@ pub(crate) fn i_miller<T: BesselFloat>(
         // for the Neumann normalisation sum (which requires more terms to converge).
         fwd_k_minus_1 = T::C_ZERO;
         fwd_k = T::C_ONE;
-        let starting_order = T::from_f64(modified_int_order as f64) + T::ONE;
-        convergence_test = (starting_order * reciprocal_abs_z / mc.abs_error_tolerance).sqrt();
+        let starting_order = T::from_usize(modified_int_order + 1);
+        let mut convergence_test_sqr = starting_order * reciprocal_abs_z / mc.abs_error_tolerance;
         let mut hit_loop_end = false;
         converged = false;
+        let mut recurrence_factor = two_over_z * (starting_order * T::HALF);
         for k in 0..80 {
             ratio_truncation_index = k + 1;
-            let recurrence_factor = two_over_z * ((starting_order + T::from_usize(k * 2)) / T::TWO);
+            // below is the un-optimised line that is now replaced by incremental addition to reduce computational load
+            // un-optimised code is retained for explanation
+            // let recurrence_factor = two_over_z * ((starting_order + T::from_usize(i * 2)) / T::TWO);
             (fwd_k_minus_1, fwd_k) = (fwd_k, fwd_k_minus_1 - recurrence_factor * fwd_k);
-            let abs_fwd_k = fwd_k.abs();
-            if abs_fwd_k < convergence_test {
+            let fwd_k_sqr = fwd_k.norm_sqr();
+
+            if fwd_k_sqr < convergence_test_sqr {
+                recurrence_factor += two_over_z;
                 continue;
             }
             if hit_loop_end {
@@ -98,11 +110,14 @@ pub(crate) fn i_miller<T: BesselFloat>(
                 break;
             }
             abs_recurrence_factor = recurrence_factor.abs();
+
             let lambda = abs_recurrence_factor
                 + (abs_recurrence_factor * abs_recurrence_factor - T::ONE).sqrt();
+            let abs_fwd_k = fwd_k_sqr.sqrt();
             let kappa = abs_fwd_k / fwd_k_minus_1.abs();
             let rho = lambda.min(kappa);
-            convergence_test *= (rho / (rho * rho - T::ONE)).sqrt();
+            convergence_test_sqr *= rho / (rho * rho - T::ONE);
+            recurrence_factor += two_over_z;
             hit_loop_end = true;
         }
         if !converged {
