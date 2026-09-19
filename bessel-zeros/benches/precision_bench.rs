@@ -1,7 +1,7 @@
 use bessel_zeros::{BesselFunType, bessel_zeros};
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 
-fn bench_zeros(c: &mut Criterion) {
+fn bench_precision(c: &mut Criterion) {
     let mut group = c.benchmark_group("Bessel Zeros Runtime");
 
     let types = [
@@ -39,5 +39,5 @@ fn bench_zeros(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_zeros);
+criterion_group!(benches, bench_precision);
 criterion_main!(benches);
