@@ -5,6 +5,7 @@ members = [
     "bessel-zeros",
     "real-bessel",
     "fortran-amos-testing",
+    "bessel-benchmarks",
 ]
 
 
