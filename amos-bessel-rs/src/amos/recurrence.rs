@@ -7,7 +7,7 @@ use crate::{
     types::BesselFloat,
 };
 use core::cmp::min;
-use num::{Complex, complex::ComplexFloat};
+use num::Complex;
 
 /// Iterate through k functions (the first number of which may be zeros), set
 /// them to zero on underflow, continuing recurrence
@@ -40,7 +40,7 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
         // Assumption: the value is too small (will underflow)
         *n_zeros += 1;
         *yi = T::C_ZERO;
-        if -z.re + current_val.abs().ln() < -mc.exponent_limit {
+        if -z.re + (T::HALF * current_val.norm_sqr().ln()) < -mc.exponent_limit {
             // if the scaling would put the (negative) exponent below the (negative)
             // limit, the the value was too small (assumption true)
             continue;
@@ -83,10 +83,12 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
         let recurrence_factor = (order + T::from_usize(i - 1)) * two_over_z;
         (scaled_k_minus_1, scaled_k) = (scaled_k, scaled_k * recurrence_factor + scaled_k_minus_1);
 
+        let ln_abs_k = T::HALF * scaled_k.norm_sqr().ln();
+
         // Assumption: the value is too small (will underflow)
         *n_zeros += 1;
         *yi = T::C_ZERO;
-        if -effective_z.re + scaled_k.abs().ln() >= -mc.exponent_limit {
+        if -effective_z.re + ln_abs_k >= -mc.exponent_limit {
             // note: the value below is unscaled by the standard scaling, but is still a factor of
             // abs_error_tolerance smaller than the final answer
             let unscaled_value = (scaled_k.ln() - effective_z).exp() / mc.abs_error_tolerance;
@@ -107,7 +109,7 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
             }
         }
 
-        if scaled_k.abs().ln() > half_exponent_limit {
+        if ln_abs_k > half_exponent_limit {
             effective_z -= mc.exponent_limit;
             scaled_k_minus_1 *= internal_scaling_factor;
             scaled_k *= internal_scaling_factor;

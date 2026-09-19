@@ -251,29 +251,30 @@ pub(crate) fn i_ratios<T: BesselFloat>(z: Complex<T>, order: T, out: &mut [Compl
         let mut fwd_k_minus_1 = T::C_ONE;
 
         abs_fwd_k = fwd_k.abs();
-        let mut abs_fwd_k_minus_1 = fwd_k_minus_1.abs();
+        let abs_fwd_k_minus_1 = fwd_k_minus_1.abs();
         // Scale base_convergence_test and all subsequent fwd_k values by
         // abs_fwd_k_minus_1 to ensure that an overflow does not occur prematurely
         let initial_test_arg =
             (abs_fwd_k + abs_fwd_k) / (abs_fwd_k_minus_1 * mc.abs_error_tolerance);
-        let base_convergence_test = initial_test_arg.sqrt();
+        let base_convergence_test = initial_test_arg;
         let mut convergence_test = base_convergence_test;
         fwd_k_minus_1 /= abs_fwd_k_minus_1;
         fwd_k /= abs_fwd_k_minus_1;
-        abs_fwd_k /= abs_fwd_k_minus_1;
+        // abs_fwd_k /= abs_fwd_k_minus_1;
         let mut rough_check = true;
 
+        let mut abs_fwd_k_sqr = abs_fwd_k * abs_fwd_k; //
         // we expect to break before the end (i.e. never get to i == 1000)
         // in fortran this was an infinite loop, but here I want the loop index
         for i in 1..1000 {
             // first loop roughly checking that we are in a high-growth region
             n_steps += 1;
-            abs_fwd_k_minus_1 = abs_fwd_k;
+            let abs_fwd_k_minus_1_sqr = abs_fwd_k_sqr;
             let recurrence_factor = two_over_z * T::from_isize(starting_index + i);
             (fwd_k_minus_1, fwd_k) = (fwd_k, fwd_k_minus_1 - (recurrence_factor * fwd_k));
 
-            abs_fwd_k = fwd_k.abs();
-            if abs_fwd_k_minus_1 <= convergence_test {
+            abs_fwd_k_sqr = fwd_k.norm_sqr();
+            if abs_fwd_k_minus_1_sqr <= convergence_test {
                 continue;
             }
             // if we get here, we have reached the high growth region, and move into
@@ -287,9 +288,11 @@ pub(crate) fn i_ratios<T: BesselFloat>(z: Complex<T>, order: T, out: &mut [Compl
             let abs_next_recurrence_factor = (recurrence_factor + two_over_z).abs() / T::TWO;
             let lambda =
                 abs_next_recurrence_factor + (abs_next_recurrence_factor.powi(2) - T::ONE).sqrt();
-            let rho = abs_fwd_k / abs_fwd_k_minus_1.min(lambda);
-            convergence_test = base_convergence_test * (rho / (rho.powi(2) - T::ONE)).sqrt();
+            abs_fwd_k = fwd_k.abs();
+            let rho = abs_fwd_k / abs_fwd_k_minus_1_sqr.sqrt().min(lambda);
+            convergence_test = base_convergence_test * (rho / (rho.powi(2) - T::ONE));
         }
+        abs_fwd_k = abs_fwd_k_sqr.sqrt();
     }
 
     let mut val_k = Complex::<T>::new(T::ONE / abs_fwd_k, T::ZERO);
@@ -321,13 +324,13 @@ pub(crate) fn i_ratios<T: BesselFloat>(z: Complex<T>, order: T, out: &mut [Compl
         let base_order_term = order * two_over_z;
         for k in (1..n).rev() {
             let mut fraction_denominator = base_order_term + T::from_usize(k) * two_over_z + out[k];
-            let mut abs_pt = fraction_denominator.abs();
-            if abs_pt == T::ZERO {
+            let mut abs_frac_denom_sqr = fraction_denominator.norm_sqr();
+            if abs_frac_denom_sqr == T::ZERO {
                 fraction_denominator =
                     Complex::<T>::new(mc.abs_error_tolerance, mc.abs_error_tolerance);
-                abs_pt = fraction_denominator.abs();
+                abs_frac_denom_sqr = fraction_denominator.norm_sqr();
             }
-            out[k - 1] = fraction_denominator.conj() / abs_pt.powi(2);
+            out[k - 1] = fraction_denominator.conj() / abs_frac_denom_sqr;
         }
     }
 }

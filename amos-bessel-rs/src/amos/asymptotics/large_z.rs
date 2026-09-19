@@ -1,7 +1,4 @@
-use num::{
-    Integer,
-    complex::{Complex, ComplexFloat},
-};
+use num::complex::{Complex, ComplexFloat};
 
 use crate::{
     BesselError, BesselFloat, Scaling,
@@ -67,26 +64,21 @@ pub fn i_asymptotic<T: BesselFloat>(
         T::C_ZERO
     } else {
         // Compute the Stokes phase factor exp(i*pi*(0.5 + order + k) * sgn(Im(z)))
-        // using fract(order) to prevent loss of precision when order or n is large.
-        let arg = order.fract() * T::PI();
-        let phase_re = -arg.sin();
-        let mut phase_im = arg.cos();
+        // for k = n - 1. Reducing modulo 2 prevents loss of precision when order or n is large.
+        let max_order = order + T::from_usize(n - 1);
+        let parity = (max_order + T::HALF) % T::TWO;
+        let mut phase_factor = Complex::cis(parity * T::PI());
         if z.im < T::ZERO {
-            phase_im = -phase_im;
-        };
-        let phase_factor = Complex::<T>::new(phase_re, phase_im);
-        if (order.to_usize().unwrap() + n).is_even() {
-            -phase_factor
-        } else {
-            phase_factor
+            phase_factor = phase_factor.conj();
         }
+        phase_factor
     };
 
     for (k, elem) in out.iter_mut().enumerate().rev().take(2.min(n)) {
         let (mut sum_dominant, sum_subdominant) = {
             // this block is just to contain the large number of mutable variables in a small space
             let modified_order = order + T::from_usize(k);
-            let four_order_sqr = (T::TWO * modified_order).powf(T::TWO);
+            let four_order_sqr = (T::TWO * modified_order).powi(2);
             let atol = rel_tol_scale * (four_order_sqr - T::one()).abs();
             let mut sign = T::one();
             let mut sum_alternating = T::C_ONE;
@@ -94,16 +86,18 @@ pub fn i_asymptotic<T: BesselFloat>(
             let mut term = T::C_ONE;
             let mut term_magnitude = T::one();
             let mut converged = false;
+            let recip_eight_z = Complex::<T>::ONE / eight_z;
+            let recip_abs_eight_z = T::ONE / abs_eight_z;
             for i in 0..max_iterations {
                 let odd = T::from_usize(2 * i + 1);
                 let step = T::from_usize(i + 1);
                 let numerator_factor = four_order_sqr - odd.powi(2); // 4ν² - (2i + 1)²
-                let denominator_factor = step * eight_z;
-                term *= numerator_factor / denominator_factor;
+                let step_scalar = numerator_factor / step;
+                term *= recip_eight_z * step_scalar; // 1 real div + 1 scalar-complex mul + 1 complex mul
+                term_magnitude *= step_scalar.abs() * recip_abs_eight_z;
                 sum_direct += term;
                 sign = -sign;
                 sum_alternating += term * sign;
-                term_magnitude *= numerator_factor.abs() / (step * abs_eight_z);
                 if term_magnitude <= atol {
                     converged = true;
                     break;

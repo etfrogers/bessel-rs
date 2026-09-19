@@ -287,7 +287,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
                     let recurrence_factor =
                         (signed_fractional_order + T::from_isize(offset - 1)) * two_over_z;
                     (k_v_minus_1, k_v) = (k_v, k_v * recurrence_factor + k_v_minus_1);
-                    let ln_abs_k_v = k_v.abs().ln();
+                    let ln_abs_k_v = T::HALF * k_v.norm_sqr().ln();
                     if -z_shift.re + ln_abs_k_v >= -mc.exponent_limit {
                         let trial_k_v = (-z_shift + k_v.ln()).exp() / mc.abs_error_tolerance;
                         if !will_underflow(trial_k_v, mc) {
@@ -473,14 +473,18 @@ fn compute_small_z_power_series<T: BesselFloat>(
     if abs_z >= mc.abs_error_tolerance {
         for step in 1..MAX_ITERATIONS {
             let k = T::from_usize(step);
-            let k_sqr_minus_nu_sqr = k.powi(2) - frac_order_sqr;
-            temme_coeff = (temme_coeff * k + neg_order_term + pos_order_term) / k_sqr_minus_nu_sqr;
-            neg_order_term /= k - signed_fractional_order;
-            pos_order_term /= k + signed_fractional_order;
-            taylor_factor *= z_sqr_over_4 / k;
+            let recip_k = T::ONE / k;
+            let recip_denom = T::ONE / (k * k - frac_order_sqr);
+            let recip_neg = T::ONE / (k - signed_fractional_order);
+            let recip_pos = T::ONE / (k + signed_fractional_order);
+
+            temme_coeff = (temme_coeff * k + neg_order_term + pos_order_term) * recip_denom;
+            neg_order_term *= recip_neg;
+            pos_order_term *= recip_pos;
+            taylor_factor *= z_sqr_over_4 * recip_k;
             sum_k_nu += taylor_factor * temme_coeff;
             sum_k_nu_plus_1 += taylor_factor * (neg_order_term - k * temme_coeff);
-            term_magnitude *= abs_z_sqr_over_4 / k;
+            term_magnitude *= abs_z_sqr_over_4 * recip_k;
 
             if term_magnitude <= mc.abs_error_tolerance {
                 break;
