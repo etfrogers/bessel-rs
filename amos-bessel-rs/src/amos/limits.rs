@@ -112,6 +112,7 @@ impl OverflowState {
     /// `self.reciprocal_scaling_factor()`. This acts as a manual loop-invariant code
     /// motion (hoisting), preventing the compiler from executing the `match` branches
     /// inside those functions on every iteration of the tight innermost recurrence loops.
+    #[inline]
     pub fn scale_recurrence<T: BesselFloat>(
         &mut self,
         s1: &mut Complex<T>,

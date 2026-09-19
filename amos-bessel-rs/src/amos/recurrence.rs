@@ -9,22 +9,6 @@ use crate::{
 use core::cmp::min;
 use num::{Complex, complex::ComplexFloat};
 
-enum EitherIter<L, R> {
-    Left(L),
-    Right(R),
-}
-
-impl<I, L: Iterator<Item = I>, R: Iterator<Item = I>> Iterator for EitherIter<L, R> {
-    type Item = I;
-    #[inline]
-    fn next(&mut self) -> Option<I> {
-        match self {
-            EitherIter::Left(l) => l.next(),
-            EitherIter::Right(r) => r.next(),
-        }
-    }
-}
-
 /// Iterate through k functions (the first number of which may be zeros), set
 /// them to zero on underflow, continuing recurrence
 /// on scaled functions until the first two members of the sequence *don't* underflow
@@ -164,39 +148,95 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
 /// The recurrence multiplier `recurrence_factor` is computed dynamically from the absolute array index `i`,
 /// rendering the loop stateless. Depending on the `forward` flag, `ck` evaluates to exactly
 /// $\frac{2}{z}(\nu + i \pm 1)$, correctly mirroring the specific step in the sequence.
-#[allow(clippy::too_many_arguments)]
 #[inline]
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn scale_controlled_recurrence<T: BesselFloat>(
     forward: bool,
     order: T,
     z: Complex<T>,
-    mut y: Option<&mut [Complex<T>]>,
+    y: Option<&mut [Complex<T>]>,
     n_offset: usize,
     n: usize,
+    s1: Complex<T>,
+    s2: Complex<T>,
+    overflow_state: OverflowState,
+    mc: &MachineConsts<T>,
+) -> (Complex<T>, Complex<T>, OverflowState) {
+    let two_over_z = two_over_z_safe(z);
+
+    if forward {
+        let base_order = order - T::ONE;
+        let iter = n_offset..n;
+        match y {
+            Some(out) => run_recurrence_core(
+                iter,
+                base_order,
+                two_over_z,
+                |i, yi| out[i] = yi,
+                s1,
+                s2,
+                overflow_state,
+                mc,
+            ),
+            None => run_recurrence_core(
+                iter,
+                base_order,
+                two_over_z,
+                |_, _| (),
+                s1,
+                s2,
+                overflow_state,
+                mc,
+            ),
+        }
+    } else {
+        let base_order = order + T::ONE;
+        let iter = (0..n_offset).rev();
+        match y {
+            Some(out) => run_recurrence_core(
+                iter,
+                base_order,
+                two_over_z,
+                |i, yi| out[i] = yi,
+                s1,
+                s2,
+                overflow_state,
+                mc,
+            ),
+            None => run_recurrence_core(
+                iter,
+                base_order,
+                two_over_z,
+                |_, _| (),
+                s1,
+                s2,
+                overflow_state,
+                mc,
+            ),
+        }
+    }
+}
+
+#[inline(always)]
+#[allow(clippy::too_many_arguments)]
+fn run_recurrence_core<T: BesselFloat, I: Iterator<Item = usize>, F: FnMut(usize, Complex<T>)>(
+    iter: I,
+    base_order: T,
+    two_over_z: Complex<T>,
+    mut on_yield: F,
     mut s1: Complex<T>,
     mut s2: Complex<T>,
     mut overflow_state: OverflowState,
     mc: &MachineConsts<T>,
 ) -> (Complex<T>, Complex<T>, OverflowState) {
-    let two_over_z = two_over_z_safe(z);
-
-    let iterator = if forward {
-        EitherIter::Right(n_offset..n)
-    } else {
-        EitherIter::Left((0..n_offset).rev())
-    };
-    let index_adjustment = if forward { -T::ONE } else { T::ONE };
-
     let mut recip_scale_factor = overflow_state.reciprocal_scaling_factor::<T>(mc);
     let mut boundary = overflow_state.boundary::<T>(mc);
 
-    for i in iterator {
-        let recurrence_factor = two_over_z * (order + T::from_usize(i) + index_adjustment);
+    for i in iter {
+        let recurrence_factor = two_over_z * (base_order + T::from_usize(i));
         (s1, s2) = (s2, s1 + recurrence_factor * s2);
         let yi = s2 * recip_scale_factor;
-        if let Some(vec) = y.as_mut() {
-            (*vec)[i] = yi;
-        }
+        on_yield(i, yi);
         overflow_state.scale_recurrence(
             &mut s1,
             &mut s2,
