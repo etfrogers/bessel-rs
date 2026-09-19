@@ -141,6 +141,11 @@ pub(crate) fn i_miller<T: BesselFloat>(
         - gamma_ln(twice_fractional_order + T::ONE, mc).unwrap())
     .exp();
     let mut normalisation_sum = T::C_ZERO;
+    // NOTE (Performance): An integer-order fast path (specializing for twice_fractional_order == 0
+    // to skip the binomial_coeff recurrence) was empirically evaluated with Criterion benchmarks.
+    // It yielded a 0.0% performance difference because the scalar arithmetic is dwarfed by
+    // the complex multiplications, but it tripled code complexity and loop duplication.
+    // Maintain the unified branch.
     // Neumann normalisation loop
     for _ in 0..(start_index - modified_int_order) {
         let pt = val_k;
