@@ -507,33 +507,70 @@ fn compute_large_z_miller_seeds<T: BesselFloat>(
 ) -> Result<(Complex<T>, Complex<T>), BesselError<T>> {
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let starting_k = determine_miller_starting_k(z, frac_order_sqr, order_rotation)?;
+
+    if z.im == T::ZERO {
+        // fast path for real z (mostly the same maths, but all real calculations)
+        let z_re = z.re;
+        let mut u_plus_1 = T::ZERO;
+        let mut u = mc.abs_error_tolerance;
+        let mut sum = u;
+        let mut k = T::from_usize(starting_k);
+        for _ in (0..starting_k).rev() {
+            let k_sqr = k * k;
+            let recip_denom = T::ONE / (k_sqr - k + quarter_minus_nu_sqr);
+            let factor_k = (z_re + k) * (T::TWO * k);
+            let factor_k_plus_1 = k_sqr + k;
+            (u_plus_1, u) = (u, (u * factor_k - u_plus_1 * factor_k_plus_1) * recip_denom);
+            sum += u;
+            k -= T::ONE;
+        }
+
+        let abs_sum = sum.abs();
+        let k_nu = (u / abs_sum) * (sum / abs_sum) * coeff.re;
+        let k_nu_plus_1 = if small_order_n_eq_1 {
+            T::ZERO
+        } else {
+            let abs_u = u.abs();
+            let ratio = (u_plus_1 / abs_u) * (u / abs_u);
+            (((-ratio + signed_fractional_order + T::HALF) / z_re) + T::ONE) * k_nu
+        };
+        return Ok((
+            Complex::new(k_nu, T::ZERO),
+            Complex::new(k_nu_plus_1, T::ZERO),
+        ));
+    }
+
     // Now we have starting_k, run the backward recurrence loop
     // to determine the normalization factor and find K_nu, K_{nu+1}
     let mut unnormalized_k_plus_1 = Complex::<T>::zero();
     let mut unnormalized_k = Complex::<T>::new(mc.abs_error_tolerance, T::ZERO);
     let mut normalization_sum = unnormalized_k;
-    for k_int in (1..=starting_k).rev() {
-        let k = T::from_usize(k_int);
-        let k_sqr = k.powi(2);
-        let backward_recurrence_factor = (z + k) * T::TWO / (k + T::ONE);
+    let mut k = T::from_usize(starting_k);
+    for _ in (0..starting_k).rev() {
+        let k_sqr = k * k;
+        let recip_denom = T::ONE / (k_sqr - k + quarter_minus_nu_sqr);
+        let factor_k = (z + k) * (T::TWO * k);
+        let factor_k_plus_1 = k_sqr + k;
         (unnormalized_k_plus_1, unnormalized_k) = (
             unnormalized_k,
-            (unnormalized_k * backward_recurrence_factor - unnormalized_k_plus_1) * (k_sqr + k)
-                / (k_sqr - k + quarter_minus_nu_sqr),
+            (unnormalized_k * factor_k - unnormalized_k_plus_1 * factor_k_plus_1) * recip_denom,
         );
         normalization_sum += unnormalized_k;
+        k -= T::ONE;
     }
     // Normalize the unscaled K_nu using the accumulated sum: K_nu = (P_0 / sum) * coeff
-    let mut k_nu = unnormalized_k / normalization_sum.abs();
+    let abs_norm_sum = normalization_sum.abs();
+    let mut k_nu = unnormalized_k / abs_norm_sum;
 
-    normalization_sum = normalization_sum.conj() / normalization_sum.abs();
+    normalization_sum = normalization_sum.conj() / abs_norm_sum;
     k_nu *= coeff * normalization_sum;
     let k_nu_plus_1 = if small_order_n_eq_1 {
         T::C_ZERO
     } else {
         // Numerically stable ratio (P_1 / P_0)
-        unnormalized_k_plus_1 /= unnormalized_k.abs();
-        unnormalized_k = unnormalized_k.conj() / unnormalized_k.abs();
+        let abs_unorm_k = unnormalized_k.abs();
+        unnormalized_k_plus_1 /= abs_unorm_k;
+        unnormalized_k = unnormalized_k.conj() / abs_unorm_k;
         (((-(unnormalized_k_plus_1 * unnormalized_k) + signed_fractional_order + T::HALF) / z)
             + T::ONE)
             * k_nu
@@ -547,7 +584,7 @@ fn determine_miller_starting_k<T: BesselFloat>(
     order_rotation: T,
 ) -> Result<usize, BesselError<T>> {
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
-    let abs_z = z.abs();
+    let abs_z = if z.im == T::ZERO { z.re } else { z.abs() };
     const K_MAX: usize = 30;
     let miller_truncation_heuristic_1: T = T::from_f64(1.909_859_317_102_744);
     let miller_truncation_heuristic_2: T = T::from_f64(1.897_699_993_315_177_5);
@@ -557,7 +594,6 @@ fn determine_miller_starting_k<T: BesselFloat>(
     // The `recurrence_threshold` is a linear function over the mantissa bits E (12 <= E <= 60).
     let bits = (T::MANTISSA_DIGITS - 1).clamp(12, 60) as f64;
     let recurrence_threshold = T::from_f64((2.0 / 3.0) * bits - 6.0);
-    let arg_z = z.arg();
 
     // Both blocks below are answering the question:
     // How large does our starting index K need to be to achieve K_(nu+K) ≈ 0
@@ -589,8 +625,13 @@ fn determine_miller_starting_k<T: BesselFloat>(
             if !converged {
                 return Err(BesselError::DidNotConverge);
             }
-            let raw_k = T::from_usize(trial_index)
-                + miller_truncation_heuristic_1 * arg_z * (recurrence_threshold / abs_z).sqrt();
+            let raw_k = if z.im == T::ZERO {
+                T::from_usize(trial_index) // because arg_z == 0.0
+            } else {
+                let arg_z = z.arg();
+                T::from_usize(trial_index)
+                    + miller_truncation_heuristic_1 * arg_z * (recurrence_threshold / abs_z).sqrt()
+            };
             raw_k.to_usize().ok_or(BesselError::DidNotConverge)?
         }
     } else {
@@ -598,11 +639,17 @@ fn determine_miller_starting_k<T: BesselFloat>(
         // instead, we use a heuristic equation to calculate the K value directly.
         let precision_factor = order_rotation * miller_truncation_heuristic_2
             / (mc.abs_error_tolerance * abs_z.sqrt().sqrt());
-        let angle_correction_a = T::from_f64(3.0) * arg_z / (T::ONE + abs_z);
-        let angle_correction_b = T::from_f64(14.7) * arg_z / (T::from_f64(28.0) + abs_z);
-        let heuristic_curve_factor = (precision_factor.ln()
-            + abs_z * angle_correction_a.cos() / (T::ONE + T::from_f64(0.008) * abs_z))
-            / angle_correction_b.cos();
+        let heuristic_curve_factor = if z.im == T::ZERO {
+            // again this is a simplified forme when arg_x == 0.0
+            precision_factor.ln() + abs_z / (T::ONE + T::from_f64(0.008) * abs_z)
+        } else {
+            let arg_z = z.arg();
+            let angle_correction_a = T::from_f64(3.0) * arg_z / (T::ONE + abs_z);
+            let angle_correction_b = T::from_f64(14.7) * arg_z / (T::from_f64(28.0) + abs_z);
+            (precision_factor.ln()
+                + abs_z * angle_correction_a.cos() / (T::ONE + T::from_f64(0.008) * abs_z))
+                / angle_correction_b.cos()
+        };
         let raw_k =
             T::from_f64(0.12125) * heuristic_curve_factor.powi(2) / abs_z + T::from_f64(1.5);
         raw_k.to_usize().ok_or(BesselError::DidNotConverge)?
