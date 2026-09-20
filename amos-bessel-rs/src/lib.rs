@@ -11,16 +11,16 @@
 //!
 //! To calculate Bessel functions in Rust there are now several alternatives
 //!
-//! - [Complex Bessel rs](https://crates.io/crates/complex-bessel-rs/) - A wrapper around the Amos' Fortran functions with a Rust API.
-//!   Good if you want guarantees that answers will be the same as Fortran, but requires a Fortran compiler in your toolchain to compile.
+//! - [This crate](https://docs.rs/amos-bessel-rs/latest/amos_bessel_rs/) - A modern, idiomatic pure-Rust translation of Amos' algorithms.
+//!   Features zero-allocation buffer-passing APIs (`_into`), register-resident recurrence loops, and SIMD-friendly Horner polynomial evaluation.
+//!   Benchmarks show it consistently matches or outpaces both Fortran AMOS and other translations while offering full `#![no_std]` support.
 //! - [Complex Bessel](http://docs.rs/complex-bessel/latest/complex_bessel/) - A line-by-line translation of Amos code with a very good
-//!   [comparison tool](https://github.com/elgar328/complex-bessel-test) to confirm both accuracy and computational speed. Carefully optimised
-//!   for accuracy and speed using detailed tools (e.g. implementation of FMA) to aid the compiler.
-//! - [This crate](https://docs.rs/amos-bessel-rs/latest/amos_bessel_rs/) - A more idiomatic translation of the Fortran code: using Rust
-//!   tools. Relies on the compiler to optimise as best it can. A fork of the elgar328's [comparison tool](https://github.com/etfrogers/complex-bessel-test) shows similar accuracy and
-//!   execution speed.
-//! - **Real Bessel** - WIP (soon to be released) crate that calculates real-only Bessel function's *J*, and *Y* for integer order. *J* takes
-//!   real inputs, *Y* is restricted to positive inputs (to give real answers). This implementation is faster for these simple cases.
+//!   [comparison tool](https://github.com/elgar328/complex-bessel-test) to confirm both accuracy and computational speed. Optimised
+//!   for accuracy and speed using FMA tools to aid the compiler.
+//! - [Real Bessel](https://crates.io/crates/real-bessel) - A dedicated pure `core` zero-allocation crate that calculates real-only Bessel
+//!   functions *J* and *Y* for integer order. Faster for these simple cases.
+//! - [Complex Bessel rs](https://crates.io/crates/complex-bessel-rs/) - A wrapper around the Amos' Fortran functions with a Rust API.
+//!   Good if you want guarantees that answers will be identical to Fortran, but requires a Fortran compiler in your toolchain to compile.
 //!
 //! The primary test of this crate is that it gives the same values
 //! (to within approx 10 significant figures, subject to the considerations
