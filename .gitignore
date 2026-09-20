@@ -4,5 +4,8 @@
 *.vsix
 lcov.info
 profile.json
+profile.folded
+profile_summary.txt
+__pycache__
 /docs/book
 **/parse_benchmarks
