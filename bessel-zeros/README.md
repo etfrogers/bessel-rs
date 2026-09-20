@@ -58,7 +58,7 @@ which accept a `BesselFunType` and a precision argument.
 ```rust
 use bessel_zeros::{BesselFunType, bessel_zeros, DEFAULT_PRECISION};
 
-let zeros = bessel_zeros(&BesselFunType::J, 0.0_f64, 10, 1e-10);
+let zeros = bessel_zeros(BesselFunType::J, 0.0_f64, 10, 1e-10);
 ```
 
 ## `no_std` Support

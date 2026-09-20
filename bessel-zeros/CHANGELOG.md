@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-09-20
+### Added
+- Coupled $(J_\nu, J_{\nu+1})$ solver evaluating both orders simultaneously during root-finding iterations, cutting AMOS zero-finding runtime by 58% (2.4× speedup).
+- In-place stack buffer evaluation via `amos-bessel-rs`'s `_into` APIs to eliminate internal heap allocations in zero-finding loops.
+- `BesselFunType` now implements `Copy` and `Clone`.
+- Full `#![no_std]` support (with `alloc`).
+
 ## [0.2.0] - 2026-07-20
 ### Added
 - Introduced the `fast` module backed by the new `real-bessel` crate for computing zeros of integer-order Bessel functions. This provides a significant speedup over the AMOS backend.
