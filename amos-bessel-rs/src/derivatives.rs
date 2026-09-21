@@ -2,18 +2,18 @@ use num::Complex;
 use num_integer::binomial;
 
 use crate::{
-    BesselError, BesselFloat, BesselInput, HankelKind, Scaling,
+    BesselError, BesselFloat, BesselInput, HankelKind, Scaling, SequenceInfo,
     amos::{
-        complex_bessel_i, complex_bessel_j, complex_bessel_k, complex_bessel_y, complex_hankel1,
-        complex_hankel2,
+        complex_bessel_i_into, complex_bessel_j_into, complex_bessel_k_into, complex_bessel_y_into,
+        complex_hankel1_into, complex_hankel2_into,
     },
     reflections::integer_sign,
-    types::BesselValues,
+    types::ScratchBuffer,
 };
 
 #[allow(type_alias_bounds)]
 type BesselSig<T: BesselFloat = f64> =
-    fn(Complex<T>, T, Scaling, usize) -> Result<BesselValues<T>, BesselError<T>>;
+    fn(Complex<T>, T, Scaling, &mut [Complex<T>]) -> Result<SequenceInfo, BesselError<T>>;
 
 /// Computes the first derivative of the Bessel function of the first kind $J_\nu'(z)$ with respect to $z$.
 ///
@@ -63,7 +63,7 @@ pub fn bessel_j_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     scaling: Scaling,
 ) -> Result<ZT, BesselError<FT>> {
     derivative_internal(
-        complex_bessel_j,
+        complex_bessel_j_into,
         order.into(),
         z.into(),
         derivative_order,
@@ -121,7 +121,7 @@ pub fn bessel_y_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     scaling: Scaling,
 ) -> Result<ZT, BesselError<FT>> {
     derivative_internal(
-        complex_bessel_y,
+        complex_bessel_y_into,
         order.into(),
         z.into(),
         derivative_order,
@@ -179,7 +179,7 @@ pub fn bessel_i_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     scaling: Scaling,
 ) -> Result<ZT, BesselError<FT>> {
     derivative_internal(
-        complex_bessel_i,
+        complex_bessel_i_into,
         order.into(),
         z.into(),
         derivative_order,
@@ -300,7 +300,7 @@ pub fn hankel1_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     scaling: Scaling,
 ) -> Result<ZT, BesselError<FT>> {
     derivative_internal(
-        complex_hankel1,
+        complex_hankel1_into,
         order.into(),
         z.into(),
         derivative_order,
@@ -361,7 +361,7 @@ pub fn hankel2_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     scaling: Scaling,
 ) -> Result<ZT, BesselError<FT>> {
     derivative_internal(
-        complex_hankel2,
+        complex_hankel2_into,
         order.into(),
         z.into(),
         derivative_order,
@@ -419,7 +419,7 @@ pub fn bessel_k_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     scaling: Scaling,
 ) -> Result<ZT, BesselError<FT>> {
     derivative_internal(
-        complex_bessel_k,
+        complex_bessel_k_into,
         order.into(),
         z.into(),
         derivative_order,
@@ -445,9 +445,12 @@ fn derivative_internal<T: BesselFloat>(
     scaling: Scaling,
     sign_type: SignType,
 ) -> Result<Complex<T>, BesselError<T>> {
-    if derivative_order > 60 {
+    if derivative_order > 15 {
         return Err(BesselError::InvalidInput {
-            details: "Derivative order too large - must be no greater than 60",
+            // 2*k+1 must be <= 32 for ScratchBuffer to work in no-alloc
+            // the binomial function also limits us to 60, and derivative orders > 15
+            // don't seem useful.
+            details: "Derivative order too large - must be no greater than 15",
         });
     }
     let k = derivative_order as usize;
@@ -456,7 +459,8 @@ fn derivative_internal<T: BesselFloat>(
         prefactor *= integer_sign::<T>(k as i64);
     }
 
-    let (values, _info) = func(z, order - T::from_usize(k), scaling, 2 * k + 1)?;
+    let mut buf = ScratchBuffer::new(2 * k + 1)?;
+    let _info = func(z, order - T::from_usize(k), scaling, &mut buf)?;
 
     let mut sum = T::C_ZERO;
     for n in 0..=k {
@@ -466,7 +470,7 @@ fn derivative_internal<T: BesselFloat>(
             SignType::K => T::ONE,
             SignType::Cylinder => integer_sign::<T>(n as i64),
         };
-        let v = values[n * 2];
+        let v = buf[n * 2];
         sum += v * sign * n_choose_k;
     }
     Ok(prefactor * sum)

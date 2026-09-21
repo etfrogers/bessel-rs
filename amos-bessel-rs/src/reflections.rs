@@ -501,7 +501,7 @@ pub(crate) fn reflect_orders<T: BesselFloat, Op: ReflectableBessel<T>>(
     if let Some(int_order) = as_integer(abs_order) {
         let max_order = (n as i64 - 1 - int_order).max(int_order);
         let n_positive = (max_order + 1) as usize;
-        let mut pos_values = ScratchBuffer::new(n_positive);
+        let mut pos_values = ScratchBuffer::new(n_positive)?;
         let pos_n_zeros = unwrap_plos(op.eval(z, T::ZERO, scaling, &mut pos_values)?);
 
         let order_size = int_order as usize;
@@ -529,12 +529,12 @@ pub(crate) fn reflect_orders<T: BesselFloat, Op: ReflectableBessel<T>>(
 
     // 2. Negative non-integer orders (DLMF reflection formulas)
     let first_negative = order.abs() - T::from_usize(n_negative - 1);
-    let mut prim_neg = ScratchBuffer::new(n_negative);
+    let mut prim_neg = ScratchBuffer::new(n_negative)?;
     let n_zeros_prim_neg = unwrap_plos(op.eval(z, first_negative, scaling, &mut prim_neg)?);
     let sec_neg_result = op
         .secondary()
         .map(|s| {
-            let mut vals = ScratchBuffer::new(n_negative);
+            let mut vals = ScratchBuffer::new(n_negative)?;
             let res = s.eval(z, first_negative, scaling, &mut vals);
             res.map(|seq_info| (vals, unwrap_plos(seq_info)))
         })

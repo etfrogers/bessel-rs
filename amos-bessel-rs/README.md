@@ -42,16 +42,25 @@ Usage
 amos-bessel-rs = "0.4"
 ```
 
-### `no_std` Support
+### `no_std` and `no-alloc` Support
 
-`amos-bessel-rs` supports `#![no_std]` environments (with dynamic allocation via `alloc`). When `std` is disabled, the crate relies on pure-Rust software floating-point routines via `libm` and precomputed IEEE-754 machine constants.
+`amos-bessel-rs` fully supports `#![no_std]` environments, both with and without dynamic memory allocation (`alloc`):
 
-To use in a `no_std` environment, disable default features:
+- **Pure zero-allocation `no_std` (bare-metal embedded)**:
+  By disabling default features (`default-features = false`), the crate operates completely without heap allocations, suitable for bare-metal targets (e.g. `thumbv7em-none-eabihf`). You can use all slice-filling APIs (`_into`), single-value entry points (`bessel_j`, etc.), and derivatives up to order 15, powered by stack-allocated small-buffer optimization (`ScratchBuffer`).
+  ```toml
+  [dependencies]
+  amos-bessel-rs = { version = "1.0", default-features = false }
+  ```
 
-```toml
-[dependencies]
-amos-bessel-rs = { version = "0.4", default-features = false }
-```
+- **`no_std` with `alloc`**:
+  If a heap allocator is available in your `no_std` environment, enable the `alloc` feature to use allocating sequence functions (returning `Vec<Complex<T>>`) and dynamic buffer expansion for sequences $N > 32$:
+  ```toml
+  [dependencies]
+  amos-bessel-rs = { version = "1.0", default-features = false, features = ["alloc"] }
+  ```
+
+When `std` is disabled, the crate relies on pure-Rust software floating-point routines via `libm` and precomputed IEEE-754 machine constants.
 
 Alternatives
 ------------

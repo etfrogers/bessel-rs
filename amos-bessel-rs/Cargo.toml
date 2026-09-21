@@ -11,7 +11,8 @@ keywords = ["bessel-functions"]
 default = ["std"]
 # default = ["std", "random_tests"]
 random_tests = []
-std = ["num/std", "thiserror/std"]
+std = ["alloc", "num/std", "thiserror/std"]
+alloc = []
 
 [dependencies]
 # When std is disabled, num uses libm for sin/cos/exp/ln

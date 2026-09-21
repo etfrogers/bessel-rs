@@ -1,3 +1,4 @@
+#[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 use core::{
     fmt::Debug,
@@ -79,6 +80,7 @@ pub trait BesselFloat:
     fn to_bits(self) -> u64;
 
     /// Creates a vector of length `n` containing complex zeros.
+    #[cfg(feature = "alloc")]
     #[inline]
     fn c_zeros(n: usize) -> Vec<Complex<Self>> {
         vec![Complex::<Self>::ZERO; n]
@@ -198,9 +200,6 @@ pub struct SequenceInfo {
     /// (less than half of machine precision) due to large $|z|$ or `order`.
     pub partial_loss_of_significance: bool,
 }
-
-#[allow(type_alias_bounds)]
-pub(crate) type BesselValues<FT: BesselFloat = f64, NT = SequenceInfo> = (Vec<Complex<FT>>, NT);
 
 /// A trait for types that can be used as input to Bessel functions.
 ///
@@ -375,23 +374,33 @@ pub const DEFAULT_SBO_CAP: usize = 32;
 
 pub enum ScratchBuffer<T: BesselFloat, const CAP: usize = DEFAULT_SBO_CAP> {
     Stack([Complex<T>; CAP], usize),
+    #[cfg(feature = "alloc")]
     Heap(Vec<Complex<T>>),
 }
 
 impl<T: BesselFloat> ScratchBuffer<T, DEFAULT_SBO_CAP> {
     #[inline]
-    pub fn new(n: usize) -> Self {
+    pub fn new(n: usize) -> Result<Self, BesselError<T>> {
         Self::with_capacity(n)
     }
 }
 
 impl<T: BesselFloat, const CAP: usize> ScratchBuffer<T, CAP> {
     #[inline]
-    pub fn with_capacity(n: usize) -> Self {
+    pub fn with_capacity(n: usize) -> Result<Self, BesselError<T>> {
         if n <= CAP {
-            ScratchBuffer::Stack([T::C_ZERO; CAP], n)
+            Ok(ScratchBuffer::Stack([T::C_ZERO; CAP], n))
         } else {
-            ScratchBuffer::Heap(T::c_zeros(n))
+            #[cfg(feature = "alloc")]
+            {
+                Ok(ScratchBuffer::Heap(T::c_zeros(n)))
+            }
+            #[cfg(not(feature = "alloc"))]
+            {
+                Err(BesselError::InvalidInput {
+                    details: "Sequence length exceeds maximum supported stack buffer (32) in no-alloc mode",
+                })
+            }
         }
     }
 }
@@ -402,6 +411,7 @@ impl<T: BesselFloat, const CAP: usize> Deref for ScratchBuffer<T, CAP> {
     fn deref(&self) -> &Self::Target {
         match self {
             Self::Stack(arr, n) => &arr[..*n],
+            #[cfg(feature = "alloc")]
             Self::Heap(vec) => &vec[..],
         }
     }
@@ -412,6 +422,7 @@ impl<T: BesselFloat, const CAP: usize> DerefMut for ScratchBuffer<T, CAP> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
             Self::Stack(arr, n) => &mut arr[..*n],
+            #[cfg(feature = "alloc")]
             Self::Heap(vec) => &mut vec[..],
         }
     }

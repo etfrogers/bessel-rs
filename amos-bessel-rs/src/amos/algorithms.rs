@@ -364,7 +364,7 @@ pub(crate) fn complex_bessel_y<T: BesselFloat>(
         n_zeros: n_zeros_i,
         partial_loss_of_significance: plos_i,
     } = complex_bessel_i(z_rotated, order, scaling, bess_i)?;
-    let mut bess_k = ScratchBuffer::new(n);
+    let mut bess_k = ScratchBuffer::new(n)?;
     let SequenceInfo {
         n_zeros: n_zeros_k,
         partial_loss_of_significance: plos_k,
@@ -394,17 +394,19 @@ pub(crate) fn complex_bessel_y<T: BesselFloat>(
     }
     // note that bess_i is the output array, temporarily holding the bessel_i values
     let out = bess_i;
-    out.iter_mut().zip(bess_k.iter().copied()).for_each(|(out_i, z_k)| {
-        let z_k = scaled_multiply(z_k, k_coeff, scaling, mc);
-        let z_i = scaled_multiply(*out_i, i_coeff, scaling, mc);
-        let val = z_i - z_k;
-        if scaling == Scaling::Scaled && val == T::C_ZERO && exponential_correction == T::ZERO {
-            n_zeros += 1;
-        }
-        i_coeff *= T::I;
-        k_coeff *= -T::I;
-        *out_i = val;
-    });
+    out.iter_mut()
+        .zip(bess_k.iter().copied())
+        .for_each(|(out_i, z_k)| {
+            let z_k = scaled_multiply(z_k, k_coeff, scaling, mc);
+            let z_i = scaled_multiply(*out_i, i_coeff, scaling, mc);
+            let val = z_i - z_k;
+            if scaling == Scaling::Scaled && val == T::C_ZERO && exponential_correction == T::ZERO {
+                n_zeros += 1;
+            }
+            i_coeff *= T::I;
+            k_coeff *= -T::I;
+            *out_i = val;
+        });
 
     if z.im < T::ZERO {
         out.iter_mut().for_each(|v| *v = v.conj());
