@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use core::{
     fmt::Debug,
-    ops::{AddAssign, Div, DivAssign, Mul, MulAssign, RemAssign, SubAssign},
+    ops::{AddAssign, Deref, DerefMut, Div, DivAssign, Mul, MulAssign, RemAssign, SubAssign},
 };
 use num::{
     Complex, Float,
@@ -370,3 +370,49 @@ macro_rules! simple_bessel_wrapper {
 }
 
 pub(crate) use simple_bessel_wrapper;
+
+pub const DEFAULT_SBO_CAP: usize = 32;
+
+pub enum ScratchBuffer<T: BesselFloat, const CAP: usize = DEFAULT_SBO_CAP> {
+    Stack([Complex<T>; CAP], usize),
+    Heap(Vec<Complex<T>>),
+}
+
+impl<T: BesselFloat> ScratchBuffer<T, DEFAULT_SBO_CAP> {
+    #[inline]
+    pub fn new(n: usize) -> Self {
+        Self::with_capacity(n)
+    }
+}
+
+impl<T: BesselFloat, const CAP: usize> ScratchBuffer<T, CAP> {
+    #[inline]
+    pub fn with_capacity(n: usize) -> Self {
+        if n <= CAP {
+            ScratchBuffer::Stack([T::C_ZERO; CAP], n)
+        } else {
+            ScratchBuffer::Heap(T::c_zeros(n))
+        }
+    }
+}
+
+impl<T: BesselFloat, const CAP: usize> Deref for ScratchBuffer<T, CAP> {
+    type Target = [Complex<T>];
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Stack(arr, n) => &arr[..*n],
+            Self::Heap(vec) => &vec[..],
+        }
+    }
+}
+
+impl<T: BesselFloat, const CAP: usize> DerefMut for ScratchBuffer<T, CAP> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            Self::Stack(arr, n) => &mut arr[..*n],
+            Self::Heap(vec) => &mut vec[..],
+        }
+    }
+}

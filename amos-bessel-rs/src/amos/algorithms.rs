@@ -13,7 +13,7 @@ use crate::{
         right_half_plane::{i_right_half_plane, k_right_half_plane},
         utils::{is_significance_lost, validate_core_inputs, validate_inputs},
     },
-    types::SequenceInfo,
+    types::{ScratchBuffer, SequenceInfo},
 };
 
 /// Core Amos implementation for Hankel functions $H_\nu^{(1)}(z)$ and $H_\nu^{(2)}(z)$ ($\nu \ge 0$).
@@ -364,7 +364,7 @@ pub(crate) fn complex_bessel_y<T: BesselFloat>(
         n_zeros: n_zeros_i,
         partial_loss_of_significance: plos_i,
     } = complex_bessel_i(z_rotated, order, scaling, bess_i)?;
-    let mut bess_k = T::c_zeros(n);
+    let mut bess_k = ScratchBuffer::new(n);
     let SequenceInfo {
         n_zeros: n_zeros_k,
         partial_loss_of_significance: plos_k,
@@ -394,7 +394,7 @@ pub(crate) fn complex_bessel_y<T: BesselFloat>(
     }
     // note that bess_i is the output array, temporarily holding the bessel_i values
     let out = bess_i;
-    out.iter_mut().zip(bess_k).for_each(|(out_i, z_k)| {
+    out.iter_mut().zip(bess_k.iter().copied()).for_each(|(out_i, z_k)| {
         let z_k = scaled_multiply(z_k, k_coeff, scaling, mc);
         let z_i = scaled_multiply(*out_i, i_coeff, scaling, mc);
         let val = z_i - z_k;
