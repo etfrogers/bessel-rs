@@ -26,8 +26,7 @@ impl Tolerances {
         reference: Option<&Complex<f64>>,
         margin: f64,
     ) -> Self {
-        let mc = &**T::MACHINE_CONSTANTS;
-        let max_relative = mc.abs_error_tolerance.to_f64().unwrap();
+        let max_relative = T::MACHINE_CONSTANTS.abs_error_tolerance.to_f64().unwrap();
 
         let max_im = actual.im.abs().to_f64().unwrap().max(expected.im.abs());
         let max_re = actual.re.abs().to_f64().unwrap().max(expected.re.abs());
@@ -167,7 +166,7 @@ pub fn assert_results_are_equal_floats<T: DiagnosticBesselFloat>(
     expected: &Result<BesselValues<f64>, BesselError<f64>>,
     margin: f64,
 ) {
-    let mc = &**T::MACHINE_CONSTANTS;
+    let max_relative = T::MACHINE_CONSTANTS.abs_error_tolerance.to_f64().unwrap();
     match (actual, expected) {
         (Ok(actual_vals), Ok(expected_vals)) => {
             if actual_vals.1.n_zeros > 0 || expected_vals.1.n_zeros > 0 {
@@ -183,7 +182,7 @@ pub fn assert_results_are_equal_floats<T: DiagnosticBesselFloat>(
             {
                 // If either or both lost significance, it is unlikely that the values in there will be the same, but that's ok.
                 // Just check that they are the same order of magnitude
-                let oom_margin = 1.0 / mc.abs_error_tolerance.to_f64().unwrap();
+                let oom_margin = 1.0 / max_relative;
                 assert_complex_arrays_equal(actual_vec, expected_vec, &vec![], oom_margin);
             } else {
                 assert_complex_arrays_equal(actual_vec, expected_vec, &vec![], margin);

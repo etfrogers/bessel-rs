@@ -266,5 +266,5 @@ simple_bessel_wrapper!(bessel_k);
 simple_bessel_wrapper!(hankel1);
 simple_bessel_wrapper!(hankel2);
 
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))]
 mod tests;
