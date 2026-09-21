@@ -68,15 +68,17 @@
 //!
 //! #### Return values
 //!
-//! - They return an additional error variant: [BesselError::PartialLossOfSignificance], in cases where the algorithm
-//!   has converged, but the result is not as accurate as normal due to loss of significance. It occurs on
-//!   extreme values of inputs, and is a feature of the Amos algorithm. It is hidden from the user in the simpler functions,
-//!   so that the user does not need to worry about it: if the error is returned by the underlying Amos function, then
-//!   it is unwrapped and returned as `Ok(value)` by the simpler functions.
+//! - Sequence functions are available in both allocating forms ([`amos::complex_bessel_j`], etc.) returning `Result<(Vec<Complex<T>>, SequenceInfo), BesselError<T>>`
+//!   and zero-allocation slice-filling forms ([`amos::complex_bessel_j_into`], etc.) returning `Result<SequenceInfo, BesselError<T>>`.
 //!
-//! - The general form of the Amos functions return is a `Result<(Vec<Complex<T>>, usize), BesselError<T>>`, where the `Vec` contains
-//!   the values of the function at orders `[order, order + 1, ..., order + n - 1]` and `n_zeros` contains the number of elements
-//!   in the `Vec` that have been set to zero due to underflow.
+//! - The returned [`SequenceInfo`] provides metadata about the computation:
+//!   - `n_zeros`: the number of elements set to zero due to underflow. Underflow zeroes occur at the **end** of the sequence (highest orders)
+//!     for $J_\nu$ and $I_\nu$, and at the **start** of the sequence (lowest orders) for $Y_\nu$, $K_\nu$, and $H_\nu^{(m)}$.
+//!   - `partial_loss_of_significance`: `true` if extreme values of $|z|$ or `order` caused argument reduction to lose more than half
+//!     of machine precision. The computed values are still returned as `Ok` because the algorithm converged.
+//!
+//! - Errors ([`BesselError`]) implement `Copy` with zero heap allocation and are reserved strictly for true calculation failures
+//!   (such as overflow, non-convergence, or complete loss of significance).
 //!
 //! ### Derivatives
 //!
@@ -100,7 +102,7 @@
 //! by argument reduction occur in the underlying computations.
 //!
 //! If either one exceeds `u1 = (0.5/eps).sqrt()` (approx `1.3e8` for `f64`), losses exceeding half
-//! of machine precision are likely and [BesselError::PartialLossOfSignificance] is triggered.
+//! of machine precision are likely and `SequenceInfo::partial_loss_of_significance` is set to `true`.
 //! If either `z` or `order` is larger than `u2 = 0.5/eps` (approx `1.8e16` for `f64`), then all
 //! significance is lost and [BesselError::LossOfSignificance] is returned.
 //!
@@ -156,7 +158,7 @@ use amos::{
     complex_airy, complex_airy_b, complex_bessel_i_into, complex_bessel_j_into,
     complex_bessel_k_into, complex_bessel_y_into, complex_hankel1_into, complex_hankel2_into,
 };
-use types::{AllowPlos, simple_bessel_wrapper};
+use types::simple_bessel_wrapper;
 pub use types::{BesselError, BesselFloat, BesselInput, SequenceInfo};
 
 // TODO Overflow to positive or negative infinity, or zero?
@@ -231,7 +233,6 @@ pub fn hankel<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 pub fn airy<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
     complex_airy(z.into(), false, Scaling::Unscaled)
         .map(|x| x.0)
-        .allow_plos()
         .and_then(ZT::back_from)
 }
 
@@ -239,7 +240,6 @@ pub fn airy<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselErr
 pub fn airyp<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
     complex_airy(z.into(), true, Scaling::Unscaled)
         .map(|x| x.0)
-        .allow_plos()
         .and_then(ZT::back_from)
 }
 

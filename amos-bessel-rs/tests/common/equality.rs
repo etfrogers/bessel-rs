@@ -81,19 +81,6 @@ fn errors_eq<T: DiagnosticBesselFloat>(
             BesselError::InvalidInput { details: r_details },
         ) => l_details == r_details,
         (
-            BesselError::PartialLossOfSignificance {
-                y: l_y,
-                n_zeros: l_n_zeros,
-            },
-            BesselError::PartialLossOfSignificance {
-                y: r_y,
-                n_zeros: r_n_zeros,
-            },
-        ) => {
-            check_complex_arrays_equal(l_y, r_y, &vec![], margin).is_none()
-                && l_n_zeros == r_n_zeros
-        }
-        (
             BesselError::ComplexOutputForRealInput { output: l_output },
             BesselError::ComplexOutputForRealInput { output: r_output },
         ) => {
@@ -183,7 +170,7 @@ pub fn assert_results_are_equal_floats<T: DiagnosticBesselFloat>(
     let mc = &**T::MACHINE_CONSTANTS;
     match (actual, expected) {
         (Ok(actual_vals), Ok(expected_vals)) => {
-            if actual_vals.1 > 0 || expected_vals.1 > 0 {
+            if actual_vals.1.n_zeros > 0 || expected_vals.1.n_zeros > 0 {
                 // If either calculation experienced an underflow (n_zeros > 0),
                 // f32 and f64 will completely diverge. Skip comparison.
                 return;
@@ -191,7 +178,16 @@ pub fn assert_results_are_equal_floats<T: DiagnosticBesselFloat>(
 
             let actual_vec = &actual_vals.0;
             let expected_vec = &expected_vals.0;
-            assert_complex_arrays_equal(actual_vec, expected_vec, &vec![], margin);
+            if actual_vals.1.partial_loss_of_significance
+                || expected_vals.1.partial_loss_of_significance
+            {
+                // If either or both lost significance, it is unlikely that the values in there will be the same, but that's ok.
+                // Just check that they are the same order of magnitude
+                let oom_margin = 1.0 / mc.abs_error_tolerance.to_f64().unwrap();
+                assert_complex_arrays_equal(actual_vec, expected_vec, &vec![], oom_margin);
+            } else {
+                assert_complex_arrays_equal(actual_vec, expected_vec, &vec![], margin);
+            }
         }
         (Err(BesselError::Overflow), _) => {
             // Overflow for f32 does not imply overflow for f64
@@ -203,40 +199,9 @@ pub fn assert_results_are_equal_floats<T: DiagnosticBesselFloat>(
 
         (
             Err(BesselError::LossOfSignificance),
-            Err(BesselError::PartialLossOfSignificance { y: _, n_zeros: _ }),
-        ) => {
-            // Possible for f32 to lose all siginifcance, and f64 to retain some. That's OK.
-        }
-        (
-            Err(BesselError::PartialLossOfSignificance {
-                y: actual_y,
-                n_zeros: _,
-            }),
-            Err(BesselError::PartialLossOfSignificance {
-                y: expected_y,
-                n_zeros: _,
-            }),
-        ) => {
-            // If they both lose significance, it is unlikley that the values in there will be the same, but that's ok.
-            // Just check that they are the same order of magnitude
-            // margin is used as err < margin * abs_error_tolerance
-            // therefore margin to make an order-of-magnitude check
-            println!("Both lost significance: \n{:?}\n {:?}", actual, expected);
-            let oom_margin = 1.0 / mc.abs_error_tolerance.to_f64().unwrap();
-            assert_complex_arrays_equal(actual_y, expected_y, &vec![], oom_margin);
-        }
-        (
-            Err(BesselError::PartialLossOfSignificance {
-                y: actual_y,
-                n_zeros: _,
-            }),
             Ok(expected_vals),
-        ) => {
-            // In this case f32 has lost significance, but f64 hasn't. Again, check that answers are within
-            // an order of magnitude
-            println!("One lost significance: \n{:?}\n {:?}", actual, expected);
-            let oom_margin = 1.0 / mc.abs_error_tolerance.to_f64().unwrap();
-            assert_complex_arrays_equal(actual_y, &expected_vals.0, &vec![], oom_margin);
+        ) if expected_vals.1.partial_loss_of_significance => {
+            // Possible for f32 to lose all significance, and f64 to retain some. That's OK.
         }
 
         (Err(actual_err), Err(expected_err)) => {

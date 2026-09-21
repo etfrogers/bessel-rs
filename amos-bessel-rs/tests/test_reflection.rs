@@ -43,15 +43,18 @@ fn test_reflection_n_vs_loop(
             {
                 continue;
             }
-            let (y, n_zeros) = result.unwrap();
+            let (y, info) = result.unwrap();
+            let n_zeros = info.n_zeros;
             let mut sum_looped_nz = 0;
 
             for (i, yi) in y.iter().enumerate() {
                 let current_order = order + i as f64;
-                let (looped_y, looped_nz) = fun(z, current_order, scaling, 1).unwrap();
+                let (looped_y, looped_info) = fun(z, current_order, scaling, 1).unwrap();
                 assert_complex_arrays_equal(yi, &looped_y[0], &vec![], 1e6);
-                sum_looped_nz += looped_nz;
+                sum_looped_nz += looped_info.n_zeros;
+                assert!(!looped_info.partial_loss_of_significance);
             }
+            assert!(!info.partial_loss_of_significance);
 
             // 1. Total underflow count agreement with looped evaluation (allowing +/- 1 boundary tolerance)
             let diff = (n_zeros as isize - sum_looped_nz as isize).abs();
@@ -381,8 +384,8 @@ fn test_integer_limit_continuity() {
 #[case::y_int(complex_bessel_y as BesselSig, -3.0, Scaling::Unscaled, 6)]
 #[case::i_scaled_non_int(complex_bessel_i as BesselSig, -2.5, Scaling::Scaled, 5)]
 #[case::i_scaled_int(complex_bessel_i as BesselSig, -3.0, Scaling::Scaled, 6)]
-#[case::k_non_int(complex_bessel_k as BesselSig, -2.5, Scaling::Unscaled, 5)]
-#[case::k_int(complex_bessel_k as BesselSig, -3.0, Scaling::Unscaled, 6)]
+#[case::k_scaled_non_int(complex_bessel_k as BesselSig, -2.5, Scaling::Scaled, 5)]
+#[case::k_scaled_int(complex_bessel_k as BesselSig, -3.0, Scaling::Scaled, 6)]
 #[case::h1_non_int(complex_hankel1 as BesselSig, -2.5, Scaling::Unscaled, 5)]
 #[case::h1_int(complex_hankel1 as BesselSig, -3.0, Scaling::Unscaled, 6)]
 fn test_reflection_partial_loss_of_significance(
@@ -391,14 +394,13 @@ fn test_reflection_partial_loss_of_significance(
     #[case] scaling: Scaling,
     #[case] n: usize,
 ) {
-    // Large |z| > 32768.0 triggers PartialLossOfSignificance in f64
+    // Large |z| > 32768.0 triggers partial_loss_of_significance in f64
     let z = Complex::new(50000.0, 0.0);
     let result = fun(z, order, scaling, n);
 
-    let (y, _n_zeros) = match result {
-        Err(BesselError::PartialLossOfSignificance { y, n_zeros }) => (y, n_zeros),
-        other => panic!("Expected PartialLossOfSignificance, got {:?}", other),
-    };
+    let (y, info) = result.expect("Expected Ok with partial loss of significance");
+    assert!(info.partial_loss_of_significance);
+    assert_eq!(info.n_zeros, 0);
 
     // Vector length must match requested n, not just n_negative
     assert_eq!(
@@ -413,11 +415,11 @@ fn test_reflection_partial_loss_of_significance(
     for (i, yi) in y.iter().enumerate() {
         let single_order = order + i as f64;
         let single_result = fun(z, single_order, scaling, 1);
-        let single_y = match single_result {
-            Err(BesselError::PartialLossOfSignificance { y, .. }) => y[0],
-            Ok((y, ..)) => y[0],
-            other => panic!("Unexpected result for single evaluation: {:?}", other),
-        };
+        let (single_y_vec, single_info) =
+            single_result.expect("Expected Ok for single evaluation");
+        assert!(single_info.partial_loss_of_significance);
+        assert_eq!(single_info.n_zeros, 0);
+        let single_y = single_y_vec[0];
         assert_complex_arrays_equal(yi, &single_y, &vec![], 1e6);
     }
 }
@@ -428,16 +430,19 @@ fn test_k_negative_non_int_underflow_n_zeros() {
     let z = Complex::new(715.0, 0.0);
     let order = -10.5;
     let n = 11; // Only negative orders: -10.5, -9.5, ..., -0.5
-    let (y, n_zeros) = complex_bessel_k(z, order, Scaling::Unscaled, n).unwrap();
+    let (y, info) = complex_bessel_k(z, order, Scaling::Unscaled, n).unwrap();
+    let n_zeros = info.n_zeros;
+    assert!(!info.partial_loss_of_significance);
 
     // In DLMF 10.27.3, K_{-ν}(z) = K_ν(z).
     // The positive orders are known to underflow at z = 715.
     let mut expected_underflows = 0;
     for (i, &val) in y.iter().enumerate() {
         let positive_order = (order + i as f64).abs();
-        let (_pos_y, pos_nz) = complex_bessel_k(z, positive_order, Scaling::Unscaled, 1).unwrap();
-        expected_underflows += pos_nz;
-        if pos_nz > 0 {
+        let (_pos_y, pos_info) = complex_bessel_k(z, positive_order, Scaling::Unscaled, 1).unwrap();
+        expected_underflows += pos_info.n_zeros;
+        assert!(!pos_info.partial_loss_of_significance);
+        if pos_info.n_zeros > 0 {
             assert_eq!(
                 val,
                 Complex::ZERO,
@@ -723,3 +728,91 @@ fn test_wronskian_cross_product_scaled_and_unscaled(
         assert_complex_arrays_equal(&cross_h, &expected_h, &vec![], 1e6);
     }
 }
+
+#[test]
+fn test_slice_into_apis_and_sequence_info() {
+    use amos_bessel_rs::amos::{
+        complex_bessel_i_into, complex_bessel_j_into, complex_bessel_k_into,
+        complex_bessel_y_into, complex_hankel1_into, complex_hankel2_into,
+    };
+
+    let z = Complex::new(2.5, 1.5);
+    let order = -1.5;
+
+    // 1. Verify slice values and SequenceInfo match allocating APIs exactly
+    let mut buf_j = [Complex::ZERO; 4];
+    let info_j = complex_bessel_j_into(z, order, Scaling::Unscaled, &mut buf_j).unwrap();
+    let (vec_j, info_j_alloc) = complex_bessel_j(z, order, Scaling::Unscaled, 4).unwrap();
+    assert_eq!(info_j, info_j_alloc);
+    assert_eq!(info_j.n_zeros, 0);
+    assert!(!info_j.partial_loss_of_significance);
+    assert_eq!(&buf_j[..], &vec_j[..]);
+
+    let mut buf_y = [Complex::ZERO; 4];
+    let info_y = complex_bessel_y_into(z, order, Scaling::Unscaled, &mut buf_y).unwrap();
+    let (vec_y, info_y_alloc) = complex_bessel_y(z, order, Scaling::Unscaled, 4).unwrap();
+    assert_eq!(info_y, info_y_alloc);
+    assert_eq!(info_y.n_zeros, 0);
+    assert!(!info_y.partial_loss_of_significance);
+    assert_eq!(&buf_y[..], &vec_y[..]);
+
+    let mut buf_i = [Complex::ZERO; 4];
+    let info_i = complex_bessel_i_into(z, order, Scaling::Unscaled, &mut buf_i).unwrap();
+    let (vec_i, info_i_alloc) = complex_bessel_i(z, order, Scaling::Unscaled, 4).unwrap();
+    assert_eq!(info_i, info_i_alloc);
+    assert_eq!(info_i.n_zeros, 0);
+    assert!(!info_i.partial_loss_of_significance);
+    assert_eq!(&buf_i[..], &vec_i[..]);
+
+    let mut buf_k = [Complex::ZERO; 4];
+    let info_k = complex_bessel_k_into(z, order, Scaling::Unscaled, &mut buf_k).unwrap();
+    let (vec_k, info_k_alloc) = complex_bessel_k(z, order, Scaling::Unscaled, 4).unwrap();
+    assert_eq!(info_k, info_k_alloc);
+    assert_eq!(info_k.n_zeros, 0);
+    assert!(!info_k.partial_loss_of_significance);
+    assert_eq!(&buf_k[..], &vec_k[..]);
+
+    let mut buf_h1 = [Complex::ZERO; 4];
+    let info_h1 = complex_hankel1_into(z, order, Scaling::Unscaled, &mut buf_h1).unwrap();
+    let (vec_h1, info_h1_alloc) = complex_hankel1(z, order, Scaling::Unscaled, 4).unwrap();
+    assert_eq!(info_h1, info_h1_alloc);
+    assert_eq!(info_h1.n_zeros, 0);
+    assert!(!info_h1.partial_loss_of_significance);
+    assert_eq!(&buf_h1[..], &vec_h1[..]);
+
+    let mut buf_h2 = [Complex::ZERO; 4];
+    let info_h2 = complex_hankel2_into(z, order, Scaling::Unscaled, &mut buf_h2).unwrap();
+    let (vec_h2, info_h2_alloc) = complex_hankel2(z, order, Scaling::Unscaled, 4).unwrap();
+    assert_eq!(info_h2, info_h2_alloc);
+    assert_eq!(info_h2.n_zeros, 0);
+    assert!(!info_h2.partial_loss_of_significance);
+    assert_eq!(&buf_h2[..], &vec_h2[..]);
+
+    // 2. Test underflow reporting on _into slice
+    let z_underflow = Complex::new(715.0, 0.0);
+    let mut buf_underflow = [Complex::ZERO; 200];
+    let info_underflow =
+        complex_bessel_k_into(z_underflow, 0.0, Scaling::Unscaled, &mut buf_underflow).unwrap();
+    assert_eq!(info_underflow.n_zeros, 157);
+    assert!(!info_underflow.partial_loss_of_significance);
+    for &val in buf_underflow.iter().take(157) {
+        assert_eq!(val, Complex::ZERO);
+    }
+    assert_ne!(buf_underflow[157], Complex::ZERO);
+
+    // 3. Test PLOS reporting on _into slice
+    let z_plos = Complex::new(50000.0, 0.0);
+    let mut buf_plos = [Complex::ZERO; 5];
+    let info_plos =
+        complex_bessel_j_into(z_plos, -2.5, Scaling::Unscaled, &mut buf_plos).unwrap();
+    assert!(info_plos.partial_loss_of_significance);
+    assert_eq!(info_plos.n_zeros, 0);
+
+    // 4. Test zero-length slice rejection
+    let mut empty_buf: [Complex<f64>; 0] = [];
+    assert!(matches!(
+        complex_bessel_j_into(z, 0.0, Scaling::Unscaled, &mut empty_buf),
+        Err(BesselError::InvalidInput { .. })
+    ));
+}
+

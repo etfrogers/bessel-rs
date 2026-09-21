@@ -456,11 +456,7 @@ fn derivative_internal<T: BesselFloat>(
         prefactor *= integer_sign::<T>(k as i64);
     }
 
-    let values = match func(z, order - T::from_usize(k), scaling, 2 * k + 1) {
-        Ok((values, _n_zeros)) => values,
-        Err(BesselError::PartialLossOfSignificance { y, .. }) => y,
-        Err(err) => return Err(err),
-    };
+    let (values, _info) = func(z, order - T::from_usize(k), scaling, 2 * k + 1)?;
 
     let mut sum = T::C_ZERO;
     for n in 0..=k {

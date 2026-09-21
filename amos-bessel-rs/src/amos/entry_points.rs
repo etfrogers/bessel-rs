@@ -18,17 +18,10 @@ fn alloc_and_wrap<
     order: T,
     scaling: Scaling,
     n: usize,
-) -> Result<(Vec<Complex<T>>, usize), BesselError<T>> {
+) -> Result<(Vec<Complex<T>>, SequenceInfo), BesselError<T>> {
     let mut y = T::c_zeros(n);
     let info = func(z, order, scaling, &mut y)?;
-    if info.partial_loss_of_significance {
-        Err(BesselError::PartialLossOfSignificance {
-            y,
-            n_zeros: info.n_zeros,
-        })
-    } else {
-        Ok((y, info.n_zeros))
-    }
+    Ok((y, info))
 }
 /// Computes the Hankel function $H_\nu^{(1)}(z)$ or $H_\nu^{(2)}(z)$ into a provided slice.
 ///
@@ -98,16 +91,16 @@ pub fn complex_bessel_h_into<T: BesselFloat>(
 ///
 /// # Returns
 ///
-/// A `Result` containing a tuple `(y, n_zeros)`:
+/// A `Result` containing a tuple `(y, info)`:
 /// * `y`: A vector of complex values for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `n_zeros`: The number of components at the start of `y` set to zero due to underflow.
+/// * `info`: A [`SequenceInfo`] where `info.n_zeros` is the number of components at the start of `y` set to zero due to underflow, and `info.partial_loss_of_significance` indicates whether loss of significance occurred.
 pub fn complex_bessel_h<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
     hankel_kind: HankelKind,
     n: usize,
-) -> Result<(Vec<Complex<T>>, usize), BesselError<T>> {
+) -> Result<(Vec<Complex<T>>, SequenceInfo), BesselError<T>> {
     alloc_and_wrap(
         |z, order, scaling, out| complex_bessel_h_into(z, order, scaling, hankel_kind, out),
         z,
@@ -141,7 +134,7 @@ pub fn complex_hankel1<T: BesselFloat>(
     order: T,
     scaling: Scaling,
     n: usize,
-) -> Result<(Vec<Complex<T>>, usize), BesselError<T>> {
+) -> Result<(Vec<Complex<T>>, SequenceInfo), BesselError<T>> {
     complex_bessel_h(z, order, scaling, HankelKind::First, n)
 }
 
@@ -169,7 +162,7 @@ pub fn complex_hankel2<T: BesselFloat>(
     order: T,
     scaling: Scaling,
     n: usize,
-) -> Result<(Vec<Complex<T>>, usize), BesselError<T>> {
+) -> Result<(Vec<Complex<T>>, SequenceInfo), BesselError<T>> {
     complex_bessel_h(z, order, scaling, HankelKind::Second, n)
 }
 
@@ -232,15 +225,15 @@ pub fn complex_bessel_i_into<T: BesselFloat>(
 ///
 /// # Returns
 ///
-/// A `Result` containing a tuple `(y, n_zeros)`:
+/// A `Result` containing a tuple `(y, info)`:
 /// * `y`: A vector of complex values for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `n_zeros`: The number of components at the end of `y` (highest orders) set to zero due to underflow.
+/// * `info`: A [`SequenceInfo`] where `info.n_zeros` is the number of components at the end of `y` (highest orders) set to zero due to underflow, and `info.partial_loss_of_significance` indicates whether loss of significance occurred.
 pub fn complex_bessel_i<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
     n: usize,
-) -> Result<(Vec<Complex<T>>, usize), BesselError<T>> {
+) -> Result<(Vec<Complex<T>>, SequenceInfo), BesselError<T>> {
     alloc_and_wrap(complex_bessel_i_into, z, order, scaling, n)
 }
 
@@ -303,15 +296,15 @@ pub fn complex_bessel_j_into<T: BesselFloat>(
 ///
 /// # Returns
 ///
-/// A `Result` containing a tuple `(y, n_zeros)`:
+/// A `Result` containing a tuple `(y, info)`:
 /// * `y`: A vector of complex values for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `n_zeros`: The number of components at the end of `y` (highest orders) set to zero due to underflow.
+/// * `info`: A [`SequenceInfo`] where `info.n_zeros` is the number of components at the end of `y` (highest orders) set to zero due to underflow, and `info.partial_loss_of_significance` indicates whether loss of significance occurred.
 pub fn complex_bessel_j<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
     n: usize,
-) -> Result<(Vec<Complex<T>>, usize), BesselError<T>> {
+) -> Result<(Vec<Complex<T>>, SequenceInfo), BesselError<T>> {
     alloc_and_wrap(complex_bessel_j_into, z, order, scaling, n)
 }
 
@@ -378,15 +371,15 @@ pub fn complex_bessel_k_into<T: BesselFloat>(
 ///
 /// # Returns
 ///
-/// A `Result` containing a tuple `(y, n_zeros)`:
+/// A `Result` containing a tuple `(y, info)`:
 /// * `y`: A vector of complex values for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `n_zeros`: The number of components at the start of `y` set to zero due to underflow.
+/// * `info`: A [`SequenceInfo`] where `info.n_zeros` is the number of components at the start of `y` set to zero due to underflow, and `info.partial_loss_of_significance` indicates whether loss of significance occurred.
 pub fn complex_bessel_k<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
     n: usize,
-) -> Result<(Vec<Complex<T>>, usize), BesselError<T>> {
+) -> Result<(Vec<Complex<T>>, SequenceInfo), BesselError<T>> {
     alloc_and_wrap(complex_bessel_k_into, z, order, scaling, n)
 }
 
@@ -453,14 +446,14 @@ pub fn complex_bessel_y_into<T: BesselFloat>(
 ///
 /// # Returns
 ///
-/// A `Result` containing a tuple `(y, n_zeros)`:
+/// A `Result` containing a tuple `(y, info)`:
 /// * `y`: A vector of complex values for orders `[order, order + 1, ..., order + n - 1]`.
-/// * `n_zeros`: The number of components at the start of `y` set to zero due to underflow.
+/// * `info`: A [`SequenceInfo`] where `info.n_zeros` is the number of components at the start of `y` set to zero due to underflow, and `info.partial_loss_of_significance` indicates whether loss of significance occurred.
 pub fn complex_bessel_y<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
     n: usize,
-) -> Result<(Vec<Complex<T>>, usize), BesselError<T>> {
+) -> Result<(Vec<Complex<T>>, SequenceInfo), BesselError<T>> {
     alloc_and_wrap(complex_bessel_y_into, z, order, scaling, n)
 }

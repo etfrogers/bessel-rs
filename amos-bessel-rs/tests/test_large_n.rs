@@ -235,14 +235,15 @@ fn test_k_right_half_plane_underflow_offset_bug() {
     let n = 200;
     let order = 0.0;
 
-    let (res, n_zeros) = complex_bessel_k(z, order, Scaling::Unscaled, n).unwrap();
+    let (res, info) = complex_bessel_k(z, order, Scaling::Unscaled, n).unwrap();
 
-    // It should take 156 steps of the sequence growing before the values
+    // It should take 157 steps of the sequence growing before the values
     // finally become large enough to be represented by an f64 again!
-    assert_eq!(n_zeros, 156);
+    assert_eq!(info.n_zeros, 157);
+    assert!(!info.partial_loss_of_significance);
 
-    // Therefore, the first 156 elements MUST be exactly zero.
-    for (i, &res_val) in res.iter().enumerate().take(n_zeros + 1) {
+    // Therefore, the first 157 elements MUST be exactly zero.
+    for (i, &res_val) in res.iter().enumerate().take(info.n_zeros) {
         assert_eq!(
             res_val,
             Complex64::new(0.0, 0.0),
@@ -251,11 +252,11 @@ fn test_k_right_half_plane_underflow_offset_bug() {
         );
     }
 
-    // And the 157th element should finally be non-zero.
+    // And the 158th element (index 157) should finally be non-zero.
     assert_ne!(
         res[157],
         Complex64::new(0.0, 0.0),
-        "Index 156 should be non-zero"
+        "Index 157 should be non-zero"
     );
 
     // also test against fortran

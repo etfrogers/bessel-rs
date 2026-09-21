@@ -12,36 +12,39 @@ For large arguments `z` or very large orders `nu`, trigonometric phase reduction
 
 When evaluating these boundary values, `amos-bessel-rs` catches the numerical decay and returns one of two critical errors:
 
-### `BesselError::PartialLossOfSignificance`
-This occurs when the calculation succeeded, but the argument reduction caused the internal algorithm to drop below half of machine accuracy. 
+### Partial Loss of Significance & `SequenceInfo`
+This occurs when the calculation succeeded and the algorithm converged, but argument reduction caused internal precision to drop below half of machine accuracy (due to extreme values of $|z|$ or `order`).
 
-Unlike a fatal error, the `PartialLossOfSignificance` enum payload actually **contains the computed value**! 
+Rather than returning a fatal error or burying loss-of-precision warnings, all sequence functions return computation metadata via [`SequenceInfo`]:
 
 ```rust
-// Internally in `types.rs`:
-pub enum BesselError<T: BesselFloat = f64> {
-    PartialLossOfSignificance {
-        y: Vec<Complex<T>>, // The lossy computed values
-        n_zeros: usize,          // Elements explicitly zeroed
-    },
-    // ...
+// In `types.rs`:
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SequenceInfo {
+    /// The number of components explicitly set to zero due to underflow.
+    pub n_zeros: usize,
+    /// Whether partial loss of significance occurred during calculation.
+    pub partial_loss_of_significance: bool,
 }
 ```
 
-This acts as a "strict warning". It acknowledges that you *can* use the value returned in `y`, but mathematically advises you that the lower bits of the float are essentially noise.
+- Allocating sequence functions (`complex_bessel_j`, etc.) return `Result<(Vec<Complex<T>>, SequenceInfo), BesselError<T>>`.
+- Zero-allocation slice functions (`complex_bessel_j_into`, etc.) return `Result<SequenceInfo, BesselError<T>>`.
 
-*(Note: The simplified top-level wrappers like `bessel_j()` implicitly unwrap `PartialLossOfSignificance` to return the data directly as an `Ok(T)` to match standard user expectations. To explicitly catch this warning, use the low-level `complex_bessel_j()` functions).*
+When `partial_loss_of_significance` is `true`, the computed values are returned safely in `Ok`, but mathematically the lower bits of the float are essentially noise.
+
+*(Note: Simplified single-value entry points like `bessel_j()` return `Result<T, BesselError<T>>` directly, returning the computed value as `Ok` when the algorithm converged).*
 
 ### `BesselError::LossOfSignificance`
 This occurs when argument reduction resulted in a *complete* loss of accuracy. The output is mathematically meaningless noise. 
 
-In Fortran, this returned `IERR=4` and left garbage in the array. In `amos-bessel-rs`, it returns a strict `Err(LossOfSignificance)`, preventing you from accessing undefined values and halting pipeline corruption.
+In Fortran, this returned `IERR=4` and left garbage in the array. In `amos-bessel-rs`, it returns a strict `Err(BesselError::LossOfSignificance)`, preventing you from accessing undefined values and halting pipeline corruption.
 
 ## Original Amos Notes on Accuracy
 
 In most complex variable computation, one must evaluate elementary functions. When the magnitude of `z` or (effective) `order` is large, losses of significance by argument reduction occur. 
 
-Consequently, if either one exceeds `u1 = (0.5/eps).sqrt()`, then losses exceeding half of machine precision are likely, and an error flag `PartialLossOfSignificance` is triggered, where `eps` is the machine precision (`f64::EPSILON` for double precision). If either `z` or `order` is larger than `u2 = 0.5/eps`, then all significance is lost and `LossOfSignificance` is returned.
+Consequently, if either one exceeds `u1 = (0.5/eps).sqrt()`, then losses exceeding half of machine precision are likely, and `SequenceInfo::partial_loss_of_significance` is set to `true`, where `eps` is the machine precision (`f64::EPSILON` for double precision). If either `z` or `order` is larger than `u2 = 0.5/eps`, then all significance is lost and `LossOfSignificance` is returned.
 
 In order to use the int function, arguments must be further restricted not to exceed the largest machine integer, `u3 = (i32::MAX as f64) * 0.5`. Thus, the magnitude of `z` and (effective) `order` is restricted by `u2.min(u3)`. With 64-bit precision, `u1`, `u2`, and `u3` are approximately `1.3e8`, `1.8e16`, and `2.1e9`.
 

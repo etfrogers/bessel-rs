@@ -13,7 +13,7 @@ use amos_bessel_rs::{
 };
 
 #[allow(type_alias_bounds)]
-pub type BesselValues<FT: BesselFloat = f64, NT = usize> = (Vec<Complex<FT>>, NT);
+pub type BesselValues<FT: BesselFloat = f64, NT = SequenceInfo> = (Vec<Complex<FT>>, NT);
 
 mod bessel_h_wrappers;
 mod equality;
@@ -98,13 +98,14 @@ pub fn check_against_fortran<T: DiagnosticBesselFloat>(
             }
         };
         println!("Order: {order:e}\n_zeros: {z:e}\nscaling: {scaling:?}\nn: {n}");
+        println!("Rust actual: {actual:?}");
         println!("#[case({:e}, {:e}, {:e})]", order, z.re, z.im);
         println!("#[case({:.1}, {:.1}, {:.1})]\n", order, z.re, z.im);
         match &actual {
             Ok(actual) => {
                 println!(
                     "Fortran n_zeros: {n_zeros}, translator n_zeros: {}\n",
-                    actual.1
+                    actual.1.n_zeros
                 );
                 print_complex_arrays(&cy, &actual.0, &cy_loop_fort, &cy_loop_rust);
             }
@@ -113,17 +114,6 @@ pub fn check_against_fortran<T: DiagnosticBesselFloat>(
                     "Fortran error: {ierr}. Translation error: {err:?} ({})",
                     err.error_code()
                 );
-                if let BesselError::PartialLossOfSignificance {
-                    y: ref actual_y,
-                    n_zeros: actual_n_zeros,
-                } = *err
-                {
-                    println!(
-                        "Fortran n_zeros: {n_zeros}, translator n_zeros: {}\n",
-                        actual_n_zeros
-                    );
-                    print_complex_arrays(&cy, actual_y, &cy_loop_fort, &cy_loop_rust);
-                }
             }
         }
         println!();
@@ -132,51 +122,79 @@ pub fn check_against_fortran<T: DiagnosticBesselFloat>(
 
     match &actual {
         Ok(actual) => {
-            if ierr != 0 {
-                fail(&format!(
-                    "Rust returned no error, but Fortran returned an error code: {ierr}"
-                ))
-            };
-            if let Some(reason) = check_complex_arrays_equal(&actual.0, &cy, &cy_loop_fort, margin)
-            {
-                fail(&reason)
+            if ierr == 3 {
+                if !actual.1.partial_loss_of_significance {
+                    fail("Rust reported no loss of significance, but Fortran returned an error code: 3 (partial loss of significance)");
+                }
+                // for partial loss of significance, it seems occasionally fortran
+                // will return some values very nearly zero, but it's only happening
+                // on a release build, so it may be some optimization issue. It also occurs
+                // sometimes (though flakily on a linux build) To avoid
+                // this causing test failures, effectively skipping the check on the n_zeros value
+                // And falling through to the value checks, below, but these will catch large errors.
+                // This is not ideal, but I have not been able to find a better solution.
+                //
+                // Note this is only for the partial loss of significance case, which is
+                // already a case where the results are not fully trustworthy, so it seems
+                // reasonable to me to allow this kind of mismatch in this case.
+
+                // fail("Failed for mismatched n_zeros value");
+
+                if cy.iter().any(|x| x.is_nan()) {
+                    // if the fortran failed to give a sensible answer, we don't have anything to check
+                    // against. So far this has only been observed on Linux on CI, not on Mac OS
+                    return;
+                }
+                if let Some(reason) =
+                    check_complex_arrays_equal(&actual.0, &cy, &cy_loop_fort, margin * 1e2)
+                {
+                    fail(&reason)
+                }
+            } else {
+                if ierr != 0 {
+                    fail(&format!(
+                        "Rust returned no error, but Fortran returned an error code: {ierr}"
+                    ))
+                };
+                if actual.1.partial_loss_of_significance {
+                    fail("Rust reported partial loss of significance, but Fortran returned ierr = 0");
+                }
+                if actual.1.n_zeros != n_zeros {
+                    // At the extreme boundary of underflow (~10^-280 to 10^-308), minor 1-ulp differences
+                    // in intermediate transcendentals (e.g. hypot vs Amos ZABS) can cause Fortran's ZUCHK
+                    // to trigger underflow on tiny valid numbers (< 1e-250) that Rust retains, or vice-versa.
+                    // Allow this discrepancy only if all differing elements are in the underflow regime (< 1e-250).
+                    let mut mismatch_count = 0;
+                    let all_underflow = actual
+                        .0
+                        .iter()
+                        .zip(&cy)
+                        .filter(|(r, f)| {
+                            let one_zero = (r.to_c64().norm() == 0.0) != (f.norm() == 0.0);
+                            if one_zero {
+                                mismatch_count += 1;
+                            }
+                            one_zero
+                        })
+                        .all(|(r, f)| r.to_c64().norm() < 1e-250 && f.norm() < 1e-250);
+
+                    if mismatch_count == 0 || !all_underflow {
+                        fail(&format!(
+                            "Mismatched n_zeros: Fortran={n_zeros}, Rust={}",
+                            actual.1.n_zeros
+                        ));
+                    }
+                }
+                if let Some(reason) = check_complex_arrays_equal(&actual.0, &cy, &cy_loop_fort, margin)
+                {
+                    fail(&reason)
+                }
             }
         }
         Err(err) => {
             if ierr != err.error_code() {
                 fail("Failed for mismatched error code")
             };
-            if let BesselError::PartialLossOfSignificance {
-                y: ref actual_y,
-                n_zeros: actual_n_zeros,
-            } = *err
-            {
-                if n_zeros != actual_n_zeros {
-                    // for partial loss of significance, it seems occasionally fortran
-                    // will return some values very nearly zero, but it's only happening
-                    // on a release build, so it may be some optimization issue. It also occurs
-                    // sometimes (though flakily on a linux build) To avoid
-                    // this causing test failures, effectively skipping the check on the n_zeros value
-                    // And falling through to the value checks, below, but these will catch large errors.
-                    // This is not ideal, but I have not been able to find a better solution.
-                    //
-                    // Note this is only for the partial loss of significance case, which is
-                    // already a case where the results are not fully trustworthy, so it seems
-                    // reasonable to me to allow this kind of mismatch in this case.
-
-                    // fail("Failed for mismatched n_zeros value");
-                }
-                if cy.iter().any(|x| x.is_nan()) {
-                    // if the fortran failed to give a sensible answer, we don;t have anything to check
-                    // against. So far this has only been observed on Linux on CI, not on Mac OS
-                    return;
-                }
-                if let Some(reason) =
-                    check_complex_arrays_equal(actual_y, &cy, &cy_loop_fort, margin * 1e2)
-                {
-                    fail(&reason)
-                }
-            }
         }
     }
 }
@@ -190,16 +208,20 @@ fn rust_bess_loop<T: BesselFloat>(
 ) -> Result<BesselValues<T>, BesselError<T>> {
     let mut y = vec![Complex::<T>::zero(); n];
     let mut n_zeros = 0;
-    for i in 0..n {
-        let (yi, n_zeros_i) = match func(z, order + T::from_f64(i as f64), scaling, 1) {
-            Ok((y_, n_zeros_)) => (y_, n_zeros_),
-            Err(BesselError::PartialLossOfSignificance { y, n_zeros }) => (y, n_zeros),
-            Err(err) => return Err(err),
-        };
-        y[i] = yi[0];
-        n_zeros += n_zeros_i;
+    let mut plos = false;
+    for (i, slot) in y.iter_mut().enumerate() {
+        let (yi, info) = func(z, order + T::from_f64(i as f64), scaling, 1)?;
+        *slot = yi[0];
+        n_zeros += info.n_zeros;
+        plos |= info.partial_loss_of_significance;
     }
-    Ok((y, n_zeros))
+    Ok((
+        y,
+        SequenceInfo {
+            n_zeros,
+            partial_loss_of_significance: plos,
+        },
+    ))
 }
 
 pub fn fortran_bess_loop(
@@ -257,14 +279,7 @@ fn airy_to_bessel_values<T: BesselFloat>(
     res: Result<(Complex<T>, SequenceInfo), BesselError<T>>,
 ) -> Result<BesselValues<T>, BesselError<T>> {
     let (y, seq_info) = res?;
-    if seq_info.partial_loss_of_significance {
-        Err(BesselError::PartialLossOfSignificance {
-            y: vec![y],
-            n_zeros: seq_info.n_zeros,
-        })
-    } else {
-        Ok((vec![y], seq_info.n_zeros))
-    }
+    Ok((vec![y], seq_info))
 }
 
 pub fn sig_airy_fortran(
