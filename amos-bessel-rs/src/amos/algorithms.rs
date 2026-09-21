@@ -435,7 +435,7 @@ fn safe_multiply<T: BesselFloat>(
     mc: &MachineConsts<T>,
 ) -> Complex<T> {
     if z.linf_norm() <= mc.absolute_approximation_limit {
-        (z * mc.rtol) * mc.abs_error_tolerance
+        (z * mc.rtol) * coeff * mc.abs_error_tolerance
     } else {
         z * coeff
     }
