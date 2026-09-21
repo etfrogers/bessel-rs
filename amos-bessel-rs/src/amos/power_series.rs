@@ -78,7 +78,7 @@ pub fn i_power_series<T: BesselFloat>(
                 n_zeros += 1;
                 out[k] = T::C_ZERO;
                 if abs_half_z_sq > current_order {
-                    break;
+                    return Ok(-n_zeros);
                 }
                 continue;
             }
@@ -100,6 +100,9 @@ pub fn i_power_series<T: BesselFloat>(
             if near_underflow && will_underflow(s2, mc) {
                 n_zeros += 1;
                 out[k] = T::C_ZERO;
+                if abs_half_z_sq > current_order {
+                    return Ok(-n_zeros);
+                }
                 continue;
             }
             if num_seeded == 0 {
