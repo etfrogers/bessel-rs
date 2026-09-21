@@ -246,10 +246,8 @@ pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
     //-----------------------------------------------------------------------
     match OverflowState::check(cz.re, phi, extra_refinement, mc) {
         OverflowState::Over { .. } => return Err(BesselError::Overflow),
-        OverflowState::Under { was_refined } => {
-            if !was_refined {
-                y[0..n_to_test].fill(T::C_ZERO);
-            }
+        OverflowState::Under { .. } => {
+            y[0..n_to_test].fill(T::C_ZERO);
             return Ok(n_to_test);
         }
         OverflowState::NearUnder => {
@@ -275,24 +273,20 @@ pub(crate) fn check_underflow_uniform_asymp_params<T: BesselFloat>(
     // Note n_to_test is NOT y.len() in this case.
     for (i, yi) in y.iter_mut().enumerate().take(n_to_test).rev() {
         let current_order = order + T::from_usize(i);
-        let (mut cz, phi, _arg, extra_refinement) = get_parameters(current_order);
+        let (mut cz, phi, arg, extra_refinement) = get_parameters(current_order);
         // Match below says that first time we get here and no underflow is found, we immediately return
         match OverflowState::check(cz.re, phi, extra_refinement, mc) {
-            OverflowState::Under { was_refined } => {
-                if was_refined {
-                    // Now do a similar overflow check, but on complex values, rather
-                    // than the absolute values used in find_overflow
-                    cz += phi.ln();
-                    if imaginary_dominant {
-                        cz -= arg.ln() * T::from_f64(0.25) + T::from_f64(AIC)
-                    }
-                    cz = cz.exp() / mc.abs_error_tolerance;
-                    if !will_underflow(cz, mc) {
-                        return Ok(n_underflow);
-                    }
+            OverflowState::Under { .. } => (),
+            OverflowState::NearUnder => {
+                cz += phi.ln();
+                if imaginary_dominant {
+                    cz -= arg.ln() * T::from_f64(0.25) + T::from_f64(AIC);
+                }
+                cz = cz.exp() / mc.abs_error_tolerance;
+                if !will_underflow(cz, mc) {
+                    return Ok(n_underflow);
                 }
             }
-            OverflowState::NearUnder => (),
             OverflowState::None | OverflowState::NearOver | OverflowState::Over { .. } => {
                 return Ok(n_underflow);
             }
