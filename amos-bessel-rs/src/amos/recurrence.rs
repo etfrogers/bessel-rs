@@ -26,7 +26,7 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
 ) {
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     *n_zeros = 0;
-    let mut i_completed = 0;
+    let mut prev_on_scale = false;
 
     // Copy the values by value before we start mutating y
     let original_scaled_0 = y[0];
@@ -57,14 +57,19 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
         // Here we know the assumption is false, so set the value properly and
         // decrement n_zeros to undo the increment above
         *yi = unscaled_value;
-        i_completed = i;
+        if i == 1 {
+            prev_on_scale = true;
+        }
         *n_zeros -= 1;
     }
-    if n <= 2 || *n_zeros == 0 {
-        // If there are less than two values requested, we've tested them all, so also
-        // return.
-        // n_zeros == 0 means that both the first two value were on scale, and
-        // we can return.
+    if n == 1 {
+        return;
+    }
+    if !prev_on_scale {
+        y[0] = T::C_ZERO;
+        *n_zeros = 2;
+    }
+    if n == 2 || *n_zeros == 0 {
         return;
     }
 
@@ -100,15 +105,16 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
 
                 // the if below means:
                 // "If we got to this line twice in a row on two iterations of the loop"
-                if i_completed == i - 1 {
+                if prev_on_scale {
                     found_two_good_values = true;
                     break;
                 }
-                i_completed = i;
+                prev_on_scale = true;
                 continue;
             }
         }
 
+        prev_on_scale = false;
         if ln_abs_k > half_exponent_limit {
             effective_z -= mc.exponent_limit;
             scaled_k_minus_1 *= internal_scaling_factor;
@@ -116,13 +122,16 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
         }
     }
     if found_two_good_values {
-        *n_zeros = n_tested - 2;
+        *n_zeros = n_tested - 1;
     } else {
         *n_zeros = n;
-        if i_completed == n {
+        if prev_on_scale {
             // this means we found one good value, on the last iteration
-            *n_zeros = n - 1
+            *n_zeros = n - 1;
         }
+    }
+    for yi in &mut y[..*n_zeros] {
+        *yi = T::C_ZERO;
     }
 }
 
