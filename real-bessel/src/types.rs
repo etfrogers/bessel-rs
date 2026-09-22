@@ -6,7 +6,7 @@ use thiserror::Error;
 /// returned by [`y0`](crate::y0), [`y1`](crate::y1) and [`yn`](crate::yn)
 /// when called with `x < 0`, because the Y functions are complex for
 /// negative arguments and this crate returns only real values.
-#[derive(Error, Debug, Clone, PartialEq)]
+#[derive(Error, Debug, Clone, PartialEq, Copy)]
 pub enum BesselError {
     /// Returned by `y0`, `y1` and `yn` when `x < 0`.
     #[error(

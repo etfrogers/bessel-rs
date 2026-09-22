@@ -1,10 +1,11 @@
 [package]
 name = "real-bessel"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 description = "A pure Rust implementation of real-valued Bessel functions of the first and second kinds, for integer orders and real arguments."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/etfrogers/bessel-rs"
+documentation = "https://docs.rs/real-bessel"
 keywords = ["bessel", "mathematics", "special-functions"]
 categories = ["science", "mathematics", "algorithms"]
 readme = "README.md"
@@ -19,7 +20,7 @@ thiserror = { version = "2.0.17", default-features = false }
 num = { version = "0.4.3", default-features = false, features = ["libm"] }
 
 [dev-dependencies]
-amos-bessel-rs = { path = "../amos-bessel-rs", version = ">=0.3.0" }
+amos-bessel-rs = { path = "../amos-bessel-rs", version = "1.0.0" }
 approx = "0.5.1"
 rstest = "0.26.1"
 rstest_reuse = "0.7.0"
