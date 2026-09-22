@@ -1,4 +1,7 @@
-use amos_bessel_rs::{bessel_i, bessel_j, bessel_k, bessel_y};
+use amos_bessel_rs::Scaling;
+use amos_bessel_rs::amos::{
+    complex_bessel_i_into, complex_bessel_j_into, complex_bessel_k_into, complex_bessel_y_into,
+};
 use eframe::egui;
 use egui_plot::{Legend, Line, Plot, PlotImage, PlotPoint, PlotPoints};
 use num_complex::Complex64;
@@ -37,6 +40,40 @@ impl BesselKind {
             Self::K => "K_v (Mod. 2nd Kind)",
         }
     }
+
+    pub fn scaling_factor_2d(&self) -> &'static str {
+        match self {
+            Self::J => "e^{-|Im(z)|} · J_v(z)",
+            Self::Y => "e^{-|Im(z)|} · Y_v(z)",
+            Self::I => "e^{-|Re(z)|} · I_v(z)",
+            Self::K => "e^z · K_v(z)",
+        }
+    }
+
+    pub fn scaling_factor_1d(&self) -> &'static str {
+        match self {
+            Self::J => "e^{-|Im(x)|} · J_v(x) (= J_v(x))",
+            Self::Y => "e^{-|Im(x)|} · Y_v(x) (= Y_v(x))",
+            Self::I => "e^{-|x|} · I_v(x)",
+            Self::K => "e^x · K_v(x)",
+        }
+    }
+}
+
+pub fn eval_bessel_single(
+    kind: BesselKind,
+    order: f64,
+    z: Complex64,
+    scaling: Scaling,
+) -> Result<Complex64, amos_bessel_rs::BesselError<f64>> {
+    let mut buf = [Complex64::new(0.0, 0.0); 1];
+    match kind {
+        BesselKind::J => complex_bessel_j_into(z, order, scaling, &mut buf)?,
+        BesselKind::Y => complex_bessel_y_into(z, order, scaling, &mut buf)?,
+        BesselKind::I => complex_bessel_i_into(z, order, scaling, &mut buf)?,
+        BesselKind::K => complex_bessel_k_into(z, order, scaling, &mut buf)?,
+    };
+    Ok(buf[0])
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -67,6 +104,7 @@ pub struct BesselViewer {
     view_tab: ViewTab,
     // 2D parameters
     kind: BesselKind,
+    scaling: Scaling,
     domain_mode: DomainMode,
     component: Component,
     colormap: ColormapPreset,
@@ -82,6 +120,7 @@ pub struct BesselViewer {
 
     // 1D curve parameters
     curve_kind: BesselKind,
+    curve_scaling: Scaling,
     curve_x_range: [f64; 2],
     curve_samples: usize,
     enabled_orders: Vec<(f64, bool)>, // list of (order, is_enabled)
@@ -104,6 +143,7 @@ impl BesselViewer {
         let mut app = Self {
             view_tab: ViewTab::Heatmap2D,
             kind: BesselKind::J,
+            scaling: Scaling::Unscaled,
             domain_mode: DomainMode::ComplexPlane,
             component: Component::Magnitude,
             colormap: ColormapPreset::Turbo,
@@ -118,6 +158,7 @@ impl BesselViewer {
             gradient: build_gradient(ColormapPreset::Turbo),
 
             curve_kind: BesselKind::J,
+            curve_scaling: Scaling::Unscaled,
             curve_x_range: [0.0, 20.0],
             curve_samples: 600,
             enabled_orders: vec![
@@ -141,12 +182,7 @@ impl BesselViewer {
             DomainMode::RealVsOrder => (y, Complex64::new(x, 0.0)),
         };
 
-        let result = match self.kind {
-            BesselKind::J => bessel_j(order, z),
-            BesselKind::Y => bessel_y(order, z),
-            BesselKind::I => bessel_i(order, z),
-            BesselKind::K => bessel_k(order, z),
-        };
+        let result = eval_bessel_single(self.kind, order, z, self.scaling);
 
         match result {
             Ok(val) => {
@@ -163,16 +199,18 @@ impl BesselViewer {
         }
     }
 
-    pub fn eval_1d_bessel(kind: BesselKind, order: f64, x: f64) -> Option<f64> {
-        let res = match kind {
-            BesselKind::J => bessel_j(order, x),
-            BesselKind::Y => bessel_y(order, x),
-            BesselKind::I => bessel_i(order, x),
-            BesselKind::K => bessel_k(order, x),
-        };
+    pub fn eval_1d_bessel(kind: BesselKind, order: f64, x: f64, scaling: Scaling) -> Option<f64> {
+        let z = Complex64::new(x, 0.0);
+        let res = eval_bessel_single(kind, order, z, scaling);
 
         match res {
-            Ok(val) if val.is_finite() => Some(val),
+            Ok(val) => {
+                if val.im.abs() <= 1e-10 * (val.re.abs() + 1.0) && val.re.is_finite() {
+                    Some(val.re)
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
     }
@@ -280,12 +318,28 @@ impl BesselViewer {
     }
 
     fn show_curves_plot(&self, ui: &mut egui::Ui) {
+        let y_axis_label = if self.curve_scaling == Scaling::Scaled {
+            match self.curve_kind {
+                BesselKind::J => "Scaled J_v(x) [e^{-|Im(x)|} J_v(x)]",
+                BesselKind::Y => "Scaled Y_v(x) [e^{-|Im(x)|} Y_v(x)]",
+                BesselKind::I => "Scaled I_v(x) [e^{-|x|} I_v(x)]",
+                BesselKind::K => "Scaled K_v(x) [e^x K_v(x)]",
+            }
+        } else {
+            match self.curve_kind {
+                BesselKind::J => "J_v(x)",
+                BesselKind::Y => "Y_v(x)",
+                BesselKind::I => "I_v(x)",
+                BesselKind::K => "K_v(x)",
+            }
+        };
+
         let plot = Plot::new("bessel_curves")
             .legend(Legend::default())
             .show_axes(true)
             .show_grid(true)
             .x_axis_label("x")
-            .y_axis_label(format!("{}_v(x)", self.curve_kind.name()));
+            .y_axis_label(y_axis_label);
 
         plot.show(ui, |plot_ui| {
             let n_pts = self.curve_samples.max(50);
@@ -306,12 +360,19 @@ impl BesselViewer {
                     .filter_map(|i| {
                         let t = i as f64 / (n_pts - 1) as f64;
                         let x = x_min + t * (x_max - x_min);
-                        Self::eval_1d_bessel(self.curve_kind, order, x).map(|y| [x, y])
+                        Self::eval_1d_bessel(self.curve_kind, order, x, self.curve_scaling)
+                            .map(|y| [x, y])
                     })
                     .collect();
 
                 let label = if (order.fract()).abs() < 1e-6 {
-                    format!("{}_{{{:.0}}}(x)", self.curve_kind.name(), order)
+                    if self.curve_scaling == Scaling::Scaled {
+                        format!("{}_{{{:.0}}}(x) [scaled]", self.curve_kind.name(), order)
+                    } else {
+                        format!("{}_{{{:.0}}}(x)", self.curve_kind.name(), order)
+                    }
+                } else if self.curve_scaling == Scaling::Scaled {
+                    format!("{}_{{{:.2}}}(x) [scaled]", self.curve_kind.name(), order)
                 } else {
                     format!("{}_{{{:.2}}}(x)", self.curve_kind.name(), order)
                 };
@@ -375,6 +436,33 @@ impl eframe::App for BesselViewer {
                                 );
                             });
 
+                        let mut curve_scaled = self.curve_scaling == Scaling::Scaled;
+                        if ui
+                            .checkbox(&mut curve_scaled, "Exponential scaling")
+                            .on_hover_text(format!(
+                                "Scale to remove exponential growth/decay:\n{}",
+                                self.curve_kind.scaling_factor_1d()
+                            ))
+                            .changed()
+                        {
+                            self.curve_scaling = if curve_scaled {
+                                Scaling::Scaled
+                            } else {
+                                Scaling::Unscaled
+                            };
+                        }
+                        if curve_scaled {
+                            ui.label(
+                                egui::RichText::new(format!(
+                                    "Scaling factor: {}",
+                                    self.curve_kind.scaling_factor_1d()
+                                ))
+                                .weak()
+                                .small(),
+                            );
+                        }
+
+                        ui.add_space(4.0);
                         ui.label("Orders to Overlay:");
                         ui.horizontal_wrapped(|ui| {
                             for (order, enabled) in &mut self.enabled_orders {
@@ -444,6 +532,34 @@ impl eframe::App for BesselViewer {
                                     .changed();
                             });
 
+                        let mut scaled_2d = self.scaling == Scaling::Scaled;
+                        if ui
+                            .checkbox(&mut scaled_2d, "Exponential scaling")
+                            .on_hover_text(format!(
+                                "Scale to remove exponential growth/decay:\n{}",
+                                self.kind.scaling_factor_2d()
+                            ))
+                            .changed()
+                        {
+                            self.scaling = if scaled_2d {
+                                Scaling::Scaled
+                            } else {
+                                Scaling::Unscaled
+                            };
+                            self.dirty = true;
+                        }
+                        if scaled_2d {
+                            ui.label(
+                                egui::RichText::new(format!(
+                                    "Scaling factor: {}",
+                                    self.kind.scaling_factor_2d()
+                                ))
+                                .weak()
+                                .small(),
+                            );
+                        }
+
+                        ui.add_space(4.0);
                         egui::ComboBox::from_label("2D Domain")
                             .selected_text(match self.domain_mode {
                                 DomainMode::ComplexPlane => "Complex Plane: z = x + iy",
@@ -619,19 +735,53 @@ impl eframe::App for BesselViewer {
         // Central Area
         egui::CentralPanel::default().show(ui, |ui| match self.view_tab {
             ViewTab::Heatmap2D => {
+                let scaled_str = if self.scaling == Scaling::Scaled {
+                    " [Exponentially Scaled]"
+                } else {
+                    ""
+                };
+                ui.heading(format!(
+                    "2D Heatmap Surface: {}{}",
+                    self.kind.label(),
+                    scaled_str
+                ));
                 self.show_heatmap_plot(ui);
             }
             ViewTab::Curves1D => {
+                let scaled_str = if self.curve_scaling == Scaling::Scaled {
+                    " [Exponentially Scaled]"
+                } else {
+                    ""
+                };
+                ui.heading(format!(
+                    "1D Overlaid Curves: {}{}",
+                    self.curve_kind.label(),
+                    scaled_str
+                ));
                 self.show_curves_plot(ui);
             }
             ViewTab::Split => {
                 ui.columns(2, |columns| {
                     columns[0].vertical(|ui| {
-                        ui.heading("2D Heatmap Surface");
+                        let scaled_str = if self.scaling == Scaling::Scaled {
+                            " [Scaled]"
+                        } else {
+                            ""
+                        };
+                        ui.heading(format!("2D Heatmap: {}{}", self.kind.label(), scaled_str));
                         self.show_heatmap_plot(ui);
                     });
                     columns[1].vertical(|ui| {
-                        ui.heading("1D Overlaid Curves");
+                        let scaled_str = if self.curve_scaling == Scaling::Scaled {
+                            " [Scaled]"
+                        } else {
+                            ""
+                        };
+                        ui.heading(format!(
+                            "1D Curves: {}{}",
+                            self.curve_kind.label(),
+                            scaled_str
+                        ));
                         self.show_curves_plot(ui);
                     });
                 });
@@ -663,6 +813,7 @@ mod tests {
         let viewer = BesselViewer {
             view_tab: ViewTab::Heatmap2D,
             kind: BesselKind::J,
+            scaling: Scaling::Unscaled,
             domain_mode: DomainMode::ComplexPlane,
             component: Component::Magnitude,
             colormap: ColormapPreset::Turbo,
@@ -676,6 +827,7 @@ mod tests {
             texture: None,
             gradient: build_gradient(ColormapPreset::Turbo),
             curve_kind: BesselKind::J,
+            curve_scaling: Scaling::Unscaled,
             curve_x_range: [0.0, 20.0],
             curve_samples: 100,
             enabled_orders: vec![(0.0, true)],
@@ -692,6 +844,7 @@ mod tests {
         let viewer = BesselViewer {
             view_tab: ViewTab::Heatmap2D,
             kind: BesselKind::J,
+            scaling: Scaling::Unscaled,
             domain_mode: DomainMode::ComplexPlane,
             component: Component::Magnitude,
             colormap: ColormapPreset::Turbo,
@@ -705,6 +858,7 @@ mod tests {
             texture: None,
             gradient: build_gradient(ColormapPreset::Turbo),
             curve_kind: BesselKind::J,
+            curve_scaling: Scaling::Unscaled,
             curve_x_range: [0.0, 20.0],
             curve_samples: 100,
             enabled_orders: vec![(0.0, true)],
@@ -717,11 +871,67 @@ mod tests {
     }
 
     #[test]
+    fn test_compute_raw_grid_scaled() {
+        let viewer = BesselViewer {
+            view_tab: ViewTab::Heatmap2D,
+            kind: BesselKind::I,
+            scaling: Scaling::Scaled,
+            domain_mode: DomainMode::ComplexPlane,
+            component: Component::Magnitude,
+            colormap: ColormapPreset::Turbo,
+            order: 0.0,
+            x_range: [-10.0, 10.0],
+            y_range: [-10.0, 10.0],
+            val_range: [0.0, 1.0],
+            auto_range: false,
+            resolution: 20,
+            dirty: false,
+            texture: None,
+            gradient: build_gradient(ColormapPreset::Turbo),
+            curve_kind: BesselKind::I,
+            curve_scaling: Scaling::Scaled,
+            curve_x_range: [0.0, 20.0],
+            curve_samples: 100,
+            enabled_orders: vec![(0.0, true)],
+            custom_order: 0.5,
+            custom_order_enabled: false,
+        };
+        let grid = viewer.compute_raw_grid();
+        assert_eq!(grid.len(), 400);
+        assert!(grid.iter().all(|&v| v.is_finite() && !v.is_nan()));
+    }
+
+    #[test]
     fn test_eval_1d_bessel() {
-        let j0_0 = BesselViewer::eval_1d_bessel(BesselKind::J, 0.0, 0.0);
+        let j0_0 = BesselViewer::eval_1d_bessel(BesselKind::J, 0.0, 0.0, Scaling::Unscaled);
         assert_eq!(j0_0, Some(1.0));
 
-        let j1_0 = BesselViewer::eval_1d_bessel(BesselKind::J, 1.0, 0.0);
+        let j1_0 = BesselViewer::eval_1d_bessel(BesselKind::J, 1.0, 0.0, Scaling::Unscaled);
         assert!((j1_0.unwrap() - 0.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_eval_scaled_bessel_i_k() {
+        // Test I_0(2.0): scaled value should equal unscaled * exp(-2.0)
+        let unscaled_i =
+            BesselViewer::eval_1d_bessel(BesselKind::I, 0.0, 2.0, Scaling::Unscaled).unwrap();
+        let scaled_i =
+            BesselViewer::eval_1d_bessel(BesselKind::I, 0.0, 2.0, Scaling::Scaled).unwrap();
+        let expected_scaled_i = unscaled_i * (-2.0_f64).exp();
+        assert!(
+            (scaled_i - expected_scaled_i).abs() < 1e-12,
+            "Scaled I_0(2.0) mismatch: {scaled_i} vs expected {expected_scaled_i}"
+        );
+
+        // Test K_0(2.0): scaled value should equal unscaled * exp(2.0)
+        let unscaled_k =
+            BesselViewer::eval_1d_bessel(BesselKind::K, 0.0, 2.0, Scaling::Unscaled).unwrap();
+        let scaled_k =
+            BesselViewer::eval_1d_bessel(BesselKind::K, 0.0, 2.0, Scaling::Scaled).unwrap();
+        let expected_scaled_k = unscaled_k * 2.0_f64.exp();
+        assert!(
+            (scaled_k - expected_scaled_k).abs() < 1e-12,
+            "Scaled K_0(2.0) mismatch: {scaled_k} vs expected {expected_scaled_k}"
+        );
     }
 }
