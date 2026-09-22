@@ -11,16 +11,16 @@
 //!
 //! To calculate Bessel functions in Rust there are now several alternatives
 //!
-//! - [Complex Bessel rs](https://crates.io/crates/complex-bessel-rs/) - A wrapper around the Amos' Fortran functions with a Rust API.
-//!   Good if you want guarantees that answers will be the same as Fortran, but requires a Fortran compiler in your toolchain to compile.
+//! - [This crate](https://docs.rs/amos-bessel-rs/latest/amos_bessel_rs/) - A modern, idiomatic pure-Rust translation of Amos' algorithms.
+//!   Features zero-allocation buffer-passing APIs (`_into`), register-resident recurrence loops, and SIMD-friendly Horner polynomial evaluation.
+//!   Benchmarks show it consistently matches or outpaces both Fortran AMOS and other translations while offering full `#![no_std]` support.
 //! - [Complex Bessel](http://docs.rs/complex-bessel/latest/complex_bessel/) - A line-by-line translation of Amos code with a very good
-//!   [comparison tool](https://github.com/elgar328/complex-bessel-test) to confirm both accuracy and computational speed. Carefully optimised
-//!   for accuracy and speed using detailed tools (e.g. implementation of FMA) to aid the compiler.
-//! - [This crate](https://docs.rs/amos-bessel-rs/latest/amos_bessel_rs/) - A more idiomatic translation of the Fortran code: using Rust
-//!   tools. Relies on the compiler to optimise as best it can. A fork of the elgar328's [comparison tool](https://github.com/etfrogers/complex-bessel-test) shows similar accuracy and
-//!   execution speed.
-//! - **Real Bessel** - WIP (soon to be released) crate that calculates real-only Bessel function's *J*, and *Y* for integer order. *J* takes
-//!   real inputs, *Y* is restricted to positive inputs (to give real answers). This implementation is faster for these simple cases.
+//!   [comparison tool](https://github.com/elgar328/complex-bessel-test) to confirm both accuracy and computational speed. Optimised
+//!   for accuracy and speed using FMA tools to aid the compiler.
+//! - [Real Bessel](https://crates.io/crates/real-bessel) - A dedicated pure `core` zero-allocation crate that calculates real-only Bessel
+//!   functions *J* and *Y* for integer order. Faster for these simple cases.
+//! - [Complex Bessel rs](https://crates.io/crates/complex-bessel-rs/) - A wrapper around the Amos' Fortran functions with a Rust API.
+//!   Good if you want guarantees that answers will be identical to Fortran, but requires a Fortran compiler in your toolchain to compile.
 //!
 //! The primary test of this crate is that it gives the same values
 //! (to within approx 10 significant figures, subject to the considerations
@@ -68,15 +68,17 @@
 //!
 //! #### Return values
 //!
-//! - They return an additional error variant: [BesselError::PartialLossOfSignificance], in cases where the algorithm
-//!   has converged, but the result is not as accurate as normal due to loss of significance. It occurs on
-//!   extreme values of inputs, and is a feature of the Amos algorithm. It is hidden from the user in the simpler functions,
-//!   so that the user does not need to worry about it: if the error is returned by the underlying Amos function, then
-//!   it is unwrapped and returned as `Ok(value)` by the simpler functions.
+//! - Sequence functions are available in both allocating forms ([`amos::complex_bessel_j`], etc.) returning `Result<(Vec<Complex<T>>, SequenceInfo), BesselError<T>>`
+//!   and zero-allocation slice-filling forms ([`amos::complex_bessel_j_into`], etc.) returning `Result<SequenceInfo, BesselError<T>>`.
 //!
-//! - The general form of the Amos functions return is a `Result<(Vec<Complex<T>>, usize), BesselError<T>>`, where the `Vec` contains
-//!   the values of the function at orders `[order, order + 1, ..., order + n - 1]` and `n_zeros` contains the number of elements
-//!   in the `Vec` that have been set to zero due to underflow.
+//! - The returned [`SequenceInfo`] provides metadata about the computation:
+//!   - `n_zeros`: the number of elements set to zero due to underflow. Underflow zeroes occur at the **end** of the sequence (highest orders)
+//!     for $J_\nu$ and $I_\nu$, and at the **start** of the sequence (lowest orders) for $Y_\nu$, $K_\nu$, and $H_\nu^{(m)}$.
+//!   - `partial_loss_of_significance`: `true` if extreme values of $|z|$ or `order` caused argument reduction to lose more than half
+//!     of machine precision. The computed values are still returned as `Ok` because the algorithm converged.
+//!
+//! - Errors ([`BesselError`]) implement `Copy` with zero heap allocation and are reserved strictly for true calculation failures
+//!   (such as overflow, non-convergence, or complete loss of significance).
 //!
 //! ### Derivatives
 //!
@@ -100,7 +102,7 @@
 //! by argument reduction occur in the underlying computations.
 //!
 //! If either one exceeds `u1 = (0.5/eps).sqrt()` (approx `1.3e8` for `f64`), losses exceeding half
-//! of machine precision are likely and [BesselError::PartialLossOfSignificance] is triggered.
+//! of machine precision are likely and `SequenceInfo::partial_loss_of_significance` is set to `true`.
 //! If either `z` or `order` is larger than `u2 = 0.5/eps` (approx `1.8e16` for `f64`), then all
 //! significance is lost and [BesselError::LossOfSignificance] is returned.
 //!
@@ -137,16 +139,11 @@
 //!
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(feature = "alloc")]
 #[macro_use]
 extern crate alloc;
 
 use num::Complex;
-
-pub(crate) mod prelude {
-    pub use alloc::borrow::ToOwned;
-    pub use alloc::string::{String, ToString};
-    pub use alloc::vec::Vec;
-}
 
 /// Container for the complex_\[func\] version of the Bessel and Airy functions
 /// for finer control of the calculation and results
@@ -159,11 +156,11 @@ mod types;
 
 pub use amos::{HankelKind, Scaling};
 use amos::{
-    complex_airy, complex_airy_b, complex_bessel_i, complex_bessel_j, complex_bessel_k,
-    complex_bessel_y, complex_hankel1, complex_hankel2,
+    complex_airy, complex_airy_b, complex_bessel_i_into, complex_bessel_j_into,
+    complex_bessel_k_into, complex_bessel_y_into, complex_hankel1_into, complex_hankel2_into,
 };
-use types::{AllowPlos, simple_bessel_wrapper};
-pub use types::{BesselError, BesselFloat, BesselInput};
+use types::simple_bessel_wrapper;
+pub use types::{BesselError, BesselFloat, BesselInput, SequenceInfo};
 
 // TODO Overflow to positive or negative infinity, or zero?
 
@@ -237,7 +234,6 @@ pub fn hankel<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 pub fn airy<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
     complex_airy(z.into(), false, Scaling::Unscaled)
         .map(|x| x.0)
-        .allow_plos()
         .and_then(ZT::back_from)
 }
 
@@ -245,21 +241,20 @@ pub fn airy<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselErr
 pub fn airyp<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
     complex_airy(z.into(), true, Scaling::Unscaled)
         .map(|x| x.0)
-        .allow_plos()
         .and_then(ZT::back_from)
 }
 
 /// Computes the Airy function of the second kind Bi(z).
 pub fn airy_b<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
     complex_airy_b(z.into(), false, Scaling::Unscaled)
-        .allow_plos()
+        .map(|x| x.0)
         .and_then(ZT::back_from)
 }
 
 /// Computes the derivative of the Airy function of the second kind Bi'(z).
 pub fn airy_bp<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
     complex_airy_b(z.into(), true, Scaling::Unscaled)
-        .allow_plos()
+        .map(|x| x.0)
         .and_then(ZT::back_from)
 }
 
@@ -271,5 +266,5 @@ simple_bessel_wrapper!(bessel_k);
 simple_bessel_wrapper!(hankel1);
 simple_bessel_wrapper!(hankel2);
 
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))]
 mod tests;

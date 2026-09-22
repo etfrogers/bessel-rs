@@ -24,7 +24,7 @@ mod machine;
 mod power_series;
 mod recurrence;
 mod right_half_plane;
-mod utils;
+pub(crate) mod utils;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(usize)]
@@ -33,15 +33,6 @@ pub(crate) enum IKType {
     K = 2,
 }
 
-pub(crate) fn i_pow_n<T: BesselFloat>(n: usize) -> Complex<T> {
-    match n % 4 {
-        0 => Complex::new(T::one(), T::ZERO),
-        1 => Complex::new(T::ZERO, T::one()),
-        2 => Complex::new(-T::one(), T::ZERO),
-        3 => Complex::new(T::ZERO, -T::one()),
-        _ => unreachable!(),
-    }
-}
 
 /// Used to specify the kind of Hankel function in the [hankel](crate::hankel) and
 /// [complex_bessel_h] functions.

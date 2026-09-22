@@ -1,23 +1,3 @@
-use core::cmp::min;
-
-use num::{Complex, complex::ComplexFloat};
-
-enum EitherIter<L, R> {
-    Left(L),
-    Right(R),
-}
-
-impl<I, L: Iterator<Item = I>, R: Iterator<Item = I>> Iterator for EitherIter<L, R> {
-    type Item = I;
-    #[inline]
-    fn next(&mut self) -> Option<I> {
-        match self {
-            EitherIter::Left(l) => l.next(),
-            EitherIter::Right(r) => r.next(),
-        }
-    }
-}
-
 use crate::{
     amos::{
         MachineConsts,
@@ -26,6 +6,8 @@ use crate::{
     },
     types::BesselFloat,
 };
+use core::cmp::min;
+use num::Complex;
 
 /// Iterate through k functions (the first number of which may be zeros), set
 /// them to zero on underflow, continuing recurrence
@@ -44,7 +26,7 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
 ) {
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     *n_zeros = 0;
-    let mut i_completed = 0;
+    let mut prev_on_scale = false;
 
     // Copy the values by value before we start mutating y
     let original_scaled_0 = y[0];
@@ -58,7 +40,7 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
         // Assumption: the value is too small (will underflow)
         *n_zeros += 1;
         *yi = T::C_ZERO;
-        if -z.re + current_val.abs().ln() < -mc.exponent_limit {
+        if -z.re + (T::HALF * current_val.norm_sqr().ln()) < -mc.exponent_limit {
             // if the scaling would put the (negative) exponent below the (negative)
             // limit, the the value was too small (assumption true)
             continue;
@@ -75,14 +57,19 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
         // Here we know the assumption is false, so set the value properly and
         // decrement n_zeros to undo the increment above
         *yi = unscaled_value;
-        i_completed = i;
+        if i == 1 {
+            prev_on_scale = true;
+        }
         *n_zeros -= 1;
     }
-    if n <= 2 || *n_zeros == 0 {
-        // If there are less than two values requested, we've tested them all, so also
-        // return.
-        // n_zeros == 0 means that both the first two value were on scale, and
-        // we can return.
+    if n == 1 {
+        return;
+    }
+    if !prev_on_scale {
+        y[0] = T::C_ZERO;
+        *n_zeros = 2;
+    }
+    if n == 2 || *n_zeros == 0 {
         return;
     }
 
@@ -101,10 +88,12 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
         let recurrence_factor = (order + T::from_usize(i - 1)) * two_over_z;
         (scaled_k_minus_1, scaled_k) = (scaled_k, scaled_k * recurrence_factor + scaled_k_minus_1);
 
+        let ln_abs_k = T::HALF * scaled_k.norm_sqr().ln();
+
         // Assumption: the value is too small (will underflow)
         *n_zeros += 1;
         *yi = T::C_ZERO;
-        if -effective_z.re + scaled_k.abs().ln() >= -mc.exponent_limit {
+        if -effective_z.re + ln_abs_k >= -mc.exponent_limit {
             // note: the value below is unscaled by the standard scaling, but is still a factor of
             // abs_error_tolerance smaller than the final answer
             let unscaled_value = (scaled_k.ln() - effective_z).exp() / mc.abs_error_tolerance;
@@ -116,29 +105,33 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
 
                 // the if below means:
                 // "If we got to this line twice in a row on two iterations of the loop"
-                if i_completed == i - 1 {
+                if prev_on_scale {
                     found_two_good_values = true;
                     break;
                 }
-                i_completed = i;
+                prev_on_scale = true;
                 continue;
             }
         }
 
-        if scaled_k.abs().ln() > half_exponent_limit {
+        prev_on_scale = false;
+        if ln_abs_k > half_exponent_limit {
             effective_z -= mc.exponent_limit;
             scaled_k_minus_1 *= internal_scaling_factor;
             scaled_k *= internal_scaling_factor;
         }
     }
     if found_two_good_values {
-        *n_zeros = n_tested - 2;
+        *n_zeros = n_tested - 1;
     } else {
         *n_zeros = n;
-        if i_completed == n {
+        if prev_on_scale {
             // this means we found one good value, on the last iteration
-            *n_zeros = n - 1
+            *n_zeros = n - 1;
         }
+    }
+    for yi in &mut y[..*n_zeros] {
+        *yi = T::C_ZERO;
     }
 }
 
@@ -166,39 +159,95 @@ pub(crate) fn scale_k_recurrence<T: BesselFloat>(
 /// The recurrence multiplier `recurrence_factor` is computed dynamically from the absolute array index `i`,
 /// rendering the loop stateless. Depending on the `forward` flag, `ck` evaluates to exactly
 /// $\frac{2}{z}(\nu + i \pm 1)$, correctly mirroring the specific step in the sequence.
-#[allow(clippy::too_many_arguments)]
 #[inline]
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn scale_controlled_recurrence<T: BesselFloat>(
     forward: bool,
     order: T,
     z: Complex<T>,
-    mut y: Option<&mut [Complex<T>]>,
+    y: Option<&mut [Complex<T>]>,
     n_offset: usize,
     n: usize,
+    s1: Complex<T>,
+    s2: Complex<T>,
+    overflow_state: OverflowState,
+    mc: &MachineConsts<T>,
+) -> (Complex<T>, Complex<T>, OverflowState) {
+    let two_over_z = two_over_z_safe(z);
+
+    if forward {
+        let base_order = order - T::ONE;
+        let iter = n_offset..n;
+        match y {
+            Some(out) => run_recurrence_core(
+                iter,
+                base_order,
+                two_over_z,
+                |i, yi| out[i] = yi,
+                s1,
+                s2,
+                overflow_state,
+                mc,
+            ),
+            None => run_recurrence_core(
+                iter,
+                base_order,
+                two_over_z,
+                |_, _| (),
+                s1,
+                s2,
+                overflow_state,
+                mc,
+            ),
+        }
+    } else {
+        let base_order = order + T::ONE;
+        let iter = (0..n_offset).rev();
+        match y {
+            Some(out) => run_recurrence_core(
+                iter,
+                base_order,
+                two_over_z,
+                |i, yi| out[i] = yi,
+                s1,
+                s2,
+                overflow_state,
+                mc,
+            ),
+            None => run_recurrence_core(
+                iter,
+                base_order,
+                two_over_z,
+                |_, _| (),
+                s1,
+                s2,
+                overflow_state,
+                mc,
+            ),
+        }
+    }
+}
+
+#[inline(always)]
+#[allow(clippy::too_many_arguments)]
+fn run_recurrence_core<T: BesselFloat, I: Iterator<Item = usize>, F: FnMut(usize, Complex<T>)>(
+    iter: I,
+    base_order: T,
+    two_over_z: Complex<T>,
+    mut on_yield: F,
     mut s1: Complex<T>,
     mut s2: Complex<T>,
     mut overflow_state: OverflowState,
     mc: &MachineConsts<T>,
 ) -> (Complex<T>, Complex<T>, OverflowState) {
-    let two_over_z = two_over_z_safe(z);
-
-    let iterator = if forward {
-        EitherIter::Right(n_offset..n)
-    } else {
-        EitherIter::Left((0..n_offset).rev())
-    };
-    let index_adjustment = if forward { -T::ONE } else { T::ONE };
-
     let mut recip_scale_factor = overflow_state.reciprocal_scaling_factor::<T>(mc);
     let mut boundary = overflow_state.boundary::<T>(mc);
 
-    for i in iterator {
-        let recurrence_factor = two_over_z * (order + T::from_usize(i) + index_adjustment);
+    for i in iter {
+        let recurrence_factor = two_over_z * (base_order + T::from_usize(i));
         (s1, s2) = (s2, s1 + recurrence_factor * s2);
         let yi = s2 * recip_scale_factor;
-        if let Some(vec) = y.as_mut() {
-            (*vec)[i] = yi;
-        }
+        on_yield(i, yi);
         overflow_state.scale_recurrence(
             &mut s1,
             &mut s2,

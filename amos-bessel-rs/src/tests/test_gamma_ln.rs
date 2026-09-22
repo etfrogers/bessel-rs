@@ -2,7 +2,10 @@ use approx::assert_relative_eq;
 use rstest::rstest;
 use rstest_reuse::{apply, template};
 
-use crate::amos::{GammaError, gamma_ln};
+use crate::{
+    BesselFloat,
+    amos::{GammaError, gamma_ln},
+};
 
 // Below is the copy of code from std::sys::cmath to expose the tgamma function
 // This avoids using the unstable float_gamma feature, but gives the same functionality
@@ -13,9 +16,10 @@ unsafe extern "C" {
 
 #[test]
 fn test_gamma_ln_hard_coded() {
+    let mc = f64::MACHINE_CONSTANTS;
     for i in 1..=100 {
         let f = i as f64;
-        let actual = gamma_ln(f).unwrap();
+        let actual = gamma_ln(f, mc).unwrap();
         let expected = tgamma(f).ln();
         assert_relative_eq!(actual, expected)
     }
@@ -30,15 +34,17 @@ fn f_values(
 
 #[apply(f_values)]
 fn test_gamma_ln(f: f64) {
+    let mc = f64::MACHINE_CONSTANTS;
     // large values cause the "expected" calculation to overflow: the fortran version seems to work!
-    let actual = gamma_ln(f).unwrap();
+    let actual = gamma_ln(f, mc).unwrap();
     let expected = tgamma(f).ln();
     assert_relative_eq!(actual, expected, max_relative = 1e-10)
 }
 
 #[apply(f_values)]
 fn test_gamma_ln_negative(f: f64) {
+    let mc = f64::MACHINE_CONSTANTS;
     // large values cause the "expected" calculation to overflow: the fortran version seems to work!
-    let actual = gamma_ln(-f);
+    let actual = gamma_ln(-f, mc);
     assert_eq!(actual, Err(GammaError::ZLessThanZero))
 }

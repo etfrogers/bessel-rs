@@ -31,19 +31,35 @@ jobs:
       - name: Check no_std bare-metal (amos-bessel-rs)
         run: cargo clippy -p amos-bessel-rs --no-default-features --target thumbv7em-none-eabihf -- -D warnings
 
+      - name: Check no_std + alloc bare-metal (amos-bessel-rs)
+        run: cargo clippy -p amos-bessel-rs --no-default-features --features alloc --target thumbv7em-none-eabihf -- -D warnings
+
       - name: Check no_std bare-metal (real-bessel)
         run: cargo clippy -p real-bessel --no-default-features --target thumbv7em-none-eabihf -- -D warnings
 
       - name: Check no_std bare-metal (bessel-zeros)
         run: cargo clippy -p bessel-zeros --no-default-features --target thumbv7em-none-eabihf -- -D warnings
 
+      - name: Build no_std embedded targets (cross-compile)
+        run: |
+          cargo build -p amos-bessel-rs --no-default-features --target thumbv7em-none-eabihf
+          cargo build -p amos-bessel-rs --no-default-features --features alloc --target thumbv7em-none-eabihf
+          cargo build -p real-bessel --no-default-features --target thumbv7em-none-eabihf
+          cargo build -p bessel-zeros --no-default-features --target thumbv7em-none-eabihf
+
       - name: Check no_std compilation (host)
         run: |
           cargo check -p amos-bessel-rs --no-default-features --lib
+          cargo check -p amos-bessel-rs --no-default-features --features alloc --lib
           cargo check -p real-bessel --no-default-features --lib
           cargo check -p bessel-zeros --no-default-features --lib
         env:
           RUSTFLAGS: "-D warnings"
+
+      - name: Test no_std & zero-alloc runtime compliance (host)
+        run: |
+          cargo test -p amos-bessel-rs --test test_no_std_compliance --no-default-features
+          cargo test -p amos-bessel-rs --test test_no_std_compliance --no-default-features --features alloc
 
       - name: Generate code coverage
         run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info

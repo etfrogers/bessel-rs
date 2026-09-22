@@ -42,29 +42,32 @@ Usage
 amos-bessel-rs = "0.4"
 ```
 
-### `no_std` Support
+### `no_std` and `no-alloc` Support
 
-`amos-bessel-rs` supports `#![no_std]` environments (with dynamic allocation via `alloc`). When `std` is disabled, the crate relies on pure-Rust software floating-point routines via `libm` and precomputed IEEE-754 machine constants.
+`amos-bessel-rs` fully supports `#![no_std]` environments, both with and without dynamic memory allocation (`alloc`):
 
-To use in a `no_std` environment, disable default features:
+- **Pure zero-allocation `no_std` (bare-metal embedded)**:
+  By disabling default features (`default-features = false`), the crate operates completely without heap allocations, suitable for bare-metal targets (e.g. `thumbv7em-none-eabihf`). You can use all slice-filling APIs (`_into`), single-value entry points (`bessel_j`, etc.), and derivatives up to order 15, powered by stack-allocated small-buffer optimization (`ScratchBuffer`).
+  ```toml
+  [dependencies]
+  amos-bessel-rs = { version = "1.0", default-features = false }
+  ```
 
-```toml
-[dependencies]
-amos-bessel-rs = { version = "0.4", default-features = false }
-```
+- **`no_std` with `alloc`**:
+  If a heap allocator is available in your `no_std` environment, enable the `alloc` feature to use allocating sequence functions (returning `Vec<Complex<T>>`) and dynamic buffer expansion for sequences $N > 32$:
+  ```toml
+  [dependencies]
+  amos-bessel-rs = { version = "1.0", default-features = false, features = ["alloc"] }
+  ```
+
+When `std` is disabled, the crate relies on pure-Rust software floating-point routines via `libm` and precomputed IEEE-754 machine constants.
 
 Alternatives
 ------------
 
 To calculate Bessel functions in Rust there are now several alternatives:
 
-- [Complex Bessel rs](https://crates.io/crates/complex-bessel-rs/) - A wrapper around the Amos' Fortran functions with a Rust API.
-  Good if you want guarantees that answers will be the same as Fortran, but requires a Fortran compiler in your toolchain to compile.
-- [Complex Bessel](http://docs.rs/complex-bessel/latest/complex_bessel/) - A line-by-line translation of Amos code with a very good 
-  [comparison tool](https://github.com/elgar328/complex-bessel-test) to confirm both accuracy and computational speed. Carefully optimised 
-  for accuracy and speed using detailed tools (e.g. implementation of FMA) to aid the compiler. 
-- [This crate](https://docs.rs/amos-bessel-rs/latest/amos_bessel_rs/) - A more idiomatic translation of the Fortran code: using Rust
-  tools. Relies on the compiler to optimise as best it can. A fork of the elgar328's [comparison tool](https://github.com/etfrogers/complex-bessel-test) shows similar accuracy and 
-  execution speed.
-- [Real Bessel](https://crates.io/crates/real-bessel) - A crate that calculates real-only Bessel functions *J* and *Y* for integer order. *J* takes 
-  real inputs, *Y* is restricted to positive inputs (to give real answers). This implementation is faster for these simple cases.
+- [This crate](https://docs.rs/amos-bessel-rs/latest/amos_bessel_rs/) - A modern, idiomatic pure-Rust translation of Amos' algorithms. Features zero-allocation buffer-passing APIs (`_into`), register-resident recurrence loops, and SIMD-friendly Horner polynomial evaluation. Benchmarks show it consistently matches or outpaces both Fortran AMOS and other translations while offering full `#![no_std]` support.
+- [Complex Bessel](http://docs.rs/complex-bessel/latest/complex_bessel/) - A line-by-line translation of Amos code with a very good [comparison tool](https://github.com/elgar328/complex-bessel-test) to confirm both accuracy and computational speed. Optimised for accuracy and speed using FMA tools to aid the compiler.
+- [Real Bessel](https://crates.io/crates/real-bessel) - A dedicated pure `core` zero-allocation crate that calculates real-only Bessel functions *J* and *Y* for integer order. Faster for these simple cases.
+- [Complex Bessel rs](https://crates.io/crates/complex-bessel-rs/) - A wrapper around the Amos' Fortran functions with a Rust API. Good if you want guarantees that answers will be identical to Fortran, but requires a Fortran compiler in your toolchain to compile.

@@ -29,7 +29,7 @@ use crate::{
         recurrence::scale_controlled_recurrence,
         utils::imaginary_dominant,
     },
-    types::{BesselFloat, BesselResult},
+    types::BesselFloat,
 };
 
 /// Computes the $I$ Bessel sequence $[I_\nu(z), \dots, I_{\nu+n-1}(z)]$ for large argument/order.
@@ -74,17 +74,17 @@ pub(crate) fn i_asymp_large_order<T: BesselFloat>(
 
     let imaginary_dominant = imaginary_dominant(z);
 
-    let evaluate_asymp = |target_order: T, count: usize, out: &mut [Complex<T>]| {
+    let evaluate_asymp = |target_order: T, out: &mut [Complex<T>]| {
         if imaginary_dominant {
             // Asymptotic expansion for J_nu(z * e^{m*pi/2}) for large nu (pi/3 < |arg(z)| <= pi/2)
-            i_uniform_asymp2(z, target_order, scaling, count, out)
+            i_uniform_asymp2(z, target_order, scaling, out)
         } else {
             // Asymptotic expansion for I_nu(z) for large nu (|arg(z)| <= pi/3)
-            i_uniform_asymp1(z, target_order, scaling, count, out)
+            i_uniform_asymp1(z, target_order, scaling, out)
         }
     };
     if steps_to_asymptotic_limit == 0 {
-        return evaluate_asymp(order, n, y);
+        return evaluate_asymp(order, y);
     }
 
     let steps_float = T::from_usize(steps_to_asymptotic_limit);
@@ -92,7 +92,7 @@ pub(crate) fn i_asymp_large_order<T: BesselFloat>(
     let mut seeds = [T::C_ZERO; 2];
 
     // Evaluate asymptotic seeds: seeds[0] = I_{ν_adj}(z), seeds[1] = I_{ν_adj + 1}(z)
-    let (n_zeros, n_last) = evaluate_asymp(max_order_adjusted, 2, &mut seeds)?;
+    let (n_zeros, n_last) = evaluate_asymp(max_order_adjusted, &mut seeds)?;
     if n_zeros != 0 {
         return Ok((0, n));
     }
@@ -168,13 +168,13 @@ pub(crate) fn k_asymp_large_order<T: BesselFloat>(
     order: T,
     scaling: Scaling,
     rotation: RotationDirection,
-    n: usize,
-) -> BesselResult<T> {
+    out: &mut [Complex<T>],
+) -> Result<usize, BesselError<T>> {
     if imaginary_dominant(z) {
         // Asymptotic expansion for H^{(2)}_nu(z * e^{m*pi/2}) for large nu (pi/3 < |arg(z)| <= pi/2)
-        k_uniform_asymp2(z, order, scaling, rotation, n)
+        k_uniform_asymp2(z, order, scaling, rotation, out)
     } else {
         // Asymptotic expansion for K_nu(z) for large nu (|arg(z)| <= pi/3)
-        k_uniform_asymp1(z, order, scaling, rotation, n)
+        k_uniform_asymp1(z, order, scaling, rotation, out)
     }
 }

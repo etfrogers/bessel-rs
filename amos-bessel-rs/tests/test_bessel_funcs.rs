@@ -26,6 +26,7 @@ use rstest::rstest;
 use rstest_reuse::apply;
 
 #[apply(bessel_cases)]
+#[rstest]
 fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     let z = Complex64::new(zr, zi);
     let actual = bessel_j(order, z);
@@ -35,7 +36,7 @@ fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
 }
 
 #[apply(bessel_cases)]
-#[trace]
+#[rstest]
 fn test_bessel_i(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     let z = Complex64::new(zr, zi);
     let actual = bessel_i(order, z);
@@ -46,7 +47,7 @@ fn test_bessel_i(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
 }
 
 #[apply(bessel_cases)]
-#[trace]
+#[rstest]
 fn test_bessel_k(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     let z = Complex64::new(zr, zi);
     let actual = bessel_k(order, z);
@@ -56,7 +57,7 @@ fn test_bessel_k(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
 }
 
 #[apply(bessel_cases)]
-#[trace]
+#[rstest]
 fn test_bessel_y(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     let z = Complex64::new(zr, zi);
     let actual = bessel_y(order, z);
@@ -66,7 +67,7 @@ fn test_bessel_y(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
 }
 
 #[apply(bessel_cases)]
-#[trace]
+#[rstest]
 fn test_bessel_h(
     #[case] order: f64,
     #[case] zr: f64,
@@ -82,7 +83,7 @@ fn test_bessel_h(
 }
 
 #[apply(bessel_cases)]
-#[trace]
+#[rstest]
 fn test_airy(
     #[case] _order: f64,
     #[case] zr: f64,
@@ -97,7 +98,7 @@ fn test_airy(
 }
 
 #[apply(bessel_cases)]
-#[trace]
+#[rstest]
 fn test_biry(
     #[case] _order: f64,
     #[case] zr: f64,

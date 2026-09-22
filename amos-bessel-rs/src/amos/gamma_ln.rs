@@ -2,7 +2,7 @@ use core::f64;
 
 use thiserror::Error;
 
-use crate::BesselFloat;
+use crate::{BesselFloat, amos::MachineConsts};
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub(crate) enum GammaError {
@@ -33,7 +33,7 @@ pub(crate) enum GammaError {
 /// * **Author:** Donald E. Amos, Sandia National Laboratories
 /// * **Date Written:** May 1, 1983
 /// * **Reference:** Computation of Bessel Functions of Complex Argument by D.E. Amos, SAND83-0083, May, 1983.
-pub(crate) fn gamma_ln<T: BesselFloat>(z: T) -> Result<T, GammaError> {
+pub(crate) fn gamma_ln<T: BesselFloat>(z: T, mc: &MachineConsts<T>) -> Result<T, GammaError> {
     if z <= T::ZERO {
         return Err(GammaError::ZLessThanZero);
     }
@@ -43,13 +43,9 @@ pub(crate) fn gamma_ln<T: BesselFloat>(z: T) -> Result<T, GammaError> {
     }
 
     let working_tolerance = T::EPSILON.max(T::from_f64(0.5e-18));
-    let digits_per_bit = (T::from_f64(T::RADIX as f64)).log10();
-    let mantissa_base10_digits = T::from_f64(T::MANTISSA_DIGITS as f64) * digits_per_bit;
-    let fln = mantissa_base10_digits.clamp(T::from_f64(3.0), T::from_f64(20.0)) - T::from_f64(3.0);
-    let z_min = (T::from_f64(1.8000) + T::from_f64(0.3875) * fln).round() + T::one();
 
-    let (z_increment, z_modified) = if z < z_min {
-        let zinc = z_min - z.round();
+    let (z_increment, z_modified) = if z < mc.gamma_ln_z_min {
+        let zinc = mc.gamma_ln_z_min - z.round();
         (zinc.to_usize().unwrap(), z + zinc)
     } else {
         (0, z)

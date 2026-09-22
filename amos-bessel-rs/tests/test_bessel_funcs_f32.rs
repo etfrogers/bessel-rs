@@ -14,7 +14,7 @@ use complex_bessel_rs::bessel_y::bessel_y as bessel_y_ref;
 // use fortran_amos_testing::{zbesi_fortran, zbesj_fortran, zbesk_fortran, zbesy_fortran};
 
 use amos_bessel_rs::{
-    HankelKind, Scaling, airy, airy_b, airy_bp, airyp,
+    HankelKind, Scaling, SequenceInfo, airy, airy_b, airy_bp, airyp,
     amos::{
         complex_bessel_i, complex_bessel_j, complex_bessel_k, complex_bessel_y, complex_hankel1,
         complex_hankel2,
@@ -29,7 +29,13 @@ use rstest_reuse::apply;
 use crate::common::{DiagnosticBesselFloat, assert_results_are_equal_floats};
 
 fn single_to_bessel_values<T: BesselFloat>(val: Complex<T>) -> BesselValues<T> {
-    (vec![val], 0)
+    (
+        vec![val],
+        SequenceInfo {
+            n_zeros: 0,
+            partial_loss_of_significance: false,
+        },
+    )
 }
 
 fn assert_results_are_equal_fotran<T: DiagnosticBesselFloat>(
@@ -37,20 +43,19 @@ fn assert_results_are_equal_fotran<T: DiagnosticBesselFloat>(
     expected: Result<Complex<f64>, i32>,
     margin: f64,
 ) {
+    if expected == Err(3) {
+        // Fortran returned ierr = 3 (partial loss of significance).
+        // For f32, this can either return Ok (since our single-output functions return Ok on PLOS)
+        // or Err(LossOfSignificance) because f32 has much smaller u2 (~4.2e6) than f64 (~1.8e16),
+        // meaning f32 loses all significance where f64 only loses partial significance.
+        if actual.is_ok() || matches!(actual, Err(BesselError::LossOfSignificance)) {
+            return;
+        }
+    }
     let actual = actual.map(single_to_bessel_values);
     let expected = expected
         .map_err(|val| BesselError::from_i32(val).unwrap())
         .map(single_to_bessel_values);
-    if actual.is_ok()
-        && matches!(
-            expected,
-            Err(BesselError::PartialLossOfSignificance { y: _, n_zeros: _ })
-        )
-    {
-        // the single output functions unwrap partial loss of significance, where
-        // complex_bessel_rs returns an error code.
-        return;
-    }
     assert_results_are_equal_floats(&actual, &expected, margin);
 }
 

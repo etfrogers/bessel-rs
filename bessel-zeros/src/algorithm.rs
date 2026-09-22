@@ -27,12 +27,11 @@ pub(crate) fn bessel_zeros_impl<B: BesselBackend>(
     let order_int = order as i64;
     let mut z = vec![0.0; n_zeros];
 
-    let aa = order.powf(2.0);
+    let aa = order * order;
     let mu = 4.0 * aa;
-    let mu2 = mu.powf(2.0);
-    let mu3 = mu.powf(3.0);
-    let mu4 = mu.powf(4.0);
-
+    let mu2 = mu * mu;
+    let mu3 = mu2 * mu;
+    let mu4 = mu2 * mu2; // slightly odd notation for mu.powi(4) to avoid extra calculations
     let mut p: f64;
     let p0: f64;
     let p1: f64;
@@ -84,6 +83,8 @@ pub(crate) fn bessel_zeros_impl<B: BesselBackend>(
 
     let a1 = 3 * order_int - 8;
 
+    let c_w = 6.0 * (2.0 * order + 1.0);
+    let c_q = 4.0 * mu + 12.0 * order + 2.0;
     for s in 1..=n_zeros {
         let sf = s as f64;
         let mut x: f64;
@@ -93,7 +94,7 @@ pub(crate) fn bessel_zeros_impl<B: BesselBackend>(
         } else {
             if (s as i64) >= a1 {
                 let b = (sf + 0.5 * order - t) * PI;
-                let c = 0.015625 / (b.powf(2.0));
+                let c = 0.015625 / (b * b);
                 x = b - 0.125 * (p0 - p1 * c) / (b * (1.0 - q1 * c));
             } else {
                 if s == 1 {
@@ -105,13 +106,13 @@ pub(crate) fn bessel_zeros_impl<B: BesselBackend>(
                     };
                 } else {
                     x = y * (4.0 * sf - tt);
-                    let v = x.powf(-2.0);
+                    let v = x.powi(-2);
                     x = -(x.powf(2.0 / 3.0)) * (1.0 + v * (pp1 + qq1 * v));
                 }
                 let u = x * bb;
                 let v = fi(2.0 / 3.0 * (-u).powf(1.5));
                 w = 1.0 / v.cos();
-                let xx = 1.0 - w.powf(2.0);
+                let xx = 1.0 - (w * w);
                 let c = (u / xx).sqrt();
                 x = if func_type.is_non_derivative() {
                     w * (order + c * (-5.0 / u - c * (6.0 - 10.0 / xx)) / (48.0 * order * u))
@@ -124,9 +125,9 @@ pub(crate) fn bessel_zeros_impl<B: BesselBackend>(
             // the initial guess is close enough that convergence is typically
             // reached in 1–2 steps.
             let mut j = 0;
-            while (j == 0) || ((j < 5) && ((w / x).abs() > precision)) {
-                let xx = x.powf(2.0);
-                let x4 = x.powf(4.0);
+            while (j == 0) || ((j < 5) && (w.abs() > precision * x.abs())) {
+                let xx = x * x;
+                let x4 = xx * xx;
                 let a2 = aa - xx;
                 let r0 = bessr::<B>(func_type, order, x);
                 j += 1;
@@ -134,13 +135,13 @@ pub(crate) fn bessel_zeros_impl<B: BesselBackend>(
                 let u: f64;
                 if func_type.is_non_derivative() {
                     u = r0;
-                    w = 6.0 * x * (2.0 * order + 1.0);
+                    w = c_w * x;
                     p = (1.0 - 4.0 * a2) / w;
-                    q = (4.0 * (xx - mu) - 2.0 - 12.0 * order) / w;
+                    q = (4.0 * xx - c_q) / w;
                 } else {
                     u = -xx * r0 / a2;
                     let v = 2.0 * x * a2 / (3.0 * (aa + xx));
-                    w = 64.0 * a2.powf(3.0);
+                    w = 64.0 * a2.powi(3);
                     q = 2.0 * v * (1.0 + mu2 + 32.0 * mu * xx + 48.0 * x4) / w;
                     p = v * (1.0 + (40.0 * mu * xx + 48.0 * x4 - mu2) / w);
                 }
@@ -165,17 +166,17 @@ fn fi(y: f64) -> f64 {
         let mut p: f64;
         if y < 1.0 {
             p = (3.0 * y).powf(1.0 / 3.0);
-            let pp = p.powf(2.0);
+            let pp = p * p;
             p *= 1.0 + pp * (pp * (27.0 - 2.0 * pp) - 210.0) / 1575.0;
         } else {
             p = 1.0 / (y + c1);
-            let pp = p.powf(2.0);
+            let pp = p * p;
             p = c1
                 - p * (1.0
                     + pp * (2310.0 + pp * (3003.0 + pp * (4818.0 + pp * (8591.0 + pp * 16328.0))))
                         / 3465.0);
         }
-        let pp = (y + p).powf(2.0);
+        let pp = (y + p).powi(2);
         let r = (p - (p + y).atan()) / pp;
         p - (1.0 + pp) * r * (1.0 + r / (p + y))
     }
@@ -184,9 +185,21 @@ fn fi(y: f64) -> f64 {
 /// Evaluates the ratio used in the Newton step, dispatching to backend `B`.
 fn bessr<B: BesselBackend>(fun_type: &BesselFunType, order: f64, z: f64) -> f64 {
     match fun_type {
-        BesselFunType::J => B::j(order, z) / B::j(order + 1.0, z),
-        BesselFunType::Y => B::y(order, z) / B::y(order + 1.0, z),
-        BesselFunType::JP => order / z - B::j(order + 1.0, z) / B::j(order, z),
-        BesselFunType::YP => order / z - B::y(order + 1.0, z) / B::y(order, z),
+        BesselFunType::J => {
+            let (jn, jnp1) = B::j_pair(order, z);
+            jn / jnp1
+        }
+        BesselFunType::Y => {
+            let (yn, ynp1) = B::y_pair(order, z);
+            yn / ynp1
+        }
+        BesselFunType::JP => {
+            let (jn, jnp1) = B::j_pair(order, z);
+            order / z - jnp1 / jn
+        }
+        BesselFunType::YP => {
+            let (yn, ynp1) = B::y_pair(order, z);
+            order / z - ynp1 / yn
+        }
     }
 }

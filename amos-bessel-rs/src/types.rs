@@ -1,19 +1,19 @@
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
 use core::{
     fmt::Debug,
-    ops::{AddAssign, Div, DivAssign, Mul, MulAssign, RemAssign, SubAssign},
+    ops::{AddAssign, Deref, DerefMut, Div, DivAssign, Mul, MulAssign, RemAssign, SubAssign},
 };
-
-use crate::prelude::*;
-
-#[cfg(feature = "std")]
-use std::sync::LazyLock;
-
-use crate::amos::{MACHINE_CONSTANTS_32, MACHINE_CONSTANTS_64, MachineConsts};
 use num::{
     Complex, Float,
     traits::{ConstOne, ConstZero, FloatConst},
 };
 use thiserror::Error;
+
+#[cfg(feature = "std")]
+use std::sync::LazyLock;
+
+use crate::amos::{MACHINE_CONSTANTS_32, MACHINE_CONSTANTS_64, MachineConsts};
 
 /// A trait defining the mathematical and floating-point constraints required to compute
 /// Bessel and Airy functions.
@@ -80,6 +80,7 @@ pub trait BesselFloat:
     fn to_bits(self) -> u64;
 
     /// Creates a vector of length `n` containing complex zeros.
+    #[cfg(feature = "alloc")]
     #[inline]
     fn c_zeros(n: usize) -> Vec<Complex<Self>> {
         vec![Complex::<Self>::ZERO; n]
@@ -185,11 +186,20 @@ impl BesselFloat for f32 {
     }
 }
 
-#[allow(type_alias_bounds)]
-pub(crate) type BesselValues<FT: BesselFloat = f64, NT = usize> = (Vec<Complex<FT>>, NT);
-#[allow(type_alias_bounds)]
-pub(crate) type BesselResult<FT: BesselFloat = f64, NT = usize> =
-    Result<BesselValues<FT, NT>, BesselError<FT>>;
+/// Information about a computed Bessel or Hankel sequence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SequenceInfo {
+    /// The number of components in the destination slice explicitly set to zero due to underflow.
+    ///
+    /// For $J_\nu$ and $I_\nu$, underflow zeroes occur at the end of the slice (highest orders).
+    /// For $Y_\nu$, $K_\nu$, and $H_\nu^{(m)}$, underflow zeroes occur at the start of the slice.
+    pub n_zeros: usize,
+    /// Whether partial loss of significance occurred during calculation.
+    ///
+    /// When `true`, results in the destination slice have reduced accuracy
+    /// (less than half of machine precision) due to large $|z|$ or `order`.
+    pub partial_loss_of_significance: bool,
+}
 
 /// A trait for types that can be used as input to Bessel functions.
 ///
@@ -261,45 +271,31 @@ mod private {
 //         IERR=5, ERROR              - NO COMPUTATION,
 //                 ALGORITHM TERMINATION CONDITION NOT MET
 /// Error struct returned by Bessel function calculations indicating the
-/// nature of the error
-#[derive(Error, Debug, PartialEq, Clone)]
+/// nature of the error.
+///
+/// Implements `Copy` and produces zero heap allocations.
+#[derive(Error, Debug, PartialEq, Clone, Copy)]
 #[repr(i32)]
 pub enum BesselError<T: BesselFloat = f64> {
     /// Indicates that the input is invalid (usually out of bounds) in some way.
-    /// Documentation for each function lists valid and invalid inputs
+    /// Documentation for each function lists valid and invalid inputs.
     #[error("Invalid input: {details}")]
     InvalidInput {
         /// Explanation of why the input was invalid.
-        details: String,
+        details: &'static str,
     } = 1,
-    /// Overflow (or underflow) error in calculation: a valid answer cannot be calculated
+    /// Overflow (or underflow) error in calculation: a valid answer cannot be calculated.
     /// Usually caused by a (very) large `order`, or small `z.abs()`.
     #[error("Overflow: order too large or z.abs() too small or both")]
-    Overflow = 2, //{ too_large: bool },
-    /// Calculation is done, and a value returned wrapped in this error,
-    /// however the value is lower in accuracy than normally expected from these algorithms.
-    /// As `z.abs()` or `order` are large, losses of significance produce
-    /// less than half of machine accuracy. This error is conservative, in
-    /// that it assume argument reduction causes problems that may not occur
-    /// in some architectures.
-    /// Not returned by the reduced API `bessel_...` functions, as they unwrap this and
-    /// return the value. To detect partial loss of significance, the `complex_bessel_..`
-    /// function must be used.
-    #[error("Partial loss of significance in output. Lossy values returned.")]
-    PartialLossOfSignificance {
-        /// Value(s) of Bessel function (reduced accuracy)
-        y: Vec<Complex<T>>,
-        /// Number of entries in `y` explicitly set to zero (as per the `complex_bessel_...` docs`)
-        n_zeros: usize,
-    } = 3,
+    Overflow = 2,
+    /// Complete loss of significance in output. No value could be calculated.
     #[error("Loss of too much significance in output")]
-    /// Complete loss of significance in output. No value could be calculated
     LossOfSignificance = 4,
-    /// Algorithm failed to converge to a an answer
+    /// Algorithm failed to converge to an answer.
     #[error("Algorithm failed to terminate")]
     DidNotConverge = 5,
     /// Returned only when the input `z` to the `bessel_...` functions is real.
-    /// As these function return a real output for a real input, the output is
+    /// As these functions return a real output for a real input, the output is
     /// only valid if the imaginary part is small. If the imaginary part of the
     /// answer is significant this error is returned. The complex answer is returned
     /// in the output field, if that is wanted.
@@ -312,12 +308,11 @@ pub enum BesselError<T: BesselFloat = f64> {
 
 impl<T: BesselFloat> BesselError<T> {
     /// A numeric form of the error equivalent to the error codes returned by the Amos
-    /// Fortran code (where equivalence exists)
+    /// Fortran code (where equivalence exists).
     pub fn error_code(&self) -> i32 {
         match self {
             BesselError::InvalidInput { .. } => 1,
             BesselError::Overflow => 2,
-            BesselError::PartialLossOfSignificance { .. } => 3,
             BesselError::LossOfSignificance => 4,
             BesselError::DidNotConverge => 5,
             BesselError::ComplexOutputForRealInput { .. } => 6,
@@ -328,13 +323,9 @@ impl<T: BesselFloat> BesselError<T> {
     pub fn from_i32(code: i32) -> Option<BesselError<T>> {
         match code {
             1 => Some(BesselError::InvalidInput {
-                details: "from i32".to_string(),
+                details: "from i32",
             }),
             2 => Some(BesselError::Overflow),
-            3 => Some(BesselError::PartialLossOfSignificance {
-                y: vec![],
-                n_zeros: 0,
-            }),
             4 => Some(BesselError::LossOfSignificance),
             5 => Some(BesselError::DidNotConverge),
             6 => Some(BesselError::ComplexOutputForRealInput {
@@ -346,19 +337,9 @@ impl<T: BesselFloat> BesselError<T> {
 
     #[doc(hidden)]
     pub fn to_f32(&self) -> BesselError<f32> {
-        match self {
-            BesselError::InvalidInput { details } => BesselError::InvalidInput {
-                details: details.clone(),
-            },
+        match *self {
+            BesselError::InvalidInput { details } => BesselError::InvalidInput { details },
             BesselError::Overflow => BesselError::Overflow,
-            BesselError::PartialLossOfSignificance { y, n_zeros } => {
-                BesselError::PartialLossOfSignificance {
-                    y: y.iter()
-                        .map(|c| Complex::new(c.re.to_f32().unwrap(), c.im.to_f32().unwrap()))
-                        .collect(),
-                    n_zeros: *n_zeros,
-                }
-            }
             BesselError::LossOfSignificance => BesselError::LossOfSignificance,
             BesselError::DidNotConverge => BesselError::DidNotConverge,
             BesselError::ComplexOutputForRealInput { output } => {
@@ -370,38 +351,79 @@ impl<T: BesselFloat> BesselError<T> {
     }
 }
 
-/// This trait embodies the ability to unwrap a PartialLossOfSignificance, such that
-/// the user doesn't have to worry about it. Used in the high-level API.
-pub(crate) trait AllowPlos<T: BesselFloat> {
-    fn allow_plos(self) -> Self;
-}
-
-impl<T: BesselFloat> AllowPlos<T> for Result<Complex<T>, BesselError<T>> {
-    #[inline]
-    fn allow_plos(self) -> Result<Complex<T>, BesselError<T>> {
-        match self {
-            Ok(y) => Ok(y),
-            Err(BesselError::PartialLossOfSignificance { mut y, .. }) => Ok(y.remove(0)),
-            Err(e) => Err(e),
-        }
-    }
-}
-
 macro_rules! simple_bessel_wrapper {
     (
         $(#[$meta:meta])*
-        $base_func:ident // We only pass the base function name now!
+        $base_func:ident
     ) => {
-        // The paste! macro allows us to create new identifiers
         paste! {
             $(#[$meta])*
-            // [<simple_ $base_func>] concatenates into simple_bessel_j
             #[inline]
-            fn [<$base_func _single>]<T:BesselFloat>(order: T, z: Complex<T>) -> Result<Complex<T>, BesselError<T>> {
-                [<complex_$base_func>](z, order, Scaling::Unscaled, 1).map(|(mut y, _n_zeros)| y.remove(0)).allow_plos()
+            fn [<$base_func _single>]<T: BesselFloat>(order: T, z: Complex<T>) -> Result<Complex<T>, BesselError<T>> {
+                let mut buf = [T::C_ZERO; 1];
+                [<complex_$base_func _into>](z, order, Scaling::Unscaled, &mut buf)?;
+                Ok(buf[0])
             }
         }
     };
 }
 
 pub(crate) use simple_bessel_wrapper;
+
+pub const DEFAULT_SBO_CAP: usize = 32;
+
+pub enum ScratchBuffer<T: BesselFloat, const CAP: usize = DEFAULT_SBO_CAP> {
+    Stack([Complex<T>; CAP], usize),
+    #[cfg(feature = "alloc")]
+    Heap(Vec<Complex<T>>),
+}
+
+impl<T: BesselFloat> ScratchBuffer<T, DEFAULT_SBO_CAP> {
+    #[inline]
+    pub fn new(n: usize) -> Result<Self, BesselError<T>> {
+        Self::with_capacity(n)
+    }
+}
+
+impl<T: BesselFloat, const CAP: usize> ScratchBuffer<T, CAP> {
+    #[inline]
+    pub fn with_capacity(n: usize) -> Result<Self, BesselError<T>> {
+        if n <= CAP {
+            Ok(ScratchBuffer::Stack([T::C_ZERO; CAP], n))
+        } else {
+            #[cfg(feature = "alloc")]
+            {
+                Ok(ScratchBuffer::Heap(T::c_zeros(n)))
+            }
+            #[cfg(not(feature = "alloc"))]
+            {
+                Err(BesselError::InvalidInput {
+                    details: "Sequence length exceeds maximum supported stack buffer (32) in no-alloc mode",
+                })
+            }
+        }
+    }
+}
+
+impl<T: BesselFloat, const CAP: usize> Deref for ScratchBuffer<T, CAP> {
+    type Target = [Complex<T>];
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Stack(arr, n) => &arr[..*n],
+            #[cfg(feature = "alloc")]
+            Self::Heap(vec) => &vec[..],
+        }
+    }
+}
+
+impl<T: BesselFloat, const CAP: usize> DerefMut for ScratchBuffer<T, CAP> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            Self::Stack(arr, n) => &mut arr[..*n],
+            #[cfg(feature = "alloc")]
+            Self::Heap(vec) => &mut vec[..],
+        }
+    }
+}

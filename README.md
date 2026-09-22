@@ -11,12 +11,12 @@ A workspace for Bessel function implementations in Rust.
 Crates
 ------
 
-- **[amos-bessel-rs](./amos-bessel-rs)**: Idiomatic Rust translation of Amos' Bessel function algorithms (`no_std` + `alloc` supported).
+- **[amos-bessel-rs](./amos-bessel-rs)**: Idiomatic Rust translation of Amos' Bessel function algorithms (`no_std` and zero-allocation / no-alloc supported).
 - **[real-bessel](./real-bessel)**: Faster, real-only Bessel function implementations (pure `no_std`, zero-alloc / no heap needed).
 - **[bessel-zeros](./bessel-zeros)**: Tools for finding zeros of Bessel functions (`no_std` + `alloc` supported).
 - **[fortran-amos-testing](./fortran-amos-testing)**: Raw Fortran bindings for comparison and testing.
 
-All three pure-Rust crates support `#![no_std]` environments by disabling default features (`real-bessel` is pure `core` with zero heap allocations, while `amos-bessel-rs` and `bessel-zeros` use `alloc` for sequence/root collections).
+All three pure-Rust crates support `#![no_std]` environments by disabling default features (`real-bessel` and `amos-bessel-rs` support pure zero-allocation execution without a heap allocator, while `bessel-zeros` and allocating APIs in `amos-bessel-rs` use `alloc`).
 
 See the [amos-bessel-rs README](./amos-bessel-rs/README.md) for more details on the main implementation.
 

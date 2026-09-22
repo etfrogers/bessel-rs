@@ -1,15 +1,11 @@
-use num::{
-    Integer,
-    complex::{Complex, ComplexFloat},
-};
+use num::complex::{Complex, ComplexFloat};
 
 use crate::{
     BesselError, BesselFloat, Scaling,
     amos::{
         MachineConsts,
-        utils::{RECIP_TWO_PI, two_over_z_safe},
+        utils::{RECIP_TWO_PI, cis_pi, two_over_z_safe},
     },
-    types::BesselResult,
 };
 
 /// Computes the sequence $[I_\nu(z), \dots, I_{\nu+n-1}(z)]$ for $\operatorname{Re}(z) \ge 0$
@@ -35,10 +31,10 @@ pub fn i_asymptotic<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
-    n: usize,
-) -> BesselResult<T, usize> {
+    out: &mut [Complex<T>],
+) -> Result<usize, BesselError<T>> {
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
-    let mut y = T::c_zeros(n);
+    let n = out.len();
     let abs_z = z.abs();
     let recip_abs_z = T::one() / abs_z;
 
@@ -68,43 +64,36 @@ pub fn i_asymptotic<T: BesselFloat>(
         T::C_ZERO
     } else {
         // Compute the Stokes phase factor exp(i*pi*(0.5 + order + k) * sgn(Im(z)))
-        // using fract(order) to prevent loss of precision when order or n is large.
-        let arg = order.fract() * T::PI();
-        let phase_re = -arg.sin();
-        let mut phase_im = arg.cos();
-        if z.im < T::ZERO {
-            phase_im = -phase_im;
-        };
-        let phase_factor = Complex::<T>::new(phase_re, phase_im);
-        if (order.to_usize().unwrap() + n).is_even() {
-            -phase_factor
-        } else {
-            phase_factor
-        }
+        // for k = n - 1.
+        let max_order = order + T::from_usize(n - 1);
+        let sgn = if z.im < T::ZERO { -T::ONE } else { T::ONE };
+        cis_pi((max_order + T::HALF) * sgn)
     };
 
-    for (k, elem) in y.iter_mut().enumerate().rev().take(2.min(n)) {
+    for (k, elem) in out.iter_mut().enumerate().rev().take(2.min(n)) {
         let (mut sum_dominant, sum_subdominant) = {
             // this block is just to contain the large number of mutable variables in a small space
             let modified_order = order + T::from_usize(k);
-            let four_order_sqr = (T::TWO * modified_order).powf(T::TWO);
-            let atol = rel_tol_scale * (four_order_sqr - T::one()).abs();
-            let mut sign = T::one();
+            let four_order_sqr = (T::TWO * modified_order).powi(2);
+            let atol = rel_tol_scale * (four_order_sqr - T::ONE).abs();
+            let mut sign = T::ONE;
             let mut sum_alternating = T::C_ONE;
             let mut sum_direct = T::C_ONE;
             let mut term = T::C_ONE;
-            let mut term_magnitude = T::one();
+            let mut term_magnitude = T::ONE;
             let mut converged = false;
+            let recip_eight_z = Complex::<T>::ONE / eight_z;
+            let recip_abs_eight_z = T::ONE / abs_eight_z;
             for i in 0..max_iterations {
                 let odd = T::from_usize(2 * i + 1);
                 let step = T::from_usize(i + 1);
                 let numerator_factor = four_order_sqr - odd.powi(2); // 4ν² - (2i + 1)²
-                let denominator_factor = step * eight_z;
-                term *= numerator_factor / denominator_factor;
+                let step_scalar = numerator_factor / step;
+                term *= recip_eight_z * step_scalar; // 1 real div + 1 scalar-complex mul + 1 complex mul
+                term_magnitude *= step_scalar.abs() * recip_abs_eight_z;
                 sum_direct += term;
                 sign = -sign;
                 sum_alternating += term * sign;
-                term_magnitude *= numerator_factor.abs() / (step * abs_eight_z);
                 if term_magnitude <= atol {
                     converged = true;
                     break;
@@ -125,14 +114,14 @@ pub fn i_asymptotic<T: BesselFloat>(
         let two_over_z = two_over_z_safe(z);
         // recur downward from the last two elements
         for k in (0..n - 2).rev() {
-            y[k] = (two_over_z * y[k + 1]) * (T::from_usize(k + 1) + order) + y[k + 2];
+            out[k] = (two_over_z * out[k + 1]) * (T::from_usize(k + 1) + order) + out[k + 2];
         }
     }
     if scaled_calculations {
         let exp_cz = exponent_arg.exp();
-        for yi in y.iter_mut() {
+        for yi in out.iter_mut() {
             *yi *= exp_cz;
         }
     }
-    Ok((y, 0))
+    Ok(0)
 }

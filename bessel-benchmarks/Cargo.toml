@@ -1,0 +1,24 @@
+[package]
+name = "bessel-benchmarks"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[features]
+default = ["into"]
+into = []
+
+[dependencies]
+amos-bessel-rs = { path = "../amos-bessel-rs" }
+bessel-zeros = { path = "../bessel-zeros" }
+real-bessel = { path = "../real-bessel" }
+num = { version = "0.4.3" }
+criterion = { version = "0.8.2" }
+
+[[bench]]
+name = "i_miller_bench"
+harness = false
+
+[[bench]]
+name = "workloads"
+harness = false

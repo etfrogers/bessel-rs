@@ -1,12 +1,11 @@
 use num::complex::{Complex, ComplexFloat};
 
 use crate::{
-    BesselFloat, Scaling,
+    BesselError, BesselFloat, Scaling,
     amos::{
         MachineConsts, gamma_ln,
         utils::{two_over_z_safe, will_underflow},
     },
-    types::BesselResult,
 };
 
 /// z_power_series computes the I bessel function for `real(z) >= 0.0` by
@@ -22,12 +21,12 @@ pub fn i_power_series<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
-    n: usize,
-) -> BesselResult<T, isize> {
+    out: &mut [Complex<T>],
+) -> Result<isize, BesselError<T>> {
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let mut n_zeros = 0;
     let abs_z = z.abs();
-    let mut y = T::c_zeros(n);
+    let n = out.len();
 
     if abs_z < mc.underflow_limit {
         // If z is zero or very small, can return straight away.
@@ -35,7 +34,7 @@ pub fn i_power_series<T: BesselFloat>(
         // we underflowed, so set n_zeros = n. This is then adjusted for order = 0,
         // as we can set y[0] to one, and return one less n_zeros.
         if order == T::ZERO {
-            y[0] = T::C_ONE;
+            out[0] = T::C_ONE;
         }
         if abs_z != T::ZERO {
             n_zeros = n.try_into().unwrap();
@@ -43,7 +42,7 @@ pub fn i_power_series<T: BesselFloat>(
                 n_zeros -= 1;
             }
         }
-        return Ok((y, n_zeros));
+        return Ok(n_zeros);
     }
 
     let mut scale_factor = T::one();
@@ -57,7 +56,8 @@ pub fn i_power_series<T: BesselFloat>(
     };
     let two_over_z = two_over_z_safe(z);
 
-    let abs_half_z_sq = half_z_sq.abs();
+    let half_abs_z = abs_z * T::HALF;
+    let abs_half_z_sq = half_abs_z * half_abs_z;
     let ln_half_z = half_z.ln();
 
     let [mut y_k_plus_2, mut y_k_plus_1] = [T::C_ZERO; 2];
@@ -70,15 +70,15 @@ pub fn i_power_series<T: BesselFloat>(
             // then move on to more set last two elements (though still being careful of
             // potential underflow)
             let mut ln_leading_term = ln_half_z * current_order;
-            ln_leading_term.re -= gamma_ln(current_order + T::one()).unwrap();
+            ln_leading_term.re -= gamma_ln(current_order + T::one(), mc).unwrap();
             if scaling == Scaling::Scaled {
                 ln_leading_term.re -= z.re;
             }
             if ln_leading_term.re <= -mc.exponent_limit {
                 n_zeros += 1;
-                y[k] = T::C_ZERO;
+                out[k] = T::C_ZERO;
                 if abs_half_z_sq > current_order {
-                    break;
+                    return Ok(-n_zeros);
                 }
                 continue;
             }
@@ -95,11 +95,14 @@ pub fn i_power_series<T: BesselFloat>(
             if near_underflow {
                 coeff *= mc.rtol
             };
-            let s1 = single_n_iteration(current_order, half_z_sq, mc);
+            let s1 = single_n_iteration(current_order, half_z_sq, abs_half_z_sq, mc);
             let s2 = s1 * coeff;
             if near_underflow && will_underflow(s2, mc) {
                 n_zeros += 1;
-                y[k] = T::C_ZERO;
+                out[k] = T::C_ZERO;
+                if abs_half_z_sq > current_order {
+                    return Ok(-n_zeros);
+                }
                 continue;
             }
             if num_seeded == 0 {
@@ -108,53 +111,59 @@ pub fn i_power_series<T: BesselFloat>(
                 y_k_plus_1 = s2;
             }
             num_seeded += 1;
-            y[k] = s2 * scale_factor;
+            out[k] = s2 * scale_factor;
         } else {
             // Continue recurring backward. If underflow was close previously, use scaled values,
             // but the first time that we get out of the underflow region, we can switch
             // to using the unscaled values
             let modified_order = T::from_usize(k + 1) + order;
+            let next_val = (two_over_z * y_k_plus_1) * modified_order + y_k_plus_2;
+            y_k_plus_2 = y_k_plus_1;
+            y_k_plus_1 = next_val;
             if near_underflow {
-                // ... using scaled values
-                (y_k_plus_2, y_k_plus_1) = (
-                    y_k_plus_1,
-                    (two_over_z * y_k_plus_1) * modified_order + y_k_plus_2,
-                );
-                y[k] = y_k_plus_1 * scale_factor;
-                if y[k].abs() > mc.absolute_approximation_limit {
+                out[k] = y_k_plus_1 * scale_factor;
+                if out[k].abs() > mc.absolute_approximation_limit {
                     near_underflow = false;
+                    // Switch to unscaled values in registers
+                    y_k_plus_1 = out[k];
+                    y_k_plus_2 = out[k + 1];
                 }
             } else {
-                // .. using unscaled values
-                y[k] = (two_over_z * y[k + 1]) * modified_order + y[k + 2];
+                out[k] = y_k_plus_1;
             }
         }
     }
-    Ok((y, n_zeros))
+    Ok(n_zeros)
 }
 
+#[inline]
 fn single_n_iteration<T: BesselFloat>(
     current_order: T,
     half_z_sq: Complex<T>,
+    abs_half_z_sq: T,
     mc: &MachineConsts<T>,
 ) -> Complex<T> {
     let order_plus_one = current_order + T::one();
-    let abs_half_z_sq = half_z_sq.abs();
     let tolerance = mc.abs_error_tolerance * abs_half_z_sq / order_plus_one;
 
-    let mut series_sum = T::C_ONE;
-    if abs_half_z_sq >= mc.abs_error_tolerance * order_plus_one {
-        let mut current_term = T::C_ONE;
-        let mut denominator_step = order_plus_one + T::TWO;
-        let mut term_denominator = order_plus_one;
-        let mut error_estimate = T::TWO;
-        while error_estimate > tolerance {
-            current_term *= half_z_sq / term_denominator;
-            series_sum += current_term;
-            term_denominator += denominator_step;
-            denominator_step += T::TWO;
-            error_estimate *= abs_half_z_sq / term_denominator;
-        }
+    if abs_half_z_sq < mc.abs_error_tolerance * order_plus_one {
+        return T::C_ONE;
     }
+    // I tried adding zero-division fast paths for the most common orders 0 and 1,
+    // but overall performance decreased. The general code below was faster
+    let mut series_sum = T::C_ONE;
+    let mut current_term = T::C_ONE;
+    let mut denominator_step = order_plus_one + T::TWO;
+    let mut term_denominator = order_plus_one;
+    let mut error_estimate = T::TWO;
+    while error_estimate > tolerance {
+        let recip_denom = T::ONE / term_denominator;
+        current_term *= half_z_sq * recip_denom;
+        series_sum += current_term;
+        term_denominator += denominator_step;
+        denominator_step += T::TWO;
+        error_estimate *= abs_half_z_sq * recip_denom;
+    }
+
     series_sum
 }

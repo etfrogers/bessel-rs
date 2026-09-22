@@ -1,4 +1,4 @@
-use num::{Complex, Integer, complex::ComplexFloat};
+use num::{Complex, complex::ComplexFloat};
 
 use crate::{
     BesselError, Scaling,
@@ -9,13 +9,11 @@ use crate::{
             AiryGeometry, DebyeGeometry,
             uniform_params::{AiryParams, DebyeParams},
         },
-        i_pow_n,
         limits::{OverflowState, check_underflow_uniform_asymp_params, underflow_add_i_k},
         recurrence::scale_controlled_recurrence,
-        utils::{AIC, two_over_z_safe, will_underflow},
+        utils::{AIC, cis_pi, from_polar_pi, two_over_z_safe, will_underflow},
     },
-    prelude::*,
-    types::{BesselFloat, BesselResult},
+    types::BesselFloat,
 };
 
 /// i_uniform_asymp1 computes I(fnu,z)  by means of the uniform asymptotic
@@ -35,11 +33,12 @@ pub(crate) fn i_uniform_asymp1<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
-    n: usize,
+
     y: &mut [Complex<T>],
 ) -> Result<(usize, usize), BesselError<T>> {
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let mut n_zeros = 0;
+    let n = y.len();
     let mut n_remaining = n;
 
     // First check for complete underflow and overflow on the first member (n=1)
@@ -193,11 +192,11 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
     z: Complex<T>,
     order: T,
     scaling: Scaling,
-    n: usize,
-    y: &mut [Complex<T>],
+    out: &mut [Complex<T>],
 ) -> Result<(usize, usize), BesselError<T>> {
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let mut n_zeros = 0;
+    let n = out.len();
     let mut n_remaining = n;
 
     // We force z into the upper half plane to calculate, and then conjugate the answer
@@ -210,12 +209,9 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
         (-T::ONE, false, z)
     };
     let z_rotated = -T::I * z_upper;
-    let integer_order = order.to_usize().unwrap();
-
-    // Computes i^order by separating integer/fractional parts to avoid precision loss in trig functions
+    // Computes i^(order + effective_n - 1) = cis_pi((order + effective_n - 1) * 0.5)
     let calculate_rotation_factor = |effective_n: usize| {
-        let r = Complex::<T>::cis(T::FRAC_PI_2() * order.fract())
-            * i_pow_n(integer_order + effective_n - 1);
+        let r = cis_pi((order + T::from_usize(effective_n - 1)) * T::HALF);
         if z_was_flipped { r.conj() } else { r }
     };
 
@@ -313,7 +309,7 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
             match of {
                 OverflowState::Over { .. } => return Err(BesselError::Overflow),
                 OverflowState::Under { .. } => {
-                    if handle_underflow(&mut n_remaining, &mut rotation_factor, y)? {
+                    if handle_underflow(&mut n_remaining, &mut rotation_factor, out)? {
                         return Ok((n_zeros, n_remaining));
                     }
                     continue 'retry_find_seeds;
@@ -333,7 +329,7 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
             let mut bessel_value = amplitude * exp_factor;
 
             if overflow_state == OverflowState::NearUnder && will_underflow(bessel_value, mc) {
-                if handle_underflow(&mut n_remaining, &mut rotation_factor, y)? {
+                if handle_underflow(&mut n_remaining, &mut rotation_factor, out)? {
                     return Ok((n_zeros, n_remaining));
                 }
                 continue 'retry_find_seeds;
@@ -346,7 +342,7 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
             bessel_value *= rotation_factor;
 
             recurrence_seeds[i] = bessel_value;
-            y[n_remaining - i - 1] =
+            out[n_remaining - i - 1] =
                 bessel_value * overflow_state.reciprocal_scaling_factor::<T>(mc);
 
             // Step the rotation factor backwards for the next order (n - 1)
@@ -363,7 +359,7 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
             false,
             order,
             z,
-            Some(y),
+            Some(out),
             n_remaining - 2,
             n,
             rec_prev,
@@ -386,8 +382,8 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
     order: T,
     scaling: Scaling,
     rotation: RotationDirection,
-    n: usize,
-) -> BesselResult<T> {
+    out: &mut [Complex<T>],
+) -> Result<usize, BesselError<T>> {
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
 
     let mut found_one_good_seed = false;
@@ -401,7 +397,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
     let mut i_recurrence_seeds = [T::C_ZERO; 2];
 
     let mut n_elements_set = 0;
-    let mut y = T::c_zeros(n);
+    let n = out.len();
     let mut k_overflow_state = OverflowState::NearUnder;
 
     for i in 0..n {
@@ -429,7 +425,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
                     return Err(BesselError::Overflow);
                 }
                 found_one_good_seed = false;
-                y[i] = T::C_ZERO;
+                out[i] = T::C_ZERO;
                 n_zeros += 1;
             }
             OverflowState::None | OverflowState::NearOver | OverflowState::NearUnder => {
@@ -440,7 +436,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
                 let will_underflow = will_underflow(bessel_value, mc);
                 if k_overflow_state != OverflowState::NearUnder || !will_underflow {
                     i_recurrence_seeds[found_one_good_seed as usize] = bessel_value;
-                    y[i] = bessel_value * k_overflow_state.reciprocal_scaling_factor::<T>(mc);
+                    out[i] = bessel_value * k_overflow_state.reciprocal_scaling_factor::<T>(mc);
                     if found_one_good_seed {
                         // if we already found one, we've now found another so break out of the loop
                         break;
@@ -450,10 +446,10 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
                     if z_was_flipped {
                         return Err(BesselError::Overflow);
                     }
-                    y[i] = T::C_ZERO;
+                    out[i] = T::C_ZERO;
                     n_zeros += 1;
-                    if i > 0 && y[i - 1] != T::C_ZERO {
-                        y[i - 1] = T::C_ZERO;
+                    if i > 0 && out[i - 1] != T::C_ZERO {
+                        out[i - 1] = T::C_ZERO;
                         n_zeros += 1
                     }
                 }
@@ -480,7 +476,8 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
                 return if z_was_flipped {
                     Err(BesselError::Overflow)
                 } else {
-                    Ok((vec![T::C_ZERO; n], n))
+                    out.fill(T::C_ZERO);
+                    Ok(n)
                 };
             }
             _ => (),
@@ -491,7 +488,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
             true,
             order,
             z_right_half,
-            Some(&mut y),
+            Some(out),
             n_elements_set,
             n,
             rec_prev,
@@ -501,24 +498,19 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         );
     }
     if rotation == RotationDirection::None {
-        return Ok((y, n_zeros));
+        return Ok(n_zeros);
     }
     // Perform analytic continuation if z was originally in the left half-plane (or if rotation was explicitly requested).
     // The continuation formula is: K_v(z * e^m*pi*i) = e^-m*v*pi*i * K_v(z) - i*pi * I_v(z)
     n_zeros = 0;
-    let rotation_angle = -T::PI() * T::from_f64(rotation.signum());
-
-    let integer_order = order.to_i64().unwrap();
-    let order_frac = order.fract();
-    let modified_int_order = integer_order + (n as i64) - 1;
-    let mut continuation_phase = Complex::<T>::cis(order_frac * rotation_angle);
-    if (modified_int_order % 2) != 0 {
-        continuation_phase = -continuation_phase;
-    }
+    let rotation_sign = -T::from_f64(rotation.signum());
+    let rotation_angle = rotation_sign * T::PI();
+    let modified_order = order + T::from_usize(n - 1);
+    let mut continuation_phase = cis_pi(modified_order * rotation_sign);
     let mut found_one_good_entry = false;
     let mut i_overflow_state = OverflowState::None;
     let mut remaining_n = n;
-    for (i, yi) in y.iter_mut().enumerate().rev() {
+    for (i, yi) in out.iter_mut().enumerate().rev() {
         remaining_n = i;
         let current_order = order + T::from_usize(i);
 
@@ -594,7 +586,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
         scaling,
         two_over_z,
         i_recurrence_seeds,
-        y,
+        out,
         continuation_phase,
         i_overflow_state,
         n_zeros,
@@ -618,23 +610,19 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
     order: T,
     scaling: Scaling,
     rotation: RotationDirection,
-    n: usize,
-) -> BesselResult<T> {
+    out: &mut [Complex<T>],
+) -> Result<usize, BesselError<T>> {
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let h1_airy_rotation: Complex<T> =
         Complex::<T>::new(T::ONE, T::from_f64(1.732_050_807_568_877_2));
     let h2_airy_rotation: Complex<T> =
         Complex::<T>::new(-T::HALF, -T::from_f64(8.660_254_037_844_386e-1));
 
+    let n = out.len();
     let mut n_zeros = 0;
-    let mut y = T::c_zeros(n);
 
-    let integer_order = order.to_usize().unwrap();
-    let order_fract = order.fract();
-    let angle = -T::FRAC_PI_2() * order_fract;
-    let conversion_phase_fract = -T::I * Complex::<T>::from_polar(T::FRAC_PI_2(), angle);
-    let mut h2_to_k_factor =
-        h1_airy_rotation * conversion_phase_fract * i_pow_n(integer_order).conj();
+    let conversion_phase = -T::I * from_polar_pi(T::FRAC_PI_2(), -order * T::HALF);
+    let mut h2_to_k_factor = h1_airy_rotation * conversion_phase;
 
     let (z_right_half, z_was_flipped_into_right_half) = if z.re < T::ZERO {
         (-z, true)
@@ -703,11 +691,11 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
                 return Err(BesselError::Overflow);
             }
             *of_already = false;
-            y[i] = T::C_ZERO;
+            out[i] = T::C_ZERO;
             n_zeros += 1;
             *h2_to_k_factor_ *= -T::I;
-            if i != 0 && y[i - 1] != T::C_ZERO {
-                y[i - 1] = T::C_ZERO;
+            if i != 0 && out[i - 1] != T::C_ZERO {
+                out[i - 1] = T::C_ZERO;
                 n_zeros += 1;
             }
             Ok(())
@@ -739,7 +727,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
                     k_bessel_value = k_bessel_value.conj();
                 }
                 i_recurrence_seeds[found_one_good_entry as usize] = k_bessel_value;
-                y[i] = k_bessel_value * k_overflow_state.reciprocal_scaling_factor::<T>(mc);
+                out[i] = k_bessel_value * k_overflow_state.reciprocal_scaling_factor::<T>(mc);
                 h2_to_k_factor = -T::I * h2_to_k_factor;
                 if found_one_good_entry {
                     break;
@@ -769,7 +757,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
                 if z_was_flipped_into_right_half {
                     return Err(BesselError::Overflow);
                 }
-                return Ok((T::c_zeros(n), n_zeros));
+                return Ok(n_zeros);
             }
             OverflowState::NearOver | OverflowState::None | OverflowState::NearUnder => (),
         }
@@ -778,7 +766,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
             true,
             order,
             z_right_half,
-            Some(&mut y),
+            Some(out),
             n_elements_set,
             n,
             rec_prev,
@@ -788,7 +776,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
         );
     }
     if rotation == RotationDirection::None {
-        return Ok((y, n_zeros));
+        return Ok(n_zeros);
     }
 
     // When Re(z) < 0.0, the K function is not single-valued and requires an analytic
@@ -797,20 +785,18 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
     // The K_v(-z) term is already stored in `y`. The following block computes the
     // second term, ±iπ I_v(-z), and adds it to complete the continuation.
     n_zeros = 0;
-    let sgn = -T::PI() * T::from_f64(rotation.signum());
+    let sgn_rot = -T::from_f64(rotation.signum());
+    let sgn = sgn_rot * T::PI();
     let signed_pi = if z_was_flipped_up { -sgn } else { sgn };
-    let modified_integer_order = integer_order + n - 1;
-    let mut continuation_phase = Complex::<T>::cis(order_fract * sgn);
-    if modified_integer_order.is_odd() {
-        continuation_phase = -continuation_phase;
-    }
+    let modified_order = order + T::from_usize(n - 1);
+    let mut continuation_phase = cis_pi(modified_order * sgn_rot);
+
     // To compute the ±iπ I_v(z) term for the analytic continuation, this block evaluates
     // the asymptotic expansion for J_v(-iz). The variable `j_to_continuation_i_factor`
     // computes the combined transformation coefficient (±iπ * e^{i v π/2}) that maps
     // the un-rotated J_v(-iz) Airy sum directly into the final ±iπ I_v(z) term.
-    let cos_sin = Complex::<T>::cis(angle);
-    let mut j_to_continuation_i_factor = signed_pi * Complex::<T>::new(cos_sin.im, cos_sin.re);
-    j_to_continuation_i_factor *= i_pow_n(modified_integer_order);
+    let mut j_to_continuation_i_factor =
+        (signed_pi * T::I) * cis_pi(modified_order * T::HALF);
 
     found_one_good_entry = false;
     let mut i_overflow_state = OverflowState::None;
@@ -822,7 +808,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
     // If it reaches the underflow boundary found by Loop 1, it efficiently reuses the
     // cached `param_seeds` to avoid recomputing Airy parameters. As it evaluates
     // I_v(z), it merges it with the corresponding K_v(z) value.
-    for (i, yi) in y.iter_mut().enumerate().rev() {
+    for (i, yi) in out.iter_mut().enumerate().rev() {
         remaining_n = i;
         let current_order = order + T::from_usize(i);
         let params = if n_elements_set > 0 && i == n_elements_set - 1 {
@@ -908,7 +894,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
         scaling,
         two_over_z,
         i_recurrence_seeds,
-        y,
+        out,
         continuation_phase,
         i_overflow_state,
         n_zeros,
@@ -924,15 +910,15 @@ fn i_k_mixing_recurrence<T: BesselFloat>(
     scaling: Scaling,
     two_over_z: Complex<T>,
     i_recurrence_seeds: [Complex<T>; 2],
-    mut y: Vec<Complex<T>>,
+    out: &mut [Complex<T>],
     mut continuation_phase: Complex<T>,
     mut i_overflow_state: OverflowState,
     mut n_zeros: usize,
     remaining_n: usize,
     mc: &MachineConsts<T>,
-) -> (Vec<Complex<T>>, usize) {
+) -> usize {
     if remaining_n == 0 {
-        return (y, n_zeros);
+        return n_zeros;
     }
 
     // Loop 3: Fill the rest of the array via backward recurrence.
@@ -947,7 +933,7 @@ fn i_k_mixing_recurrence<T: BesselFloat>(
 
     let mut recip_scale_factor = i_overflow_state.reciprocal_scaling_factor::<T>(mc);
     let mut ascle = i_overflow_state.boundary::<T>(mc);
-    for (i, yi) in y.iter_mut().enumerate().take(remaining_n).rev() {
+    for (i, yi) in out.iter_mut().enumerate().take(remaining_n).rev() {
         let current_order = order + T::from_usize(i + 1);
         (i_rec_prev, i_rec_curr) = (
             i_rec_curr,
@@ -975,5 +961,5 @@ fn i_k_mixing_recurrence<T: BesselFloat>(
             mc,
         );
     }
-    (y, n_zeros)
+    n_zeros
 }

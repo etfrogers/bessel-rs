@@ -1,6 +1,6 @@
 use num::complex::{Complex, ComplexFloat};
 
-use crate::{BesselError, BesselFloat, amos::MachineConsts, prelude::*};
+use crate::{BesselError, BesselFloat, amos::MachineConsts};
 
 /// $1/(2\pi) \approx 0.159154943...$, used in asymptotic prefactors $\sqrt{1/(2\pi z)}$.
 pub const RECIP_TWO_PI: f64 = 0.159_154_943_091_895_35;
@@ -92,9 +92,7 @@ pub(crate) fn validate_inputs<T: BesselFloat>(
         err = Some("N must be >= 1");
     };
     if let Some(details) = err {
-        Err(BesselError::InvalidInput {
-            details: details.to_owned(),
-        })
+        Err(BesselError::InvalidInput { details })
     } else {
         Ok(())
     }
@@ -119,10 +117,77 @@ pub(crate) fn validate_core_inputs<T: BesselFloat>(
     };
 
     if let Some(details) = err {
-        Err(BesselError::InvalidInput {
-            details: details.to_owned(),
-        })
+        Err(BesselError::InvalidInput { details })
     } else {
         Ok(())
     }
+}
+
+/// Simultaneously computes `(sin(pi * x), cos(pi * x))` with exact values at integers and half-integers.
+///
+/// Follows Rust convention (like `f64::sin_cos`), returning `(sin, cos)`.
+#[inline]
+pub(crate) fn sin_cos_pi<T: BesselFloat>(x: T) -> (T, T) {
+    let (abs_x, sin_sign) = if x < T::ZERO {
+        (-x, -T::ONE)
+    } else {
+        (x, T::ONE)
+    };
+
+    // Reduce to [0, 2): r = abs_x mod 2
+    let r = abs_x % T::TWO;
+
+    // Exact special values on the 4 coordinate axes
+    if r == T::ZERO {
+        return (T::ZERO, T::ONE);
+    }
+    if r == T::HALF {
+        return (sin_sign, T::ZERO);
+    }
+    if r == T::ONE {
+        return (T::ZERO, -T::ONE);
+    }
+    if r == T::from_f64(1.5) {
+        return (-sin_sign, T::ZERO);
+    }
+
+    // Symmetry reduction to [0, 0.5]
+    let (theta, s_sign, cos_sign) = if r < T::HALF {
+        (r, T::ONE, T::ONE)
+    } else if r < T::ONE {
+        (T::ONE - r, T::ONE, -T::ONE)
+    } else if r < T::from_f64(1.5) {
+        (r - T::ONE, -T::ONE, -T::ONE)
+    } else {
+        (T::TWO - r, -T::ONE, T::ONE)
+    };
+
+    let (s, c) = (theta * T::PI()).sin_cos();
+    (sin_sign * s_sign * s, cos_sign * c)
+}
+
+/// Computes `sin(pi * x)` with exact values at integers and half-integers.
+#[inline]
+pub(crate) fn sin_pi<T: BesselFloat>(x: T) -> T {
+    sin_cos_pi(x).0
+}
+
+/// Computes `cos(pi * x)` with exact values at integers and half-integers.
+#[inline]
+pub(crate) fn cos_pi<T: BesselFloat>(x: T) -> T {
+    sin_cos_pi(x).1
+}
+
+/// Computes `exp(i * pi * x) = cis(pi * x) = cos(pi * x) + i * sin(pi * x)` with exact values on coordinate axes.
+#[inline]
+pub(crate) fn cis_pi<T: BesselFloat>(x: T) -> Complex<T> {
+    let (s, c) = sin_cos_pi(x);
+    Complex::new(c, s)
+}
+
+/// Computes `r * exp(i * pi * theta_pi)` following `num_complex::Complex::from_polar`.
+#[inline]
+pub(crate) fn from_polar_pi<T: BesselFloat>(r: T, theta_pi: T) -> Complex<T> {
+    let (s, c) = sin_cos_pi(theta_pi);
+    Complex::new(r * c, r * s)
 }

@@ -648,11 +648,22 @@ fn evaluate_transition_poly<T: BesselFloat>(
 /// using Horner's method: $P(x) = (\dots((c_0 x + c_1) x + c_2) \dots) x + c_n$.
 #[inline]
 fn evaluate_horner<T: BesselFloat>(coeffs: &[f64], x: Complex<T>) -> Complex<T> {
-    let mut val = Complex::<T>::new(T::from_f64(coeffs[0]), T::ZERO);
-    for &c in &coeffs[1..] {
-        val = val * x + T::from_f64(c);
+    if x.im == T::ZERO {
+        // Fast path for real case
+        let xr = x.re;
+        let mut val = T::from_f64(coeffs[0]);
+        for &c in &coeffs[1..] {
+            val = val * xr + T::from_f64(c);
+        }
+        Complex::new(val, T::ZERO)
+    } else {
+        // general complex Horner fallback
+        let mut val = Complex::<T>::new(T::from_f64(coeffs[0]), T::ZERO);
+        for &c in &coeffs[1..] {
+            val = val * x + T::from_f64(c);
+        }
+        val
     }
-    val
 }
 
 /// Computes the discrete convolution between Airy asymptotic scaling coefficients $c_j$
@@ -666,9 +677,9 @@ fn convolve_asymptotic_series<T: BesselFloat>(
     u_polys: &[Complex<T>],
     len: usize,
 ) -> Complex<T> {
-    coeffs[..len]
-        .iter()
-        .zip(u_polys[..len].iter().rev())
-        .map(|(&c, &u)| c * u)
-        .sum()
+    let mut sum = T::C_ZERO;
+    for j in 0..len {
+        sum += coeffs[j] * u_polys[len - 1 - j];
+    }
+    sum
 }
