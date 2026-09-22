@@ -1,4 +1,4 @@
-use num::{Complex, Integer, complex::ComplexFloat};
+use num::{Complex, complex::ComplexFloat};
 
 use crate::{
     BesselError::{self, *},
@@ -8,10 +8,11 @@ use crate::{
         airy::airy_power_series,
         analytic_continuation::{airy_analytic_continuation, analytic_continuation},
         asymptotics::k_asymp_large_order,
-        i_pow_n,
         limits::check_underflow_uniform_asymp_params,
         right_half_plane::{i_right_half_plane, k_right_half_plane},
-        utils::{is_significance_lost, validate_core_inputs, validate_inputs},
+        utils::{
+            cis_pi, from_polar_pi, is_significance_lost, validate_core_inputs, validate_inputs,
+        },
     },
     types::{ScratchBuffer, SequenceInfo},
 };
@@ -118,14 +119,11 @@ pub(crate) fn complex_bessel_h<T: BesselFloat>(
     };
 
     // Convert K results to H via: H_m(ν,z) = -fmm·(i/(π/2))·zₜᵛ·K(ν, -z·zₜ)
-    // where zₜ = exp(-i·fmm·π/2) = -i·fmm, fmm = 3 - 2m
-    let sign = -T::FRAC_PI_2() * T::from_f64(rotation.signum());
-    // Compute exp(i·ν·π/2) via order mod 2 to avoid significance loss for large orders
-    let arg = (order % T::TWO) * sign;
-    let mut phase_multiplier = (T::ONE / sign) * T::I * Complex::<T>::cis(arg);
-    if (order.to_i64().unwrap() / 2).is_odd() {
-        phase_multiplier = -phase_multiplier;
-    }
+    // where zₜ = exp(-i·fmm·π/2) = -i·fmm, fmm = 3 - 2m.
+    // Notice that -(i/(π/2))·zₜᵛ = (2/π)·zₜ^{ν+1} where zₜ = exp(i·π·rotation_sign).
+    let rotation_sign = -T::HALF * T::from_f64(rotation.signum());
+    let mut phase_multiplier =
+        from_polar_pi(T::FRAC_2_PI(), (order + T::ONE) * rotation_sign);
 
     for yi in out.iter_mut().take(n - n_zeros) {
         *yi = safe_multiply(*yi, phase_multiplier, mc);
@@ -167,14 +165,8 @@ pub(crate) fn complex_bessel_i<T: BesselFloat>(
     let (z_right_half_plane, mut continuation_phase) = if z.re >= T::ZERO {
         (z, T::C_ONE)
     } else {
-        // Compute exp(i·ν·π) via fractional part to avoid significance loss for large orders
-        let integer_order = order.to_usize().unwrap();
-        let arg = order.fract() * T::PI() * if z.im < T::ZERO { -T::ONE } else { T::ONE };
-        let mut continuation_phase = Complex::<T>::cis(arg);
-        if !integer_order.is_even() {
-            continuation_phase = -continuation_phase;
-        }
-        (-z, continuation_phase)
+        let sign = if z.im < T::ZERO { -T::ONE } else { T::ONE };
+        (-z, cis_pi(order * sign))
     };
     let n_zeros = i_right_half_plane(z_right_half_plane, order, scaling, out)?;
     let remaining_n = n - n_zeros;
@@ -216,13 +208,8 @@ pub(crate) fn complex_bessel_j<T: BesselFloat>(
 
     let partial_loss_of_significance =
         is_significance_lost(z.abs(), order + T::from_usize(n - 1), false, mc)?;
-    // Compute exp(i·ν·π/2) via order mod 2 to avoid significance loss for large orders
-    let arg = (order % T::TWO) * T::FRAC_PI_2();
-    let mut phase_multiplier = Complex::<T>::cis(arg);
-    if (order.to_i64().unwrap() / 2).is_odd() {
-        phase_multiplier = -phase_multiplier;
-    }
     // J(ν,z) = exp(iνπ/2)·I(ν,-iz) for Im(z) ≥ 0; conjugate symmetry handles Im(z) < 0
+    let mut phase_multiplier = cis_pi(order * T::HALF);
     let mut sign_selector = T::ONE;
     let mut z_rotated = -T::I * z;
     if z.im < T::ZERO {
@@ -373,10 +360,7 @@ pub(crate) fn complex_bessel_y<T: BesselFloat>(
     let partial_loss_of_significance = plos_i || plos_k;
 
     let mut n_zeros = n_zeros_i.min(n_zeros_k);
-    let frac_order = order.fract();
-    let integer_order = order.to_usize().unwrap();
-    let mut i_coeff = Complex::<T>::cis(T::FRAC_PI_2() * frac_order);
-    i_coeff *= i_pow_n(integer_order);
+    let mut i_coeff = cis_pi(order * T::HALF);
     let mut k_coeff = i_coeff.conj() * T::FRAC_2_PI();
     i_coeff *= T::I;
 
@@ -651,19 +635,16 @@ pub fn complex_airy_b<T: BesselFloat>(
                 }
             }
         }
-        let mut rotation_angle = T::ZERO;
+        let mut rotation_sign = T::ZERO;
         if zeta.re < T::ZERO || z.re <= T::ZERO {
-            rotation_angle = T::PI();
-            if z.im < T::ZERO {
-                rotation_angle = -T::PI();
-            }
+            rotation_sign = if z.im < T::ZERO { -T::ONE } else { T::ONE };
             zeta *= -T::ONE;
         }
         // Compute I(ν₁,ζ) and I(ν₂,ζ); in scaled mode these return exp(-|Re(ζ)|)·I(ν,ζ)
-        // rotation_angle provides the analytic continuation factor for left half plane
+        // rotation_sign provides the analytic continuation factor for left half plane
         let mut i1 = [T::C_ZERO; 1];
         let _ = i_right_half_plane(zeta, order1, scaling, &mut i1)?;
-        let i_pos_term = Complex::<T>::cis(rotation_angle * order1) * i1[0] * scale_factor;
+        let i_pos_term = cis_pi(rotation_sign * order1) * i1[0] * scale_factor;
         let mut i2 = [T::C_ZERO; 2];
         let _ = i_right_half_plane(zeta, order2, scaling, &mut i2)?;
         i2[0] *= scale_factor;
@@ -672,7 +653,7 @@ pub fn complex_airy_b<T: BesselFloat>(
         // Backward recurrence one step for negative order: I(-ν,ζ) = (2ν/ζ)·I(ν,ζ) + I(ν+1,ζ)
         let i_neg_term = (T::TWO * order2) * (i2[0] / zeta) + i2[1];
         let bi_unscaled = T::from_f64(FRAC_1_SQRT_3)
-            * (i_pos_term + i_neg_term * Complex::<T>::cis(rotation_angle * (order2 - T::ONE)));
+            * (i_pos_term + i_neg_term * cis_pi(rotation_sign * (order2 - T::ONE)));
         let z_factor = if return_derivative { z } else { z.sqrt() };
         bi_unscaled * z_factor / scale_factor
     };

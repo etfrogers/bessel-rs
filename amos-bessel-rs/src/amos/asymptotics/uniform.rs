@@ -1,4 +1,4 @@
-use num::{Complex, Integer, complex::ComplexFloat};
+use num::{Complex, complex::ComplexFloat};
 
 use crate::{
     BesselError, Scaling,
@@ -9,10 +9,9 @@ use crate::{
             AiryGeometry, DebyeGeometry,
             uniform_params::{AiryParams, DebyeParams},
         },
-        i_pow_n,
         limits::{OverflowState, check_underflow_uniform_asymp_params, underflow_add_i_k},
         recurrence::scale_controlled_recurrence,
-        utils::{AIC, two_over_z_safe, will_underflow},
+        utils::{AIC, cis_pi, from_polar_pi, two_over_z_safe, will_underflow},
     },
     types::BesselFloat,
 };
@@ -210,12 +209,9 @@ pub(crate) fn i_uniform_asymp2<T: BesselFloat>(
         (-T::ONE, false, z)
     };
     let z_rotated = -T::I * z_upper;
-    let integer_order = order.to_usize().unwrap();
-
-    // Computes i^order by separating integer/fractional parts to avoid precision loss in trig functions
+    // Computes i^(order + effective_n - 1) = cis_pi((order + effective_n - 1) * 0.5)
     let calculate_rotation_factor = |effective_n: usize| {
-        let r = Complex::<T>::cis(T::FRAC_PI_2() * order.fract())
-            * i_pow_n(integer_order + effective_n - 1);
+        let r = cis_pi((order + T::from_usize(effective_n - 1)) * T::HALF);
         if z_was_flipped { r.conj() } else { r }
     };
 
@@ -507,15 +503,10 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
     // Perform analytic continuation if z was originally in the left half-plane (or if rotation was explicitly requested).
     // The continuation formula is: K_v(z * e^m*pi*i) = e^-m*v*pi*i * K_v(z) - i*pi * I_v(z)
     n_zeros = 0;
-    let rotation_angle = -T::PI() * T::from_f64(rotation.signum());
-
-    let integer_order = order.to_i64().unwrap();
-    let order_frac = order.fract();
-    let modified_int_order = integer_order + (n as i64) - 1;
-    let mut continuation_phase = Complex::<T>::cis(order_frac * rotation_angle);
-    if (modified_int_order % 2) != 0 {
-        continuation_phase = -continuation_phase;
-    }
+    let rotation_sign = -T::from_f64(rotation.signum());
+    let rotation_angle = rotation_sign * T::PI();
+    let modified_order = order + T::from_usize(n - 1);
+    let mut continuation_phase = cis_pi(modified_order * rotation_sign);
     let mut found_one_good_entry = false;
     let mut i_overflow_state = OverflowState::None;
     let mut remaining_n = n;
@@ -630,12 +621,8 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
     let n = out.len();
     let mut n_zeros = 0;
 
-    let integer_order = order.to_usize().unwrap();
-    let order_fract = order.fract();
-    let angle = -T::FRAC_PI_2() * order_fract;
-    let conversion_phase_fract = -T::I * Complex::<T>::from_polar(T::FRAC_PI_2(), angle);
-    let mut h2_to_k_factor =
-        h1_airy_rotation * conversion_phase_fract * i_pow_n(integer_order).conj();
+    let conversion_phase = -T::I * from_polar_pi(T::FRAC_PI_2(), -order * T::HALF);
+    let mut h2_to_k_factor = h1_airy_rotation * conversion_phase;
 
     let (z_right_half, z_was_flipped_into_right_half) = if z.re < T::ZERO {
         (-z, true)
@@ -798,20 +785,18 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
     // The K_v(-z) term is already stored in `y`. The following block computes the
     // second term, ±iπ I_v(-z), and adds it to complete the continuation.
     n_zeros = 0;
-    let sgn = -T::PI() * T::from_f64(rotation.signum());
+    let sgn_rot = -T::from_f64(rotation.signum());
+    let sgn = sgn_rot * T::PI();
     let signed_pi = if z_was_flipped_up { -sgn } else { sgn };
-    let modified_integer_order = integer_order + n - 1;
-    let mut continuation_phase = Complex::<T>::cis(order_fract * sgn);
-    if modified_integer_order.is_odd() {
-        continuation_phase = -continuation_phase;
-    }
+    let modified_order = order + T::from_usize(n - 1);
+    let mut continuation_phase = cis_pi(modified_order * sgn_rot);
+
     // To compute the ±iπ I_v(z) term for the analytic continuation, this block evaluates
     // the asymptotic expansion for J_v(-iz). The variable `j_to_continuation_i_factor`
     // computes the combined transformation coefficient (±iπ * e^{i v π/2}) that maps
     // the un-rotated J_v(-iz) Airy sum directly into the final ±iπ I_v(z) term.
-    let cos_sin = Complex::<T>::cis(angle);
-    let mut j_to_continuation_i_factor = signed_pi * Complex::<T>::new(cos_sin.im, cos_sin.re);
-    j_to_continuation_i_factor *= i_pow_n(modified_integer_order);
+    let mut j_to_continuation_i_factor =
+        (signed_pi * T::I) * cis_pi(modified_order * T::HALF);
 
     found_one_good_entry = false;
     let mut i_overflow_state = OverflowState::None;

@@ -9,7 +9,7 @@ use crate::{
 /// (-1)^n sign factor for integer order reflection.
 #[inline]
 pub(crate) fn integer_sign<T: BesselFloat>(n: i64) -> T {
-    if n % 2 == 0 { T::one() } else { -T::one() }
+    if n % 2 == 0 { T::ONE } else { -T::ONE }
 }
 
 /// Check if `nu` is a non-negative integer. Returns `Some(n)` if so.
@@ -23,124 +23,42 @@ pub(crate) fn as_integer<T: BesselFloat>(nu: T) -> Option<i64> {
     }
 }
 
-/// Compute sin(π·x) with exact values at half-integers.
-///
-/// Reduces the argument modulo 2 first, so `sinpi(n)` is exactly 0 for
-/// any integer `n`, and `sinpi(n + 0.5)` is exactly ±1. This avoids the
-/// catastrophic rounding errors of `(x * PI).sin()` when x is a
-/// half-integer (e.g. `sin(1.5 * PI)` = −1.837e-16 instead of 0).
-///
-/// Algorithm follows scipy/xsf: reduce to [0, 0.5], use symmetry.
-#[inline]
-pub(crate) fn sinpi<T: BesselFloat>(x: T) -> T {
-    // sinpi is odd: sinpi(-x) = -sinpi(x)
-    let (ax, sign) = if x < T::ZERO {
-        (-x, -T::one())
-    } else {
-        (x, T::one())
-    };
+use crate::amos::utils::{cis_pi, sin_cos_pi, sin_pi};
 
-    // Reduce to [0, 2): r = ax mod 2
-    let r = ax % T::TWO;
-
-    // Exact special values
-    if r == T::ZERO || r == T::one() {
-        return T::ZERO;
-    }
-    if r == T::HALF {
-        return sign;
-    }
-    if r == T::from_f64(1.5) {
-        return -sign;
-    }
-
-    // Use symmetry to reduce to [0, 0.5]
-    let s = if r < T::HALF {
-        (r * T::PI()).sin()
-    } else if r < T::one() {
-        ((T::one() - r) * T::PI()).sin()
-    } else if r < T::from_f64(1.5) {
-        -((r - T::one()) * T::PI()).sin()
-    } else {
-        -((T::TWO - r) * T::PI()).sin()
-    };
-
-    sign * s
-}
-
-/// Compute cos(π·x) with exact values at integers and half-integers.
-///
-/// Reduces the argument modulo 2 first, so `cospi(n + 0.5)` is exactly 0
-/// for any integer `n`, and `cospi(n)` is exactly ±1. This avoids the
-/// catastrophic rounding errors of `(x * PI).cos()` when x is a
-/// half-integer (e.g. `cos(1.5 * PI)` = −1.837e-16 instead of 0).
-///
-/// Algorithm follows scipy/xsf: reduce to [0, 0.5], use symmetry.
-#[inline]
-pub(crate) fn cospi<T: BesselFloat>(x: T) -> T {
-    // cospi is even: cospi(-x) = cospi(x)
-    let ax = x.abs();
-
-    // Reduce to [0, 2): r = ax mod 2
-    let r = ax % T::TWO;
-
-    // Exact special values
-    if r == T::ZERO {
-        return T::one();
-    }
-    if r == T::HALF || r == T::from_f64(1.5) {
-        return T::ZERO;
-    }
-    if r == T::one() {
-        return -T::one();
-    }
-
-    // Use symmetry to reduce to [0, 0.5]
-    if r < T::HALF {
-        (r * T::PI()).cos()
-    } else if r < T::one() {
-        -((T::one() - r) * T::PI()).cos()
-    } else if r < T::from_f64(1.5) {
-        -((r - T::one()) * T::PI()).cos()
-    } else {
-        ((T::TWO - r) * T::PI()).cos()
-    }
-}
-
-/// J_{-ν}(z) = cos(νπ)·J_ν(z) − sin(νπ)·Y_ν(z)  (DLMF 10.2.3)
+/// J_{-v}(z) = cos(v*pi) * J_v(z) - sin(v*pi) * Y_v(z)  (DLMF 10.2.3)
 #[inline]
 pub(crate) fn reflect_j_element<T: BesselFloat>(
     order: T,
     j: Complex<T>,
     y: Complex<T>,
 ) -> Complex<T> {
-    j * cospi(order) - y * sinpi(order)
+    let (sin_nu_pi, cos_nu_pi) = sin_cos_pi(order);
+    j * cos_nu_pi - y * sin_nu_pi
 }
 
-/// H^(m)_{-ν}(z) = exp(±νπi)·H^(m)_ν(z)  (DLMF 10.4.6/7)
+/// H^(m)_{-v}(z) = exp(±v*pi*i) * H^(m)_v(z)  (DLMF 10.4.6/7)
 #[inline]
 pub(crate) fn reflect_h_element<T: BesselFloat>(
     order: T,
     kind: HankelKind,
     h: Complex<T>,
 ) -> Complex<T> {
-    let cos_nu_pi = cospi(order);
-    let sin_nu_pi = sinpi(order);
     let rotation = match kind {
-        HankelKind::First => Complex::new(cos_nu_pi, sin_nu_pi),
-        HankelKind::Second => Complex::new(cos_nu_pi, -sin_nu_pi),
+        HankelKind::First => cis_pi(order),
+        HankelKind::Second => cis_pi(-order),
     };
     h * rotation
 }
 
-/// Y_{-ν}(z) = sin(νπ)·J_ν(z) + cos(νπ)·Y_ν(z)  (DLMF 10.2.3)
+/// Y_{-v}(z) = sin(v*pi) * J_v(z) + cos(v*pi) * Y_v(z)  (DLMF 10.2.3)
 #[inline]
 pub(crate) fn reflect_y_element<T: BesselFloat>(
     order: T,
     j: Complex<T>,
     y: Complex<T>,
 ) -> Complex<T> {
-    j * sinpi(order) + y * cospi(order)
+    let (sin_nu_pi, cos_nu_pi) = sin_cos_pi(order);
+    j * sin_nu_pi + y * cos_nu_pi
 }
 
 /// I_{-ν}(z) = I_ν(z) + (2/π)·sin(νπ)·K_ν(z)  (DLMF 10.27.2)
@@ -168,7 +86,7 @@ pub(crate) fn reflect_i_element<T: BesselFloat>(
             }
         }
     };
-    k_scaled * (T::TWO / T::PI() * sinpi(order)) + i
+    k_scaled * (T::FRAC_2_PI() * sin_pi(order)) + i
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -481,14 +399,6 @@ pub(crate) fn reflect_orders<T: BesselFloat, Op: ReflectableBessel<T>>(
         partial_loss_of_significance |= seq_info.partial_loss_of_significance;
         seq_info.n_zeros
     };
-
-    // let finish = |y: Vec<Complex<T>>, n_zeros: usize, plos: bool| {
-    //     if plos {
-    //         Err(BesselError::PartialLossOfSignificance { y, n_zeros })
-    //     } else {
-    //         Ok((y, n_zeros))
-    //     }
-    // };
 
     let abs_order: T = order.abs();
     let Some(n_order) = abs_order.ceil().to_usize() else {

@@ -1,4 +1,4 @@
-use num::{Complex, Integer, complex::ComplexFloat};
+use num::{Complex, complex::ComplexFloat};
 
 use crate::{
     BesselError, BesselFloat, Scaling,
@@ -9,7 +9,7 @@ use crate::{
         limits::{OverflowState, underflow_add_i_k},
         power_series::i_power_series,
         right_half_plane::{i_right_half_plane, k_right_half_plane},
-        utils::two_over_z_safe,
+        utils::{cis_pi, two_over_z_safe},
     },
 };
 
@@ -47,8 +47,9 @@ pub fn analytic_continuation<T: BesselFloat>(
         // The amos code defaults to an overflow, if n_zeros_inner != 0
     }
     // The base continuation formula is K_v(z) = K_v(-z)*exp(-v*i*pi*m) - i*pi*m*I_v(-z).
-    // `rotation_angle` represents `-pi*m`.
-    let rotation_angle = -T::PI() * T::from_f64(rotation.signum());
+    // `rotation_sign` represents `-m` (in units of pi).
+    let rotation_sign = -T::from_f64(rotation.signum());
+    let rotation_angle = rotation_sign * T::PI();
 
     // This initializes the `-i*pi*m` coefficient for the I_v(-z) term.
     let mut i_continuation_coeff = Complex::<T>::new(T::ZERO, rotation_angle);
@@ -63,10 +64,7 @@ pub fn analytic_continuation<T: BesselFloat>(
     // Calculate continuation coefficient = exp(order * pi * i) to minimize
     // losses of significance when order is large
     //-----------------------------------------------------------------------
-    let mut k_continuation_coeff = Complex::<T>::cis(order.fract() * rotation_angle);
-    if order.to_usize().unwrap().is_odd() {
-        k_continuation_coeff = -k_continuation_coeff;
-    }
+    let mut k_continuation_coeff = cis_pi(order * rotation_sign);
 
     let mut k_component = k_seeds[0];
     let mut i_component = i_values[0];
@@ -234,8 +232,9 @@ pub fn airy_analytic_continuation<T: BesselFloat>(
         return Err(BesselError::Overflow);
     }
     // The base continuation formula is K_v(z) = K_v(-z)*exp(-v*i*pi*m) - i*pi*m*I_v(-z).
-    // `rotation_angle` represents `-pi*m`.
-    let rotation_angle = -T::PI() * T::from_f64(rotation.signum());
+    // `rotation_sign` represents `-m` (in units of pi).
+    let rotation_sign = -T::from_f64(rotation.signum());
+    let rotation_angle = rotation_sign * T::PI();
 
     // This initializes the `-i*pi*m` coefficient for the I_v(-z) term.
     let mut i_coeff = Complex::<T>::new(T::ZERO, rotation_angle);
@@ -251,10 +250,7 @@ pub fn airy_analytic_continuation<T: BesselFloat>(
     // losses of significance when order is large
     //-----------------------------------------------------------------------
 
-    let mut k_coeff = Complex::<T>::cis(order.fract() * rotation_angle);
-    if order.to_usize().unwrap().is_odd() {
-        k_coeff = -k_coeff;
-    }
+    let k_coeff = cis_pi(order * rotation_sign);
     let mut k_value = k_value[0];
     let mut i_value = i_value;
     if scaling == Scaling::Scaled && underflow_add_i_k(negative_z, &mut k_value, &mut i_value, mc) {

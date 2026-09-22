@@ -4,7 +4,7 @@ use crate::{
     BesselError, BesselFloat, Scaling,
     amos::{
         MachineConsts,
-        utils::{RECIP_TWO_PI, two_over_z_safe},
+        utils::{RECIP_TWO_PI, cis_pi, two_over_z_safe},
     },
 };
 
@@ -64,14 +64,10 @@ pub fn i_asymptotic<T: BesselFloat>(
         T::C_ZERO
     } else {
         // Compute the Stokes phase factor exp(i*pi*(0.5 + order + k) * sgn(Im(z)))
-        // for k = n - 1. Reducing modulo 2 prevents loss of precision when order or n is large.
+        // for k = n - 1.
         let max_order = order + T::from_usize(n - 1);
-        let parity = (max_order + T::HALF) % T::TWO;
-        let mut phase_factor = Complex::cis(parity * T::PI());
-        if z.im < T::ZERO {
-            phase_factor = phase_factor.conj();
-        }
-        phase_factor
+        let sgn = if z.im < T::ZERO { -T::ONE } else { T::ONE };
+        cis_pi((max_order + T::HALF) * sgn)
     };
 
     for (k, elem) in out.iter_mut().enumerate().rev().take(2.min(n)) {
@@ -79,12 +75,12 @@ pub fn i_asymptotic<T: BesselFloat>(
             // this block is just to contain the large number of mutable variables in a small space
             let modified_order = order + T::from_usize(k);
             let four_order_sqr = (T::TWO * modified_order).powi(2);
-            let atol = rel_tol_scale * (four_order_sqr - T::one()).abs();
-            let mut sign = T::one();
+            let atol = rel_tol_scale * (four_order_sqr - T::ONE).abs();
+            let mut sign = T::ONE;
             let mut sum_alternating = T::C_ONE;
             let mut sum_direct = T::C_ONE;
             let mut term = T::C_ONE;
-            let mut term_magnitude = T::one();
+            let mut term_magnitude = T::ONE;
             let mut converged = false;
             let recip_eight_z = Complex::<T>::ONE / eight_z;
             let recip_abs_eight_z = T::ONE / abs_eight_z;

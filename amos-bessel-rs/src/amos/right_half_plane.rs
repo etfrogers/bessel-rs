@@ -10,7 +10,7 @@ use crate::{
         limits::{OverflowState, check_underflow_uniform_asymp_params},
         power_series::i_power_series,
         recurrence::{scale_controlled_recurrence, scale_k_recurrence},
-        utils::{two_over_z_safe, will_underflow},
+        utils::{cos_pi, sin_pi, two_over_z_safe, will_underflow},
     },
     types::BesselFloat,
 };
@@ -155,8 +155,7 @@ fn one_over_sinc<T: BesselFloat>(x: T) -> T {
     if x == T::ZERO {
         T::ONE
     } else {
-        let pi_x = x * T::PI();
-        pi_x / pi_x.sin()
+        (x * T::PI()) / sin_pi(x)
     }
 }
 
@@ -232,7 +231,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
                     coeff *= overflow_state.scaling_factor::<T>(mc) * (-z).exp();
                 }
             }
-            let order_rotation = (signed_fractional_order * T::PI()).cos().abs();
+            let order_rotation = cos_pi(signed_fractional_order).abs();
             let quarter_minus_nu_sqr = (T::from_f64(0.25) - frac_order_sqr).abs();
 
             if signed_fractional_order.abs() == T::HALF
