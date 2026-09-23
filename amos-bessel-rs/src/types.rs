@@ -354,16 +354,14 @@ impl<T: BesselFloat> BesselError<T> {
 macro_rules! simple_bessel_wrapper {
     (
         $(#[$meta:meta])*
-        $base_func:ident
+        $single_func:ident, $into_func:ident
     ) => {
-        paste! {
-            $(#[$meta])*
-            #[inline]
-            fn [<$base_func _single>]<T: BesselFloat>(order: T, z: Complex<T>) -> Result<Complex<T>, BesselError<T>> {
-                let mut buf = [T::C_ZERO; 1];
-                [<complex_$base_func _into>](z, order, Scaling::Unscaled, &mut buf)?;
-                Ok(buf[0])
-            }
+        $(#[$meta])*
+        #[inline]
+        fn $single_func<T: BesselFloat>(order: T, z: Complex<T>) -> Result<Complex<T>, BesselError<T>> {
+            let mut buf = [T::C_ZERO; 1];
+            $into_func(z, order, Scaling::Unscaled, &mut buf)?;
+            Ok(buf[0])
         }
     };
 }
