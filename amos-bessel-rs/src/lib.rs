@@ -258,13 +258,12 @@ pub fn airy_bp<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, Bessel
         .and_then(ZT::back_from)
 }
 
-use paste::paste;
-simple_bessel_wrapper!(bessel_j);
-simple_bessel_wrapper!(bessel_y);
-simple_bessel_wrapper!(bessel_i);
-simple_bessel_wrapper!(bessel_k);
-simple_bessel_wrapper!(hankel1);
-simple_bessel_wrapper!(hankel2);
+simple_bessel_wrapper!(bessel_j_single, complex_bessel_j_into);
+simple_bessel_wrapper!(bessel_y_single, complex_bessel_y_into);
+simple_bessel_wrapper!(bessel_i_single, complex_bessel_i_into);
+simple_bessel_wrapper!(bessel_k_single, complex_bessel_k_into);
+simple_bessel_wrapper!(hankel1_single, complex_hankel1_into);
+simple_bessel_wrapper!(hankel2_single, complex_hankel2_into);
 
 #[cfg(all(test, feature = "std"))]
 mod tests;
