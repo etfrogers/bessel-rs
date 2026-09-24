@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-09-24
+
+### Removed
+- Removed internal dependency on the unmaintained `paste` crate (`RUSTSEC-2024-0436`), replacing macro token concatenation with 
+explicit function identifiers in internal single-value wrappers. 
+This eliminates `cargo audit` and `cargo deny` warnings and removes an unnecessary procedural macro from the build graph.
+
 ## [1.0.0]
 
 ### Added
