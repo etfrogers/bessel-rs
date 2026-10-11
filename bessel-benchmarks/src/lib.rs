@@ -1,5 +1,5 @@
 //! Shared utilities and test point generators for Bessel benchmarks.
-
+#![warn(clippy::all)]
 use num::Complex;
 
 /// Generates a grid of points (order, z) in the moderate |z| regime (Domain II)
@@ -66,17 +66,15 @@ pub fn sequence_workload_cases() -> [(f64, Complex<f64>); 4] {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use amos_bessel_rs::{
-        Scaling, bessel_i, bessel_j, bessel_k, bessel_y,
+    #[cfg(not(feature = "into"))]
+    use amos_bessel_rs::amos::{
+        complex_bessel_i, complex_bessel_j, complex_bessel_k, complex_bessel_y,
     };
     #[cfg(feature = "into")]
     use amos_bessel_rs::amos::{
         complex_bessel_i_into, complex_bessel_j_into, complex_bessel_k_into, complex_bessel_y_into,
     };
-    #[cfg(not(feature = "into"))]
-    use amos_bessel_rs::amos::{
-        complex_bessel_i, complex_bessel_j, complex_bessel_k, complex_bessel_y,
-    };
+    use amos_bessel_rs::{Scaling, bessel_i, bessel_j, bessel_k, bessel_y};
 
     #[test]
     fn test_dense_r_evaluation() {
@@ -107,13 +105,25 @@ mod tests {
         for &(order, z) in &cases {
             for buf in [&mut buf_30[..], &mut buf_100[..]] {
                 let j = complex_bessel_j_into(z, order, Scaling::Unscaled, buf);
-                assert!(j.is_ok(), "complex_bessel_j_into failed at z={z}, order={order}: {j:?}");
+                assert!(
+                    j.is_ok(),
+                    "complex_bessel_j_into failed at z={z}, order={order}: {j:?}"
+                );
                 let y = complex_bessel_y_into(z, order, Scaling::Unscaled, buf);
-                assert!(y.is_ok(), "complex_bessel_y_into failed at z={z}, order={order}: {y:?}");
+                assert!(
+                    y.is_ok(),
+                    "complex_bessel_y_into failed at z={z}, order={order}: {y:?}"
+                );
                 let i = complex_bessel_i_into(z, order, Scaling::Unscaled, buf);
-                assert!(i.is_ok(), "complex_bessel_i_into failed at z={z}, order={order}: {i:?}");
+                assert!(
+                    i.is_ok(),
+                    "complex_bessel_i_into failed at z={z}, order={order}: {i:?}"
+                );
                 let k = complex_bessel_k_into(z, order, Scaling::Unscaled, buf);
-                assert!(k.is_ok(), "complex_bessel_k_into failed at z={z}, order={order}: {k:?}");
+                assert!(
+                    k.is_ok(),
+                    "complex_bessel_k_into failed at z={z}, order={order}: {k:?}"
+                );
             }
         }
     }
@@ -126,13 +136,25 @@ mod tests {
         for &(order, z) in &cases {
             for n in [30, 100] {
                 let j = complex_bessel_j(z, order, Scaling::Unscaled, n);
-                assert!(j.is_ok(), "complex_bessel_j failed at z={z}, order={order}: {j:?}");
+                assert!(
+                    j.is_ok(),
+                    "complex_bessel_j failed at z={z}, order={order}: {j:?}"
+                );
                 let y = complex_bessel_y(z, order, Scaling::Unscaled, n);
-                assert!(y.is_ok(), "complex_bessel_y failed at z={z}, order={order}: {y:?}");
+                assert!(
+                    y.is_ok(),
+                    "complex_bessel_y failed at z={z}, order={order}: {y:?}"
+                );
                 let i = complex_bessel_i(z, order, Scaling::Unscaled, n);
-                assert!(i.is_ok(), "complex_bessel_i failed at z={z}, order={order}: {i:?}");
+                assert!(
+                    i.is_ok(),
+                    "complex_bessel_i failed at z={z}, order={order}: {i:?}"
+                );
                 let k = complex_bessel_k(z, order, Scaling::Unscaled, n);
-                assert!(k.is_ok(), "complex_bessel_k failed at z={z}, order={order}: {k:?}");
+                assert!(
+                    k.is_ok(),
+                    "complex_bessel_k failed at z={z}, order={order}: {k:?}"
+                );
             }
         }
     }

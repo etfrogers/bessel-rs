@@ -50,7 +50,7 @@
 //! assert_eq!(zeros.len(), 5);
 //! ```
 
-#![warn(missing_docs)]
+#![warn(missing_docs, clippy::all)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[macro_use]

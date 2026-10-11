@@ -52,7 +52,7 @@ use crate::{
     j1::{j1, y1},
     prelude::*,
 };
-use core::f64::{self, consts::PI};
+use core::f64::consts::PI;
 
 /// Returns the order-`n` Bessel function of the first kind, Jₙ(x).
 ///

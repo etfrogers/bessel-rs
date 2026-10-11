@@ -1,4 +1,4 @@
-#![warn(missing_docs)]
+#![warn(missing_docs, clippy::all)]
 //! Real-valued Bessel functions of the first and second kinds.
 //!
 //! This crate provides `j0`, `j1`, `jn`, `y0`, `y1` and `yn` for integer

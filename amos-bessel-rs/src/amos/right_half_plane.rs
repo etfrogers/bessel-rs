@@ -1,3 +1,5 @@
+use core::f64;
+
 use num::{Complex, ToPrimitive, Zero, complex::ComplexFloat};
 
 use crate::{
@@ -407,7 +409,7 @@ fn compute_small_z_power_series<T: BesselFloat>(
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     const MAX_ITERATIONS: usize = 1000;
     let gamma_difference_taylor_coeffs: [T; 8] = [
-        T::from_f64(5.772_156_649_015_329e-1),
+        T::from_f64(f64::consts::EULER_GAMMA),
         T::from_f64(-4.200_263_503_409_524e-2),
         T::from_f64(-4.219_773_455_554_433e-2),
         T::from_f64(7.218_943_246_663_1e-3),
