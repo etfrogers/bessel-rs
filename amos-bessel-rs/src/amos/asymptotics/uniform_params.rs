@@ -299,18 +299,18 @@ impl<T: BesselFloat> AiryGeometry<T> {
             // Asymptotic expansion away from turning point (|w^2| > 0.25)
             let mut w = w_sqr.sqrt(); // w = sqrt(1 - (z/nu)^2)
             if w.re < T::ZERO {
-                w.re = T::ZERO
-            };
+                w.re = T::ZERO;
+            }
             if w.im < T::ZERO {
-                w.im = T::ZERO
-            };
+                w.im = T::ZERO;
+            }
 
             let log_arg = (T::C_ONE + w) / z_over_order; // (1 + w) / (z/nu)
             let mut log_term = log_arg.ln(); // ln((1 + w)/t) = zeta1 / nu
             log_term.im = log_term.im.clamp(T::ZERO, T::from_f64(FRAC_PI_2));
             if log_term.re < T::ZERO {
-                log_term.re = T::ZERO
-            };
+                log_term.re = T::ZERO;
+            }
             let zeta_3_2 = (log_term - w) * T::from_f64(1.5); // zeta^(3/2) = (3/2) * (zeta1 - zeta2)/nu
             let zeta1 = log_term * order; // zeta1 = nu * ln((1 + w)/t)
             let zeta2 = w * order; // zeta2 = nu * w
@@ -323,8 +323,8 @@ impl<T: BesselFloat> AiryGeometry<T> {
             ang *= T::TWO_THIRDS; // arg(zeta) = (2/3) * arg(zeta^(3/2))
             let mut zeta = Complex::<T>::cis(ang) * abs_zeta;
             if zeta.im < T::ZERO {
-                zeta.im = T::ZERO
-            };
+                zeta.im = T::ZERO;
+            }
             let arg = zeta * order_two_thirds; // Airy argument: arg = zeta * nu^(2/3)
             let sqrt_zeta = zeta_3_2 / zeta; // sqrt(zeta) = zeta^(3/2) / zeta
             let sqrt_zeta_over_w = sqrt_zeta / w; // sqrt(zeta) / w
@@ -424,6 +424,7 @@ pub(crate) struct AiryParams<T: BesselFloat> {
     pub bsum: Complex<T>,
 }
 
+#[allow(clippy::similar_names)]
 impl<T: BesselFloat> AiryParams<T> {
     /// Computes the complete Airy uniform asymptotic parameters and Olver series sums for $z$ and order $\nu$.
     pub fn compute(z: Complex<T>, order: T) -> Self {
@@ -488,8 +489,8 @@ impl<T: BesselFloat> AiryParams<T> {
                                 evaluate_transition_poly(&p, &abs_p, a_block, k_max, poly_tol);
                             asum += a_poly * recip_order_power;
                             if recip_order_power < mc.abs_error_tolerance {
-                                a_converged = true
-                            };
+                                a_converged = true;
+                            }
                         }
                         if !b_converged {
                             let b_poly =
@@ -587,7 +588,7 @@ impl<T: BesselFloat> AiryParams<T> {
                             if recip_order_power < mc.abs_error_tolerance
                                 && a_term.l1_norm() < mc.abs_error_tolerance
                             {
-                                a_converged = true
+                                a_converged = true;
                             }
                         }
 

@@ -8,11 +8,13 @@ use real_bessel::{jn, yn};
 pub(crate) struct RealBackend;
 
 impl BesselBackend for RealBackend {
+    //The calling function (bessr) is set up so that the input should already be integer values.
     fn j_pair(order: f64, x: f64) -> (f64, f64) {
         // Note: real_bessel::jn returns f64 directly (no Result).
         (jn(order as i32, x), jn((order + 1.0) as i32, x))
     }
 
+    //The calling function (bessr) is set up so that the input should already be integer values.
     fn y_pair(order: f64, x: f64) -> (f64, f64) {
         // Note: real_bessel::yn returns Result<f64, BesselError> (unlike jn),
         // because yn(x) is undefined for x < 0 and returns an error there.

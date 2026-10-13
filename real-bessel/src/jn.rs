@@ -1,4 +1,4 @@
-#![allow(clippy::excessive_precision)]
+#![allow(clippy::excessive_precision, clippy::unreadable_literal)]
 //! Bessel function of the first and second kinds of order n.
 // Translation of Go's math.Jn, math.Yn functions
 // from
@@ -52,7 +52,7 @@ use crate::{
     j1::{j1, y1},
     prelude::*,
 };
-use core::f64::{self, consts::PI};
+use core::f64::consts::PI;
 
 /// Returns the order-`n` Bessel function of the first kind, Jₙ(x).
 ///
@@ -82,6 +82,7 @@ use core::f64::{self, consts::PI};
 /// // For odd n the sign flips: jn(-3, x) = -jn(3, x)
 /// assert_eq!(jn(-3, 1.0), -jn(3, 1.0));
 /// ```
+#[must_use]
 pub fn jn(n: i32, x: f64) -> f64 {
     // special cases
     if x.is_nan() {
@@ -116,7 +117,7 @@ pub fn jn(n: i32, x: f64) -> f64 {
         (x, false)
     };
 
-    let b = if n as f64 <= x {
+    let b = if f64::from(n) <= x {
         // Safe to use J(n+1,x)=2n/x *J(n,x)-J(n-1,x)
         if x >= TWO_302 {
             // x > 2**302
@@ -148,7 +149,7 @@ pub fn jn(n: i32, x: f64) -> f64 {
             let mut a = j0(x);
             for i in 1..n {
                 let two_i: f64 = (i + i).into();
-                (a, b) = (b, b * (two_i / x) - a) // avoid underflow
+                (a, b) = (b, b * (two_i / x) - a); // avoid underflow
             }
             b
         }
@@ -161,7 +162,7 @@ pub fn jn(n: i32, x: f64) -> f64 {
                 // underflow
                 0.0
             } else {
-                let n_factorial = (1..=n).fold(1.0, |acc, i| acc * i as f64);
+                let n_factorial = (1..=n).fold(1.0, |acc, i| acc * f64::from(i));
                 (x / 2.0).powi(n) / n_factorial
             }
             // b
@@ -210,7 +211,7 @@ pub fn jn(n: i32, x: f64) -> f64 {
             let m = n + n;
             let mut t = 0.0;
             for i in (m..(2 * (n + k))).step_by(2).rev() {
-                t = 1.0 / (((i as f64) / x) - t);
+                t = 1.0 / ((f64::from(i) / x) - t);
             }
             let mut a = t;
             let mut b = 1.0;
@@ -258,6 +259,9 @@ pub fn jn(n: i32, x: f64) -> f64 {
 ///
 /// Yn is only real-valued for positive x. For x < 0, the function returns an
 /// `Err(`[`BesselError::NegativeInputForYFunction`]`)` rather than a complex result.
+///
+/// # Errors
+/// Returns [`BesselError::NegativeInputForYFunction`] if `x < 0.0`.
 ///
 /// # Special cases
 /// - `yn(n, +∞) = 0`
@@ -351,7 +355,7 @@ pub fn yn(n: i32, x: f64) -> Result<f64, BesselError> {
         let mut b = y1(x)?;
         for i in 1..n {
             let two_i: f64 = (i + i).into();
-            (a, b) = (b, b * (two_i / x) - a) // avoid underflow
+            (a, b) = (b, b * (two_i / x) - a); // avoid underflow
         }
         b
     };

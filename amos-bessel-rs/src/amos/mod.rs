@@ -33,7 +33,6 @@ pub(crate) enum IKType {
     K = 2,
 }
 
-
 /// Used to specify the kind of Hankel function in the [hankel](crate::hankel) and
 /// [complex_bessel_h] functions.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -46,7 +45,7 @@ pub enum HankelKind {
 }
 
 impl HankelKind {
-    pub(crate) fn get_rotation(&self) -> RotationDirection {
+    pub(crate) fn get_rotation(self) -> RotationDirection {
         match self {
             HankelKind::First => RotationDirection::Right,
             HankelKind::Second => RotationDirection::Left,
@@ -66,7 +65,7 @@ pub enum Scaling {
 
 impl Scaling {
     pub(crate) fn scale_zetas<T: BesselFloat>(
-        &self,
+        self,
         z: Complex<T>,
         modified_order: T,
         zeta1: Complex<T>,
@@ -100,13 +99,13 @@ impl RotationDirection {
     /// for `None`! This behavior perfectly mimics the legacy Fortran `SIGN(1.0, 0.0)` which
     /// also evaluates to `1.0` by transferring the positive sign of zero. The codebase
     /// relies on this Fortran quirk.
-    pub fn signum(&self) -> f64 {
-        (*self as i32 as f64).signum()
+    pub fn signum(self) -> f64 {
+        f64::from(self as i32).signum()
     }
 
     #[inline]
     pub fn to_float<T: BesselFloat>(self) -> T {
-        T::from_f64(self as i32 as f64)
+        T::from_val(self as i32)
     }
 }
 

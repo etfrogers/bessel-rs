@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-10-13
+
+### Added
+- Added `#[must_use]` attribute to all functions in the `fast` module (`bessel_zeros_j`, `bessel_zeros_y`, `bessel_zeros_jp`, `bessel_zeros_yp`, `bessel_zeros`).
+
+### Changed
+- Updated internal helper functions (`bessr`, `bessel_zeros_impl`) to take `BesselFunType` by value rather than reference.
+
+### Documentation
+- Clarified Temme algorithm mathematical constraints in `bessel_zeros` documentation and panic messages: explained that the algorithm is defined for non-negative orders ($\nu \ge 0$), functions correctly for negative integers via reflection symmetry, and panics on negative non-integers.
+
+### Fixed
+- Addressed `clippy::pedantic` lints across the crate, allowing expected cast behaviors and fixing numeric formatting.
+
 ## [1.0.0] - 2026-09-20
 ### Added
 - Coupled $(J_\nu, J_{\nu+1})$ solver evaluating both orders simultaneously during root-finding iterations, cutting AMOS zero-finding runtime by 58% (2.4× speedup).

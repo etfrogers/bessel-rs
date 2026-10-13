@@ -1,4 +1,4 @@
-#![allow(clippy::excessive_precision)]
+#![allow(clippy::excessive_precision, clippy::unreadable_literal)]
 
 //! Bessel function of the first and second kinds of order zero.
 // This file is a translation of Go's math.J0, math.Y0 functions
@@ -96,6 +96,7 @@ use core::f64::consts::PI;
 /// // Decays toward zero for large x
 /// assert!(j0(f64::INFINITY) == 0.0);
 /// ```
+#[must_use]
 pub fn j0(x: f64) -> f64 {
     // R0/S0 on [0, 2]
     const R02: f64 = 1.56249999999999947958e-02; // 0x3F8FFFFFFFFFFFFD
@@ -172,6 +173,9 @@ pub fn j0(x: f64) -> f64 {
 ///
 /// Y₀ is only real-valued for positive x. For x < 0, the function returns an
 /// `Err(`[`BesselError::NegativeInputForYFunction`]`)` rather than a complex result.
+///
+/// # Errors
+/// Returns [`BesselError::NegativeInputForYFunction`] if `x < 0.0`.
 ///
 /// # Special cases
 /// - `y0(+∞) = 0`
@@ -250,7 +254,7 @@ pub fn y0(x: f64) -> Result<f64, BesselError> {
         if x < f64::MAX / 2.0 {
             let z = -(x + x).cos();
             if s * c < 0.0 {
-                cc = z / ss
+                cc = z / ss;
             } else {
                 ss = z / cc;
             }

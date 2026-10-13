@@ -1,3 +1,5 @@
+use core::f64;
+
 use num::{Complex, ToPrimitive, Zero, complex::ComplexFloat};
 
 use crate::{
@@ -90,7 +92,7 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
         // n_zeros < 0 means underflow occurred, but the
         // condition z.abs() <= 2*(order+1).sqrt() was violated and the
         // computation must be completed in another routine with n=n-abs(n_zeros).
-        let n_zeros_inner = i_power_series(z, order, scaling, &mut out[..remaining_n])?;
+        let n_zeros_inner = i_power_series(z, order, scaling, &mut out[..remaining_n]);
         let calculation_finished = n_zeros_inner >= 0;
         let n_to_complete: usize = n_zeros_inner.unsigned_abs();
         n_zeros += n_to_complete;
@@ -106,7 +108,7 @@ pub(crate) fn i_right_half_plane<T: BesselFloat>(
     {
         // Large Argument Asymptotics (Large z, Small order)
         let n_zeros_asymptotic = i_asymptotic(z, order, scaling, &mut out[..remaining_n])?;
-        debug_assert!(n_zeros_asymptotic == n_zeros);
+        debug_assert_eq!(n_zeros_asymptotic, n_zeros);
         return Ok(n_zeros);
     }
 
@@ -180,7 +182,7 @@ pub fn k_right_half_plane<T: BesselFloat>(
     let mut integer_order = (order.round()).to_isize().unwrap(); // round to nearest int
     let small_order_n_eq_1 = integer_order == 0 && n == 1;
 
-    let signed_fractional_order = order - T::from_f64(integer_order as f64); // signed fractional part (-0.5 <= x <= 0.5)
+    let signed_fractional_order = order - T::from_isize(integer_order); // signed fractional part (-0.5 <= x <= 0.5)
     let frac_order_sqr = if signed_fractional_order.abs() > mc.abs_error_tolerance {
         signed_fractional_order.powi(2)
     } else {
@@ -254,8 +256,8 @@ pub fn k_right_half_plane<T: BesselFloat>(
 
     // Starting seeds k_v_minus_1 (K_nu) and k_v (K_{nu+1}) are ready; proceed to recurrence.
     if n == 1 {
-        integer_order -= 1
-    };
+        integer_order -= 1;
+    }
 
     if !small_order_n_eq_1 {
         if integer_order > 0 {
@@ -295,10 +297,9 @@ pub fn k_right_half_plane<T: BesselFloat>(
                             // Two consecutive non-underflowing values found
                             if last_good_iteration == offset - 2 {
                                 break;
-                            } else {
-                                last_good_iteration = offset - 1;
-                                continue;
                             }
+                            last_good_iteration = offset - 1;
+                            continue;
                         }
                         if ln_abs_k_v < half_exponent_limit {
                             continue;
@@ -404,10 +405,11 @@ fn compute_small_z_power_series<T: BesselFloat>(
     frac_order_sqr: T,
     signed_fractional_order: T,
 ) -> (Complex<T>, Complex<T>, Complex<T>) {
-    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     const MAX_ITERATIONS: usize = 1000;
+
+    let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let gamma_difference_taylor_coeffs: [T; 8] = [
-        T::from_f64(5.772_156_649_015_329e-1),
+        T::from_f64(f64::consts::EULER_GAMMA),
         T::from_f64(-4.200_263_503_409_524e-2),
         T::from_f64(-4.219_773_455_554_433e-2),
         T::from_f64(7.218_943_246_663_1e-3),
@@ -582,16 +584,17 @@ fn determine_miller_starting_k<T: BesselFloat>(
     frac_order_sqr: T,
     order_rotation: T,
 ) -> Result<usize, BesselError<T>> {
+    const K_MAX: usize = 30;
+
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let abs_z = if z.im == T::ZERO { z.re } else { z.abs() };
-    const K_MAX: usize = 30;
     let miller_truncation_heuristic_1: T = T::from_f64(1.909_859_317_102_744);
     let miller_truncation_heuristic_2: T = T::from_f64(1.897_699_993_315_177_5);
 
     // Compute recurrence_threshold = f(E).
     // If |z| >= R2, use forward recurrence to determine the backward truncation index K.
     // The `recurrence_threshold` is a linear function over the mantissa bits E (12 <= E <= 60).
-    let bits = (T::MANTISSA_DIGITS - 1).clamp(12, 60) as f64;
+    let bits = f64::from((T::MANTISSA_DIGITS - 1).clamp(12, 60));
     let recurrence_threshold = T::from_f64((2.0 / 3.0) * bits - 6.0);
 
     // Both blocks below are answering the question:

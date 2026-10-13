@@ -124,7 +124,9 @@ pub fn check_against_fortran<T: DiagnosticBesselFloat>(
         Ok(actual) => {
             if ierr == 3 {
                 if !actual.1.partial_loss_of_significance {
-                    fail("Rust reported no loss of significance, but Fortran returned an error code: 3 (partial loss of significance)");
+                    fail(
+                        "Rust reported no loss of significance, but Fortran returned an error code: 3 (partial loss of significance)",
+                    );
                 }
                 // for partial loss of significance, it seems occasionally fortran
                 // will return some values very nearly zero, but it's only happening
@@ -157,7 +159,9 @@ pub fn check_against_fortran<T: DiagnosticBesselFloat>(
                     ))
                 };
                 if actual.1.partial_loss_of_significance {
-                    fail("Rust reported partial loss of significance, but Fortran returned ierr = 0");
+                    fail(
+                        "Rust reported partial loss of significance, but Fortran returned ierr = 0",
+                    );
                 }
                 if actual.1.n_zeros != n_zeros {
                     // At the extreme boundary of underflow (~10^-280 to 10^-308), minor 1-ulp differences
@@ -185,7 +189,8 @@ pub fn check_against_fortran<T: DiagnosticBesselFloat>(
                         ));
                     }
                 }
-                if let Some(reason) = check_complex_arrays_equal(&actual.0, &cy, &cy_loop_fort, margin)
+                if let Some(reason) =
+                    check_complex_arrays_equal(&actual.0, &cy, &cy_loop_fort, margin)
                 {
                     fail(&reason)
                 }
@@ -210,7 +215,7 @@ fn rust_bess_loop<T: BesselFloat>(
     let mut n_zeros = 0;
     let mut plos = false;
     for (i, slot) in y.iter_mut().enumerate() {
-        let (yi, info) = func(z, order + T::from_f64(i as f64), scaling, 1)?;
+        let (yi, info) = func(z, order + T::from_usize(i), scaling, 1)?;
         *slot = yi[0];
         n_zeros += info.n_zeros;
         plos |= info.partial_loss_of_significance;

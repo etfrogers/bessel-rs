@@ -5,7 +5,7 @@ use crate::{BesselError, BesselFloat, amos::MachineConsts};
 /// $1/(2\pi) \approx 0.159154943...$, used in asymptotic prefactors $\sqrt{1/(2\pi z)}$.
 pub const RECIP_TWO_PI: f64 = 0.159_154_943_091_895_35;
 /// $\sqrt{3} \approx 1.7320508...$, threshold where $|\text{Im}(z)| > \sqrt{3}|\text{Re}(z)| \iff |\arg(z)| > 60^\circ$.
-pub const RT_THREE: f64 = 1.73205080757;
+pub const RT_THREE: f64 = 1.732_050_807_57;
 /// $\ln(2\sqrt{\pi}) = \ln(2) + \frac{1}{2}\ln(\pi) \approx 1.2655121...$, the Airy function
 /// asymptotic normalization constant (also equals $\text{Re}(\ln \Gamma(-0.5))$).
 pub const AIC: f64 = 1.265_512_123_484_645_4;
@@ -61,7 +61,7 @@ pub fn is_significance_lost<T: BesselFloat>(
 ) -> Result<bool, BesselError<T>> {
     let f64_precision_limit = T::HALF / mc.abs_error_tolerance;
     // TODO the below is limited to i32: could push to 64 later, but would change compare to fortran
-    let integer_size_limit = T::from_f64((i32::MAX as f64) * 0.5);
+    let integer_size_limit = T::from_val(i32::MAX) * T::HALF;
     let mut upper_size_limit = f64_precision_limit.min(integer_size_limit);
     if modify_threshold {
         upper_size_limit = upper_size_limit.powf(T::TWO_THIRDS);
@@ -90,7 +90,7 @@ pub(crate) fn validate_inputs<T: BesselFloat>(
     }
     if n < 1 {
         err = Some("N must be >= 1");
-    };
+    }
     if let Some(details) = err {
         Err(BesselError::InvalidInput { details })
     } else {
@@ -114,7 +114,7 @@ pub(crate) fn validate_core_inputs<T: BesselFloat>(
 
     if order < T::ZERO {
         err = Some("order must be non-negative");
-    };
+    }
 
     if let Some(details) = err {
         Err(BesselError::InvalidInput { details })

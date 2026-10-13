@@ -67,6 +67,11 @@ pub trait BesselFloat:
     /// The complex imaginary unit `0.0 + 1.0i`.
     const I: Complex<Self> = Complex::<Self>::I;
 
+    /// Casts any value that can be converted into `f64` into this float type.
+    #[inline]
+    fn from_val<V: Into<f64>>(value: V) -> Self {
+        Self::from_f64(value.into())
+    }
     /// Casts an `f64` value to this type.
     fn from_f64(value: f64) -> Self;
     /// Casts a `usize` value to this type.
@@ -167,7 +172,7 @@ impl BesselFloat for f32 {
 
     #[inline]
     fn to_bits(self) -> u64 {
-        f32::to_bits(self) as u64
+        u64::from(f32::to_bits(self))
     }
 
     #[inline]
@@ -385,6 +390,7 @@ impl<T: BesselFloat> ScratchBuffer<T, DEFAULT_SBO_CAP> {
 
 impl<T: BesselFloat, const CAP: usize> ScratchBuffer<T, CAP> {
     #[inline]
+    #[allow(clippy::unnecessary_wraps)]
     pub fn with_capacity(n: usize) -> Result<Self, BesselError<T>> {
         if n <= CAP {
             Ok(ScratchBuffer::Stack([T::C_ZERO; CAP], n))

@@ -108,10 +108,10 @@ pub fn analytic_continuation<T: BesselFloat>(
     // Scale near exponent extremes during recurrence on K functions
     //-----------------------------------------------------------------------
     let abs_k_curr = k_curr.abs();
-    let mut overflow_state = if abs_k_curr <= OverflowState::boundary(&OverflowState::NearUnder, mc)
+    let mut overflow_state = if abs_k_curr <= OverflowState::boundary(OverflowState::NearUnder, mc)
     {
         OverflowState::NearUnder
-    } else if abs_k_curr > OverflowState::boundary(&OverflowState::None, mc) {
+    } else if abs_k_curr > OverflowState::boundary(OverflowState::None, mc) {
         OverflowState::NearOver
     } else {
         OverflowState::None
@@ -202,7 +202,7 @@ pub fn airy_analytic_continuation<T: BesselFloat>(
         // Power series for the I function
         //-----------------------------------------------------------------------
         let mut y = [T::C_ZERO; 1];
-        let n_zeros_inner_signed = i_power_series(negative_z, order, scaling, &mut y)?;
+        let n_zeros_inner_signed = i_power_series(negative_z, order, scaling, &mut y);
         // While some calls to i_power_series can return negative values,
         // the call here should not
         debug_assert!(n_zeros_inner_signed >= 0);

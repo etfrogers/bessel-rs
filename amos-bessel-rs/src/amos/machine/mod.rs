@@ -47,15 +47,15 @@ impl<T: BesselFloat> MachineConsts<T> {
         // in output (should just be what values are accepted, but cause tests to fail)
         let ln_10: T = T::from_f64(2.303);
 
-        let underflow_limit = T::from_f64(1.0e+3 * 2.0) * T::min_positive_value();
+        let underflow_limit = T::from_f64(2.0e+3) * T::min_positive_value();
         let abs_error_tolerance = T::epsilon().max(T::from_f64(1.0e-18));
         // absolute_approximation_limit == (-approximation_limit).exp() -- see test
         let absolute_approximation_limit = underflow_limit / abs_error_tolerance;
 
-        let digits_per_bit: T = (T::from_f64(T::RADIX as f64)).log10();
-        let exponent_bit_limit: T = T::from_f64((T::MIN_EXP.abs().min(T::MAX_EXP.abs())) as f64);
+        let digits_per_bit: T = (T::from_val(T::RADIX)).log10();
+        let exponent_bit_limit: T = T::from_val(T::MIN_EXP.abs().min(T::MAX_EXP.abs()));
 
-        let mantissa_base10_digits = T::from_f64(T::MANTISSA_DIGITS as f64) * digits_per_bit;
+        let mantissa_base10_digits = T::from_val(T::MANTISSA_DIGITS) * digits_per_bit;
         let fln =
             mantissa_base10_digits.clamp(T::from_f64(3.0), T::from_f64(20.0)) - T::from_f64(3.0);
         let gamma_ln_z_min = (T::from_f64(1.8000) + T::from_f64(0.3875) * fln).round() + T::one();
@@ -66,8 +66,7 @@ impl<T: BesselFloat> MachineConsts<T> {
         // Multiplying by ln_10 converts from 10^x overflowing to e^x overflowing
         let exponent_limit = ln_10 * decimal_exponent_limit;
 
-        let base_type_significant_digits: T =
-            digits_per_bit * (T::from_f64(T::MANTISSA_DIGITS as f64) - T::one());
+        let base_type_significant_digits: T = digits_per_bit * T::from_val(T::MANTISSA_DIGITS - 1);
         // significant_digits == -abs_error_tolerance.log10() -- see test
         let significant_digits = base_type_significant_digits.min(T::from_f64(18.0));
         // Again, multiply number of base 10 digits by ln_10 to convert to e^x

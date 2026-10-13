@@ -1,7 +1,7 @@
 use num::{Complex, complex::ComplexFloat};
 
 use crate::{
-    BesselError::{self, *},
+    BesselError::{self, Overflow},
     BesselFloat, Scaling,
     amos::{
         ComplexExt, HankelKind, IKType, MachineConsts, RotationDirection,
@@ -74,8 +74,8 @@ pub(crate) fn complex_bessel_h<T: BesselFloat>(
                         Err(Overflow)
                     } else {
                         Ok(SequenceInfo {
-                            partial_loss_of_significance,
                             n_zeros,
+                            partial_loss_of_significance,
                         })
                     };
                 }
@@ -122,16 +122,15 @@ pub(crate) fn complex_bessel_h<T: BesselFloat>(
     // where zₜ = exp(-i·fmm·π/2) = -i·fmm, fmm = 3 - 2m.
     // Notice that -(i/(π/2))·zₜᵛ = (2/π)·zₜ^{ν+1} where zₜ = exp(i·π·rotation_sign).
     let rotation_sign = -T::HALF * T::from_f64(rotation.signum());
-    let mut phase_multiplier =
-        from_polar_pi(T::FRAC_2_PI(), (order + T::ONE) * rotation_sign);
+    let mut phase_multiplier = from_polar_pi(T::FRAC_2_PI(), (order + T::ONE) * rotation_sign);
 
     for yi in out.iter_mut().take(n - n_zeros) {
         *yi = safe_multiply(*yi, phase_multiplier, mc);
         phase_multiplier *= rotation_factor;
     }
     Ok(SequenceInfo {
-        partial_loss_of_significance,
         n_zeros,
+        partial_loss_of_significance,
     })
 }
 
@@ -179,8 +178,8 @@ pub(crate) fn complex_bessel_i<T: BesselFloat>(
     }
 
     Ok(SequenceInfo {
-        partial_loss_of_significance,
         n_zeros,
+        partial_loss_of_significance,
     })
 }
 
@@ -224,8 +223,8 @@ pub(crate) fn complex_bessel_j<T: BesselFloat>(
         phase_multiplier *= T::I * sign_selector;
     }
     Ok(SequenceInfo {
-        partial_loss_of_significance,
         n_zeros,
+        partial_loss_of_significance,
     })
 }
 
@@ -272,8 +271,8 @@ pub(crate) fn complex_bessel_k<T: BesselFloat>(
 
         let n_zeros = k_asymp_large_order(z, order, scaling, rotation, out)?;
         return Ok(SequenceInfo {
-            partial_loss_of_significance,
             n_zeros,
+            partial_loss_of_significance,
         });
     }
 
@@ -287,8 +286,8 @@ pub(crate) fn complex_bessel_k<T: BesselFloat>(
                 Err(Overflow)
             } else {
                 Ok(SequenceInfo {
-                    partial_loss_of_significance,
                     n_zeros,
+                    partial_loss_of_significance,
                 })
             };
         }
@@ -317,8 +316,8 @@ pub(crate) fn complex_bessel_k<T: BesselFloat>(
         analytic_continuation(z, order, scaling, rotation, out)?
     };
     Ok(SequenceInfo {
-        partial_loss_of_significance,
         n_zeros,
+        partial_loss_of_significance,
     })
 }
 
@@ -393,11 +392,13 @@ pub(crate) fn complex_bessel_y<T: BesselFloat>(
         });
 
     if z.im < T::ZERO {
-        out.iter_mut().for_each(|v| *v = v.conj());
+        for v in out.iter_mut() {
+            *v = v.conj();
+        }
     }
     Ok(SequenceInfo {
-        partial_loss_of_significance,
         n_zeros,
+        partial_loss_of_significance,
     })
 }
 
@@ -460,18 +461,29 @@ fn safe_multiply<T: BesselFloat>(
 ///
 /// # Returns
 ///
-/// A tuple containing:
-/// * The complex result of the Airy function computation.
-/// * An underflow indicator (`0` for normal return, `1` for underflow).
+/// A `Result` containing `(Complex<T>, SequenceInfo)` on success:
+/// * The complex value of the computed Airy function or its derivative.
+/// * [`SequenceInfo`] detailing underflow count (`n_zeros`) and whether partial loss of significance occurred.
+///
+/// # Errors
+///
+/// Returns [`BesselError`] if:
+/// * `z` is non-finite or NaN ([`BesselError::InvalidInput`]).
+/// * The calculation overflows the floating-point range ([`BesselError::Overflow`]).
+/// * Complete loss of significance occurs due to large $|z|$ ([`BesselError::LossOfSignificance`]).
+/// * The algorithm fails to converge ([`BesselError::DidNotConverge`]).
+///
+/// See [`BesselError`] for full details.
 pub fn complex_airy<T: BesselFloat>(
     z: Complex<T>,
     return_derivative: bool,
     scaling: Scaling,
 ) -> Result<(Complex<T>, SequenceInfo), BesselError<T>> {
-    validate_inputs(z, T::ZERO, 1)?;
     const POWER_SERIES_COEFFS: (f64, f64) = (3.550_280_538_878_172e-1, 2.588_194_037_928_068e-1);
     const FRAC_1_PI_SQRT_3: f64 = 1.837_762_984_739_306_8e-1;
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
+
+    validate_inputs(z, T::ZERO, 1)?;
 
     let abs_z = z.abs();
     // significance loss only tested against z, not order, so 0.0 is used to never cause significance loss
@@ -545,8 +557,8 @@ pub fn complex_airy<T: BesselFloat>(
     Ok((
         y,
         SequenceInfo {
-            partial_loss_of_significance,
             n_zeros,
+            partial_loss_of_significance,
         },
     ))
 }
@@ -580,16 +592,29 @@ pub fn complex_airy<T: BesselFloat>(
 ///
 /// # Returns
 ///
-/// The complex result of the Airy function computation.
+/// A `Result` containing `(Complex<T>, SequenceInfo)` on success:
+/// * The complex value of the computed Airy function of the second kind or its derivative.
+/// * [`SequenceInfo`] detailing underflow count (`n_zeros`) and whether partial loss of significance occurred.
+///
+/// # Errors
+///
+/// Returns [`BesselError`] if:
+/// * `z` is non-finite or NaN ([`BesselError::InvalidInput`]).
+/// * The calculation overflows the floating-point range ([`BesselError::Overflow`]).
+/// * Complete loss of significance occurs due to large $|z|$ ([`BesselError::LossOfSignificance`]).
+/// * The algorithm fails to converge ([`BesselError::DidNotConverge`]).
+///
+/// See [`BesselError`] for full details.
 pub fn complex_airy_b<T: BesselFloat>(
     z: Complex<T>,
     return_derivative: bool,
     scaling: Scaling,
 ) -> Result<(Complex<T>, SequenceInfo), BesselError<T>> {
-    validate_inputs(z, T::ZERO, 1)?;
     const POWER_SERIES_COEFFS: (f64, f64) = (6.149_266_274_460_007e-1, -4.482_883_573_538_264e-1);
     const FRAC_1_SQRT_3: f64 = 5.773_502_691_896_257e-1;
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
+
+    validate_inputs(z, T::ZERO, 1)?;
 
     let (order1, order2) = if return_derivative {
         (T::TWO_THIRDS, T::ONE_THIRD)

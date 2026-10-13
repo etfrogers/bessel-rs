@@ -76,8 +76,8 @@ pub(crate) fn reflect_i_element<T: BesselFloat>(
     let k_scaled = match scaling {
         Scaling::Unscaled => k,
         Scaling::Scaled => {
-            let x = z.re;
-            let r = -x.abs() - x; // <= 0 for all x
+            let z_re = z.re;
+            let r = -z_re.abs() - z_re; // <= 0 for all x
             let mc = T::MACHINE_CONSTANTS;
             if -r > mc.exponent_limit {
                 Complex::<T>::ZERO
@@ -109,7 +109,7 @@ impl UnderflowLocation {
     }
 }
 
-pub(crate) trait ReflectableBessel<T: BesselFloat> {
+pub(crate) trait ReflectableBessel<T: BesselFloat>: Copy {
     /// Location where zeros appear upon underflow (Start or End).
     const UNDERFLOW_LOCATION: UnderflowLocation;
 
@@ -142,11 +142,17 @@ pub(crate) trait ReflectableBessel<T: BesselFloat> {
     fn reflect_int(&self, order: i64, primary: Complex<T>) -> Complex<T>;
 }
 
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct BesselJ;
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct BesselY;
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct BesselI;
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct BesselK;
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct Hankel(pub HankelKind);
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct NoSecondary;
 
 impl<T: BesselFloat> ReflectableBessel<T> for NoSecondary {
@@ -489,7 +495,7 @@ trait ZipOptionExt: Iterator + Sized {
         self,
         mut maybe_iter: Option<J>,
     ) -> impl Iterator<Item = (Self::Item, Option<J::Item>)> {
-        self.map(move |val| (val, maybe_iter.as_mut().and_then(|it| it.next())))
+        self.map(move |val| (val, maybe_iter.as_mut().and_then(Iterator::next)))
     }
 }
 

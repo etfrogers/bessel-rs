@@ -22,7 +22,7 @@ dependencies = [
 
 [[package]]
 name = "amos-bessel-rs"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "approx",
  "complex-bessel",
@@ -78,7 +78,7 @@ dependencies = [
 
 [[package]]
 name = "bessel-zeros"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "amos-bessel-rs",
  "approx",
@@ -705,7 +705,7 @@ dependencies = [
 
 [[package]]
 name = "real-bessel"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "amos-bessel-rs",
  "approx",

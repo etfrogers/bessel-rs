@@ -18,10 +18,10 @@ unsafe extern "C" {
 fn test_gamma_ln_hard_coded() {
     let mc = f64::MACHINE_CONSTANTS;
     for i in 1..=100 {
-        let f = i as f64;
+        let f = f64::from(i);
         let actual = gamma_ln(f, mc).unwrap();
         let expected = tgamma(f).ln();
-        assert_relative_eq!(actual, expected)
+        assert_relative_eq!(actual, expected);
     }
 }
 
@@ -38,7 +38,7 @@ fn test_gamma_ln(f: f64) {
     // large values cause the "expected" calculation to overflow: the fortran version seems to work!
     let actual = gamma_ln(f, mc).unwrap();
     let expected = tgamma(f).ln();
-    assert_relative_eq!(actual, expected, max_relative = 1e-10)
+    assert_relative_eq!(actual, expected, max_relative = 1e-10);
 }
 
 #[apply(f_values)]
@@ -46,5 +46,5 @@ fn test_gamma_ln_negative(f: f64) {
     let mc = f64::MACHINE_CONSTANTS;
     // large values cause the "expected" calculation to overflow: the fortran version seems to work!
     let actual = gamma_ln(-f, mc);
-    assert_eq!(actual, Err(GammaError::ZLessThanZero))
+    assert_eq!(actual, Err(GammaError::ZLessThanZero));
 }

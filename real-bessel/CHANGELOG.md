@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-10-13
+
+### Added
+- Added `#[must_use]` attribute to pure mathematical functions `j0`, `j1`, and `jn`.
+
+### Documentation
+- Added `# Errors` documentation sections to `y0`, `y1`, and `yn` detailing `BesselError::NegativeInputForYFunction` returned when $x < 0$.
+
+### Fixed
+- Addressed `clippy::pedantic` lints across the crate, replacing manual casts with lossless conversions and ensuring formatting consistency.
+
 ## [1.0.0] - 2026-09-20
 ### Added
 - Promoted crate to stable 1.0.0 release.

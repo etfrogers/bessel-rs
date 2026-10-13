@@ -40,6 +40,17 @@ pub use allocating::*;
 /// * `n_zeros`: The number of components at the start of `out` set to zero due to underflow.
 /// * `partial_loss_of_significance`: `true` if loss of significance produced less than
 ///   half of machine accuracy due to large $|z|$ or `order`.
+///
+/// # Errors
+///
+/// Returns [`BesselError`] if:
+/// * `out` is empty ([`BesselError::InvalidInput`]).
+/// * $z = 0$, as Hankel functions diverge at the origin ([`BesselError::InvalidInput`]).
+/// * The calculation overflows the floating-point range ([`BesselError::Overflow`]).
+/// * Complete loss of significance occurs due to extreme $|z|$ or `order` ([`BesselError::LossOfSignificance`]).
+/// * The algorithm fails to converge ([`BesselError::DidNotConverge`]).
+///
+/// See [`BesselError`] for full details.
 pub fn complex_bessel_h_into<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -54,6 +65,10 @@ pub fn complex_bessel_h_into<T: BesselFloat>(
 ///
 /// Convenience wrapper equivalent to calling [`complex_bessel_h_into`] with [`HankelKind::First`].
 /// See [`complex_bessel_h_into`] for details on arguments, return values, and branch cuts.
+///
+/// # Errors
+///
+/// Returns [`BesselError`] under the same conditions as [`complex_bessel_h_into`].
 #[inline]
 pub fn complex_hankel1_into<T: BesselFloat>(
     z: Complex<T>,
@@ -68,6 +83,10 @@ pub fn complex_hankel1_into<T: BesselFloat>(
 ///
 /// Convenience wrapper equivalent to calling [`complex_bessel_h_into`] with [`HankelKind::Second`].
 /// See [`complex_bessel_h_into`] for details on arguments, return values, and branch cuts.
+///
+/// # Errors
+///
+/// Returns [`BesselError`] under the same conditions as [`complex_bessel_h_into`].
 #[inline]
 pub fn complex_hankel2_into<T: BesselFloat>(
     z: Complex<T>,
@@ -104,6 +123,16 @@ pub fn complex_hankel2_into<T: BesselFloat>(
 /// * `n_zeros`: The number of components at the end of `out` (highest orders) set to zero due to underflow.
 /// * `partial_loss_of_significance`: `true` if loss of significance produced less than
 ///   half of machine accuracy due to large $|z|$ or `order`.
+///
+/// # Errors
+///
+/// Returns [`BesselError`] if:
+/// * `out` is empty ([`BesselError::InvalidInput`]).
+/// * The calculation overflows the floating-point range ([`BesselError::Overflow`]).
+/// * Complete loss of significance occurs due to extreme $|z|$ or `order` ([`BesselError::LossOfSignificance`]).
+/// * The algorithm fails to converge ([`BesselError::DidNotConverge`]).
+///
+/// See [`BesselError`] for full details.
 pub fn complex_bessel_i_into<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -139,6 +168,16 @@ pub fn complex_bessel_i_into<T: BesselFloat>(
 /// * `n_zeros`: The number of components at the end of `out` (highest orders) set to zero due to underflow.
 /// * `partial_loss_of_significance`: `true` if loss of significance produced less than
 ///   half of machine accuracy due to large $|z|$ or `order`.
+///
+/// # Errors
+///
+/// Returns [`BesselError`] if:
+/// * `out` is empty ([`BesselError::InvalidInput`]).
+/// * The calculation overflows the floating-point range ([`BesselError::Overflow`]).
+/// * Complete loss of significance occurs due to extreme $|z|$ or `order` ([`BesselError::LossOfSignificance`]).
+/// * The algorithm fails to converge ([`BesselError::DidNotConverge`]).
+///
+/// See [`BesselError`] for full details.
 pub fn complex_bessel_j_into<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -176,6 +215,17 @@ pub fn complex_bessel_j_into<T: BesselFloat>(
 /// * `n_zeros`: The number of components at the start of `out` set to zero due to underflow.
 /// * `partial_loss_of_significance`: `true` if loss of significance produced less than
 ///   half of machine accuracy due to large $|z|$ or `order`.
+///
+/// # Errors
+///
+/// Returns [`BesselError`] if:
+/// * `out` is empty ([`BesselError::InvalidInput`]).
+/// * $z = 0$, as $K_\nu$ diverges at the origin ([`BesselError::InvalidInput`]).
+/// * The calculation overflows the floating-point range ([`BesselError::Overflow`]).
+/// * Complete loss of significance occurs due to extreme $|z|$ or `order` ([`BesselError::LossOfSignificance`]).
+/// * The algorithm fails to converge ([`BesselError::DidNotConverge`]).
+///
+/// See [`BesselError`] for full details.
 pub fn complex_bessel_k_into<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -213,6 +263,17 @@ pub fn complex_bessel_k_into<T: BesselFloat>(
 /// * `n_zeros`: The number of components at the start of `out` set to zero due to underflow.
 /// * `partial_loss_of_significance`: `true` if loss of significance produced less than
 ///   half of machine accuracy due to large $|z|$ or `order`.
+///
+/// # Errors
+///
+/// Returns [`BesselError`] if:
+/// * `out` is empty ([`BesselError::InvalidInput`]).
+/// * $z = 0$, as $Y_\nu$ diverges at the origin ([`BesselError::InvalidInput`]).
+/// * The calculation overflows the floating-point range ([`BesselError::Overflow`]).
+/// * Complete loss of significance occurs due to extreme $|z|$ or `order` ([`BesselError::LossOfSignificance`]).
+/// * The algorithm fails to converge ([`BesselError::DidNotConverge`]).
+///
+/// See [`BesselError`] for full details.
 pub fn complex_bessel_y_into<T: BesselFloat>(
     z: Complex<T>,
     order: T,
@@ -224,6 +285,7 @@ pub fn complex_bessel_y_into<T: BesselFloat>(
 
 #[cfg(feature = "alloc")]
 mod allocating {
+    #[allow(clippy::wildcard_imports)]
     use super::*;
     use alloc::vec::Vec;
 
@@ -273,6 +335,17 @@ mod allocating {
     /// A `Result` containing a tuple `(y, info)`:
     /// * `y`: A vector of complex values for orders `[order, order + 1, ..., order + n - 1]`.
     /// * `info`: A [`SequenceInfo`] where `info.n_zeros` is the number of components at the start of `y` set to zero due to underflow, and `info.partial_loss_of_significance` indicates whether loss of significance occurred.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BesselError`] if:
+    /// * `n == 0` ([`BesselError::InvalidInput`]).
+    /// * $z = 0$, as Hankel functions diverge at the origin ([`BesselError::InvalidInput`]).
+    /// * The calculation overflows the floating-point range ([`BesselError::Overflow`]).
+    /// * Complete loss of significance occurs due to extreme $|z|$ or `order` ([`BesselError::LossOfSignificance`]).
+    /// * The algorithm fails to converge ([`BesselError::DidNotConverge`]).
+    ///
+    /// See [`BesselError`] for full details.
     pub fn complex_bessel_h<T: BesselFloat>(
         z: Complex<T>,
         order: T,
@@ -293,6 +366,10 @@ mod allocating {
     ///
     /// Convenience wrapper equivalent to calling [`complex_bessel_h`] with [`HankelKind::First`].
     /// For a zero-allocation alternative, see [`complex_hankel1_into`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BesselError`] under the same conditions as [`complex_bessel_h`].
     #[inline]
     pub fn complex_hankel1<T: BesselFloat>(
         z: Complex<T>,
@@ -307,6 +384,10 @@ mod allocating {
     ///
     /// Convenience wrapper equivalent to calling [`complex_bessel_h`] with [`HankelKind::Second`].
     /// For a zero-allocation alternative, see [`complex_hankel2_into`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BesselError`] under the same conditions as [`complex_bessel_h`].
     #[inline]
     pub fn complex_hankel2<T: BesselFloat>(
         z: Complex<T>,
@@ -344,6 +425,16 @@ mod allocating {
     /// A `Result` containing a tuple `(y, info)`:
     /// * `y`: A vector of complex values for orders `[order, order + 1, ..., order + n - 1]`.
     /// * `info`: A [`SequenceInfo`] where `info.n_zeros` is the number of components at the end of `y` (highest orders) set to zero due to underflow, and `info.partial_loss_of_significance` indicates whether loss of significance occurred.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BesselError`] if:
+    /// * `n == 0` ([`BesselError::InvalidInput`]).
+    /// * The calculation overflows the floating-point range ([`BesselError::Overflow`]).
+    /// * Complete loss of significance occurs due to extreme $|z|$ or `order` ([`BesselError::LossOfSignificance`]).
+    /// * The algorithm fails to converge ([`BesselError::DidNotConverge`]).
+    ///
+    /// See [`BesselError`] for full details.
     pub fn complex_bessel_i<T: BesselFloat>(
         z: Complex<T>,
         order: T,
@@ -380,6 +471,16 @@ mod allocating {
     /// A `Result` containing a tuple `(y, info)`:
     /// * `y`: A vector of complex values for orders `[order, order + 1, ..., order + n - 1]`.
     /// * `info`: A [`SequenceInfo`] where `info.n_zeros` is the number of components at the end of `y` (highest orders) set to zero due to underflow, and `info.partial_loss_of_significance` indicates whether loss of significance occurred.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BesselError`] if:
+    /// * `n == 0` ([`BesselError::InvalidInput`]).
+    /// * The calculation overflows the floating-point range ([`BesselError::Overflow`]).
+    /// * Complete loss of significance occurs due to extreme $|z|$ or `order` ([`BesselError::LossOfSignificance`]).
+    /// * The algorithm fails to converge ([`BesselError::DidNotConverge`]).
+    ///
+    /// See [`BesselError`] for full details.
     pub fn complex_bessel_j<T: BesselFloat>(
         z: Complex<T>,
         order: T,
@@ -418,6 +519,17 @@ mod allocating {
     /// A `Result` containing a tuple `(y, info)`:
     /// * `y`: A vector of complex values for orders `[order, order + 1, ..., order + n - 1]`.
     /// * `info`: A [`SequenceInfo`] where `info.n_zeros` is the number of components at the start of `y` set to zero due to underflow, and `info.partial_loss_of_significance` indicates whether loss of significance occurred.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BesselError`] if:
+    /// * `n == 0` ([`BesselError::InvalidInput`]).
+    /// * $z = 0$, as $K_\nu$ diverges at the origin ([`BesselError::InvalidInput`]).
+    /// * The calculation overflows the floating-point range ([`BesselError::Overflow`]).
+    /// * Complete loss of significance occurs due to extreme $|z|$ or `order` ([`BesselError::LossOfSignificance`]).
+    /// * The algorithm fails to converge ([`BesselError::DidNotConverge`]).
+    ///
+    /// See [`BesselError`] for full details.
     pub fn complex_bessel_k<T: BesselFloat>(
         z: Complex<T>,
         order: T,
@@ -456,6 +568,17 @@ mod allocating {
     /// A `Result` containing a tuple `(y, info)`:
     /// * `y`: A vector of complex values for orders `[order, order + 1, ..., order + n - 1]`.
     /// * `info`: A [`SequenceInfo`] where `info.n_zeros` is the number of components at the start of `y` set to zero due to underflow, and `info.partial_loss_of_significance` indicates whether loss of significance occurred.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BesselError`] if:
+    /// * `n == 0` ([`BesselError::InvalidInput`]).
+    /// * $z = 0$, as $Y_\nu$ diverges at the origin ([`BesselError::InvalidInput`]).
+    /// * The calculation overflows the floating-point range ([`BesselError::Overflow`]).
+    /// * Complete loss of significance occurs due to extreme $|z|$ or `order` ([`BesselError::LossOfSignificance`]).
+    /// * The algorithm fails to converge ([`BesselError::DidNotConverge`]).
+    ///
+    /// See [`BesselError`] for full details.
     pub fn complex_bessel_y<T: BesselFloat>(
         z: Complex<T>,
         order: T,

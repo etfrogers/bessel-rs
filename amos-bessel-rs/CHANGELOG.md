@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-10-13
+
+### Added
+- Added `BesselFloat::from_val` default trait method to simplify converting types implementing `Into<f64>` into generic float types.
+- Added `Copy` and `Clone` derives to internal marker structs in `reflections` (`BesselJ`, `BesselY`, `BesselI`, `BesselK`, `Hankel`, `NoSecondary`).
+
+### Documentation
+- Added comprehensive `# Errors` sections across all root public functions in `lib.rs` (`bessel_j`, `bessel_y`, `bessel_i`, `bessel_k`, `hankel`, `airy`, `airyp`, `airy_b`, `airy_bp`).
+- Added `# Errors` sections across all derivative functions in `derivatives.rs` (`bessel_*_p`, `bessel_*_derivative`, `hankel_*_p`, `hankel_*_derivative`).
+- Added `# Errors` and accurate `# Returns` sections across all slice-filling (`complex_*_into`) and allocating (`complex_*`) routines in `amos::entry_points`.
+- Corrected documentation for `complex_airy` and `complex_airy_b` to accurately document returning `SequenceInfo` rather than legacy Fortran integer underflow flags.
+
+### Changed
+- Addressed `clippy::pedantic` lints across the codebase, replacing manual casts with lossless conversions, ensuring semicolon consistency, and passing small `Copy` enums (`RotationDirection`, `HankelKind`, `OverflowState`) by value.
+
 ## [1.0.1] - 2026-09-24
 
 ### Removed
