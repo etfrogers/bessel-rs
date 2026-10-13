@@ -165,6 +165,9 @@ pub fn j1(x: f64) -> f64 {
 /// Y₁ is only real-valued for positive x. For x < 0, the function returns an
 /// `Err(`[`BesselError::NegativeInputForYFunction`]`)` rather than a complex result.
 ///
+/// # Errors
+/// Returns [`BesselError::NegativeInputForYFunction`] if `x < 0.0`.
+///
 /// # Special cases
 /// - `y1(+∞) = 0`
 /// - `y1(0) = −∞`

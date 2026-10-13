@@ -460,18 +460,29 @@ fn safe_multiply<T: BesselFloat>(
 ///
 /// # Returns
 ///
-/// A tuple containing:
-/// * The complex result of the Airy function computation.
-/// * An underflow indicator (`0` for normal return, `1` for underflow).
+/// A `Result` containing `(Complex<T>, SequenceInfo)` on success:
+/// * The complex value of the computed Airy function or its derivative.
+/// * [`SequenceInfo`] detailing underflow count (`n_zeros`) and whether partial loss of significance occurred.
+///
+/// # Errors
+///
+/// Returns [`BesselError`] if:
+/// * `z` is non-finite or NaN ([`BesselError::InvalidInput`]).
+/// * The calculation overflows the floating-point range ([`BesselError::Overflow`]).
+/// * Complete loss of significance occurs due to large $|z|$ ([`BesselError::LossOfSignificance`]).
+/// * The algorithm fails to converge ([`BesselError::DidNotConverge`]).
+///
+/// See [`BesselError`] for full details.
 pub fn complex_airy<T: BesselFloat>(
     z: Complex<T>,
     return_derivative: bool,
     scaling: Scaling,
 ) -> Result<(Complex<T>, SequenceInfo), BesselError<T>> {
-    validate_inputs(z, T::ZERO, 1)?;
     const POWER_SERIES_COEFFS: (f64, f64) = (3.550_280_538_878_172e-1, 2.588_194_037_928_068e-1);
     const FRAC_1_PI_SQRT_3: f64 = 1.837_762_984_739_306_8e-1;
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
+
+    validate_inputs(z, T::ZERO, 1)?;
 
     let abs_z = z.abs();
     // significance loss only tested against z, not order, so 0.0 is used to never cause significance loss
@@ -580,16 +591,29 @@ pub fn complex_airy<T: BesselFloat>(
 ///
 /// # Returns
 ///
-/// The complex result of the Airy function computation.
+/// A `Result` containing `(Complex<T>, SequenceInfo)` on success:
+/// * The complex value of the computed Airy function of the second kind or its derivative.
+/// * [`SequenceInfo`] detailing underflow count (`n_zeros`) and whether partial loss of significance occurred.
+///
+/// # Errors
+///
+/// Returns [`BesselError`] if:
+/// * `z` is non-finite or NaN ([`BesselError::InvalidInput`]).
+/// * The calculation overflows the floating-point range ([`BesselError::Overflow`]).
+/// * Complete loss of significance occurs due to large $|z|$ ([`BesselError::LossOfSignificance`]).
+/// * The algorithm fails to converge ([`BesselError::DidNotConverge`]).
+///
+/// See [`BesselError`] for full details.
 pub fn complex_airy_b<T: BesselFloat>(
     z: Complex<T>,
     return_derivative: bool,
     scaling: Scaling,
 ) -> Result<(Complex<T>, SequenceInfo), BesselError<T>> {
-    validate_inputs(z, T::ZERO, 1)?;
     const POWER_SERIES_COEFFS: (f64, f64) = (6.149_266_274_460_007e-1, -4.482_883_573_538_264e-1);
     const FRAC_1_SQRT_3: f64 = 5.773_502_691_896_257e-1;
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
+
+    validate_inputs(z, T::ZERO, 1)?;
 
     let (order1, order2) = if return_derivative {
         (T::TWO_THIRDS, T::ONE_THIRD)

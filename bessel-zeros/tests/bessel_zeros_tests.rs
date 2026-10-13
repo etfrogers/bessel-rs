@@ -249,11 +249,10 @@ fn test_amos_positive_float_orders_evaluate_to_zero() {
 
 /// Test that negative float orders in the standard AMOS backend evaluate to zeros.
 ///
-/// Note: Marked `should_panic` for now because the standard AMOS backend in bessel-zeros
-/// currently asserts `order >= 0.0`. When non-integer negative orders are supported,
-/// remove `#[should_panic]` to enable full verification.
+/// Note: The Temme algorithm is only valid for positive orders. Negative integer orders
+/// happen to be the same a positive integers, so the algorithm works in that special case
 #[rstest]
-#[should_panic(expected = "AMOS-backed bessel_zeros requires order >= 0.0")]
+#[should_panic(expected = "bessel_zeros requires order >= 0.0")]
 fn test_amos_negative_float_orders_evaluate_to_zero() {
     for order in [-0.5, -1.25, -2.7] {
         for kind in [BesselFunType::J, BesselFunType::Y] {

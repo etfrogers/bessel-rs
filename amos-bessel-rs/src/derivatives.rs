@@ -28,6 +28,10 @@ type BesselSig<T: BesselFloat = f64> =
 /// let dj: f64 = bessel_j_p(0.0, 1.0).unwrap();
 /// assert!((dj - (-0.4400505857)).abs() < 1e-6);
 /// ```
+///
+/// # Errors
+/// Returns [`BesselError`] if the underlying calculation fails or if a real
+/// argument produces a complex result. See [`crate::bessel_j`] and [`BesselError`].
 pub fn bessel_j_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -56,6 +60,13 @@ pub fn bessel_j_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// let d2j: f64 = bessel_j_derivative(0.0, 1.0, 2, Scaling::Unscaled).unwrap();
 /// assert!((d2j - (-0.3251471008)).abs() < 1e-6);
 /// ```
+///
+/// # Errors
+/// Returns [`BesselError`] if:
+/// * `derivative_order > 15` ([`BesselError::InvalidInput`]).
+/// * The underlying calculation fails or a real argument produces a complex result.
+///
+/// See [`crate::bessel_j`] and [`BesselError`].
 pub fn bessel_j_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -86,6 +97,10 @@ pub fn bessel_j_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// let dy: f64 = bessel_y_p(0.0, 1.0).unwrap();
 /// assert!((dy - 0.7812128213).abs() < 1e-6);
 /// ```
+///
+/// # Errors
+/// Returns [`BesselError`] if the underlying calculation fails or if a real
+/// argument produces a complex result. See [`crate::bessel_y`] and [`BesselError`].
 pub fn bessel_y_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -114,6 +129,13 @@ pub fn bessel_y_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// let d2y: f64 = bessel_y_derivative(0.0, 1.0, 2, Scaling::Unscaled).unwrap();
 /// assert!((d2y - (-0.8694697855)).abs() < 1e-6);
 /// ```
+///
+/// # Errors
+/// Returns [`BesselError`] if:
+/// * `derivative_order > 15` ([`BesselError::InvalidInput`]).
+/// * The underlying calculation fails or a real argument produces a complex result.
+///
+/// See [`crate::bessel_y`] and [`BesselError`].
 pub fn bessel_y_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -144,6 +166,10 @@ pub fn bessel_y_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// let di: f64 = bessel_i_p(0.0, 1.0).unwrap();
 /// assert!((di - 0.5651591039).abs() < 1e-6);
 /// ```
+///
+/// # Errors
+/// Returns [`BesselError`] if the underlying calculation fails or if a real
+/// argument produces a complex result. See [`crate::bessel_i`] and [`BesselError`].
 pub fn bessel_i_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -172,6 +198,13 @@ pub fn bessel_i_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// let d2i: f64 = bessel_i_derivative(0.0, 1.0, 2, Scaling::Unscaled).unwrap();
 /// assert!((d2i - 0.7009067738).abs() < 1e-6);
 /// ```
+///
+/// # Errors
+/// Returns [`BesselError`] if:
+/// * `derivative_order > 15` ([`BesselError::InvalidInput`]).
+/// * The underlying calculation fails or a real argument produces a complex result.
+///
+/// See [`crate::bessel_i`] and [`BesselError`].
 pub fn bessel_i_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -205,6 +238,10 @@ pub fn bessel_i_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// let dh = hankel_p(0.0, z, HankelKind::First).unwrap();
 /// assert!(dh.norm() > 0.0);
 /// ```
+///
+/// # Errors
+/// Returns [`BesselError`] if the underlying calculation fails or if a real
+/// argument produces a complex result. See [`crate::hankel`] and [`BesselError`].
 pub fn hankel_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -236,6 +273,13 @@ pub fn hankel_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// let d2h = hankel_derivative(0.0, z, HankelKind::First, 2, Scaling::Unscaled).unwrap();
 /// assert!(d2h.norm() > 0.0);
 /// ```
+///
+/// # Errors
+/// Returns [`BesselError`] if:
+/// * `derivative_order > 15` ([`BesselError::InvalidInput`]).
+/// * The underlying calculation fails or a real argument produces a complex result.
+///
+/// See [`crate::hankel`] and [`BesselError`].
 pub fn hankel_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -264,6 +308,10 @@ pub fn hankel_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// let dh1 = hankel1_p(0.0, z).unwrap();
 /// assert!(dh1.norm() > 0.0);
 /// ```
+///
+/// # Errors
+/// Returns [`BesselError`] if the underlying calculation fails or if a real
+/// argument produces a complex result. See [`crate::hankel`] and [`BesselError`].
 pub fn hankel1_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -293,6 +341,13 @@ pub fn hankel1_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// let d2h1 = hankel1_derivative(0.0, z, 2, Scaling::Unscaled).unwrap();
 /// assert!(d2h1.norm() > 0.0);
 /// ```
+///
+/// # Errors
+/// Returns [`BesselError`] if:
+/// * `derivative_order > 15` ([`BesselError::InvalidInput`]).
+/// * The underlying calculation fails or a real argument produces a complex result.
+///
+/// See [`crate::hankel`] and [`BesselError`].
 pub fn hankel1_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -325,6 +380,10 @@ pub fn hankel1_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// let dh2 = hankel2_p(0.0, z).unwrap();
 /// assert!(dh2.norm() > 0.0);
 /// ```
+///
+/// # Errors
+/// Returns [`BesselError`] if the underlying calculation fails or if a real
+/// argument produces a complex result. See [`crate::hankel`] and [`BesselError`].
 pub fn hankel2_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -354,6 +413,13 @@ pub fn hankel2_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// let d2h2 = hankel2_derivative(0.0, z, 2, Scaling::Unscaled).unwrap();
 /// assert!(d2h2.norm() > 0.0);
 /// ```
+///
+/// # Errors
+/// Returns [`BesselError`] if:
+/// * `derivative_order > 15` ([`BesselError::InvalidInput`]).
+/// * The underlying calculation fails or a real argument produces a complex result.
+///
+/// See [`crate::hankel`] and [`BesselError`].
 pub fn hankel2_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -384,6 +450,10 @@ pub fn hankel2_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// let dk: f64 = bessel_k_p(0.0, 1.0).unwrap();
 /// assert!((dk - (-0.6019072301)).abs() < 1e-6);
 /// ```
+///
+/// # Errors
+/// Returns [`BesselError`] if the underlying calculation fails or if a real
+/// argument produces a complex result. See [`crate::bessel_k`] and [`BesselError`].
 pub fn bessel_k_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -412,6 +482,13 @@ pub fn bessel_k_p<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// let d2k: f64 = bessel_k_derivative(0.0, 1.0, 2, Scaling::Unscaled).unwrap();
 /// assert!((d2k - 1.0229316684).abs() < 1e-6);
 /// ```
+///
+/// # Errors
+/// Returns [`BesselError`] if:
+/// * `derivative_order > 15` ([`BesselError::InvalidInput`]).
+/// * The underlying calculation fails or a real argument produces a complex result.
+///
+/// See [`crate::bessel_k`] and [`BesselError`].
 pub fn bessel_k_derivative<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,

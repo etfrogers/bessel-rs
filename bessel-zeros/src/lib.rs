@@ -128,6 +128,13 @@ pub fn bessel_zeros_yp<OT: Into<f64>>(order: OT, n_zeros: usize) -> Vec<f64> {
 ///
 /// Uses the AMOS backend, so `order` may be any real value (not just integer).
 ///
+/// Note: The Temme algorithm is only valid for positive orders. Negative integer orders
+/// happen to be the same a positive integers, so the algorithm works in that special case
+///
+/// # Panics
+///
+/// Panics on non-integer negative orders
+///
 /// # Arguments
 ///
 /// * `func_type` - Which Bessel function (J, Y, J', Y').

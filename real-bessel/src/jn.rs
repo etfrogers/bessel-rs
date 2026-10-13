@@ -259,6 +259,9 @@ pub fn jn(n: i32, x: f64) -> f64 {
 /// Yn is only real-valued for positive x. For x < 0, the function returns an
 /// `Err(`[`BesselError::NegativeInputForYFunction`]`)` rather than a complex result.
 ///
+/// # Errors
+/// Returns [`BesselError::NegativeInputForYFunction`] if `x < 0.0`.
+///
 /// # Special cases
 /// - `yn(n, +∞) = 0`
 /// - `yn(n ≥ 0, 0) = −∞`

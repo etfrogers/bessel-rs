@@ -169,6 +169,15 @@ pub use types::{BesselError, BesselFloat, BesselInput, SequenceInfo};
 /// # Arguments
 /// * `order` - The order of the Bessel function (can be non-integer).
 /// * `z` - The complex or real argument.
+///
+/// # Errors
+/// Returns [`BesselError`] if the calculation cannot be completed:
+/// * [`BesselError::ComplexOutputForRealInput`] if `z` is a real float but the result has a
+///   non-negligible imaginary part.
+/// * Numerical failure due to overflow ([`BesselError::Overflow`]), non-convergence
+///   ([`BesselError::DidNotConverge`]), or complete loss of significance ([`BesselError::LossOfSignificance`]).
+///
+/// See [`BesselError`] for descriptions of all variants.
 pub fn bessel_j<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -181,6 +190,15 @@ pub fn bessel_j<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// # Arguments
 /// * `order` - The order of the Bessel function.
 /// * `z` - The complex or real argument.
+///
+/// # Errors
+/// Returns [`BesselError`] if the calculation cannot be completed:
+/// * [`BesselError::ComplexOutputForRealInput`] if `z` is a real float but the result has a
+///   non-negligible imaginary part.
+/// * Numerical failure due to overflow ([`BesselError::Overflow`]), non-convergence
+///   ([`BesselError::DidNotConverge`]), or complete loss of significance ([`BesselError::LossOfSignificance`]).
+///
+/// See [`BesselError`] for descriptions of all variants.
 pub fn bessel_i<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -193,6 +211,15 @@ pub fn bessel_i<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// # Arguments
 /// * `order` - The order of the Bessel function.
 /// * `z` - The complex or real argument.
+///
+/// # Errors
+/// Returns [`BesselError`] if the calculation cannot be completed:
+/// * [`BesselError::ComplexOutputForRealInput`] if `z` is a real float but the result has a
+///   non-negligible imaginary part.
+/// * Numerical failure due to overflow ([`BesselError::Overflow`]), non-convergence
+///   ([`BesselError::DidNotConverge`]), or complete loss of significance ([`BesselError::LossOfSignificance`]).
+///
+/// See [`BesselError`] for descriptions of all variants.
 pub fn bessel_k<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -205,6 +232,15 @@ pub fn bessel_k<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// # Arguments
 /// * `order` - The order of the Bessel function.
 /// * `z` - The complex or real argument.
+///
+/// # Errors
+/// Returns [`BesselError`] if the calculation cannot be completed:
+/// * [`BesselError::ComplexOutputForRealInput`] if `z` is a real float but the result has a
+///   non-negligible imaginary part (such as for negative real arguments).
+/// * Numerical failure due to overflow ([`BesselError::Overflow`]), non-convergence
+///   ([`BesselError::DidNotConverge`]), or complete loss of significance ([`BesselError::LossOfSignificance`]).
+///
+/// See [`BesselError`] for descriptions of all variants.
 pub fn bessel_y<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -218,6 +254,15 @@ pub fn bessel_y<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 /// * `order` - The order of the Hankel function.
 /// * `z` - The complex or real argument.
 /// * `kind` - The kind of Hankel function (First or Second).
+///
+/// # Errors
+/// Returns [`BesselError`] if the calculation cannot be completed:
+/// * [`BesselError::ComplexOutputForRealInput`] if `z` is a real float but the result has a
+///   non-negligible imaginary part.
+/// * Numerical failure due to overflow ([`BesselError::Overflow`]), non-convergence
+///   ([`BesselError::DidNotConverge`]), or complete loss of significance ([`BesselError::LossOfSignificance`]).
+///
+/// See [`BesselError`] for descriptions of all variants.
 pub fn hankel<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
     order: OT,
     z: ZT,
@@ -231,6 +276,15 @@ pub fn hankel<FT: BesselFloat, ZT: BesselInput<FT>, OT: Into<FT>>(
 }
 
 /// Computes the Airy function Ai(z).
+///
+/// # Errors
+/// Returns [`BesselError`] if the calculation cannot be completed:
+/// * [`BesselError::ComplexOutputForRealInput`] if `z` is a real float but the result has a
+///   non-negligible imaginary part.
+/// * Numerical failure due to overflow ([`BesselError::Overflow`]), non-convergence
+///   ([`BesselError::DidNotConverge`]), or complete loss of significance ([`BesselError::LossOfSignificance`]).
+///
+/// See [`BesselError`] for descriptions of all variants.
 pub fn airy<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
     complex_airy(z.into(), false, Scaling::Unscaled)
         .map(|x| x.0)
@@ -238,6 +292,15 @@ pub fn airy<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselErr
 }
 
 /// Computes the derivative of the Airy function Ai'(z).
+///
+/// # Errors
+/// Returns [`BesselError`] if the calculation cannot be completed:
+/// * [`BesselError::ComplexOutputForRealInput`] if `z` is a real float but the result has a
+///   non-negligible imaginary part.
+/// * Numerical failure due to overflow ([`BesselError::Overflow`]), non-convergence
+///   ([`BesselError::DidNotConverge`]), or complete loss of significance ([`BesselError::LossOfSignificance`]).
+///
+/// See [`BesselError`] for descriptions of all variants.
 pub fn airyp<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
     complex_airy(z.into(), true, Scaling::Unscaled)
         .map(|x| x.0)
@@ -245,6 +308,15 @@ pub fn airyp<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselEr
 }
 
 /// Computes the Airy function of the second kind Bi(z).
+///
+/// # Errors
+/// Returns [`BesselError`] if the calculation cannot be completed:
+/// * [`BesselError::ComplexOutputForRealInput`] if `z` is a real float but the result has a
+///   non-negligible imaginary part.
+/// * Numerical failure due to overflow ([`BesselError::Overflow`]), non-convergence
+///   ([`BesselError::DidNotConverge`]), or complete loss of significance ([`BesselError::LossOfSignificance`]).
+///
+/// See [`BesselError`] for descriptions of all variants.
 pub fn airy_b<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
     complex_airy_b(z.into(), false, Scaling::Unscaled)
         .map(|x| x.0)
@@ -252,6 +324,15 @@ pub fn airy_b<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselE
 }
 
 /// Computes the derivative of the Airy function of the second kind Bi'(z).
+///
+/// # Errors
+/// Returns [`BesselError`] if the calculation cannot be completed:
+/// * [`BesselError::ComplexOutputForRealInput`] if `z` is a real float but the result has a
+///   non-negligible imaginary part.
+/// * Numerical failure due to overflow ([`BesselError::Overflow`]), non-convergence
+///   ([`BesselError::DidNotConverge`]), or complete loss of significance ([`BesselError::LossOfSignificance`]).
+///
+/// See [`BesselError`] for descriptions of all variants.
 pub fn airy_bp<FT: BesselFloat, ZT: BesselInput<FT>>(z: ZT) -> Result<ZT, BesselError<FT>> {
     complex_airy_b(z.into(), true, Scaling::Unscaled)
         .map(|x| x.0)
