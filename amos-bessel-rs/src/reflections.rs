@@ -109,7 +109,7 @@ impl UnderflowLocation {
     }
 }
 
-pub(crate) trait ReflectableBessel<T: BesselFloat> {
+pub(crate) trait ReflectableBessel<T: BesselFloat>: Copy {
     /// Location where zeros appear upon underflow (Start or End).
     const UNDERFLOW_LOCATION: UnderflowLocation;
 
@@ -142,11 +142,17 @@ pub(crate) trait ReflectableBessel<T: BesselFloat> {
     fn reflect_int(&self, order: i64, primary: Complex<T>) -> Complex<T>;
 }
 
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct BesselJ;
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct BesselY;
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct BesselI;
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct BesselK;
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct Hankel(pub HankelKind);
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct NoSecondary;
 
 impl<T: BesselFloat> ReflectableBessel<T> for NoSecondary {
