@@ -50,7 +50,12 @@
 //! assert_eq!(zeros.len(), 5);
 //! ```
 
-#![warn(missing_docs, clippy::all)]
+#![warn(missing_docs, clippy::all, clippy::pedantic)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_precision_loss
+)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[macro_use]
@@ -85,8 +90,8 @@ pub enum BesselFunType {
 }
 
 impl BesselFunType {
-    pub(crate) fn is_non_derivative(&self) -> bool {
-        *self == BesselFunType::J || *self == BesselFunType::Y
+    pub(crate) fn is_non_derivative(self) -> bool {
+        self == BesselFunType::J || self == BesselFunType::Y
     }
 }
 
@@ -153,9 +158,9 @@ pub fn bessel_zeros<OT: Into<f64>>(
     }
     assert!(
         order_f64 >= 0.0,
-        "AMOS-backed bessel_zeros requires order >= 0.0 or integer order"
+        "bessel_zeros requires order >= 0.0 or integer order"
     );
-    bessel_zeros_impl::<AmosBackend>(&kind, order_f64, n_zeros, precision)
+    bessel_zeros_impl::<AmosBackend>(kind, order_f64, n_zeros, precision)
 }
 
 /// Fast Bessel zero computation using the `real-bessel` backend.
@@ -182,24 +187,28 @@ pub mod fast {
 
     /// Finds the first `n_zeros` zeros of Jn(x) using the fast real-bessel backend.
     /// Order must be an integer (`i32`).
+    #[must_use]
     pub fn bessel_zeros_j(order: i32, n_zeros: usize) -> Vec<f64> {
         bessel_zeros(BesselFunType::J, order, n_zeros, DEFAULT_PRECISION)
     }
 
     /// Finds the first `n_zeros` zeros of Yn(x) using the fast real-bessel backend.
     /// Order must be an integer (`i32`).
+    #[must_use]
     pub fn bessel_zeros_y(order: i32, n_zeros: usize) -> Vec<f64> {
         bessel_zeros(BesselFunType::Y, order, n_zeros, DEFAULT_PRECISION)
     }
 
     /// Finds the first `n_zeros` zeros of Jn'(x) using the fast real-bessel backend.
     /// Order must be an integer (`i32`).
+    #[must_use]
     pub fn bessel_zeros_jp(order: i32, n_zeros: usize) -> Vec<f64> {
         bessel_zeros(BesselFunType::JP, order, n_zeros, DEFAULT_PRECISION)
     }
 
     /// Finds the first `n_zeros` zeros of Yn'(x) using the fast real-bessel backend.
     /// Order must be an integer (`i32`).
+    #[must_use]
     pub fn bessel_zeros_yp(order: i32, n_zeros: usize) -> Vec<f64> {
         bessel_zeros(BesselFunType::YP, order, n_zeros, DEFAULT_PRECISION)
     }
@@ -215,12 +224,13 @@ pub mod fast {
     /// * `order`     - The order (must be a non-negative integer).
     /// * `n_zeros`   - Number of zeros to return.
     /// * `precision` - Relative error tolerance on each root.
+    #[must_use]
     pub fn bessel_zeros(
         kind: super::BesselFunType,
         order: i32,
         n_zeros: usize,
         precision: f64,
     ) -> Vec<f64> {
-        bessel_zeros_impl::<RealBackend>(&kind, (order as f64).abs(), n_zeros, precision)
+        bessel_zeros_impl::<RealBackend>(kind, f64::from(order).abs(), n_zeros, precision)
     }
 }

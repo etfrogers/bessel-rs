@@ -1,4 +1,4 @@
-#![allow(clippy::excessive_precision)]
+#![allow(clippy::excessive_precision, clippy::unreadable_literal)]
 
 //! Bessel function of the first and second kinds of order one.
 
@@ -95,6 +95,7 @@ use crate::{BesselError, TWO_129, TWO_M27, TWO_M54, prelude::*};
 /// // Decays toward zero for large x
 /// assert_eq!(j1(f64::INFINITY), 0.0);
 /// ```
+#[must_use]
 pub fn j1(x: f64) -> f64 {
     // const TwoM27:f64  = 1.0 / (1 << 27); // 2**-27 0x3e40000000000000
     // const Two129:f64  = 1 << 129        // 2**129 0x4800000000000000

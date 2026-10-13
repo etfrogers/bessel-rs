@@ -18,8 +18,9 @@ use crate::backend::BesselBackend;
 
 /// Finds the first `n_zeros` zeros of the specified Bessel function using
 /// backend `B` for function evaluations inside the Newton iteration.
+#[allow(clippy::many_single_char_names, clippy::too_many_lines)]
 pub(crate) fn bessel_zeros_impl<B: BesselBackend>(
-    func_type: &BesselFunType,
+    func_type: BesselFunType,
     order: f64,
     n_zeros: usize,
     precision: f64,
@@ -40,6 +41,7 @@ pub(crate) fn bessel_zeros_impl<B: BesselBackend>(
         p = 7.0 * mu - 31.0;
         p0 = mu - 1.0;
 
+        #[allow(clippy::float_cmp)]
         if (1.0 + p) == p {
             p1 = 0.0;
             q1 = 0.0;
@@ -50,17 +52,18 @@ pub(crate) fn bessel_zeros_impl<B: BesselBackend>(
     } else {
         p = 7.0 * mu2 + 82.0 * mu - 9.0;
         p0 = mu + 3.0;
+        #[allow(clippy::float_cmp)]
         if (p + 1.0) == 1.0 {
             p1 = 0.0;
             q1 = 0.0;
         } else {
-            p1 = (4048.0 * mu4 + 131264.0 * mu3 - 221984.0 * mu2 - 417600.0 * mu + 1012176.0)
+            p1 = (4048.0 * mu4 + 131_264.0 * mu3 - 221_984.0 * mu2 - 417_600.0 * mu + 1_012_176.0)
                 / (60.0 * p);
             q1 = 1.6 * (83.0 * mu3 + 2075.0 * mu2 - 3039.0 * mu + 3537.0) / p;
         }
     }
 
-    let t = if (*func_type == BesselFunType::J) || (*func_type == BesselFunType::YP) {
+    let t = if (func_type == BesselFunType::J) || (func_type == BesselFunType::YP) {
         0.25
     } else {
         0.75
@@ -89,12 +92,12 @@ pub(crate) fn bessel_zeros_impl<B: BesselBackend>(
         let sf = s as f64;
         let mut x: f64;
         let mut w: f64 = 0.0;
-        if (order_int == 0) && (s == 1) && (*func_type == BesselFunType::JP) {
+        if (order_int == 0) && (s == 1) && (func_type == BesselFunType::JP) {
             x = 0.0;
         } else {
             if (s as i64) >= a1 {
                 let b = (sf + 0.5 * order - t) * PI;
-                let c = 0.015625 / (b * b);
+                let c = 0.015_625 / (b * b);
                 x = b - 0.125 * (p0 - p1 * c) / (b * (1.0 - q1 * c));
             } else {
                 if s == 1 {
@@ -183,7 +186,7 @@ fn fi(y: f64) -> f64 {
 }
 
 /// Evaluates the ratio used in the Newton step, dispatching to backend `B`.
-fn bessr<B: BesselBackend>(fun_type: &BesselFunType, order: f64, z: f64) -> f64 {
+fn bessr<B: BesselBackend>(fun_type: BesselFunType, order: f64, z: f64) -> f64 {
     match fun_type {
         BesselFunType::J => {
             let (jn, jnp1) = B::j_pair(order, z);

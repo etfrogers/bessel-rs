@@ -1,4 +1,5 @@
-#![warn(missing_docs, clippy::all)]
+#![warn(missing_docs, clippy::all, clippy::pedantic)]
+#![allow(clippy::many_single_char_names)]
 //! Real-valued Bessel functions of the first and second kinds.
 //!
 //! This crate provides `j0`, `j1`, `jn`, `y0`, `y1` and `yn` for integer
@@ -57,9 +58,15 @@ pub use j1::y1;
 pub use jn::jn;
 pub use jn::yn;
 
+#[allow(clippy::cast_precision_loss)]
 pub(crate) const TWO_M13: f64 = 1.0 / (1 << 13) as f64; // 2**-13 0x3f20000000000000
+#[allow(clippy::cast_precision_loss)]
 pub(crate) const TWO_M27: f64 = 1.0 / (1 << 27) as f64; // 2**-27 0x3e40000000000000
+#[allow(clippy::cast_precision_loss)]
 pub(crate) const TWO_M29: f64 = 1.0 / (1 << 29) as f64; // 2**-29
+#[allow(clippy::cast_precision_loss)]
 pub(crate) const TWO_M54: f64 = 1.0 / (1_u64 << 54) as f64; // 2**-54 0x3c90000000000000
+#[allow(clippy::cast_precision_loss)]
 pub(crate) const TWO_129: f64 = 6.805_647_338_418_77e38; // 2**129 0x4800000000000000
+#[allow(clippy::cast_precision_loss)]
 pub(crate) const TWO_302: f64 = 8.148_143_905_337_944e90; // 2**302 0x52D0000000000000
