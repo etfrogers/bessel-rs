@@ -76,8 +76,8 @@ pub(crate) fn reflect_i_element<T: BesselFloat>(
     let k_scaled = match scaling {
         Scaling::Unscaled => k,
         Scaling::Scaled => {
-            let x = z.re;
-            let r = -x.abs() - x; // <= 0 for all x
+            let z_re = z.re;
+            let r = -z_re.abs() - z_re; // <= 0 for all x
             let mc = T::MACHINE_CONSTANTS;
             if -r > mc.exponent_limit {
                 Complex::<T>::ZERO
@@ -495,7 +495,7 @@ trait ZipOptionExt: Iterator + Sized {
         self,
         mut maybe_iter: Option<J>,
     ) -> impl Iterator<Item = (Self::Item, Option<J::Item>)> {
-        self.map(move |val| (val, maybe_iter.as_mut().and_then(|it| it.next())))
+        self.map(move |val| (val, maybe_iter.as_mut().and_then(Iterator::next)))
     }
 }
 

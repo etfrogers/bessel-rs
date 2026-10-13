@@ -1,7 +1,7 @@
 use num::complex::{Complex, ComplexFloat};
 
 use crate::{
-    BesselError, BesselFloat, Scaling,
+    BesselFloat, Scaling,
     amos::{
         MachineConsts, gamma_ln,
         utils::{two_over_z_safe, will_underflow},
@@ -22,7 +22,7 @@ pub fn i_power_series<T: BesselFloat>(
     order: T,
     scaling: Scaling,
     out: &mut [Complex<T>],
-) -> Result<isize, BesselError<T>> {
+) -> isize {
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
     let mut n_zeros = 0;
     let abs_z = z.abs();
@@ -42,7 +42,7 @@ pub fn i_power_series<T: BesselFloat>(
                 n_zeros -= 1;
             }
         }
-        return Ok(n_zeros);
+        return n_zeros;
     }
 
     let mut scale_factor = T::one();
@@ -78,7 +78,7 @@ pub fn i_power_series<T: BesselFloat>(
                 n_zeros += 1;
                 out[k] = T::C_ZERO;
                 if abs_half_z_sq > current_order {
-                    return Ok(-n_zeros);
+                    return -n_zeros;
                 }
                 continue;
             }
@@ -93,15 +93,15 @@ pub fn i_power_series<T: BesselFloat>(
 
             let mut coeff = ln_leading_term.exp();
             if near_underflow {
-                coeff *= mc.rtol
-            };
+                coeff *= mc.rtol;
+            }
             let s1 = single_n_iteration(current_order, half_z_sq, abs_half_z_sq, mc);
             let s2 = s1 * coeff;
             if near_underflow && will_underflow(s2, mc) {
                 n_zeros += 1;
                 out[k] = T::C_ZERO;
                 if abs_half_z_sq > current_order {
-                    return Ok(-n_zeros);
+                    return -n_zeros;
                 }
                 continue;
             }
@@ -133,7 +133,7 @@ pub fn i_power_series<T: BesselFloat>(
             }
         }
     }
-    Ok(n_zeros)
+    n_zeros
 }
 
 #[inline]

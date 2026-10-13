@@ -1,7 +1,7 @@
 use num::{Complex, complex::ComplexFloat};
 
 use crate::{
-    BesselError::{self, *},
+    BesselError::{self, Overflow},
     BesselFloat, Scaling,
     amos::{
         ComplexExt, HankelKind, IKType, MachineConsts, RotationDirection,
@@ -74,8 +74,8 @@ pub(crate) fn complex_bessel_h<T: BesselFloat>(
                         Err(Overflow)
                     } else {
                         Ok(SequenceInfo {
-                            partial_loss_of_significance,
                             n_zeros,
+                            partial_loss_of_significance,
                         })
                     };
                 }
@@ -122,16 +122,15 @@ pub(crate) fn complex_bessel_h<T: BesselFloat>(
     // where zₜ = exp(-i·fmm·π/2) = -i·fmm, fmm = 3 - 2m.
     // Notice that -(i/(π/2))·zₜᵛ = (2/π)·zₜ^{ν+1} where zₜ = exp(i·π·rotation_sign).
     let rotation_sign = -T::HALF * T::from_f64(rotation.signum());
-    let mut phase_multiplier =
-        from_polar_pi(T::FRAC_2_PI(), (order + T::ONE) * rotation_sign);
+    let mut phase_multiplier = from_polar_pi(T::FRAC_2_PI(), (order + T::ONE) * rotation_sign);
 
     for yi in out.iter_mut().take(n - n_zeros) {
         *yi = safe_multiply(*yi, phase_multiplier, mc);
         phase_multiplier *= rotation_factor;
     }
     Ok(SequenceInfo {
-        partial_loss_of_significance,
         n_zeros,
+        partial_loss_of_significance,
     })
 }
 
@@ -179,8 +178,8 @@ pub(crate) fn complex_bessel_i<T: BesselFloat>(
     }
 
     Ok(SequenceInfo {
-        partial_loss_of_significance,
         n_zeros,
+        partial_loss_of_significance,
     })
 }
 
@@ -224,8 +223,8 @@ pub(crate) fn complex_bessel_j<T: BesselFloat>(
         phase_multiplier *= T::I * sign_selector;
     }
     Ok(SequenceInfo {
-        partial_loss_of_significance,
         n_zeros,
+        partial_loss_of_significance,
     })
 }
 
@@ -272,8 +271,8 @@ pub(crate) fn complex_bessel_k<T: BesselFloat>(
 
         let n_zeros = k_asymp_large_order(z, order, scaling, rotation, out)?;
         return Ok(SequenceInfo {
-            partial_loss_of_significance,
             n_zeros,
+            partial_loss_of_significance,
         });
     }
 
@@ -287,8 +286,8 @@ pub(crate) fn complex_bessel_k<T: BesselFloat>(
                 Err(Overflow)
             } else {
                 Ok(SequenceInfo {
-                    partial_loss_of_significance,
                     n_zeros,
+                    partial_loss_of_significance,
                 })
             };
         }
@@ -317,8 +316,8 @@ pub(crate) fn complex_bessel_k<T: BesselFloat>(
         analytic_continuation(z, order, scaling, rotation, out)?
     };
     Ok(SequenceInfo {
-        partial_loss_of_significance,
         n_zeros,
+        partial_loss_of_significance,
     })
 }
 
@@ -393,11 +392,13 @@ pub(crate) fn complex_bessel_y<T: BesselFloat>(
         });
 
     if z.im < T::ZERO {
-        out.iter_mut().for_each(|v| *v = v.conj());
+        for v in out.iter_mut() {
+            *v = v.conj();
+        }
     }
     Ok(SequenceInfo {
-        partial_loss_of_significance,
         n_zeros,
+        partial_loss_of_significance,
     })
 }
 
@@ -556,8 +557,8 @@ pub fn complex_airy<T: BesselFloat>(
     Ok((
         y,
         SequenceInfo {
-            partial_loss_of_significance,
             n_zeros,
+            partial_loss_of_significance,
         },
     ))
 }

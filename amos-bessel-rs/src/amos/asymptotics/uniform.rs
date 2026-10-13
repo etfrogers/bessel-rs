@@ -435,7 +435,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
 
                 let will_underflow = will_underflow(bessel_value, mc);
                 if k_overflow_state != OverflowState::NearUnder || !will_underflow {
-                    i_recurrence_seeds[found_one_good_seed as usize] = bessel_value;
+                    i_recurrence_seeds[usize::from(found_one_good_seed)] = bessel_value;
                     out[i] = bessel_value * k_overflow_state.reciprocal_scaling_factor::<T>(mc);
                     if found_one_good_seed {
                         // if we already found one, we've now found another so break out of the loop
@@ -450,11 +450,11 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
                     n_zeros += 1;
                     if i > 0 && out[i - 1] != T::C_ZERO {
                         out[i - 1] = T::C_ZERO;
-                        n_zeros += 1
+                        n_zeros += 1;
                     }
                 }
             }
-        };
+        }
     }
 
     let two_over_z = two_over_z_safe(z_right_half);
@@ -558,7 +558,7 @@ pub(crate) fn k_uniform_asymp1<T: BesselFloat>(
                 i_bessel_value
             }
         };
-        i_recurrence_seeds[found_one_good_entry as usize] = i_bessel_value;
+        i_recurrence_seeds[usize::from(found_one_good_entry)] = i_bessel_value;
         let underflowed = i_bessel_value == T::C_ZERO;
         i_bessel_value *= i_overflow_state.reciprocal_scaling_factor::<T>(mc);
         // Handle the underflow of I + K and combine them for the continuation
@@ -708,7 +708,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
         match overflow {
             OverflowState::Over { .. } => return Err(BesselError::Overflow),
             OverflowState::Under { .. } => {
-                handle_underflow(&mut found_one_good_entry, &mut h2_to_k_factor)?
+                handle_underflow(&mut found_one_good_entry, &mut h2_to_k_factor)?;
             }
             OverflowState::NearOver | OverflowState::NearUnder | OverflowState::None => {
                 let rotated_airy_arg = h2_airy_rotation * arg;
@@ -721,12 +721,12 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
                 if k_overflow_state == OverflowState::NearUnder
                     && will_underflow(k_bessel_value, mc)
                 {
-                    handle_underflow(&mut found_one_good_entry, &mut h2_to_k_factor)?
+                    handle_underflow(&mut found_one_good_entry, &mut h2_to_k_factor)?;
                 }
                 if z_was_flipped_up {
                     k_bessel_value = k_bessel_value.conj();
                 }
-                i_recurrence_seeds[found_one_good_entry as usize] = k_bessel_value;
+                i_recurrence_seeds[usize::from(found_one_good_entry)] = k_bessel_value;
                 out[i] = k_bessel_value * k_overflow_state.reciprocal_scaling_factor::<T>(mc);
                 h2_to_k_factor = -T::I * h2_to_k_factor;
                 if found_one_good_entry {
@@ -734,7 +734,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
                 }
                 found_one_good_entry = true;
             }
-        };
+        }
     }
 
     let two_over_z = two_over_z_safe(z_right_half);
@@ -795,8 +795,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
     // the asymptotic expansion for J_v(-iz). The variable `j_to_continuation_i_factor`
     // computes the combined transformation coefficient (±iπ * e^{i v π/2}) that maps
     // the un-rotated J_v(-iz) Airy sum directly into the final ±iπ I_v(z) term.
-    let mut j_to_continuation_i_factor =
-        (signed_pi * T::I) * cis_pi(modified_order * T::HALF);
+    let mut j_to_continuation_i_factor = (signed_pi * T::I) * cis_pi(modified_order * T::HALF);
 
     found_one_good_entry = false;
     let mut i_overflow_state = OverflowState::None;
@@ -864,7 +863,7 @@ pub(crate) fn k_uniform_asymp2<T: BesselFloat>(
         if z_was_flipped_up {
             i_bessel_value = i_bessel_value.conj();
         }
-        i_recurrence_seeds[found_one_good_entry as usize] = i_bessel_value;
+        i_recurrence_seeds[usize::from(found_one_good_entry)] = i_bessel_value;
 
         let underflowed = i_bessel_value == T::C_ZERO;
         i_bessel_value *= i_overflow_state.reciprocal_scaling_factor::<T>(mc);

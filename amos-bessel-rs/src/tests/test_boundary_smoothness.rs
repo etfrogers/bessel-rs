@@ -97,7 +97,7 @@ fn asymptotic_order_limit() -> f64 {
 /// Amos parameter R2: boundary separating heuristic Miller truncation
 /// from forward recurrence loop (≈ 28.666_666_666_666_668).
 fn recurrence_threshold() -> f64 {
-    let bits = (f64::MANTISSA_DIGITS - 1).clamp(12, 60) as f64;
+    let bits = f64::from((f64::MANTISSA_DIGITS - 1).clamp(12, 60));
     (2.0 / 3.0) * bits - 6.0
 }
 
@@ -143,6 +143,7 @@ where
 
 /// Verifies that a function is C¹ smooth across a Cartesian boundary line (e.g. Re(z)=0 or Im(z)=0).
 /// Steps by ±delta along `direction` and compares the directional slope against the analytical derivative.
+#[allow(clippy::similar_names)]
 fn assert_directional_smoothness<F, DF>(
     func: F,
     deriv: DF,

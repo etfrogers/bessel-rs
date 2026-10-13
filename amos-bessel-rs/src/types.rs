@@ -390,6 +390,7 @@ impl<T: BesselFloat> ScratchBuffer<T, DEFAULT_SBO_CAP> {
 
 impl<T: BesselFloat, const CAP: usize> ScratchBuffer<T, CAP> {
     #[inline]
+    #[allow(clippy::unnecessary_wraps)]
     pub fn with_capacity(n: usize) -> Result<Self, BesselError<T>> {
         if n <= CAP {
             Ok(ScratchBuffer::Stack([T::C_ZERO; CAP], n))

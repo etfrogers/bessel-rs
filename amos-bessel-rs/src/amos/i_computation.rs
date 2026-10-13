@@ -130,7 +130,7 @@ pub(crate) fn i_miller<T: BesselFloat>(
     // Dividing our unscaled sequence by this sum exactly normalises the whole array.
     let start_index =
         (series_trunctation_index + int_abs_z).max(ratio_truncation_index + modified_int_order);
-    let mut kk_float = T::from_f64(start_index as f64);
+    let mut kk_float = T::from_usize(start_index);
     let mut val_k_plus_one = T::C_ZERO;
     // Initialize the recurrence starting values and scale them to avoid underflow
     let mut val_k = Complex::<T>::new(scale, T::ZERO);
@@ -310,6 +310,7 @@ pub(crate) fn i_ratios<T: BesselFloat>(z: Complex<T>, order: T, out: &mut [Compl
         // We don't care about absolute values, only the ratio of the top two terms.
         let n_backward_steps = n_steps + 1 - index_difference;
         let modified_order = order + T::from_usize(n - 1);
+
         for k in (1..=n_backward_steps as usize).rev() {
             (val_k, val_k_plus_1) = (
                 val_k * (two_over_z * (modified_order + T::from_usize(k))) + val_k_plus_1,
@@ -352,7 +353,7 @@ pub(crate) fn i_wronskian<T: BesselFloat>(
 ) -> Result<usize, BesselError<T>> {
     let n = out.len();
     let mc: &MachineConsts<T> = T::MACHINE_CONSTANTS;
-    match check_underflow_uniform_asymp_params(
+    if let Ok(n_underflow) = check_underflow_uniform_asymp_params(
         z,
         order,
         scaling,
@@ -361,15 +362,12 @@ pub(crate) fn i_wronskian<T: BesselFloat>(
         &mut [T::C_ONE; 2],
         mc,
     ) {
-        Ok(n_underflow) => {
-            if n_underflow > 0 {
-                return Err(BesselError::Overflow);
-            }
+        if n_underflow > 0 {
+            return Err(BesselError::Overflow);
         }
-        Err(_) => {
-            out.fill(T::C_ZERO);
-            return Ok(n);
-        }
+    } else {
+        out.fill(T::C_ZERO);
+        return Ok(n);
     }
 
     // 1. Compute K_nu and K_{nu+1} to serve as Wronskian anchors

@@ -1,4 +1,12 @@
-#![warn(missing_docs, clippy::all)]
+#![warn(missing_docs, clippy::all, clippy::pedantic)]
+#![allow(
+    clippy::doc_markdown,
+    clippy::too_many_lines,
+    clippy::cast_possible_wrap,
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
 //! # amos-bessel-rs: Bessel functions in pure Rust
 //!
 //! A crate implementing pure Rust translations of [Amos' complex

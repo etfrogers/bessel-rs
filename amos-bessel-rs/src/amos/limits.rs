@@ -72,7 +72,7 @@ impl OverflowState {
     }
 
     // Originally mc.scaling_factors[overflow_state]
-    pub fn scaling_factor<T: BesselFloat>(&self, mc: &MachineConsts<T>) -> T {
+    pub fn scaling_factor<T: BesselFloat>(self, mc: &MachineConsts<T>) -> T {
         match self {
             OverflowState::NearUnder => mc.rtol,
             OverflowState::None => T::ONE,
@@ -82,7 +82,7 @@ impl OverflowState {
     }
 
     // Originally mc.reciprocal_scaling_factors[overflow_state]
-    pub fn reciprocal_scaling_factor<T: BesselFloat>(&self, mc: &MachineConsts<T>) -> T {
+    pub fn reciprocal_scaling_factor<T: BesselFloat>(self, mc: &MachineConsts<T>) -> T {
         match self {
             OverflowState::NearUnder => mc.abs_error_tolerance,
             OverflowState::None => T::ONE,
@@ -92,7 +92,7 @@ impl OverflowState {
     }
 
     // Originally mc.overflow_boundary[overflow_state]
-    pub fn boundary<T: BesselFloat>(&self, mc: &MachineConsts<T>) -> T {
+    pub fn boundary<T: BesselFloat>(self, mc: &MachineConsts<T>) -> T {
         match self {
             OverflowState::NearUnder => mc.absolute_approximation_limit,
             OverflowState::None => T::ONE / mc.absolute_approximation_limit,

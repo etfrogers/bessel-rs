@@ -98,10 +98,9 @@ pub(crate) fn airy_pair<T: BesselFloat>(z: Complex<T>) -> (Complex<T>, Complex<T
             // which is usually ~=0. As long as it is << d_airy, the logic below means
             // it will not matter what the precise value is
             Err(BesselError::LossOfSignificance) => T::C_ZERO,
-            Err(err) => panic!(
-                "An error {:?} was generated, which is not handled by the Amos code",
-                err
-            ),
+            Err(err) => {
+                panic!("An error {err:?} was generated, which is not handled by the Amos code")
+            }
         };
     (
         evaluate_airy_and_unwrap(false),

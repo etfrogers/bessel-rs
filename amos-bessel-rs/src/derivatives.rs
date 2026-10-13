@@ -541,10 +541,9 @@ fn derivative_internal<T: BesselFloat>(
 
     let mut sum = T::C_ZERO;
     for n in 0..=k {
-        let n_choose_k = T::from_f64(binomial(k as u64, n as u64) as f64);
+        let n_choose_k = T::from_usize(binomial(k, n));
         let sign = match sign_type {
-            SignType::I => T::ONE,
-            SignType::K => T::ONE,
+            SignType::I | SignType::K => T::ONE,
             SignType::Cylinder => integer_sign::<T>(n as i64),
         };
         let v = buf[n * 2];

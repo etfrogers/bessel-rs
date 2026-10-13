@@ -113,8 +113,8 @@ const COEFFS: [f64; 22] = [
 
 const INT_GAMMA_LOG_DATA: [f64; 101] = [
     0.0, // value at GLN[0] - can never be reached.
-    0.00000000000000000e+00,
-    0.00000000000000000e+00,
+    0.0,
+    0.0,
     f64::consts::LN_2,
     1.791_759_469_228_055,
     3.178_053_830_347_945_8,

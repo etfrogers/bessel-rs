@@ -228,7 +228,7 @@ pub(crate) fn scale_controlled_recurrence<T: BesselFloat>(
     }
 }
 
-#[inline(always)]
+#[inline]
 #[allow(clippy::too_many_arguments)]
 fn run_recurrence_core<T: BesselFloat, I: Iterator<Item = usize>, F: FnMut(usize, Complex<T>)>(
     iter: I,

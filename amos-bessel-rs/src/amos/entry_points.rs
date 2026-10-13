@@ -285,6 +285,7 @@ pub fn complex_bessel_y_into<T: BesselFloat>(
 
 #[cfg(feature = "alloc")]
 mod allocating {
+    #[allow(clippy::wildcard_imports)]
     use super::*;
     use alloc::vec::Vec;
 
