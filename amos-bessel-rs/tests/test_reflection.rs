@@ -1,3 +1,8 @@
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::used_underscore_binding,
+    clippy::cast_precision_loss
+)]
 use amos_bessel_rs::{
     BesselError, HankelKind, Scaling,
     amos::{
@@ -57,7 +62,7 @@ fn test_reflection_n_vs_loop(
             assert!(!info.partial_loss_of_significance);
 
             // 1. Total underflow count agreement with looped evaluation (allowing +/- 1 boundary tolerance)
-            let diff = (n_zeros as isize - sum_looped_nz as isize).abs();
+            let diff = (n_zeros.cast_signed() - sum_looped_nz.cast_signed()).abs();
             assert!(
                 diff <= 1,
                 "n_zeros mismatch: seq n_zeros={n_zeros}, sum looped={sum_looped_nz}, diff={diff} for order={order}, z={z}"
@@ -76,8 +81,7 @@ fn test_reflection_n_vs_loop(
             if n_zeros == n {
                 assert!(
                     y.iter().all(|&v| v == Complex::ZERO),
-                    "n_zeros == n, but not all elements in y are zero: {:?}",
-                    y
+                    "n_zeros == n, but not all elements in y are zero: {y:?}"
                 );
             }
         }
@@ -87,7 +91,8 @@ fn test_reflection_n_vs_loop(
 /// Tests exact spherical/half-integer closed forms for negative orders.
 /// These formulas evaluate directly with trigonometric and hyperbolic functions,
 /// completely independent of any reflection formulas.
-#[test]
+#[rstest]
+#[allow(clippy::similar_names)]
 fn test_half_integer_closed_forms() {
     let test_points = [
         Complex::new(1.5, 2.0),
@@ -176,7 +181,7 @@ fn test_half_integer_closed_forms() {
     }
 }
 
-/// Tests exact spherical/half-integer closed forms for negative orders with Scaling::Scaled.
+/// Tests exact spherical/half-integer closed forms for negative orders with `Scaling::Scaled`.
 #[test]
 fn test_half_integer_closed_forms_scaled() {
     let test_points = [
@@ -293,7 +298,7 @@ fn test_integer_limit_continuity() {
     let eps = 1e-7;
 
     for &n in &integer_orders {
-        let n_f64 = n as f64;
+        let n_f64 = f64::from(n);
         let sign = if n % 2 == 0 { 1.0 } else { -1.0 };
 
         for &z in &test_points {
@@ -415,8 +420,7 @@ fn test_reflection_partial_loss_of_significance(
     for (i, yi) in y.iter().enumerate() {
         let single_order = order + i as f64;
         let single_result = fun(z, single_order, scaling, 1);
-        let (single_y_vec, single_info) =
-            single_result.expect("Expected Ok for single evaluation");
+        let (single_y_vec, single_info) = single_result.expect("Expected Ok for single evaluation");
         assert!(single_info.partial_loss_of_significance);
         assert_eq!(single_info.n_zeros, 0);
         let single_y = single_y_vec[0];
@@ -460,7 +464,7 @@ fn test_k_negative_non_int_underflow_n_zeros() {
         n_zeros, count_exact_zeros,
         "n_zeros ({n_zeros}) must match exact zero count ({count_exact_zeros})"
     );
-    let diff = (n_zeros as isize - expected_underflows as isize).abs();
+    let diff = (n_zeros.cast_signed() - expected_underflows.cast_signed()).abs();
     assert!(
         diff <= 1,
         "n_zeros ({n_zeros}) should match looped underflow count ({expected_underflows}) within tolerance"
@@ -485,7 +489,7 @@ fn test_negative_zero_order() {
     );
 }
 
-/// Tests that sequence length n = 0 is rejected with InvalidInput for both
+/// Tests that sequence length n = 0 is rejected with `InvalidInput` for both
 /// positive and negative orders.
 #[test]
 fn test_zero_sequence_length_error() {
@@ -513,8 +517,8 @@ fn test_non_finite_inputs() {
     let _ = bessel_j(-f64::INFINITY, z);
 }
 
-/// Tests that Scaling::Scaled for negative orders matches the mathematical definition:
-/// f_scaled(z) = f_unscaled(z) * scale_factor(z).
+/// Tests that `Scaling::Scaled` for negative orders matches the mathematical definition:
+/// `f_scaled(z)` = `f_unscaled(z)` * `scale_factor(z)`.
 #[test]
 fn test_scaled_negative_orders_against_unscaled() {
     let test_points: [Complex<f64>; 7] = [
@@ -608,14 +612,14 @@ fn test_scaled_negative_orders_against_unscaled() {
 /// Tests three-term recurrence relations across negative orders for both Scaled and Unscaled.
 ///
 /// Recurrence identities from DLMF 10.6.1 and 10.29.1:
-/// - J_{ν-1}(z) + J_{ν+1}(z) = (2ν/z)·J_ν(z)
-/// - Y_{ν-1}(z) + Y_{ν+1}(z) = (2ν/z)·Y_ν(z)
-/// - I_{ν-1}(z) - I_{ν+1}(z) = (2ν/z)·I_ν(z)
-/// - K_{ν+1}(z) - K_{ν-1}(z) = (2ν/z)·K_ν(z)
+/// - J_{ν-1}(z) + J_{ν+1}(z) = (`2ν/z)·J_ν(z`)
+/// - Y_{ν-1}(z) + Y_{ν+1}(z) = (`2ν/z)·Y_ν(z`)
+/// - I_{ν-1}(z) - I_{ν+1}(z) = (`2ν/z)·I_ν(z`)
+/// - K_{ν+1}(z) - K_{ν-1}(z) = (`2ν/z)·K_ν(z`)
 ///
 /// For scaled functions, all three terms in each recurrence share the identical exponential
 /// factor (exp(-|Im(z)|) for J/Y, exp(-|Re(z)|) for I, and exp(z) for K), so the identity
-/// holds identically for both Scaling::Unscaled and Scaling::Scaled.
+/// holds identically for both `Scaling::Unscaled` and `Scaling::Scaled`.
 #[rstest]
 fn test_three_term_recurrence_negative_orders(
     #[values(Scaling::Unscaled, Scaling::Scaled)] scaling: Scaling,
@@ -669,10 +673,10 @@ fn test_three_term_recurrence_negative_orders(
 /// Tests the cross-order Wronskian relations (DLMF 10.5.2, 10.28.2, 10.5.5)
 /// for both Scaled and Unscaled functions across positive and negative orders:
 ///
-/// 1. J_{ν+1}(z)·Y_ν(z) - J_ν(z)·Y_{ν+1}(z) = 2 / (π·z)
+/// 1. J_{`ν+1}(z)·Y_ν(z)` - `J_ν(z)·Y`_{ν+1}(z) = 2 / (π·z)
 ///    When scaled by exp(-|Im(z)|), the RHS is multiplied by exp(-2·|Im(z)|).
 ///
-/// 2. I_ν(z)·K_{ν+1}(z) + I_{ν+1}(z)·K_ν(z) = 1 / z
+/// 2. `I_ν(z)·K`_{ν+1}(z) + I_{`ν+1}(z)·K_ν(z)` = 1 / z
 ///    When scaled (I by exp(-|Re(z)|) and K by exp(z)), the RHS is multiplied by
 ///    exp(-|Re(z)| + z) = exp(-|x| + x) · cis(y).
 ///
@@ -729,11 +733,12 @@ fn test_wronskian_cross_product_scaled_and_unscaled(
     }
 }
 
-#[test]
+#[rstest]
+#[allow(clippy::similar_names)]
 fn test_slice_into_apis_and_sequence_info() {
     use amos_bessel_rs::amos::{
-        complex_bessel_i_into, complex_bessel_j_into, complex_bessel_k_into,
-        complex_bessel_y_into, complex_hankel1_into, complex_hankel2_into,
+        complex_bessel_i_into, complex_bessel_j_into, complex_bessel_k_into, complex_bessel_y_into,
+        complex_hankel1_into, complex_hankel2_into,
     };
 
     let z = Complex::new(2.5, 1.5);
@@ -803,8 +808,7 @@ fn test_slice_into_apis_and_sequence_info() {
     // 3. Test PLOS reporting on _into slice
     let z_plos = Complex::new(50000.0, 0.0);
     let mut buf_plos = [Complex::ZERO; 5];
-    let info_plos =
-        complex_bessel_j_into(z_plos, -2.5, Scaling::Unscaled, &mut buf_plos).unwrap();
+    let info_plos = complex_bessel_j_into(z_plos, -2.5, Scaling::Unscaled, &mut buf_plos).unwrap();
     assert!(info_plos.partial_loss_of_significance);
     assert_eq!(info_plos.n_zeros, 0);
 
@@ -815,4 +819,3 @@ fn test_slice_into_apis_and_sequence_info() {
         Err(BesselError::InvalidInput { .. })
     ));
 }
-

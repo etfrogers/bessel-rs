@@ -1,3 +1,8 @@
+#![allow(
+    clippy::used_underscore_binding,
+    clippy::cast_possible_truncation,
+    clippy::unreadable_literal
+)]
 use rstest_reuse::template;
 
 use amos_bessel_rs::{bessel_j, bessel_y};
@@ -54,7 +59,7 @@ fn test_y1_against_amos(#[case] _order: f64, #[case] mut zr: f64, #[case] _zi: f
 #[apply(bessel_cases)]
 fn test_jn_against_amos(#[case] order: f64, #[case] zr: f64, #[case] _zi: f64) {
     let integer_order = order as i32;
-    let expected = unwrap_real_bessel!(bessel_j, integer_order as f64, zr);
+    let expected = unwrap_real_bessel!(bessel_j, f64::from(integer_order), zr);
     let actual = jn(integer_order, zr);
     assert_relative_eq!(actual, expected, epsilon = 1e-10,);
 }
@@ -64,7 +69,7 @@ fn test_yn_against_amos(#[case] order: f64, #[case] mut zr: f64, #[case] _zi: f6
     let integer_order = order as i32;
     let yn = |zr| yn(integer_order, zr);
     let actual = get_real_y_bessel!(yn, zr, return);
-    let expected = unwrap_real_bessel!(bessel_y, integer_order as f64, zr);
+    let expected = unwrap_real_bessel!(bessel_y, f64::from(integer_order), zr);
     if expected.is_nan() {
         assert!(
             actual.is_nan() || actual.is_infinite(),
@@ -135,7 +140,7 @@ fn test_jn_very_large_x(#[values(0, 1, 2, 3, 4, 5, 6, 7)] n: i32) {
 
     // Direct asymptotic formula: J_n(x) ≈ sqrt(2/πx) * cos(x - (2n+1)π/4)
     let amplitude = (2.0 / (std::f64::consts::PI * x)).sqrt();
-    let phase = x - ((2 * n + 1) as f64) * std::f64::consts::PI / 4.0;
+    let phase = x - f64::from(2 * n + 1) * std::f64::consts::PI / 4.0;
     let expected = amplitude * phase.cos();
 
     assert_relative_eq!(actual, expected, epsilon = 1e-10);
@@ -148,7 +153,7 @@ fn test_yn_very_large_x(#[values(0, 1, 2, 3, 4, 5, 6, 7)] n: i32) {
 
     // Direct asymptotic formula: Y_n(x) ≈ sqrt(2/πx) * sin(x - (2n+1)π/4)
     let amplitude = (2.0 / (std::f64::consts::PI * x)).sqrt();
-    let phase = x - ((2 * n + 1) as f64) * std::f64::consts::PI / 4.0;
+    let phase = x - f64::from(2 * n + 1) * std::f64::consts::PI / 4.0;
     let expected = amplitude * phase.sin();
 
     assert_relative_eq!(actual, expected, epsilon = 1e-10);

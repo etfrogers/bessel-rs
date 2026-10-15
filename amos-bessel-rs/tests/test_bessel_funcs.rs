@@ -1,3 +1,4 @@
+#![allow(clippy::used_underscore_binding)]
 extern crate fortran_amos_testing;
 mod common;
 use common::parametrisation::bessel_cases;

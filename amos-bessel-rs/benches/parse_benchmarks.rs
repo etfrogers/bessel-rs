@@ -16,8 +16,7 @@ fn parse_point_estimate(content: &str) -> Option<f64> {
 
 fn get_estimate(group: &str, func: &str, impl_name: &str, dataset: &str) -> Option<f64> {
     let path_str = format!(
-        "target/criterion/{}/{} ({})/{}/new/estimates.json",
-        group, func, impl_name, dataset
+        "target/criterion/{group}/{func} ({impl_name})/{dataset}/new/estimates.json"
     );
     let path = Path::new(&path_str);
     if let Ok(content) = fs::read_to_string(path) {
@@ -53,8 +52,7 @@ fn report_f32_vs_f64() {
                 total_speedup *= speedup;
                 count += 1;
                 println!(
-                    "{:<10} | {:<12} | {:<10.2} | {:<10.2} | {:.2}x",
-                    func, dataset, t_f32, t_f64, speedup
+                    "{func:<10} | {dataset:<12} | {t_f32:<10.2} | {t_f64:<10.2} | {speedup:.2}x"
                 );
             }
         }
@@ -62,10 +60,9 @@ fn report_f32_vs_f64() {
 
     if count > 0 {
         println!("{:-<68}", "");
-        let geom_mean = total_speedup.powf(1.0 / count as f64);
+        let geom_mean = total_speedup.powf(1.0 / f64::from(count));
         println!(
-            "Overall Geometric Mean Speedup (f32 over f64): {:.2}x\n",
-            geom_mean
+            "Overall Geometric Mean Speedup (f32 over f64): {geom_mean:.2}x\n"
         );
     } else {
         println!(
@@ -100,8 +97,7 @@ fn report_rust_vs_fortran() {
                 total_speedup *= speedup;
                 count += 1;
                 println!(
-                    "{:<10} | {:<12} | {:<10.2} | {:<14.2} | {:.2}x",
-                    func, dataset, t_rust, t_fortran, speedup
+                    "{func:<10} | {dataset:<12} | {t_rust:<10.2} | {t_fortran:<14.2} | {speedup:.2}x"
                 );
             }
         }
@@ -109,10 +105,9 @@ fn report_rust_vs_fortran() {
 
     if count > 0 {
         println!("{:-<68}", "");
-        let geom_mean = total_speedup.powf(1.0 / count as f64);
+        let geom_mean = total_speedup.powf(1.0 / f64::from(count));
         println!(
-            "Overall Geometric Mean Speedup (Rust over Fortran): {:.2}x\n",
-            geom_mean
+            "Overall Geometric Mean Speedup (Rust over Fortran): {geom_mean:.2}x\n"
         );
     } else {
         println!("No benchmark data found. Please run `cargo bench --bench bessel_bench` first.\n");
@@ -132,7 +127,7 @@ fn main() {
                 "--f32-vs-f64" => run_f32_f64 = true,
                 "--rust-vs-fortran" => run_rust_fortran = true,
                 _ => {
-                    println!("Unknown argument: {}", arg);
+                    println!("Unknown argument: {arg}");
                     println!("Usage: ./parse_benchmarks [--f32-vs-f64] [--rust-vs-fortran]");
                     return;
                 }

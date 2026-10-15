@@ -1,3 +1,4 @@
+#![allow(clippy::cast_possible_truncation, clippy::used_underscore_binding)]
 extern crate fortran_amos_testing;
 mod common;
 use amos_bessel_rs::{BesselError, BesselFloat};
@@ -70,7 +71,7 @@ fn test_bessel_j(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     let actual = bessel_j(order as f32, z32);
 
     let expected = bessel_j_ref(order, z64);
-    assert_results_are_equal_fotran(actual, expected, 1e6)
+    assert_results_are_equal_fotran(actual, expected, 1e6);
 }
 
 #[apply(bessel_cases)]
@@ -84,7 +85,7 @@ fn test_bessel_i(#[case] order: f64, #[case] zr: f64, #[case] zi: f64) {
     let actual = bessel_i(order as f32, z32);
 
     let expected = bessel_i_ref(order, z64);
-    assert_results_are_equal_fotran(actual, expected, 1e6)
+    assert_results_are_equal_fotran(actual, expected, 1e6);
 }
 
 #[apply(bessel_cases)]

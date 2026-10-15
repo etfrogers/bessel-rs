@@ -1,3 +1,4 @@
+#![allow(clippy::unreadable_literal)]
 use amos_bessel_rs::{bessel_i, bessel_j, bessel_k, bessel_y};
 use complex_bessel_rs::bessel_i::bessel_i as bessel_i_fort;
 use complex_bessel_rs::bessel_j::bessel_j as bessel_j_fort;
@@ -87,6 +88,7 @@ const Z_PARTS: [f64; 37] = [
     12.0, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0,
 ];
 
+#[allow(clippy::too_many_lines)]
 fn bessel_bench(c: &mut Criterion) {
     let mut group = c.benchmark_group("Rust vs Fortran");
 
@@ -107,121 +109,121 @@ fn bessel_bench(c: &mut Criterion) {
     // --- Bessel J ---
     group.bench_function(BenchmarkId::new("J (Rust)", "Scattered"), |b| {
         b.iter(|| {
-            scattered.iter().for_each(|(o, z)| {
+            for (o, z) in &scattered {
                 let _ = bessel_j(*o, *z);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("J (Fortran)", "Scattered"), |b| {
         b.iter(|| {
-            scattered.iter().for_each(|(o, z)| {
+            for (o, z) in &scattered {
                 let _ = bessel_j_fort(*o, *z);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("J (Rust)", "Grid"), |b| {
         b.iter(|| {
-            grid.iter().for_each(|(o, z)| {
+            for (o, z) in &grid {
                 let _ = bessel_j(*o, *z);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("J (Fortran)", "Grid"), |b| {
         b.iter(|| {
-            grid.iter().for_each(|(o, z)| {
+            for (o, z) in &grid {
                 let _ = bessel_j_fort(*o, *z);
-            })
-        })
+            }
+        });
     });
 
     // --- Bessel Y ---
     group.bench_function(BenchmarkId::new("Y (Rust)", "Scattered"), |b| {
         b.iter(|| {
-            scattered.iter().for_each(|(o, z)| {
+            for (o, z) in &scattered {
                 let _ = bessel_y(*o, *z);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("Y (Fortran)", "Scattered"), |b| {
         b.iter(|| {
-            scattered.iter().for_each(|(o, z)| {
+            for (o, z) in &scattered {
                 let _ = bessel_y_fort(*o, *z);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("Y (Rust)", "Grid"), |b| {
         b.iter(|| {
-            grid.iter().for_each(|(o, z)| {
+            for (o, z) in &grid {
                 let _ = bessel_y(*o, *z);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("Y (Fortran)", "Grid"), |b| {
         b.iter(|| {
-            grid.iter().for_each(|(o, z)| {
+            for (o, z) in &grid {
                 let _ = bessel_y_fort(*o, *z);
-            })
-        })
+            }
+        });
     });
 
     // --- Bessel I ---
     group.bench_function(BenchmarkId::new("I (Rust)", "Scattered"), |b| {
         b.iter(|| {
-            scattered.iter().for_each(|(o, z)| {
+            for (o, z) in &scattered {
                 let _ = bessel_i(*o, *z);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("I (Fortran)", "Scattered"), |b| {
         b.iter(|| {
-            scattered.iter().for_each(|(o, z)| {
+            for (o, z) in &scattered {
                 let _ = bessel_i_fort(*o, *z);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("I (Rust)", "Grid"), |b| {
         b.iter(|| {
-            grid.iter().for_each(|(o, z)| {
+            for (o, z) in &grid {
                 let _ = bessel_i(*o, *z);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("I (Fortran)", "Grid"), |b| {
         b.iter(|| {
-            grid.iter().for_each(|(o, z)| {
+            for (o, z) in &grid {
                 let _ = bessel_i_fort(*o, *z);
-            })
-        })
+            }
+        });
     });
 
     // --- Bessel K ---
     group.bench_function(BenchmarkId::new("K (Rust)", "Scattered"), |b| {
         b.iter(|| {
-            scattered.iter().for_each(|(o, z)| {
+            for (o, z) in &scattered {
                 let _ = bessel_k(*o, *z);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("K (Fortran)", "Scattered"), |b| {
         b.iter(|| {
-            scattered.iter().for_each(|(o, z)| {
+            for (o, z) in &scattered {
                 let _ = bessel_k_fort(*o, *z);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("K (Rust)", "Grid"), |b| {
         b.iter(|| {
-            grid.iter().for_each(|(o, z)| {
+            for (o, z) in &grid {
                 let _ = bessel_k(*o, *z);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("K (Fortran)", "Grid"), |b| {
         b.iter(|| {
-            grid.iter().for_each(|(o, z)| {
+            for (o, z) in &grid {
                 let _ = bessel_k_fort(*o, *z);
-            })
-        })
+            }
+        });
     });
 }
 

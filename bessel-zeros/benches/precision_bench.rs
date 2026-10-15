@@ -27,8 +27,8 @@ fn bench_precision(c: &mut Criterion) {
             for n_zeros in [50, 100] {
                 group.bench_with_input(
                     BenchmarkId::new(
-                        format!("Type_{}", type_name),
-                        format!("prec_{:.0e}, n={}", precision, n_zeros),
+                        format!("Type_{type_name}"),
+                        format!("prec_{precision:.0e}, n={n_zeros}"),
                     ),
                     &precision,
                     |b, &p| b.iter(|| bessel_zeros(fun_type, order, n_zeros, p)),

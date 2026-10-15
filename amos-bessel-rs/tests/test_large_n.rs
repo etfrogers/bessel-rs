@@ -1,3 +1,8 @@
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::used_underscore_binding,
+    clippy::cast_precision_loss
+)]
 extern crate fortran_amos_testing;
 mod common;
 use common::parametrisation::bessel_cases;
@@ -247,8 +252,7 @@ fn test_k_right_half_plane_underflow_offset_bug() {
         assert_eq!(
             res_val,
             Complex64::new(0.0, 0.0),
-            "Index {} should have underflowed to 0",
-            i
+            "Index {i} should have underflowed to 0"
         );
     }
 
