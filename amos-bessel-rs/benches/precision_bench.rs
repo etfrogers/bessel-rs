@@ -1,3 +1,10 @@
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::used_underscore_binding,
+    clippy::cast_precision_loss,
+    clippy::unreadable_literal
+)]
+
 use amos_bessel_rs::Scaling;
 use amos_bessel_rs::amos::{
     complex_airy, complex_airy_b, complex_bessel_i, complex_bessel_j, complex_bessel_k,
@@ -86,6 +93,7 @@ const Z_PARTS: [f64; 37] = [
     12.0, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0,
 ];
 
+#[allow(clippy::too_many_lines)]
 fn precision_bench(c: &mut Criterion) {
     let mut group = c.benchmark_group("f32 vs f64 Performance");
 
@@ -118,181 +126,181 @@ fn precision_bench(c: &mut Criterion) {
     // --- Bessel J ---
     group.bench_function(BenchmarkId::new("J (f64)", "Scattered"), |b| {
         b.iter(|| {
-            scattered_f64.iter().for_each(|(o, z)| {
+            for (o, z) in &scattered_f64 {
                 let _ = complex_bessel_j(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("J (f32)", "Scattered"), |b| {
         b.iter(|| {
-            scattered_f32.iter().for_each(|(o, z)| {
+            for (o, z) in &scattered_f32 {
                 let _ = complex_bessel_j(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("J (f64)", "Grid"), |b| {
         b.iter(|| {
-            grid_f64.iter().for_each(|(o, z)| {
+            for (o, z) in &grid_f64 {
                 let _ = complex_bessel_j(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("J (f32)", "Grid"), |b| {
         b.iter(|| {
-            grid_f32.iter().for_each(|(o, z)| {
+            for (o, z) in &grid_f32 {
                 let _ = complex_bessel_j(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
 
     // --- Bessel Y ---
     group.bench_function(BenchmarkId::new("Y (f64)", "Scattered"), |b| {
         b.iter(|| {
-            scattered_f64.iter().for_each(|(o, z)| {
+            for (o, z) in &scattered_f64 {
                 let _ = complex_bessel_y(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("Y (f32)", "Scattered"), |b| {
         b.iter(|| {
-            scattered_f32.iter().for_each(|(o, z)| {
+            for (o, z) in &scattered_f32 {
                 let _ = complex_bessel_y(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("Y (f64)", "Grid"), |b| {
         b.iter(|| {
-            grid_f64.iter().for_each(|(o, z)| {
+            for (o, z) in &grid_f64 {
                 let _ = complex_bessel_y(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("Y (f32)", "Grid"), |b| {
         b.iter(|| {
-            grid_f32.iter().for_each(|(o, z)| {
+            for (o, z) in &grid_f32 {
                 let _ = complex_bessel_y(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
 
     // --- Bessel I ---
     group.bench_function(BenchmarkId::new("I (f64)", "Scattered"), |b| {
         b.iter(|| {
-            scattered_f64.iter().for_each(|(o, z)| {
+            for (o, z) in &scattered_f64 {
                 let _ = complex_bessel_i(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("I (f32)", "Scattered"), |b| {
         b.iter(|| {
-            scattered_f32.iter().for_each(|(o, z)| {
+            for (o, z) in &scattered_f32 {
                 let _ = complex_bessel_i(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("I (f64)", "Grid"), |b| {
         b.iter(|| {
-            grid_f64.iter().for_each(|(o, z)| {
+            for (o, z) in &grid_f64 {
                 let _ = complex_bessel_i(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("I (f32)", "Grid"), |b| {
         b.iter(|| {
-            grid_f32.iter().for_each(|(o, z)| {
+            for (o, z) in &grid_f32 {
                 let _ = complex_bessel_i(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
 
     // --- Bessel K ---
     group.bench_function(BenchmarkId::new("K (f64)", "Scattered"), |b| {
         b.iter(|| {
-            scattered_f64.iter().for_each(|(o, z)| {
+            for (o, z) in &scattered_f64 {
                 let _ = complex_bessel_k(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("K (f32)", "Scattered"), |b| {
         b.iter(|| {
-            scattered_f32.iter().for_each(|(o, z)| {
+            for (o, z) in &scattered_f32 {
                 let _ = complex_bessel_k(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("K (f64)", "Grid"), |b| {
         b.iter(|| {
-            grid_f64.iter().for_each(|(o, z)| {
+            for (o, z) in &grid_f64 {
                 let _ = complex_bessel_k(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("K (f32)", "Grid"), |b| {
         b.iter(|| {
-            grid_f32.iter().for_each(|(o, z)| {
+            for (o, z) in &grid_f32 {
                 let _ = complex_bessel_k(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
 
     // --- Hankel H1 ---
     group.bench_function(BenchmarkId::new("H1 (f64)", "Scattered"), |b| {
         b.iter(|| {
-            scattered_f64.iter().for_each(|(o, z)| {
+            for (o, z) in &scattered_f64 {
                 let _ = complex_hankel1(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("H1 (f32)", "Scattered"), |b| {
         b.iter(|| {
-            scattered_f32.iter().for_each(|(o, z)| {
+            for (o, z) in &scattered_f32 {
                 let _ = complex_hankel1(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("H1 (f64)", "Grid"), |b| {
         b.iter(|| {
-            grid_f64.iter().for_each(|(o, z)| {
+            for (o, z) in &grid_f64 {
                 let _ = complex_hankel1(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("H1 (f32)", "Grid"), |b| {
         b.iter(|| {
-            grid_f32.iter().for_each(|(o, z)| {
+            for (o, z) in &grid_f32 {
                 let _ = complex_hankel1(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
 
     // --- Hankel H2 ---
     group.bench_function(BenchmarkId::new("H2 (f64)", "Scattered"), |b| {
         b.iter(|| {
-            scattered_f64.iter().for_each(|(o, z)| {
+            for (o, z) in &scattered_f64 {
                 let _ = complex_hankel2(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("H2 (f32)", "Scattered"), |b| {
         b.iter(|| {
-            scattered_f32.iter().for_each(|(o, z)| {
+            for (o, z) in &scattered_f32 {
                 let _ = complex_hankel2(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("H2 (f64)", "Grid"), |b| {
         b.iter(|| {
-            grid_f64.iter().for_each(|(o, z)| {
+            for (o, z) in &grid_f64 {
                 let _ = complex_hankel2(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("H2 (f32)", "Grid"), |b| {
         b.iter(|| {
-            grid_f32.iter().for_each(|(o, z)| {
+            for (o, z) in &grid_f32 {
                 let _ = complex_hankel2(*z, *o, Scaling::Unscaled, 1);
-            })
-        })
+            }
+        });
     });
 
     // --- Airy Ai (Return Derivative = False) ---
@@ -311,61 +319,61 @@ fn precision_bench(c: &mut Criterion) {
 
     group.bench_function(BenchmarkId::new("Ai (f64)", "Scattered"), |b| {
         b.iter(|| {
-            z_scattered_f64.iter().for_each(|z| {
+            for z in &z_scattered_f64 {
                 let _ = complex_airy(*z, false, Scaling::Unscaled);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("Ai (f32)", "Scattered"), |b| {
         b.iter(|| {
-            z_scattered_f32.iter().for_each(|z| {
+            for z in &z_scattered_f32 {
                 let _ = complex_airy(*z, false, Scaling::Unscaled);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("Ai (f64)", "Grid"), |b| {
         b.iter(|| {
-            z_grid_f64.iter().for_each(|z| {
+            for z in &z_grid_f64 {
                 let _ = complex_airy(*z, false, Scaling::Unscaled);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("Ai (f32)", "Grid"), |b| {
         b.iter(|| {
-            z_grid_f32.iter().for_each(|z| {
+            for z in &z_grid_f32 {
                 let _ = complex_airy(*z, false, Scaling::Unscaled);
-            })
-        })
+            }
+        });
     });
 
     // --- Airy Bi (Return Derivative = False) ---
     group.bench_function(BenchmarkId::new("Bi (f64)", "Scattered"), |b| {
         b.iter(|| {
-            z_scattered_f64.iter().for_each(|z| {
+            for z in &z_scattered_f64 {
                 let _ = complex_airy_b(*z, false, Scaling::Unscaled);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("Bi (f32)", "Scattered"), |b| {
         b.iter(|| {
-            z_scattered_f32.iter().for_each(|z| {
+            for z in &z_scattered_f32 {
                 let _ = complex_airy_b(*z, false, Scaling::Unscaled);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("Bi (f64)", "Grid"), |b| {
         b.iter(|| {
-            z_grid_f64.iter().for_each(|z| {
+            for z in &z_grid_f64 {
                 let _ = complex_airy_b(*z, false, Scaling::Unscaled);
-            })
-        })
+            }
+        });
     });
     group.bench_function(BenchmarkId::new("Bi (f32)", "Grid"), |b| {
         b.iter(|| {
-            z_grid_f32.iter().for_each(|z| {
+            for z in &z_grid_f32 {
                 let _ = complex_airy_b(*z, false, Scaling::Unscaled);
-            })
-        })
+            }
+        });
     });
 }
 

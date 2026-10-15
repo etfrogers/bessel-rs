@@ -1,3 +1,4 @@
+#![allow(clippy::unreadable_literal)]
 use amos_bessel_rs::{bessel_j, bessel_y};
 use bessel_zeros::{fast, *};
 use rstest::rstest;
@@ -19,12 +20,12 @@ fn check_zeros_against_hard_coded(
             assert!(
                 approx::relative_eq!(ev, av, epsilon = 5e-4),
                 "{backend} backend: expected {ev}, got {av} (order={order})"
-            )
+            );
         });
     }
 }
 
-/// Verify returned J zeros actually satisfy J_ν(x) ≈ 0.
+/// Verify returned J zeros actually satisfy `J_ν(x)` ≈ 0.
 fn check_j_zeros_evaluate_to_zero(zeros: Vec<f64>, order: impl Into<f64> + Copy, backend: &str) {
     let order_f64 = order.into();
     for v in zeros {
@@ -36,7 +37,7 @@ fn check_j_zeros_evaluate_to_zero(zeros: Vec<f64>, order: impl Into<f64> + Copy,
     }
 }
 
-/// Verify returned Y zeros actually satisfy Y_ν(x) ≈ 0.
+/// Verify returned Y zeros actually satisfy `Y_ν(x)` ≈ 0.
 fn check_y_zeros_evaluate_to_zero(zeros: Vec<f64>, order: impl Into<f64> + Copy, backend: &str) {
     let order_f64 = order.into();
     for v in zeros {
@@ -48,15 +49,15 @@ fn check_y_zeros_evaluate_to_zero(zeros: Vec<f64>, order: impl Into<f64> + Copy,
     }
 }
 
-/// J_n'(x) via the recurrence  J_n' = n/x * J_n - J_{n+1}  (x ≠ 0).
+/// `J_n`'(x) via the recurrence  `J_n`' = n/x * `J_n` - J_{n+1}  (x ≠ 0).
 fn bessel_j_prime(order: i32, x: f64) -> f64 {
-    let n = order as f64;
+    let n = f64::from(order);
     n / x * bessel_j(order, x).unwrap() - bessel_j(order + 1, x).unwrap()
 }
 
-/// Y_n'(x) via the recurrence  Y_n' = n/x * Y_n - Y_{n+1}  (x > 0).
+/// `Y_n`'(x) via the recurrence  `Y_n`' = n/x * `Y_n` - Y_{n+1}  (x > 0).
 fn bessel_y_prime(order: i32, x: f64) -> f64 {
-    let n = order as f64;
+    let n = f64::from(order);
     n / x * bessel_y(order, x).unwrap() - bessel_y(order + 1, x).unwrap()
 }
 
@@ -184,7 +185,7 @@ fn test_evaluation_at_zero_yp_int() {
 #[rstest]
 fn test_evaluation_at_zero_j_float() {
     for order_int in 0..200 {
-        let order = order_int as f64 / 50.0;
+        let order = f64::from(order_int) / 50.0;
         let zeros = bessel_zeros_j(order, 50);
         check_j_zeros_evaluate_to_zero(zeros, order, "amos");
     }
@@ -193,7 +194,7 @@ fn test_evaluation_at_zero_j_float() {
 #[rstest]
 fn test_evaluation_at_zero_y_float() {
     for order_int in 0..200 {
-        let order = order_int as f64 / 50.0;
+        let order = f64::from(order_int) / 50.0;
         let zeros = bessel_zeros_y(order, 50);
         check_y_zeros_evaluate_to_zero(zeros, order, "amos");
     }

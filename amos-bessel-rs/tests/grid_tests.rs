@@ -1,3 +1,8 @@
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::used_underscore_binding,
+    clippy::cast_precision_loss
+)]
 extern crate fortran_amos_testing;
 mod common;
 
@@ -126,7 +131,7 @@ fn complex_bessel_test_relative_error(
 
 /// Tests for a grid of values, comparing against the complex-bessel crate.
 /// This is not intended to be exhaustive, but to catch any major issues with
-/// the implementation across a wide range of inputs. The test_bessel_extremes
+/// the implementation across a wide range of inputs. The `test_bessel_extremes`
 /// test is more exhaustive for edge cases.
 /// Complex-bessel is used as a reference implementation here, as it implements
 /// negative orders. It is tested (externally) against scipy and mpmath
@@ -155,18 +160,15 @@ fn test_bessel_grid_complex_besssel(
                 let actual = rust_fn(order, z);
                 let expected = ref_fn(order, z);
                 match (&actual, &expected) {
-                    (Err(actual_err), Err(expected_err)) => {
-                        match (actual_err, expected_err) {
-                            (BesselError::InvalidInput { .. }, RefError::InvalidInput) => {}
-                            (BesselError::Overflow, RefError::Overflow) => {}
-                            (BesselError::LossOfSignificance, RefError::TotalPrecisionLoss) => {}
-                            (BesselError::DidNotConverge, RefError::ConvergenceFailure) => {}
-                            _ => panic!(
-                                "Error variant mismatch for order {order} and z {z}:\n  actual:   {actual_err:?}\n  expected: {expected_err:?}"
-                            ),
-                        }
-                        continue;
-                    }
+                    (Err(actual_err), Err(expected_err)) => match (actual_err, expected_err) {
+                        (BesselError::InvalidInput { .. }, RefError::InvalidInput)
+                        | (BesselError::Overflow, RefError::Overflow)
+                        | (BesselError::LossOfSignificance, RefError::TotalPrecisionLoss)
+                        | (BesselError::DidNotConverge, RefError::ConvergenceFailure) => {}
+                        _ => panic!(
+                            "Error variant mismatch for order {order} and z {z}:\n  actual:   {actual_err:?}\n  expected: {expected_err:?}"
+                        ),
+                    },
                     (Err(actual_err), Ok(expected_val)) => {
                         panic!(
                             "Rust function returned error but reference succeeded for order {order} and z {z}:\n  actual:   {actual_err:?}\n  expected: {expected_val:?}"
@@ -205,18 +207,17 @@ fn test_bessel_grid_complex_besssel(
             }
         }
     }
-    if !mismatches.is_empty() {
-        panic!(
-            "{} points exceeded 1e-10 relative error or 1e4 margin:\n{}",
-            mismatches.len(),
-            mismatches
-                .iter()
-                .take(20)
-                .cloned()
-                .collect::<Vec<_>>()
-                .join("\n")
-        );
-    }
+    assert!(
+        mismatches.is_empty(),
+        "{} points exceeded 1e-10 relative error or 1e4 margin:\n{}",
+        mismatches.len(),
+        mismatches
+            .iter()
+            .take(20)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
 }
 
 #[rstest]

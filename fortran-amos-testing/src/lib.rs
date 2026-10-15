@@ -1,3 +1,4 @@
+#![allow(clippy::similar_names)]
 //! # fortran-amos-testing
 //!
 //! This crate is an internal testing utility for `amos-bessel-rs`. It is NOT
@@ -99,6 +100,7 @@ unsafe extern "C" {
     );
 }
 
+#[must_use]
 pub fn zbesj_fortran(
     order: f64,
     z: Complex64,
@@ -119,8 +121,8 @@ pub fn zbesj_fortran(
             n.try_into().unwrap(),
             cyr.as_mut_ptr(),
             cyi.as_mut_ptr(),
-            &mut nz,
-            &mut ierr,
+            &raw mut nz,
+            &raw mut ierr,
         );
     }
     let cy = cyr
@@ -131,6 +133,7 @@ pub fn zbesj_fortran(
     (cy, nz.try_into().unwrap(), ierr)
 }
 
+#[must_use]
 pub fn zbesi_fortran(
     order: f64,
     z: Complex64,
@@ -151,8 +154,8 @@ pub fn zbesi_fortran(
             n.try_into().unwrap(),
             cyr.as_mut_ptr(),
             cyi.as_mut_ptr(),
-            &mut nz,
-            &mut ierr,
+            &raw mut nz,
+            &raw mut ierr,
         );
     }
     let cy = cyr
@@ -163,6 +166,7 @@ pub fn zbesi_fortran(
     (cy, nz.try_into().unwrap(), ierr)
 }
 
+#[must_use]
 pub fn zbesk_fortran(
     order: f64,
     z: Complex64,
@@ -183,8 +187,8 @@ pub fn zbesk_fortran(
             n.try_into().unwrap(),
             cyr.as_mut_ptr(),
             cyi.as_mut_ptr(),
-            &mut nz,
-            &mut ierr,
+            &raw mut nz,
+            &raw mut ierr,
         );
     }
     let cy = cyr
@@ -195,6 +199,7 @@ pub fn zbesk_fortran(
     (cy, nz.try_into().unwrap(), ierr)
 }
 
+#[must_use]
 pub fn zbesy_fortran(
     order: f64,
     z: Complex64,
@@ -217,10 +222,10 @@ pub fn zbesy_fortran(
             n.try_into().unwrap(),
             cyr.as_mut_ptr(),
             cyi.as_mut_ptr(),
-            &mut nz,
+            &raw mut nz,
             cwrkr.as_mut_ptr(),
             cwrki.as_mut_ptr(),
-            &mut ierr,
+            &raw mut ierr,
         );
     }
     let cy = cyr
@@ -231,6 +236,7 @@ pub fn zbesy_fortran(
     (cy, nz.try_into().unwrap(), ierr)
 }
 
+#[must_use]
 pub fn zbesh_fortran(
     order: f64,
     z: Complex64,
@@ -253,8 +259,8 @@ pub fn zbesh_fortran(
             n.try_into().unwrap(),
             cyr.as_mut_ptr(),
             cyi.as_mut_ptr(),
-            &mut nz,
-            &mut ierr,
+            &raw mut nz,
+            &raw mut ierr,
         );
     }
     let cy = cyr
@@ -265,6 +271,7 @@ pub fn zbesh_fortran(
     (cy, nz.try_into().unwrap(), ierr)
 }
 
+#[must_use]
 pub fn zairy_fortran(z: Complex64, is_derivative: bool, scaling: i32) -> (Complex64, usize, i32) {
     let mut yr = 0.0;
     let mut yi = 0.0;
@@ -275,17 +282,18 @@ pub fn zairy_fortran(z: Complex64, is_derivative: bool, scaling: i32) -> (Comple
         zairy_wrap_testing(
             z.re,
             z.im,
-            is_derivative as i32,
+            i32::from(is_derivative),
             scaling,
-            &mut yr,
-            &mut yi,
-            &mut nz,
-            &mut ierr,
+            &raw mut yr,
+            &raw mut yi,
+            &raw mut nz,
+            &raw mut ierr,
         );
     }
     (Complex64::new(yr, yi), nz.try_into().unwrap(), ierr)
 }
 
+#[must_use]
 pub fn zbiry_fortran(z: Complex64, is_derivative: bool, scaling: i32) -> (Complex64, usize, i32) {
     let mut yr = 0.0;
     let mut yi = 0.0;
@@ -295,11 +303,11 @@ pub fn zbiry_fortran(z: Complex64, is_derivative: bool, scaling: i32) -> (Comple
         zbiry_wrap_testing(
             z.re,
             z.im,
-            is_derivative as i32,
+            i32::from(is_derivative),
             scaling,
-            &mut yr,
-            &mut yi,
-            &mut ierr,
+            &raw mut yr,
+            &raw mut yi,
+            &raw mut ierr,
         );
     }
     (Complex64::new(yr, yi), 0, ierr)

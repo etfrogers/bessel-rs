@@ -167,6 +167,7 @@ pub fn assert_results_are_equal_floats<T: DiagnosticBesselFloat>(
     margin: f64,
 ) {
     let max_relative = T::MACHINE_CONSTANTS.abs_error_tolerance.to_f64().unwrap();
+    #[allow(clippy::match_same_arms)]
     match (actual, expected) {
         (Ok(actual_vals), Ok(expected_vals)) => {
             if actual_vals.1.n_zeros > 0 || expected_vals.1.n_zeros > 0 {
@@ -196,10 +197,9 @@ pub fn assert_results_are_equal_floats<T: DiagnosticBesselFloat>(
             // Overflow form occurring.
         }
 
-        (
-            Err(BesselError::LossOfSignificance),
-            Ok(expected_vals),
-        ) if expected_vals.1.partial_loss_of_significance => {
+        (Err(BesselError::LossOfSignificance), Ok(expected_vals))
+            if expected_vals.1.partial_loss_of_significance =>
+        {
             // Possible for f32 to lose all significance, and f64 to retain some. That's OK.
         }
 
@@ -207,13 +207,10 @@ pub fn assert_results_are_equal_floats<T: DiagnosticBesselFloat>(
             assert!(
                 errors_eq(actual_err, expected_err, margin),
                 "{actual:?} != {expected:?}",
-            )
+            );
         }
         _ => {
-            panic!(
-                "Mismatched result types: actual={:?}, expected={:?}",
-                actual, expected
-            );
+            panic!("Mismatched result types: actual={actual:?}, expected={expected:?}");
         }
     }
 }
@@ -242,7 +239,7 @@ where
         assert_eq!(
             actual.as_ref().unwrap_err().error_code(),
             *expected.as_ref().unwrap_err()
-        )
+        );
     }
 }
 
@@ -321,7 +318,7 @@ pub fn check_complex_arrays_equal<T1: DiagnosticBesselFloat>(
                 relative_error.im,
                 tolerances.margin,
             ));
-        };
+        }
     }
     None
 }

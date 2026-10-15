@@ -1,5 +1,3 @@
-use std::error::Error;
-
 pub const J_ZEROS: &str = "#
 #k	J_0(x)	J_1(x)	J_2(x)	J_3(x)	J_4(x)	J_5(x)
 1	2.4048	3.8317	5.1356	6.3802	7.5883	8.7715
@@ -30,21 +28,24 @@ pub const YP_ZEROS: &str = "#
 6.25363321	9.69878798	12.97240905	16.1904472	19.38238845
 7.46492174	11.00516915	14.33172352	17.58443602	20.80106234";
 
-pub fn get_records(input: &str) -> Result<Vec<Vec<String>>, Box<dyn Error>> {
+pub fn get_records(input: &str) -> Vec<Vec<String>> {
     let mut rdr = csv::ReaderBuilder::new()
         .delimiter(b'\t')
         .comment(Some(b'#'))
         .has_headers(false)
         .from_reader(input.as_bytes());
-    Ok(rdr
-        .records()
-        .map(|r| r.unwrap().iter().map(|s| s.to_string()).collect())
-        .collect())
+    rdr.records()
+        .map(|r| {
+            r.unwrap()
+                .iter()
+                .map(std::string::ToString::to_string)
+                .collect()
+        })
+        .collect()
 }
 
 pub fn parse_zeros_python(input: &str) -> Vec<Vec<f64>> {
     get_records(input)
-        .unwrap()
         .into_iter()
         .map(|line| line.iter().map(|v| v.parse().unwrap()).collect())
         .collect()
@@ -52,7 +53,6 @@ pub fn parse_zeros_python(input: &str) -> Vec<Vec<f64>> {
 
 pub fn parse_zeros_wa(input: &str) -> Vec<Vec<f64>> {
     let vv: Vec<Vec<f64>> = get_records(input)
-        .unwrap()
         .into_iter()
         .map(|line| line.iter().map(|v| v.parse().unwrap()).collect())
         .collect();

@@ -1,4 +1,10 @@
-#![allow(dead_code, unused_imports)]
+#![allow(
+    dead_code,
+    unused_imports,
+    clippy::cast_possible_truncation,
+    clippy::used_underscore_binding,
+    clippy::cast_precision_loss
+)]
 use std::f64;
 use std::fmt::{Display, LowerExp};
 use std::ops::Bound::Included;
@@ -55,6 +61,7 @@ impl<T> DiagnosticBesselFloat for T where
 {
 }
 
+#[allow(clippy::too_many_lines)]
 pub fn check_against_fortran<T: DiagnosticBesselFloat>(
     order: T,
     z: Complex<T>,
@@ -89,11 +96,10 @@ pub fn check_against_fortran<T: DiagnosticBesselFloat>(
         let cy_loop_rust = match rust_bess_loop(order, z, scaling, n, rust_func) {
             Ok((data, _)) => data,
             Err(err) => {
-                if actual.is_ok() || err != *actual.as_ref().unwrap_err() {
-                    panic!(
-                        "Error generated in looped rust that was not present in unlooped case: {err:?}"
-                    );
-                }
+                assert!(
+                    !(actual.is_ok() || err != *actual.as_ref().unwrap_err()),
+                    "Error generated in looped rust that was not present in unlooped case: {err:?}"
+                );
                 vec![]
             }
         };
@@ -150,14 +156,14 @@ pub fn check_against_fortran<T: DiagnosticBesselFloat>(
                 if let Some(reason) =
                     check_complex_arrays_equal(&actual.0, &cy, &cy_loop_fort, margin * 1e2)
                 {
-                    fail(&reason)
+                    fail(&reason);
                 }
             } else {
                 if ierr != 0 {
                     fail(&format!(
                         "Rust returned no error, but Fortran returned an error code: {ierr}"
-                    ))
-                };
+                    ));
+                }
                 if actual.1.partial_loss_of_significance {
                     fail(
                         "Rust reported partial loss of significance, but Fortran returned ierr = 0",
@@ -192,14 +198,14 @@ pub fn check_against_fortran<T: DiagnosticBesselFloat>(
                 if let Some(reason) =
                     check_complex_arrays_equal(&actual.0, &cy, &cy_loop_fort, margin)
                 {
-                    fail(&reason)
+                    fail(&reason);
                 }
             }
         }
         Err(err) => {
             if ierr != err.error_code() {
-                fail("Failed for mismatched error code")
-            };
+                fail("Failed for mismatched error code");
+            }
         }
     }
 }

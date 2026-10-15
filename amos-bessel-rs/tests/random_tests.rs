@@ -45,7 +45,7 @@ fn random_val_rng(rng: &mut SmallRng) -> f64 {
 
 #[rstest]
 fn test_bessel_j_random(mut rng: SmallRng) {
-    for _ in 0..1000000 {
+    for _ in 0..1_000_000 {
         let order = rng.random_range(f64::EPSILON..RANDOM_LIMIT);
         let zr = random_val_rng(&mut rng);
         let zi = random_val_rng(&mut rng);
@@ -61,7 +61,7 @@ fn test_bessel_j_random(mut rng: SmallRng) {
 
 #[rstest]
 fn test_bessel_i_random(mut rng: SmallRng) {
-    for _ in 0..1000000 {
+    for _ in 0..1_000_000 {
         let order = rng.random_range(f64::EPSILON..RANDOM_LIMIT);
         let zr = random_val_rng(&mut rng);
         let zi = random_val_rng(&mut rng);
@@ -77,7 +77,7 @@ fn test_bessel_i_random(mut rng: SmallRng) {
 
 #[rstest]
 fn test_bessel_k_random(mut rng: SmallRng) {
-    for _ in 0..1000000 {
+    for _ in 0..1_000_000 {
         let order = rng.random_range(f64::EPSILON..RANDOM_LIMIT);
         let zr = random_val_rng(&mut rng);
         let zi = random_val_rng(&mut rng);
@@ -93,7 +93,7 @@ fn test_bessel_k_random(mut rng: SmallRng) {
 
 #[rstest]
 fn test_bessel_y_random(mut rng: SmallRng) {
-    for _ in 0..1000000 {
+    for _ in 0..1_000_000 {
         let order = rng.random_range(f64::EPSILON..RANDOM_LIMIT);
         let zr = random_val_rng(&mut rng);
         let zi = random_val_rng(&mut rng);
@@ -113,7 +113,7 @@ fn test_bessel_h_random(
     mut rng: SmallRng,
     #[values(HankelKind::First, HankelKind::Second)] kind: HankelKind,
 ) {
-    for _ in 0..1000000 {
+    for _ in 0..1_000_000 {
         let order = rng.random_range(f64::EPSILON..RANDOM_LIMIT);
         let zr = random_val_rng(&mut rng);
         let zi = random_val_rng(&mut rng);
@@ -133,7 +133,7 @@ fn test_airy_random(
     #[values(true, false)] is_derivative: bool,
     #[values(true, false)] is_b_function: bool,
 ) {
-    for _ in 0..1000000 {
+    for _ in 0..1_000_000 {
         let zr = random_val_rng(&mut rng);
         let zi = random_val_rng(&mut rng);
 
@@ -152,7 +152,7 @@ fn test_airy_random(
         } else {
             airy_ref(z, is_derivative)
         };
-        assert_results_are_equal(&actual, &expected, &Vec::new(), 1e6)
+        assert_results_are_equal(&actual, &expected, &Vec::new(), 1e6);
     }
 }
 
@@ -176,7 +176,7 @@ fn test_bessel_large_n_random(
     mut rng: SmallRng,
 ) {
     let n = 9;
-    for _ in 0..100000 {
+    for _ in 0..100_000 {
         let order = rng.random_range(f64::EPSILON..RANDOM_LIMIT);
         let (zr, zi) = match num_type {
             NumType::Real => (random_val_rng(&mut rng), 0.0),
@@ -226,7 +226,7 @@ fn test_bessel_random_logspace(
         };
         sign * 10.0.pow(r)
     };
-    for _ in 0..500000 {
+    for _ in 0..500_000 {
         let order = random_val(true);
         let (zr, zi) = match num_type {
             NumType::Real => (random_val(false), 0.0),
@@ -240,8 +240,8 @@ fn test_bessel_random_logspace(
 
 #[rstest]
 fn test_fortran_ang(mut rng: SmallRng) {
-    let mut random_val = || random_val_rng(&mut rng);
     const THREE_PI_BY_2: f64 = 4.712_388_980_384_69;
+    let mut random_val = || random_val_rng(&mut rng);
 
     let fortran_ang = |zth: Complex64| -> f64 {
         let mut ang = THREE_PI_BY_2;
@@ -266,7 +266,7 @@ fn test_fortran_ang(mut rng: SmallRng) {
         ang.clamp(0.0, THREE_PI_BY_2)
     };
 
-    for _ in 0..1000000 {
+    for _ in 0..1_000_000 {
         let z = Complex64::new(random_val(), random_val());
         let z_re = Complex64::new(z.re, 0.0);
         let z_im = Complex64::new(0.0, z.im);

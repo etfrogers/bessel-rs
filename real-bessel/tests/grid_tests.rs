@@ -17,7 +17,7 @@ fn test_jn_grid(
     #[values(0, 1, 2, 5, 10, 25, 50, 100, 200, 500, 1000, -1, -2, -3, -5, -10, -25)] order: i32,
 ) {
     for &zr in &Z_PARTS {
-        let expected = unwrap_real_bessel!(bessel_j, order as f64, zr);
+        let expected = unwrap_real_bessel!(bessel_j, f64::from(order), zr);
         let actual = jn(order, zr);
         if expected.is_nan() {
             assert!(actual.is_nan() || actual.is_infinite());
@@ -35,7 +35,7 @@ fn test_yn_grid(
         let mut zr_test = zr;
         let yn = |z| yn(order, z);
         let actual = get_real_y_bessel!(yn, zr_test, continue);
-        let expected = unwrap_real_bessel!(bessel_y, order as f64, zr_test);
+        let expected = unwrap_real_bessel!(bessel_y, f64::from(order), zr_test);
         if expected.is_nan() {
             assert!(actual.is_nan() || actual.is_infinite());
         } else {
@@ -58,4 +58,3 @@ fn test_i32_min_edge_case() {
     assert!(yn(i32::MIN, f64::NAN).unwrap().is_nan());
     assert_eq!(yn(i32::MIN, f64::INFINITY).unwrap(), 0.0);
 }
-

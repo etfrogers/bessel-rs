@@ -1,3 +1,9 @@
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::used_underscore_binding,
+    clippy::cast_precision_loss,
+    clippy::unreadable_literal
+)]
 use amos_bessel_rs::{
     BesselError, BesselFloat, HankelKind, Scaling, bessel_i, bessel_j, bessel_k, bessel_y,
     derivatives::{
@@ -59,7 +65,7 @@ fn test_bessel_j_hardcoded(#[case] order: u32, #[case] expected: f64) {
 #[case(hankel1, hankel1_derivative, false)]
 #[case(hankel2, hankel2_derivative, false)]
 fn test_bessel_differential_equation_grid(
-    #[case] func: BesselSimpleSig,
+    #[case] _func: BesselSimpleSig,
     #[case] d_func: DerivSig,
     #[case] is_modified: bool,
 ) {
@@ -70,17 +76,14 @@ fn test_bessel_differential_equation_grid(
                 if z == Complex::ZERO {
                     continue;
                 }
-                let j0 = match func(order, z) {
-                    Ok(val) => val,
-                    Err(_) => continue,
+                let Ok(j0) = d_func(order, z, 0, Scaling::Unscaled) else {
+                    continue;
                 };
-                let j1 = match d_func(order, z, 1, Scaling::Unscaled) {
-                    Ok(val) => val,
-                    Err(_) => continue,
+                let Ok(j1) = d_func(order, z, 1, Scaling::Unscaled) else {
+                    continue;
                 };
-                let j2 = match d_func(order, z, 2, Scaling::Unscaled) {
-                    Ok(val) => val,
-                    Err(_) => continue,
+                let Ok(j2) = d_func(order, z, 2, Scaling::Unscaled) else {
+                    continue;
                 };
 
                 let term2 = z * z * j2;
@@ -99,10 +102,7 @@ fn test_bessel_differential_equation_grid(
                 let rel_residual = ode.norm() / scale;
                 assert!(
                     rel_residual < 1e-7,
-                    "ODE residual failed for order={}, z={}: rel_residual={:e}",
-                    order,
-                    z,
-                    rel_residual
+                    "ODE residual failed for order={order}, z={z}: rel_residual={rel_residual:e}"
                 );
             }
         }
@@ -145,14 +145,10 @@ fn test_first_derivative_recurrence_grid(
                 if z == Complex::ZERO {
                     continue;
                 }
-                let dz = match d_func(order, z, 1, Scaling::Unscaled) {
-                    Ok(val) => val,
-                    Err(_) => continue,
+                let Ok(dz) = d_func(order, z, 1, Scaling::Unscaled) else {
+                    continue;
                 };
-                let dz_p = match p_func(order, z) {
-                    Ok(val) => val,
-                    Err(_) => continue,
-                };
+                let Ok(dz_p) = p_func(order, z) else { continue };
                 assert_relative_eq!(dz, dz_p, max_relative = 1e-14);
 
                 // Identity 1: Symmetric recurrence
@@ -167,10 +163,7 @@ fn test_first_derivative_recurrence_grid(
                         let diff = (dz - expected_sym).norm() / scale;
                         assert!(
                             diff < 1e-8,
-                            "Symmetric recurrence failed for order={}, z={}: diff={:e}",
-                            order,
-                            z,
-                            diff
+                            "Symmetric recurrence failed for order={order}, z={z}: diff={diff:e}"
                         );
                     }
                 }
@@ -188,10 +181,7 @@ fn test_first_derivative_recurrence_grid(
                         let diff = (dz - expected_asym).norm() / scale;
                         assert!(
                             diff < 1e-8,
-                            "Asymmetric recurrence failed for order={}, z={}: diff={:e}",
-                            order,
-                            z,
-                            diff
+                            "Asymmetric recurrence failed for order={order}, z={z}: diff={diff:e}"
                         );
                     }
                 }
@@ -209,9 +199,7 @@ fn test_first_derivative_recurrence_grid(
                         let diff = (dz - expected_0).norm() / scale;
                         assert!(
                             diff < 1e-10,
-                            "Order 0 recurrence failed for z={}: diff={:e}",
-                            z,
-                            diff
+                            "Order 0 recurrence failed for z={z}: diff={diff:e}"
                         );
                     }
                 }
@@ -282,11 +270,7 @@ fn test_integer_reflection_parity_grid(
                         let diff = (d_neg - d_pos * parity).norm() / scale;
                         assert!(
                             diff < 1e-10,
-                            "Parity failed for n={}, k={}, z={}: diff={:e}",
-                            n,
-                            k,
-                            z,
-                            diff
+                            "Parity failed for n={n}, k={k}, z={z}: diff={diff:e}"
                         );
                     }
                 }
@@ -318,9 +302,7 @@ fn test_half_integer_closed_forms_grid() {
                     let diff = (computed - expected).norm() / scale;
                     assert!(
                         diff < 1e-9,
-                        "Closed form J_{{1/2}}' failed for z={}: diff={:e}",
-                        z,
-                        diff
+                        "Closed form J_{{1/2}}' failed for z={z}: diff={diff:e}"
                     );
                 }
             }
@@ -333,9 +315,7 @@ fn test_half_integer_closed_forms_grid() {
                     let diff = (computed - expected).norm() / scale;
                     assert!(
                         diff < 1e-9,
-                        "Closed form J_{{-1/2}}' failed for z={}: diff={:e}",
-                        z,
-                        diff
+                        "Closed form J_{{-1/2}}' failed for z={z}: diff={diff:e}",
                     );
                 }
             }
@@ -347,6 +327,7 @@ fn test_half_integer_closed_forms_grid() {
 // Test 6: High-Precision Ground Truth via Cauchy's Integral Formula on the grid
 // (d/dz)^k f(z) = (k! / (M · r^k)) ∑_{m=0}^{M-1} f(z + r·e^{iθ_m}) · e^{-i k θ_m}
 // -----------------------------------------------------------------------------
+#[allow(clippy::many_single_char_names)]
 fn cauchy_derivative(order: f64, z: Complex<f64>, k: u32) -> Result<Complex<f64>, BesselError> {
     let m = 32;
     // Adapt radius to ensure circle does not enclose 0
@@ -354,18 +335,18 @@ fn cauchy_derivative(order: f64, z: Complex<f64>, k: u32) -> Result<Complex<f64>
     let mut sum = Complex::new(0.0, 0.0);
 
     for j in 0..m {
-        let theta = 2.0 * PI * (j as f64) / (m as f64);
+        let theta = 2.0 * PI * f64::from(j) / f64::from(m);
         let w = z + Complex::from_polar(r, theta);
         let f_w = bessel_j(order, w)?;
-        let phase = Complex::from_polar(1.0, -(k as f64) * theta);
+        let phase = Complex::from_polar(1.0, -f64::from(k) * theta);
         sum += f_w * phase;
     }
 
     let mut fact = 1.0;
     for i in 1..=k {
-        fact *= i as f64;
+        fact *= f64::from(i);
     }
-    let prefactor = fact / ((m as f64) * r.powi(k as i32));
+    let prefactor = fact / (f64::from(m) * r.powi(k.cast_signed()));
     Ok(sum * prefactor)
 }
 
@@ -382,13 +363,11 @@ fn test_against_cauchy_derivative_grid(
                 continue; // Avoid circle enclosing z = 0
             }
 
-            let dz = match bessel_j_derivative(order, z, derivative_order, Scaling::Unscaled) {
-                Ok(val) => val,
-                Err(_) => continue,
+            let Ok(dz) = bessel_j_derivative(order, z, derivative_order, Scaling::Unscaled) else {
+                continue;
             };
-            let dz_cauchy = match cauchy_derivative(order, z, derivative_order) {
-                Ok(val) => val,
-                Err(_) => continue,
+            let Ok(dz_cauchy) = cauchy_derivative(order, z, derivative_order) else {
+                continue;
             };
 
             let scale = dz.norm() + dz_cauchy.norm();
@@ -403,11 +382,7 @@ fn test_against_cauchy_derivative_grid(
             };
             assert!(
                 diff < tol,
-                "Cauchy derivative mismatch for order={}, k={}, z={}: diff={:e}",
-                order,
-                derivative_order,
-                z,
-                diff
+                "Cauchy derivative mismatch for order={order}, k={derivative_order}, z={z}: diff={diff:e}",
             );
         }
     }
@@ -478,11 +453,7 @@ fn test_hankel_derivative_relations_grid(
                     let diff1 = abs_diff1 / scale1;
                     assert!(
                         diff1 < 1e-9,
-                        "H1 derivative linear relation failed for order={}, k={}, z={}: diff={:e}",
-                        order,
-                        k,
-                        z,
-                        diff1
+                        "H1 derivative linear relation failed for order={order}, k={k}, z={z}: diff={diff1:e}",
                     );
                 }
 
@@ -493,11 +464,7 @@ fn test_hankel_derivative_relations_grid(
                     let diff2 = abs_diff2 / scale2;
                     assert!(
                         diff2 < 1e-9,
-                        "H2 derivative linear relation failed for order={}, k={}, z={}: diff={:e}",
-                        order,
-                        k,
-                        z,
-                        diff2
+                        "H2 derivative linear relation failed for order={order}, k={k}, z={z}: diff={diff2:e}",
                     );
                 }
             }
@@ -519,14 +486,13 @@ fn test_wronskian_j_y_grid() {
                 if z == Complex::ZERO {
                     continue;
                 }
-                let (j, dj, y, dy) = match (
+                let (Ok(j), Ok(dj), Ok(y), Ok(dy)) = (
                     bessel_j(order, z),
                     bessel_j_derivative(order, z, 1, Scaling::Unscaled),
                     bessel_y(order, z),
                     bessel_y_derivative(order, z, 1, Scaling::Unscaled),
-                ) {
-                    (Ok(j), Ok(dj), Ok(y), Ok(dy)) => (j, dj, y, dy),
-                    _ => continue,
+                ) else {
+                    continue;
                 };
 
                 // Avoid underflow regime where J or Y cannot be represented with full significance
@@ -550,10 +516,7 @@ fn test_wronskian_j_y_grid() {
                 }
                 assert!(
                     diff < 1e-6,
-                    "Wronskian W{{J, Y}} failed for order={}, z={}: diff={:e}",
-                    order,
-                    z,
-                    diff
+                    "Wronskian W{{J, Y}} failed for order={order}, z={z}: diff={diff:e}",
                 );
             }
         }
@@ -570,14 +533,13 @@ fn test_wronskian_hankel_grid() {
                 if z == Complex::ZERO {
                     continue;
                 }
-                let (h1, dh1, h2, dh2) = match (
+                let (Ok(h1), Ok(dh1), Ok(h2), Ok(dh2)) = (
                     hankel1(order, z),
                     hankel1_derivative(order, z, 1, Scaling::Unscaled),
                     hankel2(order, z),
                     hankel2_derivative(order, z, 1, Scaling::Unscaled),
-                ) {
-                    (Ok(h1), Ok(dh1), Ok(h2), Ok(dh2)) => (h1, dh1, h2, dh2),
-                    _ => continue,
+                ) else {
+                    continue;
                 };
 
                 if h1.norm() < 1e-50
@@ -604,10 +566,7 @@ fn test_wronskian_hankel_grid() {
                 }
                 assert!(
                     diff < 1e-6,
-                    "Wronskian W{{H1, H2}} failed for order={}, z={}: diff={:e}",
-                    order,
-                    z,
-                    diff
+                    "Wronskian W{{H1, H2}} failed for order={order}, z={z}: diff={diff:e}",
                 );
             }
         }
@@ -627,14 +586,13 @@ fn test_wronskian_i_k_grid() {
                 if z == Complex::ZERO {
                     continue;
                 }
-                let (i, di, k, dk) = match (
+                let (Ok(i), Ok(di), Ok(k), Ok(dk)) = (
                     bessel_i(order, z),
                     bessel_i_derivative(order, z, 1, Scaling::Unscaled),
                     bessel_k(order, z),
                     bessel_k_derivative(order, z, 1, Scaling::Unscaled),
-                ) {
-                    (Ok(i), Ok(di), Ok(k), Ok(dk)) => (i, di, k, dk),
-                    _ => continue,
+                ) else {
+                    continue;
                 };
 
                 if i.norm() < 1e-50 || di.norm() < 1e-50 || k.norm() < 1e-50 || dk.norm() < 1e-50 {
@@ -657,10 +615,7 @@ fn test_wronskian_i_k_grid() {
                 }
                 assert!(
                     diff < 1e-6,
-                    "Wronskian W{{I, K}} failed for order={}, z={}: diff={:e}",
-                    order,
-                    z,
-                    diff
+                    "Wronskian W{{I, K}} failed for order={order}, z={z}: diff={diff:e}",
                 );
             }
         }
@@ -691,9 +646,7 @@ fn test_k_half_integer_closed_forms_grid() {
                     let diff = (computed - expected_k_prime).norm() / scale;
                     assert!(
                         diff < 1e-9,
-                        "Closed form K_{{1/2}}' failed for z={}: diff={:e}",
-                        z,
-                        diff
+                        "Closed form K_{{1/2}}' failed for z={z}: diff={diff:e}"
                     );
                 }
             }
@@ -705,9 +658,7 @@ fn test_k_half_integer_closed_forms_grid() {
                     let diff = (computed - expected_k_prime).norm() / scale;
                     assert!(
                         diff < 1e-9,
-                        "Closed form K_{{-1/2}}' failed for z={}: diff={:e}",
-                        z,
-                        diff
+                        "Closed form K_{{-1/2}}' failed for z={z}: diff={diff:e}",
                     );
                 }
             }
@@ -732,7 +683,7 @@ fn test_derivative_order_too_large() {
         BesselError::InvalidInput { details } => {
             assert!(details.contains("too large"));
         }
-        _ => panic!("Expected InvalidInput error, got {:?}", err),
+        _ => panic!("Expected InvalidInput error, got {err:?}"),
     }
 }
 
@@ -746,7 +697,7 @@ fn test_derivative_real_input_and_complex_error() {
         BesselError::ComplexOutputForRealInput { output } => {
             assert!(output.norm() > 0.0);
         }
-        _ => panic!("Expected ComplexOutputForRealInput, got {:?}", err),
+        _ => panic!("Expected ComplexOutputForRealInput, got {err:?}"),
     }
 }
 
@@ -815,7 +766,8 @@ fn test_scaled_derivatives_match_unscaled_grid() {
     }
 }
 
-#[test]
+#[rstest]
+#[allow(clippy::similar_names)]
 fn test_scaled_derivative_avoids_overflow() {
     let z: f64 = 800.0;
     // Unscaled I_0'(800.0) overflows f64

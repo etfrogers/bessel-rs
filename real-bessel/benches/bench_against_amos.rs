@@ -25,10 +25,10 @@ fn bessel_j_bench(c: &mut Criterion) {
         &Z_PARTS,
         |b, z_parts| {
             b.iter(|| {
-                z_parts.iter().for_each(|z| {
+                for z in z_parts {
                     let _ = j0(*z);
-                })
-            })
+                }
+            });
         },
     );
 
@@ -37,10 +37,10 @@ fn bessel_j_bench(c: &mut Criterion) {
         &Z_PARTS,
         |b, z_parts| {
             b.iter(|| {
-                z_parts.iter().for_each(|z| {
+                for z in z_parts {
                     let _ = bessel_j(0.0, *z);
-                })
-            })
+                }
+            });
         },
     );
 
@@ -49,10 +49,10 @@ fn bessel_j_bench(c: &mut Criterion) {
         &Z_PARTS,
         |b, z_parts| {
             b.iter(|| {
-                z_parts.iter().for_each(|z| {
+                for z in z_parts {
                     let _ = j1(*z);
-                })
-            })
+                }
+            });
         },
     );
 
@@ -61,10 +61,10 @@ fn bessel_j_bench(c: &mut Criterion) {
         &Z_PARTS,
         |b, z_parts| {
             b.iter(|| {
-                z_parts.iter().for_each(|z| {
+                for z in z_parts {
                     let _ = bessel_j(1.0, *z);
-                })
-            })
+                }
+            });
         },
     );
 
@@ -75,10 +75,10 @@ fn bessel_j_bench(c: &mut Criterion) {
         &cases,
         |b, cases| {
             b.iter(|| {
-                cases.iter().for_each(|(order, z)| {
+                for (order, z) in cases {
                     let _ = jn(*order, *z);
-                })
-            })
+                }
+            });
         },
     );
 
@@ -87,10 +87,10 @@ fn bessel_j_bench(c: &mut Criterion) {
         &cases,
         |b, cases| {
             b.iter(|| {
-                cases.iter().for_each(|(order, z)| {
+                for (order, z) in cases {
                     let _ = bessel_j(*order, *z);
-                })
-            })
+                }
+            });
         },
     );
 }
@@ -102,10 +102,10 @@ fn bessel_y_bench(c: &mut Criterion) {
         &Z_PARTS_POS,
         |b, z_parts| {
             b.iter(|| {
-                z_parts.iter().for_each(|z| {
+                for z in z_parts {
                     let _ = y0(*z);
-                })
-            })
+                }
+            });
         },
     );
 
@@ -114,10 +114,10 @@ fn bessel_y_bench(c: &mut Criterion) {
         &Z_PARTS_POS,
         |b, z_parts| {
             b.iter(|| {
-                z_parts.iter().for_each(|z| {
+                for z in z_parts {
                     let _ = bessel_y(0.0, *z);
-                })
-            })
+                }
+            });
         },
     );
 
@@ -126,10 +126,10 @@ fn bessel_y_bench(c: &mut Criterion) {
         &Z_PARTS_POS,
         |b, z_parts| {
             b.iter(|| {
-                z_parts.iter().for_each(|z| {
+                for z in z_parts {
                     let _ = y1(*z);
-                })
-            })
+                }
+            });
         },
     );
 
@@ -138,10 +138,10 @@ fn bessel_y_bench(c: &mut Criterion) {
         &Z_PARTS_POS,
         |b, z_parts| {
             b.iter(|| {
-                z_parts.iter().for_each(|z| {
+                for z in z_parts {
                     let _ = bessel_y(1.0, *z);
-                })
-            })
+                }
+            });
         },
     );
 
@@ -152,10 +152,10 @@ fn bessel_y_bench(c: &mut Criterion) {
         &cases,
         |b, cases| {
             b.iter(|| {
-                cases.iter().for_each(|(order, z)| {
+                for (order, z) in cases {
                     let _ = yn(*order, *z);
-                })
-            })
+                }
+            });
         },
     );
 
@@ -164,10 +164,10 @@ fn bessel_y_bench(c: &mut Criterion) {
         &cases,
         |b, cases| {
             b.iter(|| {
-                cases.iter().for_each(|(order, z)| {
+                for (order, z) in cases {
                     let _ = bessel_y(*order, *z);
-                })
-            })
+                }
+            });
         },
     );
 }

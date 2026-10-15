@@ -1,3 +1,4 @@
+#![allow(clippy::cast_precision_loss)]
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -8,9 +9,7 @@ use amos_bessel_rs::{
         complex_hankel1_into, complex_hankel2_into,
     },
     bessel_i, bessel_j, bessel_k, bessel_y,
-    derivatives::{
-        bessel_i_p, bessel_j_derivative, bessel_j_p, bessel_k_p, bessel_y_p,
-    },
+    derivatives::{bessel_i_p, bessel_j_derivative, bessel_j_p, bessel_k_p, bessel_y_p},
     hankel,
 };
 use num::Complex;
@@ -198,7 +197,10 @@ fn check_sbo_capacity_within_limit_succeeds_zero_alloc() {
         // N = 32: all 32 orders negative (-32.5 to -1.5) triggers ScratchBuffer::new(32)
         let mut out = [Complex::<f64>::ZERO; 32];
         let res = complex_bessel_j_into(z, -32.5, Scaling::Unscaled, &mut out);
-        assert!(res.is_ok(), "N=32 negative orders should succeed on stack without error");
+        assert!(
+            res.is_ok(),
+            "N=32 negative orders should succeed on stack without error"
+        );
     });
 }
 
@@ -213,7 +215,9 @@ fn check_sbo_capacity_exceeded_without_alloc_returns_invalid_input() {
         Err(BesselError::InvalidInput { .. }) => {
             // Expected: pure core cannot spill to heap, returns InvalidInput error
         }
-        other => panic!("Expected Err(BesselError::InvalidInput) when exceeding stack capacity without alloc, got: {other:?}"),
+        other => panic!(
+            "Expected Err(BesselError::InvalidInput) when exceeding stack capacity without alloc, got: {other:?}"
+        ),
     }
 }
 
@@ -226,7 +230,10 @@ fn check_sbo_capacity_exceeded_with_alloc_spills_to_heap_and_succeeds() {
     let res = complex_bessel_j_into(z, -33.5, Scaling::Unscaled, &mut out);
     let after = ALLOC_COUNT.load(Ordering::SeqCst);
 
-    assert!(res.is_ok(), "N=33 with alloc should succeed by spilling to heap");
+    assert!(
+        res.is_ok(),
+        "N=33 with alloc should succeed by spilling to heap"
+    );
     assert!(
         after > before,
         "Expected heap allocation when spilling beyond CAP=32, but no allocation detected"
@@ -248,7 +255,10 @@ fn check_allocating_apis_work_when_alloc_enabled() {
 
     assert_eq!(vec_res.len(), 10);
     assert_eq!(info.n_zeros, 0);
-    assert!(after > before, "complex_bessel_j should allocate a Vec on the heap");
+    assert!(
+        after > before,
+        "complex_bessel_j should allocate a Vec on the heap"
+    );
 }
 
 // =========================================================================

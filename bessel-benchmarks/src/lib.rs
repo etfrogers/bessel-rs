@@ -1,9 +1,11 @@
 //! Shared utilities and test point generators for Bessel benchmarks.
 #![warn(clippy::all)]
+#![allow(clippy::cast_precision_loss)]
 use num::Complex;
 
 /// Generates a grid of points (order, z) in the moderate |z| regime (Domain II)
-/// that exercise Miller's algorithm (Series Normalization) for I_v(z).
+/// that exercise Miller's algorithm (Series Normalization) for `I_v(z)`.
+#[must_use]
 pub fn miller_workload_points() -> Vec<(f64, Complex<f64>)> {
     let orders = [0.0, 0.5, 1.0, 2.0, 5.0];
     let z_values = [
@@ -34,6 +36,7 @@ pub fn miller_workload_points() -> Vec<(f64, Complex<f64>)> {
 ///
 /// $r \le 600.0$ ensures all Bessel families ($J, Y, I, K$) evaluate cleanly
 /// without floating-point overflow for unscaled $I_\nu$ ($e^{600} \approx 3.8 \times 10^{260} < 1.8 \times 10^{308}$).
+#[must_use]
 pub fn dense_r_workload_radii() -> Vec<f64> {
     let n = 1000;
     let r_min = 0.01_f64;
@@ -48,12 +51,13 @@ pub fn dense_r_workload_radii() -> Vec<f64> {
     radii
 }
 
-/// Representative (initial_order, z) test cases for sequence recurrence:
+/// Representative (`initial_order`, z) test cases for sequence recurrence:
 /// - Moderate $|z|$: Domain II (Miller recurrence & Wronskians)
 /// - Intermediate $|z|$: Domain II transition regime
 /// - Large $|z|$: Domain III (Hankel asymptotic expansions)
 ///
 /// Includes both purely real and complex arguments.
+#[must_use]
 pub fn sequence_workload_cases() -> [(f64, Complex<f64>); 4] {
     [
         (0.0, Complex::new(5.0, 0.0)),   // Real radial argument, |z| = 5.0
